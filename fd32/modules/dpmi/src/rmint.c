@@ -67,17 +67,22 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       return res;
 
     case 0x2F:
-      /* Warning: Don't know what this is... */
+      /* WARNING: PRINT/SHARE/DOS internal to be implemented... */
+      message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
       return 0;
 
     case 0x33:
       return mousebios_int(r1);
 
+    case 0x4B:
+      /* WARNING: Virtual DMA Specification not supported */
+      message("Unsupported INT 0x%x EAX: 0x%lx (VDM)\n", intnum, r1->d.eax);
+      return 0;
   }
 
-  message("Unsupported INT 0x%x\n", intnum);
+  message("Unsupported INT 0x%x\n\n", intnum);
   /* Warning!!! Perform a check on ES!!! */
-  message("\n EDI: 0x%lx    ESI: 0x%lx    EBP: 0x%lx\n",
+  message("EDI: 0x%lx    ESI: 0x%lx    EBP: 0x%lx\n",
 	  r1->d.edi, r1->d.esi, r1->d.ebp);
   message("EBX: 0x%lx    EDX: 0x%lx    ECX: 0x%lx    EAX: 0x%lx\n",
 	  r1->d.ebx, r1->d.edx, r1->d.ecx, r1->d.eax);

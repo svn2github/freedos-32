@@ -148,17 +148,18 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   pee_info = (struct pecoff_extra_info *)tables->private_info;
 
   /* Load this sections to process the symbols and reloc info */
-  image_memory_size = s[n - 1].base + s[n - 1].filesize - s[0].base;
+  image_memory_size = s[n - 1].base + s[n - 1].filesize;
   #ifdef __PECOFF_DEBUG__
   kf->log("Allocate %lx to load the PE image ...\n", image_memory_size);
   #endif
-  image_memory_start = s[0].base+image_base;
+  image_memory_start = image_base;
   
   /* Relocate if having BASERELOC */
   if(pee_info->base_reloc_size != 0)
   {
     image_memory_start = (DWORD)(kf->mem_alloc(image_memory_size));
-    reloc_offset = image_memory_start-s[0].base-image_base;
+    reloc_offset = image_memory_start-image_base;
+    image_base = image_memory_start;
     #ifdef __PECOFF_DEBUG__
     kf->log("Relocated to: %lx\n", image_memory_start);
     kf->log("Relocated offset: %lx\n", reloc_offset);
@@ -177,9 +178,8 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
     kf->message("Needed memory = %lu bytes - image memory starts = 0x%lx\n", image_memory_size, s[0].base);
     return -1;
   }
-
-  /* The new image base */
-  image_base = image_base+reloc_offset;
+  
+  /* Save the image base */
   tables->image_base = image_base;
   
   if(reloc_offset != 0)

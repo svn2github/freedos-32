@@ -70,6 +70,14 @@ int istext(struct kern_funcs *kf, int file)
 int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser)
 {
   char signature[4];
+  
+  /* Ok, the file is not ELF nor COFF... do something else... */
+  p->file_read(file, signature, 4);
+  p->file_seek(file, p->file_offset, p->seek_set);
+
+  if (memcmp(signature,"MZ", 2) == 0) {
+    return MOD_MZ;
+  }
 
   if (isCOFF(p, file, parser)) {
     return MOD_COFF;
@@ -77,17 +85,27 @@ int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser)
 
   if (isELF(p, file, parser)) {
     return MOD_ELF;
-  }    
-
-  /* Ok, the file is not ELF nor COFF... do something else... */
-  p->file_seek(file, 0, 0);
-  p->file_read(file, signature, 4);
-  p->file_seek(file, 0, 0);
-
-  if (memcmp(signature,"MZ", 2) == 0) {
-    return MOD_MZ;
   }
-
+  
+  if (1) {
+  	DWORD nt_sgn;
+  	struct dos_header hdr;
+  	
+  	p->file_seek(file, 0, 0);
+  	p->file_read(file, &hdr, sizeof(struct dos_header));
+    p->file_seek(file, hdr.e_lfanew, 0);
+    p->file_read(file, &nt_sgn, 4);
+    
+    if (nt_sgn == 0x00004550) {
+    if (isPECOFF(p, file, parser)) {
+#ifdef __MOD_DEBUG__
+      fd32_log_printf("It seems to be an NT PE\n");
+#endif
+      return 6; /* MOD_PECOFF */
+    }
+    }
+  }
+  
   if (istext(p, file)) {
     return MOD_ASCII;
   }
@@ -126,7 +144,8 @@ void process_dos_module(struct kern_funcs *p, int file,
   if (hdr.e_cblp) {
     dj_header_start -= (512L - hdr.e_cblp);
   }
-  p->file_seek(file, dj_header_start, 0);
+  p->file_offset = dj_header_start;
+  p->file_seek(file, dj_header_start, p->seek_set);
   
   if (identify_module(p, file, parser) == MOD_COFF) {
 #ifdef __MOD_DEBUG__
@@ -135,7 +154,7 @@ void process_dos_module(struct kern_funcs *p, int file,
     exec_process(p, file, parser, cmdline, args);
     return;
   }
-  p->file_seek(file, hdr.e_lfanew, 0);
+  p->file_seek(file, hdr.e_lfanew, p->seek_set);
   p->file_read(file, &nt_sgn, 4);
   
   message("The magic : %lx\n", nt_sgn);
