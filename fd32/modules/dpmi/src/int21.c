@@ -1,8 +1,35 @@
-/* TODO: We should provide some mechanism for installing new fake   
+/**************************************************************************
+ * INT 21h handler for the FreeDOS32 DPMI Driver                          *
+ * by Salvo Isaja                                                         *
+ *                                                                        *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ *                                                                        *
+ * This is "int21.c" - A wrapper to provide DOS application the standard  *
+ *                     DOS INT 21h API they need to run under FD32.       *
+ *                                                                        *
+ *                                                                        *
+ * This file is part of the FreeDOS32 DPMI Driver (the DRIVER).           *
+ *                                                                        *
+ * The DRIVER is free software; you can redistribute it and/or modify it  *
+ * under the terms of the GNU General Public License as published by the  *
+ * Free Software Foundation; either version 2 of the License, or (at your *
+ * option) any later version.                                             *
+ *                                                                        *
+ * The DRIVER is distributed in the hope that it will be useful, but      *
+ * WITHOUT ANY WARRANTY; without even the implied warranty of             *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
+ * GNU General Public License for more details.                           *
+ *                                                                        *
+ * You should have received a copy of the GNU General Public License      *
+ * along with the DRIVER; see the file GPL.txt;                           *
+ * if not, write to the Free Software Foundation, Inc.,                   *
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
+ **************************************************************************/
+
+/* TODO: We should provide some mechanism for installing new fake
          interrupt handlers (like this INT 21h handler), with the   
          possibility of recalling the old one.
 */
-
 
 #include <ll/i386/hw-data.h>
 #include <ll/i386/string.h>
@@ -95,18 +122,19 @@ static int make_sfn_path(char *Dest, const char *Source)
   /* Truncate each path component to 8.3 */
   while (*Source)
   {
+    if ((*Source == '\\') || (*Source == '/')) *(Dest++) = *(Source++);
+    while ((*Source =='\\') || (*Source == '/')) Source++; /* ignore consecutive slashes */
     /* Extract the next partial from the path (before '\' or '/' or NULL) */
     for (c = Comp; (*Source != '\\') && (*Source != '/') && *Source; *(c++) = *(Source++));
-    if (*Source) Source++;
     *c = 0;
-    /* Skip consecutive slashes */
-    if (c == Comp) continue;
-    /* Convert the path component to a valid 8.3 name */
-    if ((Res = fd32_build_fcb_name(FcbName, Comp)) < 0) return Res;
-    if ((Res = fd32_expand_fcb_name(Comp, FcbName)) < 0) return Res;
-    /* And append it to the Dest string, with trailing backslash if needed */
-    for (c = Comp; *c; *(Dest++) = *(c++));
-    if (*Source) *(Dest++) = '\\';
+    if (*Comp)
+    {
+      /* Comp is not empty, let's shrink it */
+      if ((Res = fd32_build_fcb_name(FcbName, Comp)) < 0) return Res;
+      if ((Res = fd32_expand_fcb_name(Comp, FcbName)) < 0) return Res;
+      /* And append shrunk Comp to the Dest string, without trailing backslash */
+      for (c = Comp; *c; *(Dest++) = *(c++));
+    }
   }
   /* Finally add the null terminator */
   *Dest = 0;
@@ -468,6 +496,13 @@ static inline void lfn_functions(union rmregs *r)
       dos_return(Res, r);
       return;
 
+    /* Change directory */
+    case 0x3B:
+      /* DS:DX pointer to the ASCIZ directory name */
+      Res = fd32_chdir((char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      return;
+
     /* Delete file */
     case 0x41:
       /* DS:DX pointer to the ASCIZ file name                               */
@@ -634,8 +669,6 @@ void int21_handler(union rmregs *r)
   int      Res;
   long long int llRes;
   char     SfnPath[FD32_LFNPMAX];
-  static fd32_request_t *request = NULL;
-  static void *dev_id;
 
   switch (r->h.ah)
   {
@@ -776,6 +809,16 @@ void int21_handler(union rmregs *r)
       dos_return(Res, r);
       if (Res < 0) return;
       Res = fd32_rmdir(SfnPath);
+      dos_return(Res, r);
+      return;
+
+    /* DOS 2+ - "CHDIR" - Set current directory */
+    case 0x3B:
+      /* DS:DX pointer to the ASCIZ directory name */
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_chdir(SfnPath);
       dos_return(Res, r);
       return;
 
@@ -972,14 +1015,20 @@ void int21_handler(union rmregs *r)
       /* DS:SI 64-byte buffer for ASCIZ pathname           */
       char  Drive[2] = "\0\0";
       char  Cwd[FD32_LFNPMAX];
+      char *c;
       char *Dest = (char *) (r->x.ds << 4) + r->x.si;
 
       LOG_PRINTF(("INT 21h - Getting current dir of drive %02x\n", r->h.dl));
       Drive[0] = fd32_get_default_drive();
       if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A' - 1;
       fd32_getcwd(Drive, Cwd);
+      fd32_log_printf("After getcwd:\"%s\"\n", Cwd);
       fd32_sfn_truename(Cwd, Cwd); /* Convert all component to 8.3 format */
-      strcpy(Dest, Cwd + 1); /* Skip leading backslash as required from DOS */
+      fd32_log_printf("After sfn_truename:\"%s\"\n", Cwd);
+      /* Skip drive specification and initial backslash as required from DOS */
+      for (c = Cwd; *c != '\\'; c++);
+      strcpy(Dest, c + 1);
+      fd32_log_printf("Returned CWD:\"%s\"\n", Dest);
       r->x.ax = 0x0100; /* Undocumented success return value, from RBIL */
       return;
     }
