@@ -11,8 +11,7 @@ INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-C_OPT +=  -I$(INCL) -I../include $(DEBUG) -I$(DRIVERS)/include/fd32
-ASM_OPT += -I$(INCL)
+C_OPT +=  -I../include $(DEBUG) -I$(DRIVERS)/include/fd32
 LINK_OPT = -Bstatic
 
 OBJS = cp437.o

@@ -10,8 +10,7 @@ LIB_DIR  = $(OSLIB)\lib
 
 #DEBUG = -D__MOD_DEBUG__ -D__BOOT_DEBUG__
 
-C_OPT +=  -I$(INCL) -I../include $(DEBUG)
-ASM_OPT += -I$(INCL)
+C_OPT +=  -I../include $(DEBUG)
 LINK_OPT = -Bstatic
 
 OBJS = boot.o init.o modules.o mem.o mmap.o modfs.o

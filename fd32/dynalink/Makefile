@@ -10,8 +10,7 @@ LIB_DIR  = $(OSLIB)\lib
 
 #DEBUG = -D__ELF_DEBUG__
 
-C_OPT += -I$(INCL) -I../include $(DEBUG)
-ASM_OPT += -I$(INCL)
+C_OPT += -I../include $(DEBUG)
 LINK_OPT = -Bstatic
 
 OBJS = coff.o elf.o common.o

@@ -10,8 +10,7 @@ LIB_DIR  = $(OSLIB)\lib
 
 #DEBUG = -D__DEBUG__ -D__EXC_DEBUG__ -D__EXEC_DEBUG__ -D__PROCESS_DEBUG__
 
-C_OPT += -I$(INCL) -I../include $(DEBUG)
-ASM_OPT += -I$(INCL)
+C_OPT += -I../include $(DEBUG)
 LINK_OPT = -Bstatic
 
 OBJS = call.o pmm.o run.o exch.o abort.o process.o exec.o \
