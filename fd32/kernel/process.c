@@ -119,14 +119,11 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 
   c = filename; done = 0; i = 0;
   while ((*c != 0) && (*c != ' ')) {
-    if (*c != ' ') {
-      prgname[i] = *c;
-    } else {
-      prgname[i] = 0;
-    }
+    prgname[i] = *c;
     i++;
     c++;
   }
+  prgname[i] = 0;
 
   /*Environment lenght + 2 zeros + 1 word + program name... */
   env_size = 2 + 2 + strlen(prgname);
@@ -249,7 +246,6 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     c++;
   }
   prgname[15] = 0;
-
 #if 0
   /* Seems that this is not used... */
   ksprintf(info->basename, filename);
