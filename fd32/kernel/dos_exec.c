@@ -26,7 +26,7 @@ static int my_read(int id, void *b, int len)
   fd32_read_t r;
 
   f = (struct funky_file *)id;
-  r.Size = sizeof(fd32_request_t);
+  r.Size = sizeof(fd32_read_t);
   r.DeviceId = f->file_id;
   r.Buffer = b;
   r.BufferBytes = len;
