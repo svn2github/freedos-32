@@ -1,7 +1,6 @@
 #ifndef __FD32_FSPRIV_H
 #define __FD32_FSPRIV_H
 
-#include <dr-env.h>
 #include <filesys.h>
 
 /* FD32 format of the Job File Table                                  */
