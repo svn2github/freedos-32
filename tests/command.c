@@ -39,6 +39,10 @@
 *   COPYRIGHT (C) 1997  CENTROID CORPORATION, HOWARD, PA 16841
 *
 ***/
+
+/* WARNING: This is not the original version.     */
+/* Slightly modified for FreeDOS32 by Salvo Isaja */
+
 #include <values.h>
 #include <string.h>
 #include <stdlib.h>
@@ -422,7 +426,12 @@ static void prompt_for_and_get_cmd(void)
 
   output_prompt();
   conbuf[0] = MAX_CMD_BUFLEN-1;
-  while(kbhit()) getch();
+  //-Salvo: was while(kbhit()) getch();
+  while(kbhit())
+  {
+    int c = getch();
+    printf("while(kbhit()) getch(): '%02x'\n", c);
+  }
   cgets(conbuf);
 
   strncpy(cmd_line,&(conbuf[2]),conbuf[1]);
@@ -1668,7 +1677,7 @@ static void perform_deltree(void)
 static void perform_dir(void)
   {
   int wide_column_countdown = -1;
-  double avail;
+  long long avail; //was double avail; --Salvo
   struct ffblk ff;
   unsigned attrib = FA_DIREC+FA_RDONLY+FA_ARCH+FA_SYSTEM+FA_HIDDEN, first, hour;
   struct dfree df;
@@ -1750,19 +1759,26 @@ static void perform_dir(void)
         printf("%13lu  ", ff.ff_fsize);
       else
         printf("  <DIR>        ");
-      printf("%02d-%02d-%04d ", (int)(ff.ff_fdate>>5)&0xF,   // month
-                                (int)(ff.ff_fdate)&0x1F,    // day
-                                (int)((ff.ff_fdate>>9)&0x7F)+1980); // year
+//--Salvo was:
+//      printf("%02d-%02d-%04d ", (int)(ff.ff_fdate>>5)&0xF,   // month
+//                                (int)(ff.ff_fdate)&0x1F,    // day
+//                                (int)((ff.ff_fdate>>9)&0x7F)+1980); // year
+      printf("%04d-%02d-%02d ", (int)((ff.ff_fdate>>9)&0x7F)+1980, // year
+                                (int)(ff.ff_fdate>>5)&0xF,   // month
+                                (int)(ff.ff_fdate)&0x1F);    // day
+
       hour = (int)(ff.ff_ftime>>11)&0x1F;
-      if (hour < 12)
-        ampm = 'a';
-      else
-        ampm = 'p';
-      if (hour > 12)
-        hour -= 12;
-      if (hour == 0)
-        hour = 12;
-      printf("%2d:%02d%c\n",hour,(int)(ff.ff_ftime>>5)&0x3F,ampm);
+//--Salvo was:
+//      if (hour < 12)
+//        ampm = 'a';
+//      else
+//        ampm = 'p';
+//      if (hour > 12)
+//        hour -= 12;
+//      if (hour == 0)
+//        hour = 12;
+//      printf("%2d:%02d%c\n",hour,(int)(ff.ff_ftime>>5)&0x3F,ampm);
+      printf("%02d:%02d\n",hour,(int)(ff.ff_ftime>>5)&0x3F);
       }
     else
       {
@@ -1802,16 +1818,25 @@ static void perform_dir(void)
   printf("%10lu dir(s) ", dircount);
 
   getdfree(full_filespec[0]-'A'+1, &df);
-  avail = (double)((unsigned)df.df_avail) * (double)((unsigned)df.df_bsec) * (double)((unsigned)df.df_sclus);
+  //--Salvo: was avail = (double)((unsigned)df.df_avail) * (double)((unsigned)df.df_bsec) * (double)((unsigned)df.df_sclus);
+  avail = (long long) df.df_avail * (long long) df.df_bsec * (long long) df.df_sclus;
 
+// Original code below: --Salvo
+//    puts("      2 GB or more free");
+//  else if (avail < 1000000.0)
+//    printf("%15.0lf byte(s) free\n", avail);
+//  else if (avail < 1000000000.0)
+//    printf("%15.0lf KB free\n", avail / 1000.0);
+//  else
+//    printf("%15.2lf MB free\n", avail / 1000000.0);
   if (avail == 2147155968)
-    puts("      2 GB or more free");
-  else if (avail < 1000000.0)
-    printf("%15.0lf byte(s) free\n", avail);
-  else if (avail < 1000000000.0)
-    printf("%15.0lf KB free\n", avail / 1000.0);
+    puts("      2 GiB or more free");
+  else if (avail < 1048576)
+    printf("%15lli byte(s) free\n", avail);
+  else if (avail < 1073741824)
+    printf("%15lli KiB free\n", avail / 1024);
   else
-    printf("%15.2lf MB free\n", avail / 1000000.0);
+    printf("%15lli MiB free\n", avail / 1048576);
   }
 
 static void perform_echo(void)
