@@ -14,7 +14,7 @@ LIB_DIR  = $(OSLIB)\lib
 C_OPT += -O3 -I$(FDOS)/include -I../include/fd32
 ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
-DEBUG_OPT = -D__PSMOUSE_DEBUG__
+# DEBUG_OPT = -D__PSMOUSE_DEBUG__
 
 OBJS = init.o
 

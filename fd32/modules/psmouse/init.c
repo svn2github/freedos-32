@@ -1,16 +1,18 @@
 /*
-  PS/2 Mouse Driver
-  
-  Make it as simple as it can be ...
-  
-  Hanzac Chen
-  2004 - 2005
-  
-  Ref: Bochs' keyboard code
-       Linux's psaux driver
-       ReactOS's mouse driver
-       http://www.computer-engineering.org
-*/
+ * PS/2 Mouse Driver
+ *
+ * Make it as simple as it can be ...
+ *
+ * Hanzac Chen
+ * 2004 - 2005
+ *
+ * Ref: Bochs' keyboard code
+ *      Linux's psaux driver
+ *      ReactOS's mouse driver
+ *      http://www.computer-engineering.org
+ *
+ * This is free software; see GPL.txts
+ */
 
 
 #include <dr-env.h>
@@ -137,8 +139,11 @@ static void psmouse_handler(int n)
     info.d.index = 0;
     x += info.i.xmovement;
     y -= info.i.ymovement;
-    if(visible && x >= 0 && y >= 0)
-    {
+    if (x < 0 || x >= 640 || y < 0 || y >= 200) {
+      /* Recover the original coordinates */
+      x -= info.i.xmovement;
+      y += info.i.ymovement;
+    } else if (visible) {
       if(text_x != -1 && text_y != -1)
         v[80*text_y+text_x] = save;
       /* Get the text mode new X and new Y */
