@@ -56,8 +56,8 @@ int main (int argc, char *argv[])
   event_init(&parms);
 
   /* Set the kern_CS and kern_DS for DPMI... */
-  kern_CS = get_CS();
-  kern_DS = get_DS();
+  kern_CS = get_cs();
+  kern_DS = get_ds();
 
   if (mbi == NULL) {
 	message("Error in LowLevel initialization code...\n");

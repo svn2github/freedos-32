@@ -134,7 +134,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 
   done = 0; sel = 8;
   while (sel < 256 && (!done)) {
-    GDT_read(sel, NULL, &acc, NULL);
+    gdt_read(sel, NULL, &acc, NULL);
     if (acc == 0) {
       done = 1;
     } else {
@@ -148,14 +148,14 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     mem_free((DWORD)allocated, size);
     return NULL;
   }
-  GDT_place(sel, (DWORD)info, sizeof(struct stubinfo),
+  gdt_place(sel, (DWORD)info, sizeof(struct stubinfo),
 	  0x92 | (RUN_RING << 5), 0x40);
   
   newpsp = (struct psp *)(allocated + sizeof(struct stubinfo));
   
   done = 0; psp_selector = sel;
   while (psp_selector < 256 && (!done)) {
-    GDT_read(psp_selector, NULL, &acc, NULL);
+    gdt_read(psp_selector, NULL, &acc, NULL);
     if (acc == 0) {
       done = 1;
     } else {
@@ -165,13 +165,13 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 
   if (done == 0) {
     mem_free((DWORD)allocated, size);
-    GDT_place(sel, 0, 0, 0, 0);
+    gdt_place(sel, 0, 0, 0, 0);
     return NULL;
   }
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] PSP Selector Allocated: = 0x%x\n", psp_selector);
 #endif
-  GDT_place(psp_selector, (DWORD)newpsp, sizeof(struct psp),
+  gdt_place(psp_selector, (DWORD)newpsp, sizeof(struct psp),
 	  0x92 | (RUN_RING << 5), 0x40);
 
   /* Allocate Environment Space & Selector */
@@ -183,7 +183,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 
   done = 0; env_selector = psp_selector;
   while (env_selector < 256 && (!done)) {
-    GDT_read(env_selector, NULL, &acc, NULL);
+    gdt_read(env_selector, NULL, &acc, NULL);
     if (acc == 0) {
       done = 1;
     } else {
@@ -193,14 +193,14 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 
   if (done == 0) {
     mem_free((DWORD)allocated , size);
-    GDT_place(sel, 0, 0, 0, 0);
-    GDT_place(psp_selector, 0, 0, 0, 0);
+    gdt_place(sel, 0, 0, 0, 0);
+    gdt_place(psp_selector, 0, 0, 0, 0);
     return NULL;
   }
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Environment Selector Allocated: = 0x%x\n", env_selector);
 #endif
-  GDT_place(env_selector, (DWORD)envspace, ENV_SIZE,
+  gdt_place(env_selector, (DWORD)envspace, ENV_SIZE,
 	  0x92 | (RUN_RING << 5), 0x40);
   
   ksprintf(info->magic, "go32stub, v 2.00");
@@ -215,8 +215,8 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
   m = dosmem_get(0x1010);
   info->ds_segment = (m >> 4) + 1;
 
-  info->ds_selector = get_DS();
-  info->cs_selector = get_CS();
+  info->ds_selector = get_ds();
+  info->cs_selector = get_cs();
 
   info->psp_selector = psp_selector;
 
@@ -265,12 +265,12 @@ void restore_psp(void)
 
   /* Free memory & selectors... */
   stubinfo_sel = current_psp->info_sel;
-  base = GDT_read(stubinfo_sel, NULL, NULL, NULL);
+  base = gdt_read(stubinfo_sel, NULL, NULL, NULL);
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Stubinfo Sel: 0x%x --- 0x%lx\n", stubinfo_sel, base);
 #endif
   info = (struct stubinfo *)base;
-  base1 = GDT_read(info->psp_selector, NULL, NULL, NULL);
+  base1 = gdt_read(info->psp_selector, NULL, NULL, NULL);
   if (base1 != (DWORD)current_psp) {
     error("Restore PSP: paranoia check failed...\n");
     message("Stubinfo Sel: 0x%x;    Base: 0x%lx\n",
@@ -279,9 +279,9 @@ void restore_psp(void)
 	    (DWORD)current_psp, base1);
     fd32_abort();
   }
-  GDT_place(stubinfo_sel, 0, 0, 0, 0);
-  GDT_place(info->psp_selector, 0, 0, 0, 0);
-  GDT_place(current_psp->environment_selector, 0, 0, 0, 0);
+  gdt_place(stubinfo_sel, 0, 0, 0, 0);
+  gdt_place(info->psp_selector, 0, 0, 0, 0);
+  gdt_place(current_psp->environment_selector, 0, 0, 0, 0);
   ok = dosmem_free(current_psp->DOS_mem_buff, 0x1010);
   if (ok != 1) {
     error("Restore PSP panicing while freeing DOS memory...\n");
