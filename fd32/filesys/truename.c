@@ -1,8 +1,40 @@
+/**************************************************************************
+ * FreeDOS32 File System Layer                                            *
+ * Wrappers for file system driver functions and JFT support              *
+ * by Salvo Isaja                                                         *
+ *                                                                        *
+ * Copyright (C) 2002-2003, Salvatore Isaja                               *
+ *                                                                        *
+ * This is "truename.c" - Services to work with canonicalized file names  *
+ *                        (setting and resolving current directory,       *
+ *                        SUBSTed drives and relative paths).             *
+ *                                                                        *
+ *                                                                        *
+ * This file is part of the FreeDOS32 File System Layer (the SOFTWARE).   *
+ *                                                                        *
+ * The SOFTWARE is free software; you can redistribute it and/or modify   *
+ * it under the terms of the GNU General Public License as published by   *
+ * the Free Software Foundation; either version 2 of the License, or (at  *
+ * your option) any later version.                                        *
+ *                                                                        *
+ * The SOFTWARE is distributed in the hope that it will be useful, but    *
+ * WITHOUT ANY WARRANTY; without even the implied warranty of             *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
+ * GNU General Public License for more details.                           *
+ *                                                                        *
+ * You should have received a copy of the GNU General Public License      *
+ * along with the SOFTWARE; see the file GPL.txt;                         *
+ * if not, write to the Free Software Foundation, Inc.,                   *
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
+ **************************************************************************/
+
 #include <dr-env.h>
 
 #include <filesys.h>
 #include <unicode.h>
 #include <errors.h>
+
+//#define DEBUG
 
 
 /* Current Directury Structure.                                               */
@@ -10,10 +42,12 @@
 typedef struct Cds
 {
   struct Cds *Next;
-  /* Drive can be any drive letter or any name valid as device name */
-  char        Drive[FD32_LFNPMAX];
-  /* CurDir must be truenamed, trailing '\' may or not be present */
-  char        CurDir[FD32_LFNPMAX];
+  char        Drive[FD32_LFNPMAX];  /* Any valid drive letter or device name. */
+  char        CurDir[FD32_LFNPMAX]; /* Canonicalized current directory,       */
+                                    /* without drive specification but with   */
+                                    /* initial backslash. Trailing backslash  */
+                                    /* may or not be present. Example:        */
+                                    /* "\dir1\dir2"                           */
 }
 tCds;
 
@@ -122,7 +156,7 @@ int fd32_query_subst(char *DriveAlias, char *Target)
 /* Sets the current directory of the specified logical drive for the */
 /* current process to the specified directory, that must be valid.   */
 /* Returns 0 on success, or a negative error code on failure.        */
-int fd32_chdir(char *DirName)
+int fd32_chdir(/*const */char *DirName)
 {
   int               Res;
   char              Aux[FD32_LFNPMAX];
@@ -135,6 +169,7 @@ int fd32_chdir(char *DirName)
   tCds             *D;
   tCds            **CdsList = (tCds **) fd32_get_cdslist();
 
+  fd32_log_printf("fd32_chdir(\"%s\")\n", DirName);
   /* Open the directory to check if it is a valid directory */
   if ((Res = fd32_truename(Aux, DirName, FD32_TNSUBST)) < 0) return Res;
   for (;;)
@@ -146,7 +181,7 @@ int fd32_chdir(char *DirName)
     Of.FileName = Path;
     Of.Mode     = FD32_OREAD | FD32_OEXIST | FD32_ODIR;
     Res = request(FD32_OPENFILE, &Of);
-    if (Res == 0) break;
+    if (Res == FD32_OROPEN) break;
     if (Res != FD32_ENMOUNT) return Res;
   }
   /* If we arrive here, the directory is valid */
@@ -157,9 +192,9 @@ int fd32_chdir(char *DirName)
   for (Res = 0; Aux[Res] != ':'; Drive[Res] = Aux[Res], Res++);
   Drive[Res] = 0;
 
-  #ifdef DEBUG
-  fd32_log_printf("Setting the current dir of %s to %s\n", Drive, &Aux[Res + 1]);
-  #endif
+//  #ifdef DEBUG
+  fd32_log_printf("Setting the current dir of \"%s\" to \"%s\"\n", Drive, &Aux[Res + 1]);
+//  #endif
 
   /* Search for the specified drive in the CDS list of the current process */
   for (D = *CdsList; D; D = D->Next)
@@ -214,9 +249,15 @@ int fd32_getcwd(const char *Drive, char *Dest)
     if (utf8_stricmp(C->Drive, Drive) == 0)
     {
       strcpy(Dest, C->CurDir);
+      #ifdef DEBUG
+      fd32_log_printf("Getting the current dir of \"%s\": \"%s\"\n", Drive, Dest);
+      #endif
       return 0;
     }
   strcpy(Dest, "\\");
+  #ifdef DEBUG
+  fd32_log_printf("No CDS for \"%s\", getting root\n", Drive);
+  #endif
   return 0;
 }
 
@@ -238,6 +279,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
   int     Dots;
   tSubst *S;
 
+  fd32_log_printf("Truenaming: \"%s\"\n", Source);
   /* Get the drive specification */
   for (s = Source; *Source && (*Source != ':'); *(pDrive++) = *(Source++));
   *pDrive = 0;
@@ -332,46 +374,52 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
   }
   /* Remove trailing backslash if present, add the null */
   /* terminator and copy the Aux buffer to Dest         */
-  if (*(pAux - 1) == '\\') pAux--;
+  if ((*(pAux - 1) == '\\') && (*(pAux - 2) != ':')) pAux--;
   *pAux = 0;
   strcpy(Dest, Aux);
+  fd32_log_printf("Truenamed: \"%s\"\n", Dest);
   return 0;
 }
 
 
-/* TODO: make Source const char */
-/* TODO: doesn't work on SUBSTed drives */
+/* TODO: make Source const char* (by now called functions would complain) */
+/* TODO: SUBSTed drives are always resolved, make this selectable         */
 /* TODO: There's a bug here, p is never reassigned to Partial, but I'm too lazy to think on it now... */
 int fd32_sfn_truename(char *Dest, char *Source)
 {
-  int                Res, NumSlashes = 0;
+  int                Res;
   char               Partial[FD32_LFNPMAX];
   char               Aux[FD32_LFNPMAX];
   char              *a = Aux;
+  char              *d = Dest;
   char              *p = Partial;
+  char              *n;
   fd32_fs_lfnfind_t  F;
 
+  fd32_log_printf("fd32_sfn_truename, Source=\"%s\"\n", Source);
   if ((Res = fd32_truename(Aux, Source, FD32_TNSUBST)) < 0) return Res;
+  fd32_log_printf("Aux=\"%s\"\n", Aux);
+  /* Copy drive specification */
+  for (; *a != '\\'; p++, d++, a++)
+  {
+    *d = *a;
+    *p = *a;
+  }
   while (*a)
   {
-    if (*a == '\\')
-    {
-      *p = 0;
-      NumSlashes++;
-      if (NumSlashes == 1) strcpy(Dest, Partial);
-      else
-      {
-        if ((Res = fd32_lfn_findfirst(Partial, FD32_FRNONE | FD32_FAALL, &F)) < 0) return Res;
-        if (Res < 0) return Res;
-        if ((Res = fd32_lfn_findclose(Res)) < 0) return Res;
-        strcat(Dest, F.ShortName);
-        strcat(Dest, "\\");
-      }
-    }
-    *p++ = *a++;
+    *(d++) = *a;
+    *(p++) = *(a++);
+    *d = 0;
+    if (*a == 0) break;
+    while ((*a != '\\') && *a) *(p++) = *(a++);
+    *p = 0;
+    fd32_log_printf("Searching partial=\"%s\"\n", Partial);
+    if ((Res = fd32_lfn_findfirst(Partial, FD32_FRNONE | FD32_FAALL, &F)) < 0) return Res;
+    if (Res < 0) return Res;
+    if ((Res = fd32_lfn_findclose(Res)) < 0) return Res;
+    for (n = F.ShortName; (*d = *n); d++, n++);
+    *d = 0;
+    fd32_log_printf("Dest=\"%s\"\n", Dest);
   }
-  if ((Res = fd32_lfn_findfirst(Partial, FD32_FRNONE | FD32_FAALL, &F)) < 0) return Res;
-  if ((Res = fd32_lfn_findclose(Res)) < 0) return Res;
-  strcat(Dest, F.ShortName);
   return 0;
 }

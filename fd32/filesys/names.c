@@ -1,3 +1,31 @@
+/**************************************************************************
+ * FreeDOS32 File System Layer                                            *
+ * Wrappers for file system driver functions and JFT support              *
+ * by Salvo Isaja                                                         *
+ *                                                                        *
+ * Copyright (C) 2002-2003, Salvatore Isaja                               *
+ *                                                                        *
+ * This is "names.c" - Generate short (8.3) name alias for long file      *
+ *                     names and manage FCB-format names.                 *
+ *                                                                        *
+ *                                                                        *
+ * This file is part of the FreeDOS32 File System Layer (the SOFTWARE).   *
+ *                                                                        *
+ * The SOFTWARE is free software; you can redistribute it and/or modify   *
+ * it under the terms of the GNU General Public License as published by   *
+ * the Free Software Foundation; either version 2 of the License, or (at  *
+ * your option) any later version.                                        *
+ *                                                                        *
+ * The SOFTWARE is distributed in the hope that it will be useful, but    *
+ * WITHOUT ANY WARRANTY; without even the implied warranty of             *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
+ * GNU General Public License for more details.                           *
+ *                                                                        *
+ * You should have received a copy of the GNU General Public License      *
+ * along with the SOFTWARE; see the file GPL.txt;                         *
+ * if not, write to the Free Software Foundation, Inc.,                   *
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
+ **************************************************************************/
 #include <dr-env.h>
 
 #include <filesys.h>
@@ -79,7 +107,7 @@ int fd32_gen_short_fname(char *Dest, char *Source, DWORD Flags)
   if (DotPos) if (utf8_to_oemcp(DotPos + 1, -1, &ShortName[8], 3))
                 Res |= FD32_GENSFN_WAS_INVALID;
   if (ShortName[0] == ' ') return FD32_EFORMAT;
-  if (ShortName[0] == (char) 0xE5) Dest[0] = 0x05;
+  if (ShortName[0] == 0xE5) Dest[0] = (char) 0x05;
 
   /* Return the generated short name in the specified format */
   switch (Flags & FD32_GENSFN_FORMAT_MASK)

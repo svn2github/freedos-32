@@ -1,23 +1,27 @@
 /**************************************************************************
- * FreeDOS 32 Wildcards support library                                   *
+ * FreeDOS32 File System Layer                                            *
+ * Wrappers for file system driver functions and JFT support              *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
- * This file is part of FreeDOS 32                                        *
+ * This is "wildcard.c" - To compare file names with wildcards support.   *
  *                                                                        *
- * FreeDOS 32 is free software; you can redistribute it and/or modify it  *
- * under the terms of the GNU General Public License as published by the  *
- * Free Software Foundation; either version 2 of the License, or (at your *
- * option) any later version.                                             *
  *                                                                        *
- * FreeDOS 32 is distributed in the hope that it will be useful, but      *
+ * This file is part of the FreeDOS32 File System Layer (the SOFTWARE).   *
+ *                                                                        *
+ * The SOFTWARE is free software; you can redistribute it and/or modify   *
+ * it under the terms of the GNU General Public License as published by   *
+ * the Free Software Foundation; either version 2 of the License, or (at  *
+ * your option) any later version.                                        *
+ *                                                                        *
+ * The SOFTWARE is distributed in the hope that it will be useful, but    *
  * WITHOUT ANY WARRANTY; without even the implied warranty of             *
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
  * GNU General Public License for more details.                           *
  *                                                                        *
  * You should have received a copy of the GNU General Public License      *
- * along with the FreeDOS 32 FAT Driver; see the file COPYING;            *
+ * along with the SOFTWARE; see the file GPL.txt;                         *
  * if not, write to the Free Software Foundation, Inc.,                   *
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
