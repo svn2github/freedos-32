@@ -51,7 +51,7 @@ void args_parse(int argc, char *argv[])
       i++;
       if (i < argc) {
         p = atoi(argv[i]);
-        if ((p > 0) && (p < 18000)) {
+        if ((p > 0) && (p < 50000)) {
 	  message("Setting Tick = %d\n", p);
 	  timer_period = p;
         } else {
