@@ -16,6 +16,7 @@
 
 char cons_buff[CONS_BUFF_SIZE];
 static int cons_count = 0;
+static int cons_echo = 0;    /* Console ECHO control */
 
 static fd32_request_t *keyb_request;
 static void *keyb_devid;
@@ -62,8 +63,10 @@ static int read(void *id, DWORD n, BYTE *buf)
 
   while (!done) {
     keyb_request(FD32_READ, &r);
-    /* Err... Here, the REAL console stuff should be done... */
-    if (c == '\b') {
+    if (!cons_echo) {       /* Without echo, return immediately */
+      done = 1;
+      cons_buff[cons_count++] = c;
+    } else if (c == '\b') { /* Err... Here, the REAL console stuff should be done... */
       if (cons_count > 0) {
         int x, y;
         getcursorxy(&x, &y);
@@ -72,16 +75,13 @@ static int read(void *id, DWORD n, BYTE *buf)
         }
         cons_count--;
       }
-      continue;
-    }
-    if (c == 13) {
+    } else if (c == '\r') {
       done = 1;
       /* When doing a file read from console must return a \r\n newline */
       cons_buff[cons_count++] = '\r';
       cons_buff[cons_count++] = '\n';
       cputc('\n');
-    }
-    else if (cons_count < CONS_BUFF_SIZE - 2) {
+    } else if (cons_count < CONS_BUFF_SIZE - 2) {
       cons_buff[cons_count++] = c;
       cputc(c);
     }
@@ -115,6 +115,11 @@ static int console_request(DWORD function, void *params)
       fd32_read_t *r = (fd32_read_t *) params;
       if (r->Size < sizeof(fd32_read_t)) return FD32_EFORMAT;
       return read(r->DeviceId, r->BufferBytes, r->Buffer);
+    }
+    case FD32_SETATTR:
+    {
+      /* TODO: Control the console's ECHO with FD32_SETATTR? */
+      return 0;
     }
     case FD32_GET_DEV_INFO:
     {
