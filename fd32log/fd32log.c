@@ -64,11 +64,7 @@ int main(int argc, char **argv)
         printf("Unable to map log buffer to physical memory. Aborted.\n");
         return -1;
     }
-    if (__dpmi_lock_linear_region(&mi) < 0)
-    {
-        printf("Unable to lock log buffer's linear memory. Aborted.\n");
-        return -1;
-    }
+    __dpmi_lock_linear_region(&mi);
     if ((sel = __dpmi_allocate_ldt_descriptors(1)) < 0)
     {
         printf("Unable to allocate an LDT descriptor for the log buffer. Aborted.\n");
