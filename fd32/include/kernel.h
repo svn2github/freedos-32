@@ -10,6 +10,7 @@
 struct process_info {
   char *args;
   DWORD memlimit;
+  char *name;
 };
 static inline char *args_get(struct process_info *p)
 {

@@ -140,8 +140,13 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #ifdef __DEBUG__
       fd32_log_printf("Seems to be a native application?\n");
 #endif
-      pi.args = &args[1];
+      if (args == NULL) {
+        pi.args = NULL;
+      } else {
+        pi.args = &args[1];
+      }
       pi.memlimit = base + size + LOCAL_BSS;
+      pi.name = filename;
 #ifdef __DEBUG__
       message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", pi.memlimit, base, size);
 #endif
