@@ -300,12 +300,17 @@ void restore_psp(void)
     fd32_abort();
   }
 
+#ifdef WRONG
   current_psp = current_psp->link;
   if (current_psp != NULL) {
     current_SP = current_psp->old_stack;
   } else {
     current_SP = NULL;
   }
+#else
+  current_SP = current_psp->old_stack;
+  current_psp = current_psp->link;
+#endif
 }
 
 
