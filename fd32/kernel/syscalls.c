@@ -17,6 +17,9 @@
 #include <ll/string.h>
 #include <ll/ctype.h>
 
+#include <ll/sys/ll/event.h>
+#include <ll/sys/ll/time.h>
+
 #include "kernel.h"
 #include "kmem.h"
 #include "format.h"
@@ -177,9 +180,11 @@ static struct symbol syscall_table[] = {
   { "oemcp_to_utf8",  (DWORD) oemcp_to_utf8  },
   { "utf8_to_oemcp",  (DWORD) utf8_to_oemcp  },
   { "oemcp_skipchar", (DWORD) oemcp_skipchar },
-  EMPTY_SLOT,
-  EMPTY_SLOT,
-  EMPTY_SLOT,
+  
+  { "event_post", (DWORD) (&event_post)},
+  { "event_delete", (DWORD) (&event_delete) },
+  { "ll_gettime", (DWORD) ll_gettime },
+  
   EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,

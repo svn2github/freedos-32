@@ -47,7 +47,7 @@ $(LIB_PATH)/%.a: $(OSLIB)/config.mk
 	make install -C $(OSLIB)
 
 fd32.bin : kern_subdirs $(LIB_PATH)/libhc.a $(LIB_PATH)/libhx.a
-	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o $(OBJS) --start-group -lhc -lhx --end-group -o $@
+	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o $(OBJS) --start-group -lhc -lhx -lkl --end-group -o $@
 
 kernel.src: fd32.bin
 	$(OBJDUMP) --disassemble fd32.bin > kernel.src

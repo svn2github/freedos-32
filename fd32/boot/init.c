@@ -27,7 +27,11 @@ void dos_init(void *p)
 {
   struct multiboot_info *mbp;
   DWORD membase, memsize;
- 
+
+
+  DOS_mem_init();		/* Hack!!! */
+
+
   mbp = p;
   if (mbp->flags & MB_INFO_MEMORY) {
 #ifdef __MEM_DEBUG__

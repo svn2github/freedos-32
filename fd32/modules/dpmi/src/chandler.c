@@ -54,6 +54,8 @@ void chandler(DWORD intnum, union regs r)
 {
   /* DWORD eax, ebx, ecx, edx, esi, edi, ees; */
 
+  sti();
+
   if (stop != -1) {
     stop++;
   }

@@ -12,6 +12,10 @@
 #include <ll/i386/hw-instr.h>
 #include <ll/i386/hw-func.h>
 
+#include <ll/sys/ll/ll-func.h>
+#include <ll/sys/ll/time.h>
+#include <ll/sys/ll/event.h>
+
 /* #define STATIC_DPMI */
 /* #define STATIC_BIOSDISK */
 
@@ -35,6 +39,7 @@ int main (int argc, char *argv[])
 #ifdef __BOOT_DEBUG__
   DWORD sp1, sp2;
 #endif
+  struct ll_initparms parms;
   struct multiboot_info *mbi;
   DWORD lbase = 0, hbase = 0;
   DWORD lsize = 0, hsize = 0;
@@ -45,7 +50,10 @@ int main (int argc, char *argv[])
 #endif
 
   cli();
-  mbi = l1_init();
+  parms.mode = LL_PERIODIC;
+  parms.tick = 1000;
+  mbi = ll_init();
+  event_init(&parms);
 
   /* Set the kern_CS and kern_DS for DPMI... */
   kern_CS = get_CS();
