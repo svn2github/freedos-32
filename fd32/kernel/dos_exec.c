@@ -13,7 +13,7 @@
 int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
 /* from fd32/kernel/exec.c */
 
-//#define __DEBUG__
+/* #define __DEBUG__ */
 
 struct funky_file {
   fd32_request_t *request;
@@ -120,6 +120,7 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
   p.add_dll_table = add_dll_table;
   p.seek_set = FD32_SEEKSET;
   p.seek_cur = FD32_SEEKCUR;
+  p.file_offset = 0; /* Reflect the changes in identify_module */
 
   mod_type = identify_module(&p, (int)(&f), &parser);
 #ifdef __DEBUG__

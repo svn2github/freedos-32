@@ -234,6 +234,7 @@ int wrap_exec(char *filename, char *args)
 #endif
   p.file_read = my_read;
   p.file_seek = my_seek;
+  p.file_offset = 0; /* Reflect the changes in identify_module */
   p.mem_alloc = funkymem_get;
   p.mem_alloc_region = funkymem_get_region;
   p.mem_free = funkymem_free;
