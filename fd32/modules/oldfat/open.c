@@ -122,9 +122,12 @@ int fat_syncentry(tFile *F)
   tFile *F1; /* F1 is used for other instances of F */
   int    k;
 
-  for (k = 0, F1 = &Files[k]; k < NumFiles; F1 = &Files[++k])
+  for (k = 0; k < NumFiles; k++)
+  {
+    F1 = &Files[k];
     if ((F != F1) && SAMEFILE(F1, F))
       F1->DirEntry = F->DirEntry;
+  }
   return write_direntry(F);
 }
 #endif
@@ -138,7 +141,9 @@ void fat_syncpos(tFile *F)
   tFile *F1; /* F1 is used for other instances of F */
   int    k;
 
-  for (k = 0, F1 = &Files[k]; k < NumFiles; F1 = &Files[++k])
+  for (k = 0; k < NumFiles; k++)
+  {
+    F1 = &Files[k];
     if ((F != F1) && SAMEFILE(F1, F))
       if (F1->FilePos > F->FilePos)
       {
@@ -148,6 +153,7 @@ void fat_syncpos(tFile *F)
         F1->SectorInCluster = F->SectorInCluster;
         F1->ByteInSector    = F->ByteInSector;
       }
+  }
 }
 
 
@@ -268,7 +274,9 @@ static int set_opening_mode(tFile *F, DWORD Mode)
   /* instances of the file. DOS 7 sharing behaviour is used.           */
   /* FIX ME: According to the opening flag, should generate INT 24h on */
   /*         critical error.                                           */
-  for (k = 0, F1 = &Files[k]; k < NumFiles; F1 = &Files[++k])
+  for (k = 0; k < NumFiles; k++)
+  {
+    F1 = &Files[k];
     if ((F != F1) && SAMEFILE(F1, F))
     {
       switch (F1->Mode & FD32_OACCESS)
@@ -311,6 +319,7 @@ static int set_opening_mode(tFile *F, DWORD Mode)
                          return FD32_EACCES;
       }
     } /* if ((F != F1) && SAMEFILE(F1, F)) */
+  }
   #endif /* #ifdef FATSHARE */
   return 0;
 }
@@ -325,6 +334,9 @@ static int set_opening_mode(tFile *F, DWORD Mode)
 /* Called by descend_path and fat_open.                             */
 static int open_existing(tFile *Fp, tFile *Ff, tDirEntry *D, DWORD Mode)
 {
+  Ff->V              = Fp->V;
+  Ff->References     = 1;
+  Ff->FilSig         = FAT_FILSIG;
   Ff->DirEntryOffset = Fp->TargetPos - 32;
   Ff->DirEntrySector = Fp->SectorInCluster;
   if ISROOT(Fp)
