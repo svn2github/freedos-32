@@ -126,6 +126,18 @@ static int funkymem_free(DWORD base, DWORD size)
   return mem_free(base, size);
 }
 
+void my_close(int id)
+{
+  fd32_close_t cr;
+  struct funky_file *f;
+  int res;
+  
+  f = (struct funky_file *)id;
+  cr.Size = sizeof(fd32_close_t);
+  cr.DeviceId = f->file_id;
+  res = f->request(FD32_CLOSE, &cr);
+}
+
 static int my_read(int id, void *b, int len)
 {
   struct funky_file *f;
@@ -380,7 +392,11 @@ int wrap_init(struct process_info *pi)
     fd32_log_printf("Program name: %s\t CmdLine: %s\n", prgname, file);
 #endif
     wrap_exec(prgname, file);
-
+    /* NOTE: wrap exec does not return here, but exit() returns back to
+     * the function that called the wrapper...
+     * (hint: the current_SP that is really used is in the kernel, not in
+     * the wrapper...
+     */
     return 0;
   } else {
     /* TODO: Add some blah */
