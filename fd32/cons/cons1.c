@@ -182,7 +182,7 @@ void cputc(char c)
 		    break;
 	default   : lmempokeb((LIN_ADDR)(v + 2*(x + y*80)),c);
 		    x++;
-    		    if (x > 80) {
+    		    if (x >= 80) {
 			x = 0;
 			if (y == 24) scroll();
 			else y++;
