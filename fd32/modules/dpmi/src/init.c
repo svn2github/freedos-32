@@ -37,4 +37,5 @@ void DPMI_init(char *cmdline)
   }
   IDT_place(0x21, int0x21);
   IDT_place(0x31, int0x31);
+  message("DPMI installed.\n");
 }

@@ -7,7 +7,7 @@
 #ifndef __STUBINFO_H__
 #define __STUBINFO_H__
 
-#include <devices.h>
+#include <ll/i386/hw-data.h>
 
 struct stubinfo {
   char magic[16];
@@ -46,16 +46,17 @@ struct psp {
   DWORD DOS_mem_buff;
   DWORD info_sel;
 
-  void *dta; /* Under DOS this pointer is stored in the SDA */
+  void *dta;     /* Under DOS this pointer is stored in the SDA */
+  void *CdsList; /* Under DOS this is a global array            */
 
   /* Gap */
-  BYTE gap[20];
+  BYTE gap[16];
 
   /* The following fields must start at offset 2Ch (44) */
   WORD  environment_selector;
   BYTE  reserved_3[4];
   WORD  JftSize; /* Offset 32h (50) */
-  struct jft *Jft;     /* Offset 34h (52) */
+  void *Jft;     /* Offset 34h (52) */
   BYTE  reserved_4[24];
   BYTE  int21_retf[3];
   BYTE  reserved_5[9];

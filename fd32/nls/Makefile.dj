@@ -1,0 +1,24 @@
+# FreeDOS 32 National Code-page Support
+# Makefile for DOS target using DJGPP libraries
+
+ifndef FD32
+FD32 = ..
+endif
+ifndef DRIVERS
+DRIVERS = ../../drivers
+endif
+
+CC    = gcc
+RM    = -del
+C_OPT = -Wall -O3 -I$(FD32)/include -I$(DRIVERS)/include/djgpp
+
+OBJS = cp437.o
+
+all: $(OBJS)
+
+clean:
+	$(RM) *.o
+
+%.o : %.c
+	$(REDIR) $(CC) $(C_OPT) -s -c $<
+

@@ -21,6 +21,8 @@
 #include "exec.h"
 #include "logger.h"
 
+//#define __EXEC_DEBUG__
+
 DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, int *s)
 {
   void (*fun)(void);

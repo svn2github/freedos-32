@@ -1,0 +1,146 @@
+#include <dr-env.h>
+
+#include <dr-env.h>
+#include <errors.h>
+#include <devices.h>
+#include "fspriv.h"
+
+
+/* We want to do some output even if the   */
+/* console driver does not implement it... */
+int fake_console_write(void *Buffer, int Size)
+{
+  char String[255];
+  int  n, Count;
+
+  Count = Size;
+  while (Count > 0)
+  {
+    n = 254;
+    if (n > Count) n = Count;
+    memcpy(String, Buffer, n);
+    String[n] = 0;
+    fd32_message(String);
+    Count -= n;
+    Buffer += n;
+  }
+  return Size;
+}
+
+/* The fake console request function is used for a fake console device */
+/* open with handles 0, 1, 2 when no console driver is installed.      */
+static fd32_request_t fake_console_request;
+static int fake_console_request(DWORD Function, void *Params)
+{
+  switch (Function)
+  {
+    case FD32_WRITE:
+    {
+      fd32_write_t *X = (fd32_write_t *) Params;
+      if (X->Size < sizeof(fd32_write_t)) return FD32_EFORMAT;
+      return fake_console_write(X->Buffer, X->BufferBytes);
+    }
+    case FD32_CLOSE:
+    {
+      fd32_close_t *X = (fd32_close_t *) Params;
+      if (X->Size < sizeof(fd32_close_t)) return FD32_EFORMAT;
+      return 0;
+    }
+  }
+  return FD32_EINVAL;
+}
+
+/* The dummy request function is used for fake AUX and PRN devices */
+/* that are to be open with handles 3, 4.                          */
+static fd32_request_t dummy_request;
+static int dummy_request(DWORD Function, void *Params)
+{
+  switch (Function)
+  {
+    case FD32_CLOSE:
+    {
+      fd32_close_t *X = (fd32_close_t *) Params;
+      if (X->Size < sizeof(fd32_close_t)) return FD32_EFORMAT;
+      return 0;
+    }
+  }
+  return FD32_EINVAL;
+}
+
+
+/*
+static fd32_request_t con_filter_request;
+static int con_filter_request(DWORD Function, void *Param)
+{
+  if (Function != FD32_READ) return
+  fd32_dev_file_t *console_ops = (fd32_dev_file_t *) P;
+  return console_ops->read(NULL, Buffer, 1);
+}
+int fake_console_read(void *P, void *Buffer, int Size)
+{
+}
+*/
+
+
+/* Allocates and initializes a new Job File Table.                  */
+/* Handles 0, 1, 2, 3 and 4 are reserved for stdin, stdout, stderr, */
+/* stdaux and stdprn special files respectively.                    */
+/* Thus, JftSize must be at least 5.                                */
+/* Returns a pointer to the new JFT on success, or NULL on failure. */
+void *fd32_init_jft(int JftSize)
+{
+  int            hDev;
+  tJft          *Jft;
+
+  fd32_message("Initializing JFT...\n");
+  if (JftSize < 5) return NULL;
+  if ((Jft = fd32_kmem_get(sizeof(tJft) * JftSize)) == NULL) return NULL;
+  memset(Jft, 0, sizeof(tJft) * JftSize);
+
+  /* Prepare JFT entries 0, 1 and 2 with the "con" device */
+  if ((hDev = fd32_dev_search("con")) < 0)
+  {
+    fd32_message("\"con\" device not present. Using fake cosole output only.\n");
+    Jft[0].request = fake_console_request;
+  }
+  else fd32_dev_get(hDev, &Jft[0].request, &Jft[0].DeviceId, NULL, 0);
+  /* TODO: Re-enable the blocking con read filter */
+  /*
+  else if ((Ops = fd32_dev_query(Dev, FD32_DEV_FILE)))
+  {
+    if (!(Ops->ioctl(0, FD32_SET_NONBLOCKING_IO, 0) > 0))
+    {
+      fd32_message("\"con\" device performs blocking input. Installing an input filter.\n");
+      FakeConOps      = *Ops;
+      FakeConOps.P    = Ops;
+      FakeConOps.read = fake_console_read;
+      Ops             = &FakeConOps;
+    }
+  }
+  else
+  {
+    fd32_message("\"con\" is not a character device. Using fake cosole output only.\n");
+    request = fake_console_request;
+  }
+  */
+  Jft[1] = Jft[2] = Jft[0];
+
+  /* Prepare JFT entry 3 with the "aux" device */
+  if ((hDev = fd32_dev_search("aux")) < 0)
+  {
+    fd32_message("\"aux\" device not present. Initializing handle 3 with dummy ops.\n");
+    Jft[3].request = dummy_request;
+  }
+  else fd32_dev_get(hDev, &Jft[3].request, &Jft[3].DeviceId, NULL, 0);
+
+  /* Prepare JFT entry 4 with the "prn" device */
+  if ((hDev = fd32_dev_search("prn")) < 0)
+  {
+    fd32_message("\"prn\" device not present. Initializing handle 4 with dummy ops.\n");
+    Jft[4].request = dummy_request;
+  }
+  else fd32_dev_get(hDev, &Jft[4].request, &Jft[4].DeviceId, NULL, 0);
+
+  fd32_message("JFT initialized.\n");
+  return Jft;
+}

@@ -1,0 +1,43 @@
+# FreeDOS 32 Unicode Support Library
+# Makefile for DOS target using DJGPP libraries
+
+ifndef FD32
+FD32 = ..
+endif
+ifndef DRIVERS
+DRIVERS = ../../drivers
+endif
+
+CC  = gcc
+AS  = gcc
+LD  = ld
+AR  = ar
+
+MKDIR	= md
+CP	= copy
+CAT	= @type
+RM	= -del
+
+C_OPT += -Wall -O3 -I$(FD32)/include -I$(DRIVERS)/include/djgpp
+ASM_OPT +=  -I$(INCL)
+LINK_OPT = -Bstatic
+
+OBJS =  case.o convers.o utf8.o utf16.o
+
+
+all: unicode.o
+
+clean:
+	$(RM) *.o
+
+unicode.o: $(OBJS)
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o unicode.o
+
+# Common rules
+%.o : %.c
+	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -c $<
+%.s : %.c
+	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -S $<
+%.o : %.s
+	$(CC) $(ASM_OPT) -c $<
+

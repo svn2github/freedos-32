@@ -4,16 +4,15 @@
  * This is free software; see GPL.txt
  */
  
-#include<ll/i386/hw-data.h>
-#include<ll/i386/hw-instr.h>
-#include<ll/i386/hw-func.h>
-#include<ll/i386/mem.h>
-#include<ll/i386/string.h>
-#include<ll/i386/error.h>
-#include<ll/i386/cons.h>
-
-#include "logger.h"
-
+#include <ll/i386/hw-data.h>
+#include <ll/i386/hw-instr.h>
+#include <ll/i386/hw-func.h>
+#include <ll/i386/mem.h>
+#include <ll/i386/string.h>
+#include <ll/i386/error.h>
+#include <ll/i386/cons.h>
+#include <logger.h>
+#include <kernel.h>
 #include "rmint.h"
 
 int videobios_int(union rmregs *r)

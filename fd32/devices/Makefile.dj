@@ -1,0 +1,22 @@
+# FreeDOS 32 Devices Engine
+# Makefile for DOS target using DJGPP libraries
+
+ifndef FD32
+FD32 = ..
+endif
+ifndef DRIVERS
+DRIVERS = ../../drivers
+endif
+
+CC    = gcc
+RM    = -del
+C_OPT = -Wall -O3 -I$(FD32)/include -I$(DRIVERS)/include/djgpp
+
+all: devices.o
+
+clean:
+	$(RM) *.o
+
+devices.o: devices.c
+	$(REDIR) $(CC) $(C_OPT) -s -c devices.c
+

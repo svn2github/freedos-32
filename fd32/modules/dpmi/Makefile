@@ -26,7 +26,7 @@ clean :
 	$(RM) *.o
 
 dpmi.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -o dpmi.o
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o dpmi.o
 
 # Common rules
 %.o : %.c

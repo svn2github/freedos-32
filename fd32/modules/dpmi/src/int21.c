@@ -1,33 +1,75 @@
-/* FIX ME: We should provide some mechanism for installing new fake */
-/*         interrupt handlers (like this INT 21h handler), with the */
-/*         possibility of recalling the old one.                    */
+/* TODO: We should provide some mechanism for installing new fake   
+         interrupt handlers (like this INT 21h handler), with the   
+         possibility of recalling the old one.
+*/
 
 
 #include <ll/i386/hw-data.h>
 #include <ll/i386/string.h>
-
-#include "kernel.h"
-#include "filesys.h"
-#include "dev/fs.h"
-#include "stubinfo.h"
-#include "drives.h"
-#include "logger.h"
-
+#include <kernel.h>
+#include <filesys.h>
+#include <errors.h>
+#include <stubinfo.h>
 #include "rmint.h"
 
+/* The current PSP is needed for the pointer to the DTA */
 extern struct psp *current_psp;
 
-struct par_block {
-  WORD env;
-  DWORD cmd_tail;
-  DWORD fcb1;
-  DWORD fcb2;
-  DWORD res_1;
-  DWORD res_2;
-};
-
 int use_lfn;
-static BYTE dos_return_code;
+
+/* Parameter block for the dos_exec call, see INT 21h AH=4Bh */
+typedef struct
+{
+  WORD  Env;
+  DWORD CmdTail;
+  DWORD Fcb1;
+  DWORD Fcb2;
+  DWORD Res1;
+  DWORD Res2;
+}
+tExecParams;
+/* DOS return code of the last executed program */
+static WORD DosReturnCode;
+
+
+/* Converts the passed path name to a valid path of 8.3 names,  */
+/* in the OEM code page, as required for short file name calls. */
+/* Returns 0 on success, or a negative error code on failure.   */
+/* TODO: It is currently assumed that Source is in UTF-8.
+         This is not true for DOS calls since the charset is OEM. */
+static int make_sfn_path(char *Dest, const char *Source)
+{
+  const char *s;
+  char        Comp[FD32_LFNMAX];
+  char       *pComp;
+  BYTE        FcbName[11];
+  int         Res;
+
+  /* Skip drive specification */
+  for (s = Source; *s; s++) if (*s == ':') Source = s + 1;
+  /* Truncate each path component to 8.3 */
+  while (*Source)
+  {
+    /* Extract the next partial from the path (before '\' or '/' or NULL) */
+    pComp = Comp;
+    while ((*Source != '\\') && (*Source != '/') && (*Source))
+      *(pComp++) = *(Source++);
+    if (*Source) Source++;
+    *pComp = 0;
+    /* Skip consecutive slashes */
+    if (pComp == Comp) continue;
+    /* Convert the path component to a valid 8.3 name */
+    if ((Res = fd32_build_fcb_name(FcbName, Comp)) < 0) return Res;
+    if ((Res = fd32_expand_fcb_name(Comp, FcbName)) < 0) return Res;
+    /* And append it to the Dest string, with trailing backslash */
+    for (pComp = Comp; *pComp;) *(Dest++) = *(pComp++);
+    if (*Source) *(Dest++) = '\\';
+  }
+  /* Finally add the null terminator */
+  *Dest = 0;
+  return 0;
+}
+
 
 /* Given a FD32 return code, prepare the standard DOS return status. */
 /* - on error: carry flag set, error (positive) in AX.               */
@@ -37,7 +79,9 @@ static void dos_return(int Res, union rmregs *r)
   if (Res < 0)
   {
     RMREGS_SET_CARRY;
-    r->x.ax = (WORD) (-Res);
+    /* Keeping the low 16 bits of a negative FD32 error code */
+    /* yelds a positive DOS error code.                      */
+    r->x.ax = (WORD) Res; 
     return;
   }
   RMREGS_CLEAR_CARRY;
@@ -49,11 +93,12 @@ static void dos_return(int Res, union rmregs *r)
 /* INT 21h, AH=57h.                                          */
 static inline void get_and_set_time_stamps(union rmregs *r)
 {
-  int                Res;
-  fd32_dev_fs_attr_t A;
+  int            Res;
+  fd32_fs_attr_t A;
 
   /* BX file handle */
   /* AL action      */
+  A.Size = sizeof(fd32_fs_attr_t);
   switch (r->h.al)
   {
     /* Get last modification date and time */
@@ -95,7 +140,7 @@ static inline void get_and_set_time_stamps(union rmregs *r)
       /* DX new date in DOS format                 */
       if (r->x.cx != 0x0000)
       {
-        Res = FD32_ERROR_INVALID_FUNCTION;
+        Res = FD32_EINVAL;
         goto Error;
       }
       Res = fd32_get_attributes(r->x.bx, &A);
@@ -133,12 +178,12 @@ static inline void get_and_set_time_stamps(union rmregs *r)
 
     /* Invalid actions */
     default:
-      Res = FD32_ERROR_INVALID_FUNCTION;
+      Res = FD32_EINVAL;
       goto Error;
   }
 
   Error:
-    r->x.ax = (WORD) (-Res);
+    r->x.ax = (WORD) Res;
     RMREGS_SET_CARRY;
     return;
 
@@ -152,15 +197,19 @@ static inline void get_and_set_time_stamps(union rmregs *r)
 /* INT 21h, AH=43h.                                        */
 static inline void dos_get_and_set_attributes(union rmregs *r)
 {
-  int                Handle, Res;
-  fd32_dev_fs_attr_t A;
+  int            Handle, Res;
+  fd32_fs_attr_t A;
+  char           SfnPath[FD32_LFNPMAX];
+  
   /* DS:DX pointer to the ASCIZ file name */
-  Handle = fd32_open((char *) (r->x.ds << 4) + r->x.dx,
-                     FD32_OPEN_ACCESS_READ | FD32_OPEN_EXIST_OPEN,
-                     FD32_ATTR_NONE, 0, NULL, FD32_NOLFN);
+  Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+  dos_return(Res, r);
+  if (Res < 0) return;
+  Handle = fd32_open(SfnPath, FD32_OREAD | FD32_OEXIST, FD32_ANONE, 0, NULL);
   dos_return(Handle, r);
   if (Handle < 0) return;
   /* AL contains the action */
+  A.Size = sizeof(fd32_fs_attr_t);
   switch (r->h.al)
   {
     /* Get file attributes */
@@ -208,14 +257,14 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
       goto Success;
 
     default:
-      Res = FD32_ERROR_INVALID_FUNCTION;
+      Res = FD32_EINVAL;
       goto Error;
   }
 
   Error:
-    r->x.ax = (WORD) (-Res);
+    r->x.ax = (WORD) Res;
     Res = fd32_close(Handle);
-    if (Res < 0) r->x.ax = (WORD) (-Res);
+    if (Res < 0) r->x.ax = (WORD) Res;
     RMREGS_SET_CARRY;
     return;
 
@@ -230,15 +279,16 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 /* INT 21h, AH=71h, AL=43h.                                  */
 static inline void lfn_get_and_set_attributes(union rmregs *r)
 {
-  int                Handle, Res;
-  fd32_dev_fs_attr_t A;
+  int            Handle, Res;
+  fd32_fs_attr_t A;
+
   /* DS:DX pointer to the ASCIZ file name */
-  Handle = fd32_open((char *) (r->x.ds << 4) + r->x.dx,
-                     FD32_OPEN_ACCESS_READWRITE | FD32_OPEN_EXIST_OPEN,
-                     FD32_ATTR_NONE, 0, NULL, FD32_LFN);
+  Handle = fd32_open((char *) (r->x.ds << 4) + r->x.dx, FD32_ORDWR | FD32_OEXIST,
+                     FD32_ANONE, 0, NULL);
   dos_return(Handle, r);
   if (Handle < 0) return;
   /* BL contains the action */
+  A.Size = sizeof(fd32_fs_attr_t);
   switch (r->h.bl)
   {
     /* Get file attributes */
@@ -332,13 +382,13 @@ static inline void lfn_get_and_set_attributes(union rmregs *r)
     default:
       r->x.ax = 0x7100; /* Function not supported */
       Res = fd32_close(Handle);
-      if (Res < 0) r->x.ax = (WORD) (-Res);
+      if (Res < 0) r->x.ax = (WORD) Res;
       RMREGS_SET_CARRY;
       return;
   }
 
   Error:
-    r->x.ax = (WORD) (-Res);
+    r->x.ax = (WORD) Res;
     Res = fd32_close(Handle);
     if (Res < 0) r->x.ax = (WORD) (-Res);
     RMREGS_SET_CARRY;
@@ -361,14 +411,14 @@ static inline void lfn_functions(union rmregs *r)
     /* Make directory */
     case 0x39:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = fd32_mkdir((char *) (r->x.ds << 4) + r->x.dx, FD32_LFN);
+      Res = fd32_mkdir((char *) (r->x.ds << 4) + r->x.dx);
       dos_return(Res, r);
       return;
 
     /* Remove directory */
     case 0x3A:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = fd32_rmdir((char *) (r->x.ds << 4) + r->x.dx, FD32_LFN);
+      Res = fd32_rmdir((char *) (r->x.ds << 4) + r->x.dx);
       dos_return(Res, r);
       return;
 
@@ -380,7 +430,7 @@ static inline void lfn_functions(union rmregs *r)
       /* CH    must-match attributes                                        */
       /* FIX ME: Parameter in SI is not yet used!                           */
       Res = fd32_unlink((char *) (r->x.ds << 4) + r->x.dx,
-                        (DWORD) (r->h.ch << 8) + r->h.cl, FD32_LFN);
+                        (DWORD) (r->h.ch << 8) + r->h.cl);
       dos_return(Res, r);
       return;
 
@@ -403,7 +453,7 @@ static inline void lfn_functions(union rmregs *r)
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
@@ -437,8 +487,23 @@ static inline void lfn_functions(union rmregs *r)
       /* DS:DX pointer to the ASCIZ name of the file to be renamed */
       /* ES:DI pointer to the ASCIZ new name for the file          */
       Res = fd32_rename((char *) (r->x.ds << 4) + r->x.dx,
-                        (char *) (r->x.es << 4) + r->x.di,
-                        FD32_LFN);
+                        (char *) (r->x.es << 4) + r->x.di);
+      dos_return(Res, r);
+      return;
+      
+    /* Truename */
+    case 0x60:
+      /* Only subservice 01h "Get short (8.3) filename for file" is implemented */
+      if (r->h.cl != 0x01)
+      {
+        dos_return(FD32_EINVAL, r);
+        return;
+      }
+      /* CH    SUBST expansion flag (ignored): 80h to not resolve SUBST */
+      /* DS:SI pointer to the ASCIZ long filename or path               */
+      /* ES:DI pointer to a buffer for short pathname                   */
+      Res = fd32_sfn_truename((char *) (r->x.es << 4) + r->x.di,
+                              (char *) (r->x.ds << 4) + r->x.si);
       dos_return(Res, r);
       return;
 
@@ -453,11 +518,11 @@ static inline void lfn_functions(union rmregs *r)
       /* DI    numeric alias hint               */
       Res = fd32_open((char *) (r->x.ds << 4) + r->x.si,
                       (DWORD) (r->x.dx << 16) + r->x.bx, r->x.cx,
-                      r->x.di, &Action, FD32_LFN);
+                      r->x.di, &Action);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
@@ -468,20 +533,21 @@ static inline void lfn_functions(union rmregs *r)
 
     /* Get volume informations */
     case 0xA0:
+    {
+      fd32_fs_info_t FSInfo;
       /* DS:DX pointer to the ASCIZ root directory name          */
       /* ES:DI pointer to a buffer to store the file system name */
       /* CX    size of the buffer pointed by ES:DI               */
-      /* FIX ME: This function is hard coded! Should call the    */
-      /*         file system driver instead!                     */
-      strncpy((char *) (r->x.es << 4) + r->x.di, "FAT", r->x.cx);
-      r->x.bx = (1 << 1)   /* preserve case in directory entries    */
-              | (1 << 2)   /* uses Unicode characters in file names */
-              | (1 << 14); /* supports DOS Long File Name fuctions  */
-
-      r->x.cx = FD32_MAX_LFN_LENGTH;
-      r->x.dx = FD32_MAX_LFN_PATH_LENGTH;
-      RMREGS_CLEAR_CARRY;
+      FSInfo.Size       = sizeof(fd32_fs_info_t);
+      FSInfo.FSNameSize = r->x.cx;
+      FSInfo.FSName     = (char *) (r->x.es << 4) + r->x.di;
+      Res = fd32_get_fsinfo((char *) (r->x.ds << 4) + r->x.dx, &FSInfo);
+      r->x.bx = FSInfo.Flags;
+      r->x.cx = FSInfo.NameMax;
+      r->x.dx = FSInfo.PathMax;
+      dos_return(Res, r);
       return;
+    }
 
     /* "FindClose" - Terminate directory search */
     case 0xA1:
@@ -502,9 +568,9 @@ static inline void lfn_functions(union rmregs *r)
 /* INT 21h handler for DOS file system services */
 void int21_handler(union rmregs *r)
 {
-  int    Res;
-  DWORD  dwRes;
-  SQWORD sqwRes;
+  int      Res;
+  LONGLONG llRes;
+  char     SfnPath[FD32_LFNPMAX];
 
   switch (r->h.ah)
   {
@@ -571,14 +637,20 @@ void int21_handler(union rmregs *r)
     /* DOS 2+ - "MKDIR" - Create subdirectory */
     case 0x39:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = fd32_mkdir((char *) (r->x.ds << 4) + r->x.dx, FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_mkdir(SfnPath);
       dos_return(Res, r);
       return;
 
     /* DOS 2+ - "RMDIR" - Remove subdirectory */
     case 0x3A:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = fd32_rmdir((char *) (r->x.ds << 4) + r->x.dx, FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_rmdir(SfnPath);
       dos_return(Res, r);
       return;
 
@@ -587,16 +659,17 @@ void int21_handler(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file name               */
       /* CX    attribute mask for the new file              */
       /*       (volume label and directory are not allowed) */
-      Res = fd32_open((char *) (r->x.ds << 4) + r->x.dx,
-                      FD32_OPEN_ACCESS_READWRITE | FD32_OPEN_SHARE_COMPAT |
-                      FD32_OPEN_EXIST_REPLACE | FD32_OPEN_NOTEXIST_CREATE,
-                      r->x.cx,
-                      0,    /* alias hint, not used   */
-                      NULL, /* action taken, not used */
-                      FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
       dos_return(Res, r);
       if (Res < 0) return;
-      Res = fd32_close(Res); /* CREAT does not leave the file open */
+      Res = fd32_open(SfnPath,
+                      FD32_ORDWR | FD32_OCOMPAT | FD32_OTRUNC | FD32_OCREAT,
+                      r->x.cx,
+                      0,   /* alias hint, not used   */
+                      NULL /* action taken, not used */);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_close(Res); /* CREAT does not keep the file open */
       dos_return(Res, r);
       return;
 
@@ -605,15 +678,16 @@ void int21_handler(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file name                 */
       /* AL    opening mode                                   */
       /* CL    attribute mask for to look for (?server call?) */
-      Res = fd32_open((char *) (r->x.ds << 4) + r->x.dx,
-                      FD32_OPEN_EXIST_OPEN | r->h.al, FD32_ATTR_NONE,
-                      0,    /* alias hint, not used   */
-                      NULL, /* action taken, not used */
-                      FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_open(SfnPath, FD32_OEXIST | r->h.al, FD32_ANONE,
+                      0,   /* alias hint, not used   */
+                      NULL /* action taken, not used */);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
@@ -632,15 +706,15 @@ void int21_handler(union rmregs *r)
       /* BX    file handle                    */
       /* CX    number of bytes to read        */
       /* DS:DX pointer to the transfer buffer */
-      Res = fd32_read(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx, &dwRes);
+      Res = fd32_read(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
-      r->x.ax = (WORD) dwRes; /* Return the number of bytes read in AX */
+      r->x.ax = (WORD) Res; /* Return the number of bytes read in AX */
       return;
 
     /* DOS 2+ - "WRITE" - Write to file or device */
@@ -648,15 +722,15 @@ void int21_handler(union rmregs *r)
       /* BX    file handle                    */
       /* CX    number of bytes to write       */
       /* DS:DX pointer to the transfer buffer */
-      Res = fd32_write(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx, &dwRes);
+      Res = fd32_write(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
-      r->x.ax = (WORD) dwRes; /* Return the number of bytes written in AX */
+      r->x.ax = (WORD) Res; /* Return the number of bytes written in AX */
       return;
 
     /* DOS 2+ - "UNLINK" - Delete file */
@@ -664,9 +738,10 @@ void int21_handler(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file name                  */
       /* CL    attribute mask for deletion (?server call?)     */
       /*       FIX ME: check if they are required or allowable */
-      Res = fd32_unlink((char *) (r->x.ds << 4) + r->x.dx,
-                        FD32_FIND_ALLOW_ALL | FD32_FIND_REQUIRE_NONE,
-                        FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_unlink(SfnPath, FD32_FAALL | FD32_FRNONE);
       dos_return(Res, r); /* In DOS 3.3 AL seems to be the file's drive */
       return;
 
@@ -675,18 +750,18 @@ void int21_handler(union rmregs *r)
       /* BX    file handle */
       /* CX:DX offset      */
       /* AL    origin      */
-      Res = fd32_lseek(r->x.bx, (SQWORD) (r->x.cx << 8) + r->x.dx,
-                       r->h.al, &sqwRes);
+      Res = fd32_lseek(r->x.bx, (LONGLONG) (r->x.cx << 8) + r->x.dx,
+                       r->h.al, &llRes);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
       /* Return the new position from start of file in DX:AX */
-      r->x.ax = (WORD) sqwRes;
-      r->x.dx = (WORD) (sqwRes >> 16);
+      r->x.ax = (WORD) llRes;
+      r->x.dx = (WORD) (llRes >> 16);
       return;
 
     /* DOS 2+ - Get/set file attributes */
@@ -721,7 +796,7 @@ void int21_handler(union rmregs *r)
         RMREGS_CLEAR_CARRY;
         return;
       }
-      r->x.ax = (WORD) (-FD32_ERROR_INVALID_HANDLE);
+      r->x.ax = (WORD) FD32_EBADF;
       RMREGS_SET_CARRY;
       return;
 
@@ -732,7 +807,7 @@ void int21_handler(union rmregs *r)
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
@@ -749,30 +824,30 @@ void int21_handler(union rmregs *r)
 
     /* DOS 2+ - "EXEC" - Load and/or Execute program */
     case 0x4B:
+    {
+      tExecParams *pb;
+      pb = (tExecParams *) ((r->x.es << 4) + r->x.bx);
+      /* Only AH = 0x00 - Load and Execute - is currently supported */
+      if (r->h.al != 0)
       {
-	struct par_block *pb;
-
-	pb = (struct par_block *)((r->x.es << 4) + r->x.bx);
-        /* Only AH = 0x00 - Load and Execute - is currently supported */
-        if (r->h.al != 0) {
-	  dos_return(-1, r); /* function number invalid */
-	  return;
-        }
-        Res = dos_exec((char *)((r->x.ds << 4) + r->x.dx),
-	      pb->env, pb->cmd_tail, pb->fcb1, pb->fcb2,
-	      &dos_return_code);
+        dos_return(FD32_EINVAL, r);
+        return;
       }
-      dos_return(Res, r);
-      return;
+      Res = dos_exec((char *) ((r->x.ds << 4) + r->x.dx),
+                     pb->Env, pb->CmdTail, pb->Fcb1, pb->Fcb2,
+                     &DosReturnCode);
+    }
+    dos_return(Res, r);
+    return;
 
     /* DOS 2+ - Get return code */
     case 0x4D:
-      {
-	RMREGS_CLEAR_CARRY;
-	r->h.ah = 0;	/* Only normal termination, for now...*/
-	r->h.al = dos_return_code;
-	return;
-      }
+      RMREGS_CLEAR_CARRY;
+      r->h.ah = 0; /* Only normal termination, for now...*/
+      r->h.al = DosReturnCode;
+      DosReturnCode = 0; /* DOS clears this after reading it */
+      return;
+
     /* DOS 2+ - "FINDFIRST" - Find first matching file */
     case 0x4E:
       /* AL    special flag for APPEND (ignored)                   */
@@ -791,14 +866,21 @@ void int21_handler(union rmregs *r)
 
     /* DOS 2+ - "RENAME" - Rename or move file */
     case 0x56:
+    {
+      char SfnPathNew[FD32_LFNPMAX];
       /* DS:DX pointer to the ASCIZ name of the file to be renamed */
       /* ES:DI pointer to the ASCIZ new name for the file          */
       /* CL    attribute mask for server call (ignored)            */
-      Res = fd32_rename((char *) (r->x.ds << 4) + r->x.dx,
-                        (char *) (r->x.es << 4) + r->x.di,
-                        FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = make_sfn_path(SfnPathNew, (char *) (r->x.es << 4) + r->x.di);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_rename(SfnPath, SfnPathNew);
       dos_return(Res, r);
       return;
+    }
 
     /* DOS 2+ - Get/set file's time stamps */
     case 0x57:
@@ -809,14 +891,15 @@ void int21_handler(union rmregs *r)
     case 0x5B:
       /* CX    attribute mask for the new file */
       /* DS:DX pointer to the ASCIZ file name  */
-      Res = fd32_open((char *) (r->x.ds << 4) + r->x.dx,
-                      FD32_OPEN_ACCESS_READWRITE |
-                      FD32_OPEN_SHARE_COMPAT | FD32_OPEN_NOTEXIST_CREATE,
-                      r->x.cx, 0, NULL, FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_open(SfnPath, FD32_ORDWR | FD32_OCOMPAT | FD32_OCREAT,
+                      r->x.cx, 0, NULL);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
@@ -852,13 +935,15 @@ void int21_handler(union rmregs *r)
       /*               bit 0 = open file if exists                         */
       /* DH    reserved, must be 00h                                       */
       /* DS:SI pointer to the ASCIZ file name                              */
-      Res = fd32_open((char *) (r->x.dx << 4) + r->x.si,
-                      (DWORD) (r->x.dx << 16) + r->x.bx, r->x.cx,
-                      0, &Action, FD32_NOLFN);
+      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.si);
+      dos_return(Res, r);
+      if (Res < 0) return;
+      Res = fd32_open(SfnPath, (DWORD) (r->x.dx << 16) + r->x.bx,
+                      r->x.cx, 0, &Action);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
-        r->x.ax = (WORD) (-Res);
+        r->x.ax = (WORD) Res;
         return;
       }
       RMREGS_CLEAR_CARRY;
@@ -870,10 +955,10 @@ void int21_handler(union rmregs *r)
     /* Long File Name functions */
     case 0x71:
       if (use_lfn) {
-        lfn_functions(r);
+	lfn_functions(r);
       } else {
-	r->x.ax = 0x7100;
-	RMREGS_SET_CARRY;
+        r->x.ax = 0x7100;
+        RMREGS_SET_CARRY;
       }
       return;
 
@@ -887,7 +972,7 @@ void int21_handler(union rmregs *r)
     /* Unsupported or invalid functions */
     default:
       RMREGS_SET_CARRY;
-      r->x.ax = (WORD) (-FD32_ERROR_INVALID_FUNCTION);
+      r->x.ax = (WORD) FD32_EINVAL;
       return;
   }
 }

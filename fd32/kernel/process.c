@@ -14,17 +14,18 @@
 #include <ll/i386/stdio.h>
 #include <ll/i386/error.h>
 #include <ll/i386/cons.h>
-
 #include "stubinfo.h"
-#include "jft.h"
 #include "kmem.h"
 #include "kernel.h"
-#include "devices.h"
-#include "dev/char.h"
+
+//#define __PROCESS_DEBUG__
+
+extern void *fd32_init_jft(int JftSize); /* Implemented in filesys\jft.c */
 
 WORD kern_CS, kern_DS;
 
-/* Still to check:
+/* TODO:
+   Still to check:
      minstack  OK? (used to allocate initial stack...)
 
    There probably is some error in one of the following
@@ -42,12 +43,31 @@ WORD kern_CS, kern_DS;
 extern DWORD current_SP;
 struct psp *current_psp = 0;
 
+/* Gets the Current Directiry List for the current process. */
+/* Returns the pointer to the address of the first element. */
+void **fd32_get_cdslist()
+{
+  return &current_psp->CdsList;
+}
+
+/* Gets the JFT for the current process.                          */
+/* Returns the pointer to the JFT and fills the JftSize parameter */
+/* with the number of entries of the JFT. JftSize may be NULL.    */
+void *fd32_get_jft(int *JftSize)
+{
+  if (JftSize) *JftSize = (int) current_psp->JftSize;
+  return current_psp->Jft;
+}
+
+/* Sets the JFT for the current process. */
+void fd32_set_jft(void *Jft, int JftSize)
+{
+  current_psp->Jft     = Jft;
+  current_psp->JftSize = (WORD) JftSize;
+}
+
 void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD base, DWORD end, DWORD m)
 {
-  struct jft *newjft;
-  fd32_dev_char_t *console_ops;
-  int console_type;
-
   /* Set the PSP */
   npsp->environment_selector = env_sel;
   npsp->info_sel = info_sel;
@@ -59,42 +79,16 @@ void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD b
   npsp->old_stack = current_SP;
   npsp->memlimit = base + end;
 
-  /* Allocate a JFT, and associate it to the current PSP */
-  newjft = (struct jft *)mem_get(sizeof(struct jft) * MAX_OPEN_FILES);
-  if (npsp->link == NULL) {
-    memset(newjft, 0, sizeof(struct jft) * MAX_OPEN_FILES);
-    console_ops = fd32_dev_query("con", FD32_DEV_CHAR);
-    if (console_ops == 0) {
-      message("No console driver... Task will not be able to do input!!!\n");
-    } else {
-      console_type = (console_ops->ioctl(0, FD32_SET_NONBLOCKING_IO, 0) > 0);
-      newjft[0].Ops = (fd32_dev_ops_t *) console_ops;
-      if (!console_type) {
-	extern fd32_dev_char_t fake_console;
-	int fake_console_input(void *p, DWORD len, BYTE *buffer);
-	
-	if (fake_console.read == NULL) {
-	  memcpy(&fake_console, console_ops, sizeof(fd32_dev_char_t));
-	  fake_console.P = console_ops;
-	  fake_console.read = fake_console_input;
-	  newjft[0].Ops = (fd32_dev_ops_t *) &fake_console;
-	}
-      }
-      /*
-        message("Console Type:%d\n", console_type);
-      */
-      if ((console_type & DRIVER_TYPE_WRITE) == 0) {
-	message("Limited console capabilities: using cprintf for task output!!!");
-      } else {
-	newjft[1].Ops = (fd32_dev_ops_t *) console_ops;
-	newjft[2].Ops = (fd32_dev_ops_t *) console_ops;
-      }
-    }
-  } else {
-    memcpy(newjft, npsp->link->Jft, sizeof(struct jft));
-  }
+  /* Create the Job File Table */
+  #if 0
+  /* TODO: Why!?!? Help me Luca!
+           For the moment I always create a new JFT */
+  if (npsp->link == NULL) /* Create new JFT */;
+                     else /* Copy JFT from npsp->link->Jft */
+  #else
   npsp->JftSize = MAX_OPEN_FILES;
-  npsp->Jft     = newjft;
+  npsp->Jft     = fd32_init_jft(MAX_OPEN_FILES);
+  #endif
 
   /* And now... Set the arg list!!! */
   npsp->command_line_len = strlen(args);
@@ -225,7 +219,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 
   info->psp_selector = psp_selector;
 
-  /* FIXME: There should be some error down here... */
+  /* TODO: There should be some error down here... */
   info->env_size = env_size;
 
   argname = filename; c = filename; done = 0; i = 0;
@@ -247,7 +241,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
   }
   prgname[15] = 0;
 #if 0
-  /* Seems that this is not used... */
+  /* TODO: Seems that this is not used... */
   ksprintf(info->basename, filename);
   strcpy(info->argv0, prgname);
 #else 
@@ -314,7 +308,7 @@ void restore_psp(void)
 }
 
 
-/* It's probably better to separate create_process and run_process... */
+/* TODO: It's probably better to separate create_process and run_process... */
 
 int create_process(DWORD entry, DWORD base, DWORD size, char *name)
 {

@@ -1,45 +1,55 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/error.h>
 #include <ll/stdlib.h>
-
-#include "dev/fs.h"
-#include "dev/char.h"
+#include "devices.h"
 #include "filesys.h"
 #include "format.h"
 #include "kmem.h"
-#include "drives.h"
 #include "logger.h"
+#include "exec.h"
+
+/* from fd32/boot/modules.c */
+int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
+/* from fd32/kernel/exec.c */
+DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, int *s);
+
+#define __DEBUG__
 
 struct funky_file {
-  int fd;
-  fd32_dev_fsvol_t *p;
+  fd32_request_t *request;
+  void *file_id;
 };
 
 static int my_read(int id, void *b, int len)
 {
-  int error;
-  DWORD result;
   struct funky_file *f;
+  fd32_read_t r;
 
   f = (struct funky_file *)id;
-
-  error = f->p->read(f->p->P, f->fd, b, len, &result);
-  return result;
+  r.Size = sizeof(fd32_request_t);
+  r.DeviceId = f->file_id;
+  r.Buffer = b;
+  r.BufferBytes = len;
+  return f->request(FD32_READ, &r);
 }
 
 static int my_seek(int id, int pos, int w)
 {
   int error;
-  long long int result;
   struct funky_file *f;
-
+  fd32_lseek_t ls;
+  
   f = (struct funky_file *)id;
-  error = f->p->lseek(f->p->P, f->fd, pos, w, &result);
-  return result;
+  ls.Size = sizeof(fd32_lseek_t);
+  ls.DeviceId = f->file_id;
+  ls.Offset = (LONGLONG) pos;
+  ls.Origin = (DWORD) w;
+  error = f->request(FD32_LSEEK, &ls);
+  return (int) ls.Offset;
 }
 
 int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
-	DWORD fcb1, DWORD fcb2, BYTE *return_val)
+             DWORD fcb1, DWORD fcb2, WORD *return_val)
 {
   struct kern_funcs p;
   int mod_type;
@@ -48,30 +58,46 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
   DWORD exec_base;
   int size;
   struct funky_file f;
+  void *fs_device;
+  char *pathname;
+  fd32_openfile_t of;
 
-  f.p = get_drive(filename);
-  if (f.p == NULL) {
+  /*
+  TODO: filename must be canonicalized with fd32_truename, but fd32_truename
+        resolve the current directory, that is per process.
+        Have we a valid current_psp at this point?
+        Next, truefilename shall be used instead of filename.
+  char truefilename[FD32_LFNPMAX];
+  if (fd32_truename(truefilename, filename, FD32_TNSUBST) < 0) {
+#ifdef __DEBUG__
+    fd32_log_printf("Cannot canonicalize the file name!!!\n");
+#endif
+    return -1;
+  }
+  */
+  if (fd32_get_drive(/*true*/filename, &f.request, &fs_device, &pathname) < 0) {
 #ifdef __DEBUG__
     fd32_log_printf("Cannot find the drive!!!\n");
 #endif
     return -1;
   }
 #ifdef __DEBUG__
-  fd32_log_printf("Opening %s\n", filename);
+  fd32_log_printf("Opening %s\n", /*true*/filename);
 #endif
-  f.fd = f.p->open(f.p->P, get_name_without_drive(filename),
-	  FD32_OPEN_EXIST_OPEN | FD32_OPEN_ACCESS_READ,
-	  FD32_ATTR_NONE, 0, NULL, FD32_NOLFN);
-
-  if (f.fd < 0) {
+  of.Size = sizeof(fd32_openfile_t);
+  of.DeviceId = fs_device;
+  of.FileName = pathname;
+  of.Mode = FD32_OREAD | FD32_OEXIST;
+  if (f.request(FD32_OPENFILE, &of) < 0) {
 #ifdef __DEBUG__
     fd32_log_printf("File not found!!\n");
 #endif
     return -1;
   }
+  f.file_id = of.FileId;
 
 #ifdef __DEBUG__
-  fd32_log_printf("FD = %d\n", fd);
+  fd32_log_printf("FileId = %08lx\n", (DWORD) f.file_id);
 #endif
   p.file_read = my_read;
   p.file_seek = my_seek;
@@ -81,16 +107,15 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
   p.message = message;
   p.log = fd32_log_printf;
   p.error = message;
-  p.seek_set = FD32_SEEK_SET;
-  p.seek_cur = FD32_SEEK_CUR;
+  p.seek_set = FD32_SEEKSET;
+  p.seek_cur = FD32_SEEKCUR;
 
   mod_type = identify_module(&p, (int)(&f), &parser);
 #ifdef __DEBUG__
   fd32_log_printf("Module type: %d\n", mod_type);
 #endif
   if (mod_type == 2) {
-    entry_point = load_process(&p, (int)(&f), &parser, &exec_base,
-	    &size);
+    entry_point = load_process(&p, (int)(&f), &parser, &exec_base, &size);
     if (entry_point == -1) {
 #ifdef __DEBUG__
       fd32_log_printf("Error loading %s\n", filename);

@@ -40,6 +40,8 @@ int fd32_log_printf(char *fmt, ...)
 {
   va_list parms;
   int     NumWritten;
+  int i;
+  char *buf;
 
   /* First we check if this function is called before initing the logger */
   if (!LogBufPos) return 0;
@@ -51,6 +53,13 @@ int fd32_log_printf(char *fmt, ...)
   va_start(parms,fmt);
   NumWritten = vksprintf(LogBufPos,fmt,parms);
   va_end(parms);
+  buf = LogBufPos;
+  for (i = 0; i < NumWritten; i++) {
+    if (buf[i] == '\n') {
+      outp(0xE9, '\t');
+    }
+    outp(0xE9, buf[i]);
+  }
   LogBufPos += NumWritten;
   return NumWritten;
 }

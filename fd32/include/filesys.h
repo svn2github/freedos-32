@@ -29,59 +29,13 @@
 #include <devices.h>
 
 
-/* Error codes */
-#define FD32_ERROR_INVALID_FUNCTION    -0x01
-#define FD32_ERROR_FILE_NOT_FOUND      -0x02
-#define FD32_ERROR_PATH_NOT_FOUND      -0x03
-#define FD32_ERROR_TOO_MANY_OPEN_FILES -0x04
-#define FD32_ERROR_ACCESS_DENIED       -0x05
-#define FD32_ERROR_INVALID_HANDLE      -0x06
-#define FD32_ERROR_FORMAT_INVALID      -0x0B
-#define FD32_ERROR_ACCESS_CODE_INVALID -0x0C
-#define FD32_ERROR_DATA_INVALID        -0x0D
-#define FD32_ERROR_INVALID_DRIVE       -0x0F
-#define FD32_ERROR_RMDIR_CURRENT       -0x10
-#define FD32_ERROR_NOT_SAME_DEVICE     -0x11
-#define FD32_ERROR_NO_MORE_FILES       -0x12
-#define FD32_ERROR_WRITE_PROTECTED     -0x13
-#define FD32_ERROR_UNKNOWN_UNIT        -0x14
-#define FD32_ERROR_DRIVE_NOT_READY     -0x15
-#define FD32_ERROR_CRC_ERROR           -0x17
-#define FD32_ERROR_INVALID_SEEK        -0x19
-#define FD32_ERROR_UNKNOWN_MEDIA       -0x1A
-#define FD32_ERROR_SECTOR_NOT_FOUND    -0x1B
-#define FD32_ERROR_WRITE_FAULT         -0x1D
-#define FD32_ERROR_READ_FAULT          -0x1E
-#define FD32_ERROR_GENERAL_FAILURE     -0x1F
-#define FD32_ERROR_SHARING_VIOLATION   -0x20
-#define FD32_ERROR_LOCK_VIOLATION      -0x21
-#define FD32_ERROR_INVALID_DISK_CHANGE -0x22 /* (ES:DI -> media ID structure)(see #1546) */
-#define FD32_ERROR_OUT_OF_INPUT        -0x26
-#define FD32_ERROR_DISK_FULL           -0x27
-#define FD32_ERROR_FILE_EXISTS         -0x50
-#define FD32_ERROR_CANNOT_MAKE_DIR     -0x52
-#define FD32_ERROR_FAIL_ON_INT24       -0x53
-#define FD32_ERROR_NOT_LOCKED          -0xB0
-#define FD32_ERROR_LOCKED_IN_DRIVE     -0xB1
-#define FD32_ERROR_NOT_REMOVABLE       -0xB2
-#define FD32_ERROR_LOCK_COUNT_EXCEEDED -0xB4
-#define FD32_ERROR_EJECT_FAILED        -0xB5
-
-
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 /* File and path names limits, in bytes, including the NULL terminator */
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-#define FD32_MAX_LFN_PATH_LENGTH 260
-#define FD32_MAX_LFN_LENGTH      255
-#define FD32_MAX_SFN_PATH_LENGTH 64
-#define FD32_MAX_SFN_LENGTH      14
-
-
-/* * * * * * * * * * * * * * * * * * * */
-/* Mnemonics for the UseLfn parameters */
-/* * * * * * * * * * * * * * * * * * * */
-#define FD32_NOLFN 0
-#define FD32_LFN   1
+#define FD32_LFNPMAX 260 /* Max length for a long file name path  */
+#define FD32_LFNMAX  255 /* Max length for a long file name       */
+#define FD32_SFNPMAX 64  /* Max length for a short file name path */
+#define FD32_SFNMAX  14  /* Max length for a short file name      */
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -89,52 +43,47 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /* Access codes */
-#define FD32_OPEN_ACCESS_MASK      0x0007 /* Bit mask for access type       */
-#define FD32_OPEN_ACCESS_READ      0x0000 /* Allow only reads from file     */
-#define FD32_OPEN_ACCESS_WRITE     0x0001 /* Allow only writes into file    */
-#define FD32_OPEN_ACCESS_READWRITE 0x0002 /* Allow both reads and writes    */
-#define FD32_OPEN_ACCESS_READ_NA   0x0004 /* Read only without updating the */
-                                          /* last access date               */
+#define FD32_OACCESS  0x0007    /* Bit mask for access type       */
+#define FD32_OREAD    0x0000    /* Allow only reads from file     */
+#define FD32_OWRITE   0x0001    /* Allow only writes into file    */
+#define FD32_ORDWR    0x0002    /* Allow both reads and writes    */
+#define FD32_ORDNA    0x0004    /* Read only without updating the */
+                                /* last access date               */
 /* Sharing modes and inheritance */
-#define FD32_OPEN_SHARE_MASK       0x0070 /* Bit mask for sharing type      */
-#define FD32_OPEN_SHARE_COMPAT     0x0000 /* Compatibility mode             */
-#define FD32_OPEN_SHARE_DENYALL    0x0010 /* Deny r/w by other handles      */
-#define FD32_OPEN_SHARE_DENYWRITE  0x0020 /* Deny write by other handles    */
-#define FD32_OPEN_SHARE_DENYREAD   0x0030 /* Deny read by other handles     */
-#define FD32_OPEN_SHARE_DENYNONE   0x0040 /* Allow full access by others    */
-#define FD32_OPEN_NO_INHERIT       0x0080 /* Child processes will not       */
-                                          /* inherit the file               */
+#define FD32_OSHARE   0x0070    /* Bit mask for sharing type      */
+#define FD32_OCOMPAT  0x0000    /* Compatibility mode             */
+#define FD32_ODENYRW  0x0010    /* Deny r/w by other handles      */
+#define FD32_ODENYWR  0x0020    /* Deny write by other handles    */
+#define FD32_ODENYRD  0x0030    /* Deny read by other handles     */
+#define FD32_ODENYNO  0x0040    /* Allow full access by others    */
+#define FD32_ONOINHER (1 << 7)  /* Child processes will not       */
+                                /* inherit the file               */
 /* Extended LFN open flags */
-#define FD32_OPEN_NO_BUFFERS     (1 << 8)  /* Do not use bufferized I/O      */
-#define FD32_OPEN_NO_COMPRESS    (1 << 9)  /* Do not compress files (N/A)    */
-#define FD32_OPEN_USE_ALIAS_HINT (1 << 10) /* Use the numeric hint for alias */
-#define FD32_OPEN_NO_INT24       (1 << 13) /* Do not generate INT 24 on fail */
-#define FD32_OPEN_ALWAYS_COMMIT  (1 << 14) /* Commit file at every write     */
+#define FD32_ONOBUFF  (1 << 8)  /* Do not use buffered I/O        */
+#define FD32_ONOCOMPR (1 << 9)  /* Do not compress files (N/A)    */
+#define FD32_OALIAS   (1 << 10) /* Use the numeric hint for alias */
+#define FD32_ONOINT24 (1 << 13) /* Do not generate INT 24 on fail */
+#define FD32_OCOMMIT  (1 << 14) /* Commit file at every write     */
 /* Action to take */
-#define FD32_OPEN_EXIST_OPEN      (1 << 16) /* Open existing file     */
-#define FD32_OPEN_EXIST_REPLACE   (1 << 17) /* Truncate existing file */
-#define FD32_OPEN_NOTEXIST_CREATE (1 << 20) /* Create unexisting file */
-//#define FD32_OPEN_USE_LFN       0x010000 /* Use long file names           */
-//#define FD32_OPEN_DIRECTORY     0x100000 /* Open a directory as a file    */
-
-/* Return codes for the action taken by the open system call */
-#define FD32_OPEN_RESULT_OPENED   1
-#define FD32_OPEN_RESULT_CREATED  2
-#define FD32_OPEN_RESULT_REPLACED 3
+#define FD32_OEXIST   (1 << 16) /* Open existing file             */
+#define FD32_OTRUNC   (1 << 17) /* Truncate existing file         */
+#define FD32_OCREAT   (1 << 20) /* Create unexisting file         */
+#define FD32_ODIR     (1 << 24) /* Open a directory as a file     */
+#define FD32_OFILEID  (1 << 25) /* Interpret *FileName as a fileid */
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * */
 /* CHMOD system call - Flags for file attributes */
 /* * * * * * * * * * * * * * * * * * * * * * * * */
-#define FD32_ATTR_READONLY  0x01
-#define FD32_ATTR_HIDDEN    0x02
-#define FD32_ATTR_SYSTEM    0x04
-#define FD32_ATTR_VOLUMEID  0x08
-#define FD32_ATTR_DIRECTORY 0x10
-#define FD32_ATTR_ARCHIVE   0x20
-#define FD32_ATTR_LONGNAME  0x0F /* ReadOnly + Hidden + System + VolumeId */
-#define FD32_ATTR_ALL       0x3F
-#define FD32_ATTR_NONE      0x00
+#define FD32_ARDONLY 0x01 /* Read only file                          */
+#define FD32_AHIDDEN 0x02 /* Hidden file                             */
+#define FD32_ASYSTEM 0x04 /* System file                             */
+#define FD32_AVOLID  0x08 /* Volume label                            */
+#define FD32_ADIR    0x10 /* Directory                               */
+#define FD32_AARCHIV 0x20 /* File modified since last backup         */
+#define FD32_ALNGNAM 0x0F /* Long file name directory slot (R+H+S+V) */
+#define FD32_AALL    0x3F /* Select all attributes                   */
+#define FD32_ANONE   0x00 /* Select no attributes                    */
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -142,36 +91,50 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /* Allowable attributes */
-#define FD32_FIND_ALLOWABLE_MASK  0x00FF
-#define FD32_FIND_ALLOW_READONLY  0x0001
-#define FD32_FIND_ALLOW_HIDDEN    0x0002
-#define FD32_FIND_ALLOW_SYSTEM    0x0004
-#define FD32_FIND_ALLOW_VOLUMEID  0x0008
-#define FD32_FIND_ALLOW_DIRECTORY 0x0010
-#define FD32_FIND_ALLOW_ARCHIVE   0x0020
-#define FD32_FIND_ALLOW_ALL       0x003F
-#define FD32_FIND_ALLOW_NONE      0x0000
+#define FD32_FALLOW   0x00FF /* Allowable attributes mask */
+#define FD32_FARDONLY FD32_ARDONLY
+#define FD32_FAHIDDEN FD32_AHIDDEN
+#define FD32_FASYSTEM FD32_ASYSTEM
+#define FD32_FAVOLID  FD32_AVOLID
+#define FD32_FADIR    FD32_ADIR
+#define FD32_FAARCHIV FD32_AARCHIV
+#define FD32_FAALL    FD32_AALL
+#define FD32_FANONE   FD32_ANONE
 /* Required attributes */
-#define FD32_FIND_REQUIRED_MASK     0xFF00
-#define FD32_FIND_REQUIRE_READONLY  0x0100
-#define FD32_FIND_REQUIRE_HIDDEN    0x0200
-#define FD32_FIND_REQUIRE_SYSTEM    0x0400
-#define FD32_FIND_REQUIRE_VOLUMEID  0x0800
-#define FD32_FIND_REQUIRE_DIRECTORY 0x1000
-#define FD32_FIND_REQUIRE_ARCHIVE   0x2000
-#define FD32_FIND_REQUIRE_ALL       0x3F00
-#define FD32_FIND_REQUIRE_NONE      0x0000
+#define FD32_FREQUIRD 0xFF00 /* Allowable attributes mask */
+#define FD32_FRRDONLY (FD32_ARDONLY << 8)
+#define FD32_FRHIDDEN (FD32_AHIDDEN << 8)
+#define FD32_FRSYSTEM (FD32_ASYSTEM << 8)
+#define FD32_FRVOLID  (FD32_AVOLID  << 8)
+#define FD32_FRDIR    (FD32_ADIR    << 8)
+#define FD32_FRARCHIV (FD32_AARCHIV << 8)
+#define FD32_FRALL    (FD32_AALL    << 8)
+#define FD32_FRNONE   (FD32_ANONE   << 8)
 /* Other search flags */
-#define FD32_FIND_USE_DOS_DATE    (1 << 16)
-#define FD32_FIND_ALLOW_WILDCARDS (1 << 17)
+#define FD32_FDOSDATE (1 << 16) /* Use DOS date and time format */
+#define FD32_FWILDCRD (1 << 17) /* Allow wildcards              */
 
 
-/* * * * * * * * * * * * * * * * * * * * * * */
-/* LSEEK system call - Mnemonics for origins */
-/* * * * * * * * * * * * * * * * * * * * * * */
-#define FD32_SEEK_SET 0 /* Seek from the beginning of the file */
-#define FD32_SEEK_CUR 1 /* Seek from the current file position */
-#define FD32_SEEK_END 2 /* Seek from the end of file           */
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+/* GEN_SHORT_FNAME system call - Mnemonics for flags and return values */
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+/* TODO: Pack these huge mnemonics... */
+#define FD32_GENSFN_FORMAT_MASK   (0xFF << 8)
+#define FD32_GENSFN_FORMAT_FCB    (0x00 << 8)
+#define FD32_GENSFN_FORMAT_NORMAL (0x01 << 8)
+
+#define FD32_GENSFN_CASE_CHANGED  (1 << 0)
+#define FD32_GENSFN_WAS_INVALID   (1 << 1)
+
+
+/* * * * * * * * * * * * * * * * * * * * * * * */
+/* TRUENAME system call - Mnemonics for flags  */
+/* * * * * * * * * * * * * * * * * * * * * * * */
+enum
+{
+  FD32_TNSUBST = 1 << 0, /* Resolve SUBSTed drives */
+  FD32_TNDOTS  = 1 << 1  /* Collapse dot entries   */
+};
 
 
 /* * * * * * * * * */
@@ -182,15 +145,16 @@
 /* Parameters structure for "get/set attributes" functions */
 typedef struct
 {
-  WORD Attr;  /* Standard DOS file attributes mask              */
-  WORD MDate; /* Last modification date in DOS format           */
-  WORD MTime; /* Last modification time in DOS format           */
-  WORD ADate; /* Last access date in DOS format                 */
-  WORD CDate; /* File creation date in DOS format               */
-  WORD CTime; /* File creation time in DOS format               */
-  WORD CHund; /* Hundredths of second of the file creation time */
+  DWORD Size;  /* Size in bytes of this structure                */
+  WORD  Attr;  /* Standard DOS file attributes mask              */
+  WORD  MDate; /* Last modification date in DOS format           */
+  WORD  MTime; /* Last modification time in DOS format           */
+  WORD  ADate; /* Last access date in DOS format                 */
+  WORD  CDate; /* File creation date in DOS format               */
+  WORD  CTime; /* File creation time in DOS format               */
+  WORD  CHund; /* Hundredths of second of the file creation time */
 }
-fd32_dev_fs_attr_t;
+fd32_fs_attr_t;
 
 
 /* Format of the finddata record for LFN search operations */
@@ -212,42 +176,96 @@ __attribute__ ((packed)) fd32_fs_lfnfind_t;
 /* Format of the finddata record and search status for DOS style search */
 typedef struct
 {
-  BYTE              Reserved0[17]; /* Can be used to store the status      */
-  void             *Ops;           /* File system device where to search   */
-  BYTE              Attr;          /* File attributes                      */
-  WORD              MTime;         /* Last modification time in DOS format */
-  WORD              MDate;         /* Last modification date in DOS format */
-  DWORD             Size;          /* File size in bytes                   */
-  char              Name[13];      /* ASCIZ short file name found          */
-  BYTE              Reserved1[85]; /* Can be used to store the status      */
+  /* Private fields to store the search status */
+  BYTE  SearchDrive;        /* A=1 etc., remote if bit 7 set               */
+  BYTE  SearchTemplate[11]; /* Name to find in absolute format (? allowed) */
+  BYTE  SearchAttr;         /* Search attributes                           */
+  BYTE  Reserved[8];        /* Can be used to store the directory position */
+  /* Public fields to store the search result */
+  BYTE  Attr;               /* File attributes                             */
+  WORD  MTime;              /* Last modification time in DOS format        */
+  WORD  MDate;              /* Last modification date in DOS format        */
+  DWORD Size;               /* File size in bytes                          */
+  char  Name[13];           /* ASCIZ short file name found                 */
 }
 __attribute__ ((packed)) fd32_fs_dosfind_t;
+
+
+/* Parameters structure for the "get file system informations" function */
+typedef struct
+{
+  DWORD  Size;       /* IN:  Size in bytes of this structure    */
+  DWORD  FSNameSize; /* IN:  Size in bytes of the FSName buffer */
+  char  *FSName;     /* OUT: Buffer to store the FS name        */
+  DWORD  Flags;      /* OUT: File system flags                  */
+  DWORD  NameMax;    /* OUT: Max length of a file name          */
+  DWORD  PathMax;    /* OUT: Max length of a path               */
+}
+fd32_fs_info_t;
+/* File system flags can be a combination of the following */
+enum
+{
+  FD32_FSICASESENS = 1 << 0,  /* Searches are case sensitive         */
+  FD32_FSICASEPRES = 1 << 1,  /* Preserves case in directory entries */
+  FD32_FSIUNICODE  = 1 << 2,  /* Uses Unicode in file names          */
+  FD32_FSILFN      = 1 << 14, /* Supports DOS LFN services           */
+  FD32_FSICOMPR    = 1 << 15  /* Volume is compressed                */
+};
 
 
 /* * * * * * * * * * * */
 /* Function prototypes */
 /* * * * * * * * * * * */
-int  fd32_mkdir            (char *DirName, int UseLfn);
-int  fd32_rmdir            (char *DirName, int UseLfn);
-int  fd32_open             (char *FileName, DWORD Mode, WORD Attr, WORD AliasHint, int *Result, int UseLfn);
+
+/* DIR.C - Directory management functions */
+int  fd32_mkdir            (char *DirName);
+int  fd32_rmdir            (char *DirName);
+
+/* DRIVES.C - Drives management functions */
+int  fd32_add_fs(fd32_request_t *request);
+int  fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId,
+                    char **Path);
+int  fd32_set_default_drive(char Drive);
+char fd32_get_default_drive();
+
+/* FS.C - File system functions */
+int  fd32_open             (char *FileName, DWORD Mode, WORD Attr, WORD AliasHint, int *Result);
 int  fd32_close            (int Handle);
 int  fd32_fflush           (int Handle);
-int  fd32_read             (int Handle, void *Buffer, DWORD Size, DWORD *Result);
-int  fd32_write            (int Handle, void *Buffer, DWORD Size, DWORD *Result);
-int  fd32_unlink           (char *FileName, DWORD Flags, int UseLfn);
-int  fd32_lseek            (int Handle, SQWORD Offset, int Origin, SQWORD *Result);
+int  fd32_read             (int Handle, void *Buffer, int Size);
+int  fd32_write            (int Handle, void *Buffer, int Size);
+int  fd32_unlink           (char *FileName, DWORD Flags);
+int  fd32_lseek            (int Handle, LONGLONG Offset, int Origin, LONGLONG *Result);
 int  fd32_dup              (int Handle);
 int  fd32_forcedup         (int Handle, int NewHandle);
-int  fd32_get_attributes   (int Handle, fd32_dev_fs_attr_t *A);
-int  fd32_set_attributes   (int Handle, fd32_dev_fs_attr_t *A);
+int  fd32_get_attributes   (int Handle, fd32_fs_attr_t *A);
+int  fd32_set_attributes   (int Handle, fd32_fs_attr_t *A);
+int  fd32_rename           (char *OldName, char *NewName);
+int  fd32_get_fsinfo       (char *PathName, fd32_fs_info_t *FSInfo);
+
+/* FIND.C - Find services */
 int  fd32_dos_findfirst    (char *FileSpec, BYTE Attrib, fd32_fs_dosfind_t *Dta);
 int  fd32_dos_findnext     (fd32_fs_dosfind_t *Dta);
 int  fd32_lfn_findfirst    (char *FileSpec, DWORD Flags, fd32_fs_lfnfind_t *FindData);
 int  fd32_lfn_findnext     (int Handle, DWORD Flags, fd32_fs_lfnfind_t *FindData);
 int  fd32_lfn_findclose    (int Handle);
-int  fd32_rename           (char *OldName, char *NewName, int UseLfn);
 
-int fd32_add_drive(char Drive, char *Device);
+/* NAMES.C - File name management services */
+int  fd32_gen_short_fname  (char *Dest, char *Source, DWORD Flags);
+int  fd32_build_fcb_name   (BYTE *Dest, char *Source);
+int  fd32_expand_fcb_name  (char *Dest, BYTE *Source);
+int  fd32_compare_fcb_names(BYTE *Name1, BYTE *Name2);
+
+/* TRUENAME.C - File name canonicalization, current directory and subst */
+int  fd32_create_subst     (char *DriveAlias, char *Target);
+int  fd32_terminate_subst  (char *DriveAlias);
+int  fd32_query_subst      (char *DriveAlias, char *Target);
+int  fd32_chdir            (char *DirName);
+int  fd32_truename         (char *Dest, char *Source, DWORD Flags);
+int  fd32_sfn_truename     (char *Dest, char *Source);
+
+/* WILDCARD.C - Compare file name with wildcards support */
+int  utf8_fnameicmp        (char *s1, char *s2);
 
 #endif /* ifndef __FD32_FILESYS_H */
 
