@@ -94,6 +94,9 @@ static void handle_ack(void)
   }
 }
 
+/*
+ * Function mostly handle the LEDs
+ */
 int preprocess(BYTE code)
 {
   switch(code) {
@@ -117,29 +120,17 @@ int preprocess(BYTE code)
       break;
     case MK_CAPS:
       flags[0] |= CAPS_FLAG;
-      if (flags[0] & LED_CAPS) {
-        flags[0] &= ~LED_CAPS;
-      } else {
-        flags[0] |= LED_CAPS;
-      }
+      flags[0] ^= LED_CAPS;
       set_leds();
       break;
     case MK_NUMLK:
       flags[0] |= NUMLK_FLAG;
-      if (flags[0] & LED_NUMLK) {
-        flags[0] &= ~LED_NUMLK;
-      } else {
-        flags[0] |= LED_NUMLK;
-      }
+      flags[0] ^= LED_NUMLK;
       set_leds();
       break;
     case MK_SCRLK:
       flags[0] |= SCRLK_FLAG;
-      if (flags[0] & LED_SCRLK) {
-        flags[0] &= ~LED_SCRLK;
-      } else {
-        flags[0] |= LED_SCRLK;
-      }
+      flags[0] ^= LED_SCRLK;
       set_leds();
       break;
     case MK_SYSRQ:
@@ -208,12 +199,9 @@ void postprocess(void)
           flags[0] &= ~(RALT_FLAG|ALT_FLAG);
           break;
     
-        /* Extended KEY */
-        case BREAK|MK_INSERT:
-          flags[0] &= ~INSERT_FLAG;
-          break;
+        /* Extended KEY, manage the instert status */
         case MK_INSERT:
-          flags[0] |= INSERT_FLAG;
+          flags[0] ^= INSERT_FLAG;
           done = 0;
           break;
         default:
