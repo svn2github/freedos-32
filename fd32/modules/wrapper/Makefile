@@ -17,13 +17,13 @@ OBJS = wrap.o private_funcs.o run.o
 
 VPATH = src
 
-all: wrapper.o
+all: wrapper.com
 
 clean :
-	$(RM) *.o
+	$(RM) *.o wrapper.com
 
-wrapper.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -s -o wrapper.o
+wrapper.com: $(OBJS)
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o wrapper.com
 
 # Common rules
 %.o : %.c
