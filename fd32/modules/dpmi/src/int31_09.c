@@ -17,8 +17,6 @@
 
 void int31_0900(union regs *r)
 {
-  BYTE intnum;
-
 #ifdef __DEBUG__
   fd32_log_printf("[DPMI] Interrupts disable\n");
 #endif
@@ -30,8 +28,6 @@ void int31_0900(union regs *r)
 }
 void int31_0901(union regs *r)
 {
-  BYTE intnum;
-
 #ifdef __DEBUG__
   fd32_log_printf("[DPMI] Interrupts enable\n");
 #endif

@@ -56,12 +56,6 @@ extern struct psp *current_psp;
 int use_lfn;
 
 
-/* For direct character input INT 21h service */
-/* TODO: This is only a temporary patch, replace with the correct solution */
-void *kbddev_id = NULL;
-fd32_request_t *kbdreq = NULL;
-
-
 /* Parameter block for the dos_exec call, see INT 21h AH=4Bh */
 typedef struct
 {
@@ -690,40 +684,15 @@ void int21_handler(union rmregs *r)
   {
     /* DOS 1+ - Direct character input, without echo */
     case 0x07:
-    {
       /* Perform 1-byte read from the stdin, file handle 0. */
       /* This call doesn't check for Ctrl-C or Ctrl-Break.  */
-      BYTE Ch;
-
-#if 1
-      fd32_read_t R;
-      /* TODO: Console input is not redirectable with the current approach */
-      /* Set up support for direct character input via keyboard */
-      if (kbdreq == NULL)
-      {
-        if ((Res = fd32_dev_search("kbd")) < 0)
-        {
-          LOG_PRINTF(("Unable to find the keyboard device. Direct character input disabled\n"));
-          return;
-        }
-        fd32_dev_get(Res, &kbdreq, &kbddev_id, NULL, 0);
-      }
-      R.Size        = sizeof(fd32_read_t);
-      R.DeviceId    = kbddev_id;
-      R.Buffer      = &Ch;
-      R.BufferBytes = 1;
-      Res = kbdreq(FD32_READ, &R);
-#else
-      Res = fd32_read(0, &Ch, 1);
-#endif
-      if (Res >= 0) {
-        r->h.al = Ch;
-      } /* Return the character in AL */
-        /* TODO: from RBIL:
+      #define STDIN 0
+      Res = fd32_read(STDIN, &(r->h.al), 1);
+      /* Return the character in AL */
+      /* TODO: from RBIL:
          if the interim console flag is set (see AX=6301h), partially-formed
          double-byte characters may be returned */
       return;
-    }
 
     /* DOS 1+ - Set default drive */
     case 0x0E:
