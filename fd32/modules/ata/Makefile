@@ -1,9 +1,9 @@
 .PHONY: fd32
-all: fd32 djgpp
+all: fd32 #djgpp
 
 clean :
 	$(MAKE) -C fd32 clean
-	$(MAKE) -C djgpp clean
+#	$(MAKE) -C djgpp clean
 	$(RM) *.o
 	$(RM) *.exe
 
