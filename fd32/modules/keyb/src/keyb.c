@@ -102,6 +102,7 @@ int preprocess(BYTE code)
       case LALT:
 	flags &= ~ALT_FLAG;
       default:
+	break;
     }
     return 1;
   }
@@ -158,16 +159,17 @@ void postprocess(void)
     /* Decode it... And put it in the keyboard queue */
 #if 1
     /*
-message("Scancode %d\n", code);
+    message("Scancode %d\n", code);
     */
+    decoded = code;
     if (keyb_mode != KEYB_RAW) {
       decoded = decode(code, flags, leds);
       if (decoded == 0) {
-	fd32_message("Strange key: %d (0x%x)\n", code, code);
+        fd32_message("Strange key: %d (0x%x)\n", code, code);
       } else {
-	/*
-	message("  %c ", code);
-	*/
+        /*
+        message("  %c ", code);
+        */
       }
     }
     keyqueue_put(decoded);

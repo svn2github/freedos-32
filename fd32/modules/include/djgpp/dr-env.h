@@ -1,10 +1,11 @@
-#ifndef __FD32_DRENV_H
-#define __FD32_DRENV_H
+#ifndef __FD32_DJGPP_DRENV_H
+#define __FD32_DJGPP_DRENV_H
 
 #include <hw-data.h>
 #include <dr-env/bios.h>
 #include <dr-env/mem.h>
 #include <dr-env/datetime.h>
+#include <dr-env/events.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,8 +31,25 @@
 #define fd32_kmem_get_region(a, b) unimplemented()
 #define fd32_kmem_free(m, size)    free(m)
 
+typedef void Fd32IntHandler(void);
+#define FD32_INT_HANDLER(name)     void name(void)
 #define fd32_cli()                 __asm__ __volatile__("cli")
 #define fd32_sti()                 __asm__ __volatile__("sti")
+#define fd32_master_eoi()          outportb(0x20, 0x20)
+extern inline void fd32_irq_bind(unsigned irq, Fd32IntHandler *handler)
+{
+    unsigned           irq_state;
+    _go32_dpmi_seginfo si;
+
+    if (irq < 8) irq += _go32_info_block.master_interrupt_controller_base;
+            else irq += _go32_info_block.slave_interrupt_controller_base - 8;
+    irq_state = __dpmi_get_and_disable_virtual_interrupt_state();
+    si.pm_offset   = (unsigned long) handler;
+    si.pm_selector = _go32_my_cs();
+    _go32_dpmi_allocate_iret_wrapper(&si);
+    _go32_dpmi_set_protected_mode_interrupt_vector(irq, &si);
+    __dpmi_get_and_set_virtual_interrupt_state(irq_state);
+}
 
 
 /* Why do we need this? --Salvo */
@@ -43,19 +61,5 @@ extern inline void drv_init(void)
 }
 
 
-/* This works only for the master PIC --Salvo */
-extern inline int fd32_set_handler(int irq, void *handler)
-{
-  __dpmi_paddr handler_address;
-  __dpmi_version_ret version;
-
-  handler_address.selector = _my_cs();
-  handler_address.offset32 = (DWORD)handler;
-  __dpmi_get_version(&version);
-
-  return __dpmi_set_protected_mode_interrupt_vector(version.master_pic + irq, &handler_address);
-}
-
-
-#endif /* #ifndef __FD32_DRENV_H */
+#endif /* #ifndef __FD32_DJGPP_DRENV_H */
 

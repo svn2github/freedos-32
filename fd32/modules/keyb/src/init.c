@@ -13,7 +13,8 @@ void postprocess(void);
 BYTE keyb_get_data(void);
 int fd32_register(int h, void *f, int type);
 
-void keyb_handler(int n)
+
+FD32_INT_HANDLER(keyb_handler, n)
 {
   BYTE code;
 
@@ -28,6 +29,7 @@ void keyb_handler(int n)
     fd32_sti();           /* Reenable interrupts... */
     postprocess();
   }
+  fd32_master_eoi();
 }
 
 static int read(void *id, DWORD n, BYTE *buf)
@@ -78,13 +80,7 @@ static int keyb_request(DWORD function, void *params)
 void keyb_init(void)
 {
   fd32_message("Setting Keyboard handler\n");
-#if 0
-  x_irq_bind(1, keyb_handler);
-  irq_unmask(1);
-#else
-  fd32_set_handler(1, keyb_handler);
-#endif
-
+  fd32_irq_bind(1, keyb_handler);
   fd32_message("Installing new call keyb_read...\n");
   if (add_call("_keyb_read", (DWORD)read, ADD) == -1) {
     fd32_error("Failed to install a new kernel call!!!\n");
