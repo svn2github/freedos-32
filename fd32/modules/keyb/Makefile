@@ -1,13 +1,8 @@
-# Standard library for X/COFF applications
-# Makefile for GNU MAKE & GCC 2.8.0
-
 ifndef FD32
 FD32 = ../../fd32
 endif
 
-BASE = $(FD32)/oslib
-
-include $(BASE)/config.mk
+include $(FD32)/config.mk
 
 all: fd32 djgpp
 

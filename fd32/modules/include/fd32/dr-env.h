@@ -90,7 +90,7 @@ extern inline int fd32_set_handler(int intnum, void *handler)
   return 1;
 }
 #else
-#define fd32_set_handler(n, h) x_irq_bind(n, h); irq_unmask(n);
+#define fd32_set_handler(n, h) l1_irq_bind(n, h); irq_unmask(n);
 #endif
 
 #endif /* #ifndef __FD32_DRENV_H */

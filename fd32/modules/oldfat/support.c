@@ -78,7 +78,7 @@ void fat_timestamps(WORD *Time, WORD *Date, BYTE *Hund)
 /* On success, returns 0 and, if Result is not NULL, fills Result  */
 /* with the new absolute target position.                          */
 /* This is a public driver function.                               */
-int fat_lseek(tFile *F, LONGLONG *Offset, int Origin)
+int fat_lseek(tFile *F, long long int *Offset, int Origin)
 {
   switch (Origin)
   {

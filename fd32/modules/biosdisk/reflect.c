@@ -7,6 +7,7 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/hw-func.h>
 #include <ll/i386/x-bios.h>
+#include <ll/i386/pic.h>
 #include <ll/i386/error.h>
 #include <../drivers/dpmi/include/dpmi.h>
 
@@ -15,18 +16,16 @@ extern DWORD rm_irq_table[256];
 /* This is implemented in oslib\xlib\ctx.s */
 extern CONTEXT /*__cdecl*/ context_save(void);
 
-void fd32_int_handler(union regs r, DWORD intnum)
+void biosdisk_reflect(DWORD intnum, union regs r)
 {
   WORD ctx;
   TSS *vm86_tss;
   DWORD *bos;
-  DWORD *tos;
   DWORD isr_cs, isr_eip;
   WORD *old_esp;
   DWORD ef;
   DWORD rmint;
 
-  tos = (DWORD *) &r;
   vm86_tss = (TSS *)vm86_get_tss();
   bos = (DWORD *)vm86_tss->esp0;
 
@@ -35,7 +34,11 @@ void fd32_int_handler(union regs r, DWORD intnum)
 #endif  
   ctx = context_save();
 
+#if 0
   if (ctx == X_VM86_TSS) {
+#else	/* Does this fix the bochs problem ? */
+  {
+#endif
 #ifdef __REFLECT_DEBUG__
     fd32_log_printf("To be reflected in VM86 mode...");
 #endif
@@ -50,10 +53,10 @@ void fd32_int_handler(union regs r, DWORD intnum)
       return;
     }
     
-    if ((intnum >= 0x50) && (intnum < 0x58)) {
-      rmint = intnum - 0x50 + 8;
+    if ((intnum >= PIC1_BASE) && (intnum < PIC1_BASE + 8)) {
+      rmint = intnum - PIC1_BASE + 8;
     } else {
-      if ((intnum < 0x70) || (intnum > 0x77)) {
+      if ((intnum < PIC2_BASE) || (intnum > PIC2_BASE + 8)) {
 	/* Error!!! Should we panic? */
 	return;
       }

@@ -478,7 +478,6 @@ int fat_mediachange(tVolume *V)
 }
 #endif
 
-
 /* Partition types supported by the FAT driver */
 static const struct { BYTE Id; char *Name; } PartitionTypes[] =
 {

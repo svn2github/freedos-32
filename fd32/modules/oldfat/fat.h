@@ -238,8 +238,8 @@ typedef struct
   DWORD      FilSig;         /* Must be FAT_FILSIG for a valid file    */
 
   /* The following fields refer to the byte position into the file */
-  LONGLONG   TargetPos;       /* The target position for an I/O         */
-  LONGLONG   FilePos;         /* The current position into the file     */
+  long long int TargetPos;       /* The target position for an I/O         */
+  long long int FilePos;         /* The current position into the file     */
   DWORD      PrevCluster;     /* The cluster we were before the current */
   DWORD      Cluster;         /* The current cluster                    */
   DWORD      SectorInCluster; /* The sector in the current cluster      */
@@ -385,7 +385,7 @@ int    fat_close    (tFile *F);
 /* SUPPORT.C - Small support procedures */
 DWORD fat_first_sector_of_cluster(DWORD N, tVolume *V);
 void  fat_timestamps(WORD *Time, WORD *Date, BYTE *Hund);
-int   fat_lseek(tFile *F, LONGLONG *Offset, int Origin);
+int   fat_lseek(tFile *F, long long int *Offset, int Origin);
 int   fat_get_fsinfo(fd32_fs_info_t *Fsi);
 int   fat_get_fsfree(fd32_getfsfree_t *F);
 

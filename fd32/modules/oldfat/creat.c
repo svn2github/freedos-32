@@ -409,7 +409,7 @@ int fat_unlink(tVolume *V, char *FileName, DWORD Flags)
   char      Path[FD32_LFNPMAX];
   char      Name[FD32_LFNMAX];
   int       NoneDeleted = 1; /* Check if something has been deleted   */
-  LONGLONG  SaveDirPos;      /* Save the dir position while searching */
+  long long int SaveDirPos;      /* Save the dir position while searching */
 /*
   TODO: This will go in the INT 21h handler.
   unsigned char AllowableAttributes = FD32_ATTR_READONLY | FD32_ATTR_ARCHIVE |

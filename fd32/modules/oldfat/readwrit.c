@@ -197,7 +197,7 @@ static int end_of_file(tFile *F)
   if ISROOT(F)
   {
     /* Case 1: the end of a FAT12/FAT16 root directory */
-    if (F->FilePos == (LONGLONG) F->V->Bpb.BPB_RootEntCnt * 32) return 1;
+    if (F->FilePos == (long long int) F->V->Bpb.BPB_RootEntCnt * 32) return 1;
   }
   else
   {

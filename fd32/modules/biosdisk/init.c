@@ -33,14 +33,10 @@
 #include <ll/i386/error.h>
 #include "biosdisk.h"
 
+extern void biosdisk_reflect(DWORD intnum, union regs r);
 
 void biosdisk_init(void)
 {
-  extern void int0x15(void); /* Cassette... why? */
-  extern void int0x56(void); /* IRQ6 relocated by software - Floppy */
-  extern void int0x76(void); /* IRQ14 - Primary IDE controller      */
-  extern void int0x77(void); /* IRQ15 - Secondary IDE controller    */
-
   message("Initing BIOSDisk...\n");
 
   irq_unmask(14);
@@ -49,11 +45,10 @@ void biosdisk_init(void)
 
   vm86_init();
 
-  IDT_place(0x56, int0x56);
-  IDT_place(0x15, int0x15);
-
-  IDT_place(0x76, int0x76);
-  IDT_place(0x77, int0x77);
+  l1_irq_bind(6, biosdisk_reflect);
+  l1_int_bind(0x15, biosdisk_reflect);
+  l1_irq_bind(15, biosdisk_reflect);
+  l1_irq_bind(14, biosdisk_reflect);
 
   biosdisk_detect();
   message("BIOSDisk initialized.\n");
