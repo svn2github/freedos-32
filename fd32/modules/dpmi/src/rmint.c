@@ -78,6 +78,11 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
         case 0x1680:
           res = dosidle_int(r1); /* TODO: support multitasking here? */
           break;
+        /* Windows95 - TITLE - SET / GET APPLICATION / VIRTUAL MACHINE TITLE */
+        case 0x168E:
+          message("Unsupported INT 0x%x EAX: 0x%lx EDX: 0x%lx\n", intnum, r1->d.eax, r1->d.edx);
+          r1->x.ax = 0;
+          break;
         /* OS/2 v2.0+ - INSTALLATION CHECK / GET VERSION */
         case 0x4010:
           message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);

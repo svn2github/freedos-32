@@ -149,6 +149,13 @@ int mousebios_int(union rmregs *r)
             res = 0;
         }
         break;
+      /* MS MOUSE v6.0+ - RETURN DRIVER STORAGE REQUIREMENTS */
+      case 0x15:
+#ifdef __INT33_DEBUG__
+        LOG_PRINTF("RETURN DRIVER STORAGE REQUIREMENTS NOT USED, SIZE SET TO ZERO\n");
+#endif
+        r->x.bx = 0;
+        break;
       case 0x21:
 #ifdef __INT33_DEBUG__
         LOG_PRINTF("Software reset mouse driver\n");
