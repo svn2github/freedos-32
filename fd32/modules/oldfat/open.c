@@ -575,7 +575,7 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
     }
     /* Otherwise create the file */
     #ifdef FATWRITE
-     if ((Ff = take_file()) == NULL) return FD32_EMFILE;
+     if ((Ff = take_file()) == NULL) { Fp->References = 0; return FD32_EMFILE; }
      if (!(Mode & FD32_OALIAS)) AliasHint = 1;
      Res = fat_creat(Fp, Ff, Name, Attr, AliasHint);
      Fp->References = 0;
@@ -596,9 +596,9 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
   }
 
   /* If we arrive here, the file already exists */
-  if ((!(Mode & FD32_OEXIST)) && (!(Mode & FD32_OTRUNC))) return FD32_EACCES;
+  if ((!(Mode & FD32_OEXIST)) && (!(Mode & FD32_OTRUNC))) { Fp->References = 0; return FD32_EACCES; }
   /* Allocate a file descriptor for the file and open it */
-  if ((Ff = take_file()) == NULL) return FD32_EMFILE;
+  if ((Ff = take_file()) == NULL) { Fp->References = 0; return FD32_EMFILE; }
   Res = open_existing(Fp, Ff, &D.SfnEntry, Mode);
   Fp->References = 0;
   if (Res < 0) { Ff->References = 0; return Res; }
