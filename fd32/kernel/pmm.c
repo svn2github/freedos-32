@@ -113,9 +113,13 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
 	p->size -= size;
 	return (b + p->size);
 #else
+        struct memheader tmp;
+
 	p2 = (struct memheader *)(b + size);
-	p2->next = p->next;
-	p2->size = p->size - size;
+	tmp.next = p->next;
+	tmp.size = p->size - size;
+	p2->next = tmp.next;
+	p2->size = tmp.size;
 	if (p1 == 0) {
 	  mp->first = p2;
 	} else {
@@ -138,7 +142,7 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
 
 int pmm_free(struct mempool *mp, DWORD base, DWORD size)
 {
-  struct memheader *h, *p, *p1;
+  struct memheader *h, *p, *p1, tmp;
   DWORD b;
 
 #ifdef __DEBUG__
@@ -194,14 +198,16 @@ int pmm_free(struct mempool *mp, DWORD base, DWORD size)
       }
       if (base + size == b) {
 	h = (struct memheader *)base;
-	h->size = size + p-> size;
+	tmp.size = size + p->size;
+	tmp.next = p->next;
 	mp->free += size;
 	if (p1 == 0) {
 	  mp->first = h;
 	} else {
 	  p1->next = h;
 	}
-	h->next = p->next;
+	h->next = tmp.next;
+	h->size = tmp.size;
 
 	return 1;
       }
