@@ -47,7 +47,7 @@ struct psp *current_psp = 0;
 /* Returns the pointer to the address of the first element. */
 void **fd32_get_cdslist()
 {
-  return &current_psp->CdsList;
+  return &current_psp->cds_list;
 }
 
 /* Gets the JFT for the current process.                          */
@@ -55,15 +55,15 @@ void **fd32_get_cdslist()
 /* with the number of entries of the JFT. JftSize may be NULL.    */
 void *fd32_get_jft(int *JftSize)
 {
-  if (JftSize) *JftSize = (int) current_psp->JftSize;
-  return current_psp->Jft;
+  if (JftSize) *JftSize = (int) current_psp->jft_size;
+  return current_psp->jft;
 }
 
 /* Sets the JFT for the current process. */
 void fd32_set_jft(void *Jft, int JftSize)
 {
-  current_psp->Jft     = Jft;
-  current_psp->JftSize = (WORD) JftSize;
+  current_psp->jft      = Jft;
+  current_psp->jft_size = (WORD) JftSize;
 }
 
 void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD base, DWORD end, DWORD m)
@@ -86,9 +86,10 @@ void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD b
   if (npsp->link == NULL) /* Create new JFT */;
                      else /* Copy JFT from npsp->link->Jft */
   #else
-  npsp->JftSize = MAX_OPEN_FILES;
-  npsp->Jft     = fd32_init_jft(MAX_OPEN_FILES);
+  npsp->jft_size = MAX_OPEN_FILES;
+  npsp->jft      = fd32_init_jft(MAX_OPEN_FILES);
   #endif
+  npsp->dta = &npsp->command_line_len;
 
   /* And now... Set the arg list!!! */
   npsp->command_line_len = strlen(args);

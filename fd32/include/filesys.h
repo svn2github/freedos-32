@@ -261,6 +261,7 @@ int  fd32_create_subst     (char *DriveAlias, char *Target);
 int  fd32_terminate_subst  (char *DriveAlias);
 int  fd32_query_subst      (char *DriveAlias, char *Target);
 int  fd32_chdir            (char *DirName);
+int  fd32_getcwd           (const char *Drive, char *Dest);
 int  fd32_truename         (char *Dest, char *Source, DWORD Flags);
 int  fd32_sfn_truename     (char *Dest, char *Source);
 

@@ -46,8 +46,8 @@ struct psp {
   DWORD DOS_mem_buff;
   DWORD info_sel;
 
-  void *dta;     /* Under DOS this pointer is stored in the SDA */
-  void *CdsList; /* Under DOS this is a global array            */
+  void *dta;      /* Under DOS this pointer is stored in the SDA */
+  void *cds_list; /* Under DOS this is a global array            */
 
   /* Gap */
   BYTE gap[16];
@@ -55,13 +55,14 @@ struct psp {
   /* The following fields must start at offset 2Ch (44) */
   WORD  environment_selector;
   BYTE  reserved_3[4];
-  WORD  JftSize; /* Offset 32h (50) */
-  void *Jft;     /* Offset 34h (52) */
+  WORD  jft_size; /* Offset 32h (50) */
+  void *jft;      /* Offset 34h (52) */
   BYTE  reserved_4[24];
   BYTE  int21_retf[3];
   BYTE  reserved_5[9];
   BYTE  default_FCB_1[16];
   BYTE  default_FCB_2[20];
+  /* Offset 80h (128): this is also the start of the default DTA */
   BYTE  command_line_len;
   BYTE  command_line[127];
 }

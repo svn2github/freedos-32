@@ -203,8 +203,8 @@ static int is_a_valid_drive(char *Drive)
 
 /* Gets the current directory of a drive for the current process. */
 /* Called by fd32_truename.                                       */
-/* TODO: Make a functional getcwd system call for the user */
-static int get_cwd(char *Drive, char *Dest)
+/* TODO: Should return "invalid drive" on error. */
+int fd32_getcwd(const char *Drive, char *Dest)
 {
   tCds  *C;
   tCds **CdsList = (tCds **) fd32_get_cdslist();
@@ -223,7 +223,7 @@ static int get_cwd(char *Drive, char *Dest)
 
 /* Canonicalizes a path name.                                 */
 /* Returns 0 on success, or a negative error code on failure. */
-/* TODO:  truename for short names, long names with verification */
+/* TODO: truename for long names with verification */
 /* TODO: make Source const char */
 int fd32_truename(char *Dest, char *Source, DWORD Flags)
 {
@@ -269,7 +269,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
   /* and the trailing '\' if not present, otherwise just append a '\'.   */
   if ((*Source != '\\') && (*Source != '/'))
   {
-    get_cwd(Drive, Comp);
+    fd32_getcwd(Drive, Comp);
     for (pComp = Comp; (*pAux = *pComp); pAux++, pComp++);
     if (*(pAux - 1) != '\\') *pAux++ = '\\';
   }

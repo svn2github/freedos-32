@@ -64,7 +64,7 @@ static int dos_find(fd32_request_t *request, void *DirId, fd32_fs_dosfind_t *Dta
   Rd.Entry = &F;
   C.Size     = sizeof(fd32_close_t);
   C.DeviceId = DirId;
-  while ((Res = request(FD32_READDIR, &F)) == 0)
+  while ((Res = request(FD32_READDIR, &Rd)) == 0)
   {
     /* According to the RBIL, if search attributes are not 08h (volume  */
     /* label) all files with at most the specified attributes should be */

@@ -157,6 +157,7 @@ static struct symbol syscall_table[] = {
   { "fd32_terminate_subst",   (DWORD) fd32_terminate_subst   },
   { "fd32_query_subst",       (DWORD) fd32_query_subst       },
   { "fd32_chdir",             (DWORD) fd32_chdir             },
+  { "fd32_getcwd",            (DWORD) fd32_getcwd            },
   { "fd32_truename",          (DWORD) fd32_truename          },
   { "fd32_sfn_truename",      (DWORD) fd32_sfn_truename      },
   { "utf8_fnameicmp",         (DWORD) utf8_fnameicmp         },
