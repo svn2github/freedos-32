@@ -1,6 +1,10 @@
 #include <dr-env.h>
 #include <errors.h>
 
+static int integer0;
+static int integer1 = 0;
+int integer2 = 0x10;
+
 static char *str1 = "modtest1: Hello World! again!~\n";
 static char str2[] = "modtest2: Hello World! again!~\n";
 char str9[] = "modtest9: Hello World! again!~\n";
@@ -42,5 +46,12 @@ int modtest_init(int argc, char *argv[])
   
   /* global array */
   fd32_message(str9);
+  
+  /* static integer */
+  fd32_message("inttest0: %d\n", integer0);
+  /* static integer set as zero */
+  fd32_message("inttest1: %d\n", integer1);
+  /* global integer */
+  fd32_message("inttest2: %d\n", integer2);
   return 0;
 }
