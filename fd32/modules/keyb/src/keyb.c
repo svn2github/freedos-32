@@ -219,8 +219,8 @@ void postprocess(void)
       }
       /* Determine if need the extended key */
       if (!done) {
-        keyqueue_put(0xE0);
-        keyqueue_put(decode_ex(ecode)>>0x08);
+      	decoded = decode_ex(ecode);
+        keyqueue_put(decoded);
       }
       ecode = 0;
     } else if (code == 0xE0) {
@@ -232,15 +232,13 @@ void postprocess(void)
         fd32_reboot();
       else if (flags[0]&CTRL_FLAG && code == 0x32) /* Ctrl+M print memory dump */
         mem_dump();
-      else /* Decode it... And put it in the keyboard queue */
+      else
         decoded = decode(code, flags[0], flags[0]&LEGS_MASK);
+      /* Decode it... And put the scancode and charcode into the keyqueue */
       if (decoded == 0) {
         fd32_log_printf("Strange key: %d (0x%x)\n", code, code);
       } else {
-        if ((decoded & 0x00ff) == 0)
-          keyqueue_put(0xE0), keyqueue_put(decoded>>0x08);
-        else
-          keyqueue_put(decoded & 0x00ff);
+        keyqueue_put(decoded);
       }
     }
     /* Retrieve raw code again */

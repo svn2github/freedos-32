@@ -38,35 +38,56 @@ void keyb_handler(int n)
   code = keyb_get_data(); /* Input datum */
 
   /* Well, we do not check the error code, for now... */
-  if(!preprocess(code)) /* Do that leds stuff... */
+  if(!preprocess(code)) { /* Do that leds stuff... */
     rawqueue_put(code);
-  /* Reenable interrupts... */
-  fd32_sti();
+    fd32_sti();           /* Reenable interrupts... */
+    postprocess();
+  }
 
   fd32_master_eoi();
 }
 
+/* Note: N = 0 Nonblock mode, N = -1 Block mode both read BIOS key
+ *       N != 0 && N != -1 supporting console read
+ */
 static int read(void *id, DWORD n, BYTE *buf)
 {
   int res = FD32_EREAD;
   DWORD count;
-  BYTE b;
 
   /* Convention: n = 0 --> nonblock; n != 0 --> block */
   if (n == 0) {
-    postprocess();
-    if ((b = keyqueue_gethead()) == 0) {
+  	WORD w;
+    if ((w = keyqueue_gethead()) == 0) {
       res = 0;
     } else {
-      *buf = b;
+      ((WORD *)buf)[0] = w;
       res = 1;
     }
-  } else {
+  } else if (n == -1) {
+    WORD w;
+    WFC(keyqueue_empty());
+    /* Get the total BIOS key */
+    w = keyqueue_get();
+    w |= keyqueue_get()<<8;
+
+    ((WORD *)buf)[0] = w;
+    res = 1;
+  } else { /* Normal console get char or get string */
+    BYTE b;
     count = n;
     while (count > 0) {
-      WFC((postprocess(), b = keyqueue_get()) == 0);
-      *buf++ = b;
-      count--;
+      WFC(keyqueue_empty());
+      b = keyqueue_get();
+      *buf++ = b, count--;
+
+      /* Handle the extended key and get rid of scan code */
+      if (count > 0 && b == 0) {
+        *buf++ = keyqueue_get(), count--;
+      } else if (b != 0) {
+        /* only the extended code preserved on the queue */
+        b = keyqueue_get();
+      }
     }
 
     res = n;
