@@ -107,12 +107,12 @@ int utf8_to_oemcp(UTF8 *Source, int SourceSize,
   if (SourceSize != -1) SourceLast = Source + SourceSize - 1;
   while (*Source)
   {
+    if ((SourceLast) && (Source > SourceLast)) break;
     if (Dest > DestLast)
     {
       if (*Source) Res |= OEMCP_WAS_LONGER;
       break;
     }
-    if ((SourceLast) && (Source > SourceLast)) break;
     /* Get the Unicode scalar value from Source */
     if (!(*Source & 0x80)) Scalar = *Source++;
     else

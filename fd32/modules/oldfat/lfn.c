@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "lfn.c" - Convert long file names in the standard DOS          *
  *                   directory entry format and generate short name       *
@@ -110,18 +110,16 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
   /* until the file name is unique in that Path                      */
   for (Counter = Hint; Counter < 65536; Counter++)
   {
-#if 0
     memcpy(Aux, ShortName, 11);
-    itoa(Counter, szCounter, 10);
+    /* TODO: it would be better: snprintf(szCounter, sizeof(szCounter), "%d", Counter); */
+    ksprintf(szCounter, "%d", Counter);
     szCounterLen = strlen(szCounter);
-    for (k = 0; k < 7 - szCounterLen; k += oemcp_skipchar(&Aux[k]));
-    /* Append the "~Counter" to the name */
-    /* TODO: The "~Counter" shouldn't be right justified if name is shorter than 8! */
+    /* TODO: This may not work properly with multibyte charsets, but this is not
+     *       a problem for now, since the whole NLS stuff has to be replaced. */
+    for (k = 0; (k < 7 - szCounterLen) && (Aux[k] != ' '); k += oemcp_skipchar(&Aux[k]));
     Aux[k++] = '~';
     for (s = szCounter; *s; Aux[k++] = *s++);
-#else
-    ksprintf(Aux, "%s~%d", ShortName, Counter);
-#endif
+
     /* Search for the generated name */
     LOG_PRINTF(("Checking if ~%i makes the name unique\n", Counter));
     Dir->TargetPos = 0;
