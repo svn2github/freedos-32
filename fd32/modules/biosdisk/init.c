@@ -31,6 +31,7 @@
 #include <ll/i386/pic.h>
 #include <ll/i386/x-bios.h>
 #include <ll/i386/error.h>
+#include <../drivers/dpmi/include/dpmi.h>
 #include "biosdisk.h"
 
 extern void biosdisk_reflect(DWORD intnum, union regs r);
@@ -51,7 +52,10 @@ void biosdisk_init(void)
   l1_int_bind(0x15, biosdisk_reflect);
   l1_irq_bind(15, biosdisk_reflect);
   l1_irq_bind(14, biosdisk_reflect);
+//  l1_irq_bind(0, biosdisk_reflect);
+//  irq_unmask(0);
 
   biosdisk_detect();
   message("BIOSDisk initialized.\n");
+//  asm("hlt");
 }
