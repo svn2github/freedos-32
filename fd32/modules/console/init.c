@@ -81,7 +81,6 @@ static int read(void *id, DWORD n, BYTE *buf)
     if (cons_count < CONS_BUFF_SIZE - 2) {
       if (c == '\n') {
 	cons_buff[cons_count++] = 13;
-	cons_buff[cons_count++] = 10;
       } else {
 	cons_buff[cons_count++] = c;
       }
