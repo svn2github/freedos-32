@@ -293,7 +293,7 @@ __attribute__ ((packed)) tFindRes;
 #define FIRSTCLUSTER(D) (((DWORD) D.FstClusHI << 16) + (DWORD) D.FstClusLO)
 
 /* Nonzero if two tFile or tFileId structs refer to the same file */
-#define SAMEFILE(F1, F2) (!memcpy(F1, F2, sizeof(tFileId)))
+#define SAMEFILE(F1, F2) (!memcmp(F1, F2, sizeof(tFileId)))
 
 /* Nonzero if the file is a FAT12/FAT16 root directory */
 #define ISROOT(F) ((F->DirEntrySector == 0) && (F->V->FatType != FAT32))
