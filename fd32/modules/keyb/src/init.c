@@ -26,6 +26,7 @@ BYTE keyb_get_data(void);
 void keyb_queue_clear(void);
 DWORD keyb_get_shift_flags(void);
 void keyb_set_shift_flags(WORD f);
+void keyb_hook(WORD key, int isCTRL, int isALT, DWORD hook_func);
 
 
 void keyb_handler(int n)
@@ -134,8 +135,16 @@ void keyb_init(void)
   /* Clear the shift flags and reset the leds, otherwise it won't work fine in some circumstances */
   keyb_set_shift_flags(0);
 
+  /* Ctrl+Alt+Del reboot PC */
+  keyb_hook(0x53, 1, 1, (DWORD)fd32_reboot);
+  /* Ctrl+M print memory dump */
+  keyb_hook(0x32, 1, 0, (DWORD)mem_dump);
   fd32_message("Installing new call keyb_read...\n");
   if (add_call("keyb_read", (DWORD)read, ADD) == -1) {
+    fd32_error("Failed to install a new kernel call!!!\n");
+  }
+  fd32_message("Installing new call keyb_hook...\n");
+  if (add_call("keyb_hook", (DWORD)keyb_hook, ADD) == -1) {
     fd32_error("Failed to install a new kernel call!!!\n");
   }
   fd32_message("Registering...\n");

@@ -21,6 +21,7 @@ static volatile WORD *flags = (WORD *)BDA_KEYB_FLAG;
 
 WORD decode_ex(WORD c);
 WORD decode(BYTE c, int flags, int lock);
+void keyb_fire_hook(WORD key, int isCTRL, int isALT);
 
 BYTE keyb_get_status(void)
 {
@@ -211,8 +212,8 @@ void postprocess(void)
       }
       /* Determine if need the extended key */
       if (!done) {
-        if (flags[0]&CTRL_FLAG && flags[0]&ALT_FLAG && code == 0x53) /* Ctrl+Alt+Del reboot PC */
-          fd32_reboot();
+        /* fire the hook if exists */
+        keyb_fire_hook(code, flags[0]&CTRL_FLAG, flags[0]&ALT_FLAG);
       	decoded = decode_ex(ecode);
         keyqueue_put(decoded);
       }
@@ -221,11 +222,10 @@ void postprocess(void)
       /* Prepare the extended key */
       ecode = 0xE000;
     } else if (!(BREAK&code)) {
+      /* fire the hook if exists */
+      keyb_fire_hook(code, flags[0]&CTRL_FLAG, flags[0]&ALT_FLAG);
       /* Handle the basic key */
-      if (flags[0]&CTRL_FLAG && code == 0x32) /* Ctrl+M print memory dump */
-        mem_dump();
-      else
-        decoded = decode(code, flags[0], flags[0]&LEGS_MASK);
+      decoded = decode(code, flags[0], flags[0]&LEGS_MASK);
       /* Decode it... And put the scancode and charcode into the keyqueue */
       if (decoded == 0) {
         fd32_log_printf("Strange key: %d (0x%x)\n", code, code);

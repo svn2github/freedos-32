@@ -20,7 +20,7 @@ LINK_OPT = -Bstatic
 
 VPATH = ../src
 
-OBJS = keyb.o decode.o queues.o init.o
+OBJS = keyb.o decode.o queues.o hook.o init.o
 
 all: keybdrv.o
 	$(CP) keybdrv.o ..
