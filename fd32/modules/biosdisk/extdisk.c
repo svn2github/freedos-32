@@ -74,6 +74,7 @@ static inline int ext_disk_op(ExtOp operation, BYTE drive, DWORD lba,
     fd32_memcpy_to_lowmem(ap_selector, 0, &ap, sizeof(AddressPacket));
 
     AH(regs) = operation; /* Can be EXT_READ, EXT_WRITE or EXT_VERIFY */
+    AL(regs) = 0x00;      /* Disable verify for write operation       */
     DL(regs) = drive;
     DS(regs) = ap_segment;
     SI(regs) = ap_offset;
