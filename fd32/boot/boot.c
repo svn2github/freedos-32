@@ -21,6 +21,7 @@
 #include "init.h"
 #include "mods.h"
 #include "mmap.h"
+#include "filesys.h"	/* For fd32_set_default_drive() */
 
 #ifdef STATIC_DPMI
 extern void DPMI_init(void);
@@ -91,8 +92,17 @@ int main (int argc, char *argv[])
   system_init(mbi);
   
   if (mbi->flags & MB_INFO_BOOTDEV) {
+    unsigned char *b;
+
+    b = &mbi->boot_device;
+    if (b[3] == 0) {
+      fd32_set_default_drive('A');
+    }
+    if (b[3] == 1) {
+      fd32_set_default_drive('B');
+    }
 #ifdef __BOOT_DEBUG__
-    message("    Boot device set\n");
+    message("    Boot device set: %u %u %u %u\n", b[0], b[1], b[2], b[3]);
 #endif
   }
   
