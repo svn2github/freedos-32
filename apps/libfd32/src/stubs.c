@@ -19,3 +19,17 @@ int wait(int *status)
 
   return -1;
 }
+
+int kill(int pid, int sig)
+{
+  message("Kill called: failing...\n");
+  errno = EINVAL;
+  return(-1);
+}
+
+int getpid()
+{
+  message("GetPID called: faking...\n");
+  return(1);
+}
+
