@@ -23,7 +23,6 @@
 
 DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, DWORD *image_base, int *s)
 {
-  void (*fun)(void);
   DWORD offset;
   int size;
   DWORD exec_space;
@@ -150,9 +149,8 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
     }
   } else {
     offset = exec_space - sections[0].base;
-
-    fun = (void *)(dyn_entry + offset);
 #ifdef __EXEC_DEBUG__
+    void (*fun)(void) = (void *)(dyn_entry + offset);
     fd32_log_printf("[EXEC] 1) Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
 	    (DWORD)fun, dyn_entry, offset);
 #endif
