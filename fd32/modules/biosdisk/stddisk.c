@@ -3,7 +3,7 @@
  * Disk drive support via BIOS                                            *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "stddisk.c" - Standard BIOS disk functions                     *
  *                                                                        *
@@ -68,7 +68,7 @@ static inline int std_disk_op(StdOp operation, const Disk *d, DWORD lba,
     Chs chs;
     Chs total = { d->bios_c, d->bios_h, d->bios_s };
 
-    if (lba >= d->total_blocks) return -1; /* Invalid LBA address */
+    if (lba + num_sectors > d->total_blocks) return -1; /* Invalid LBA address */
     if (lba_to_chs(lba + d->first_sector, &chs, &total))
         return -1; /* Invalid LBA address */
 
