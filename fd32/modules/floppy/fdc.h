@@ -2,7 +2,7 @@
  * FreeDOS32 Floppy Driver                                                *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2003, Salvatore Isaja                                    *
+ * Copyright (C) 2003-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "fdc.h" - Header file for portable code for FDC support        *
  *                                                                        *
@@ -80,10 +80,10 @@ typedef struct
 {
     unsigned    cmos_type;  /* Drive type read from CMOS            */
     unsigned    hlt;        /* Head Load Time (in SPECIFY format)   */
-    unsigned    spin_up;    /* Time needed for spinning up [ms]     */
-    unsigned    spin_down;  /* Time needed for spinning down [ms]   */
-    unsigned    sel_delay;  /* Select delay [ms]                    */
-    unsigned    int_tmout;  /* Interrupt timeout [ms]               */
+    unsigned    spin_up;    /* Time needed for spinning up [us]     */
+    unsigned    spin_down;  /* Time needed for spinning down [us]   */
+    unsigned    sel_delay;  /* Select delay [us]                    */
+    unsigned    int_tmout;  /* Interrupt timeout [us]               */
     unsigned    detect[8];  /* Autodetect formats                   */
     unsigned    native_fmt; /* Native disk format for drive         */
     const char *name;       /* Name displayed for the drive type    */
@@ -123,4 +123,3 @@ void fdc_dispose       (void);
 
 
 #endif /* #ifndef __FD32FLOPPY_FDC_H */
-

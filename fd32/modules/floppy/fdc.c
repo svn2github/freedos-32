@@ -2,7 +2,7 @@
  * FreeDOS32 Floppy Driver                                                *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2003, Salvatore Isaja                                    *
+ * Copyright (C) 2003-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "fdc.c" - Portable code for Floppy Disk Controller support     *
  *                                                                        *
@@ -107,7 +107,7 @@ typedef struct Fdc
     BYTE     result_size;      /* Number of result bytes returned           */
     BYTE     sr0;              /* Status Register 0 after a sense interrupt */
     BYTE     dor;              /* Reflects the Digital Output Register      */
-    Fdd      drive[MAXDRIVES]; /* Drives connected to this controller       */
+    Fdd      drive[4]; /* Drives connected to this controller       */
 }
 Fdc;
 
@@ -174,17 +174,17 @@ static const FloppyFormat floppy_formats[32] =
 
 /* Parameters to manage a floppy disk drive.                                */
 /* Head load time is 16 ms for all drives except 2880 KiB, that have 15 ms. */
+#define MS 1000 /* From ms to us */
 static const DriveParams default_drive_params[] =
 {
-   /* T HLT  SPUP  SPDN SEL  INTT  AUTODETECT FORMATS        NAT  NAME                     */
-    { 0,  0, 1000, 3000, 20, 3000, { 7, 4, 8, 2, 1, 5, 3,10 }, 0, "unknown"                },
-    { 1,  4, 1000, 3000, 20, 3000, { 1, 0, 0, 0, 0, 0, 0, 0 }, 1, "5.25\" DD, 360 KiB"     },
-    { 2,  8,  400, 3000, 20, 3000, { 2, 5, 6,23,10,20,12, 0 }, 2, "5.25\" HD, 1200 KiB"    },
-    { 3,  4, 1000, 3000, 20, 3000, { 4,22,21,30, 3, 0, 0, 0 }, 4, "3.5\" DD, 720 KiB"      },
-//    { 4,  1,  400, 3000, 20, 1500, { 7, 4,25,22,31,21,29,11 }, 7, "3.5\" HD, 1440 KiB"     },
-    { 4,  8,  400, 3000, 20, 1500, { 7, 4,25,22,31,21,29,11 }, 7, "3.5\" HD, 1440 KiB"     },
-    { 5, 15,  400, 3000, 20, 3000, { 7, 8, 4,25,28,22,31,21 }, 8, "3.5\" ED, 2880 KiB AMI" },
-    { 6, 15,  400, 3000, 20, 3000, { 7, 8, 4,25,28,22,31,21 }, 8, "3.5\" ED, 2880 KiB"     }
+   /* T HLT  spin_up  spin_dn  sel_d  int_tmt  Autodetect formats        Nat  Name                     */
+    { 0,  0, 1000*MS, 3000*MS, 20*MS, 3000*MS, { 7, 4, 8, 2, 1, 5, 3,10 }, 0, "unknown"                },
+    { 1,  4, 1000*MS, 3000*MS, 20*MS, 3000*MS, { 1, 0, 0, 0, 0, 0, 0, 0 }, 1, "5.25\" DD, 360 KiB"     },
+    { 2,  8,  400*MS, 3000*MS, 20*MS, 3000*MS, { 2, 5, 6,23,10,20,12, 0 }, 2, "5.25\" HD, 1200 KiB"    },
+    { 3,  4, 1000*MS, 3000*MS, 20*MS, 3000*MS, { 4,22,21,30, 3, 0, 0, 0 }, 4, "3.5\" DD, 720 KiB"      },
+    { 4,  8/*1*/,  400*MS, 3000*MS, 20*MS, 1500*MS, { 7, 4,25,22,31,21,29,11 }, 7, "3.5\" HD, 1440 KiB"     },
+    { 5, 15,  400*MS, 3000*MS, 20*MS, 3000*MS, { 7, 8, 4,25,28,22,31,21 }, 8, "3.5\" ED, 2880 KiB AMI" },
+    { 6, 15,  400*MS, 3000*MS, 20*MS, 3000*MS, { 7, 8, 4,25,28,22,31,21 }, 8, "3.5\" ED, 2880 KiB"     }
 };
 
 
@@ -274,7 +274,7 @@ static int wait_fdc(Fdd *fdd)
 {
     /* Wait for IRQ6 handler to signal command finished */
     volatile int irq_timeout = 0;
-    int irq_timeout_event = fd32_event_post(fdd->dp->int_tmout * 1000, irq_timeout_cb, (void *) &irq_timeout);
+    int irq_timeout_event = fd32_event_post(fdd->dp->int_tmout, irq_timeout_cb, (void *) &irq_timeout);
     /* TODO: Check for FD32_EVENT_NULL */
     WFC(!irq_signaled && !irq_timeout);
     fd32_event_delete(irq_timeout_event);
@@ -339,7 +339,7 @@ static void motor_on(Fdd *fdd)
     {
         if (!(fdd->flags & DF_SPINUP))
             /* TODO: Check for FD32_EVENT_NULL */
-            if (fd32_event_post(fdd->dp->spin_up * 1000, motor_spin_cb, fdd) < 0)
+            if (fd32_event_post(fdd->dp->spin_up, motor_spin_cb, fdd) < 0)
                 LOG_PRINTF(("Motor on: Out of events!\n"));
         fdd->fdc->dor |= (1 << (fdd->number + 4));
         /* Select drive */
@@ -355,7 +355,7 @@ static void motor_down(Fdd *fdd)
     if (is_motor_on(fdd->fdc, fdd->number))
     {
         if (fdd->flags & DF_SPINDN) return;
-        fdd->spin_down = fd32_event_post(fdd->dp->spin_down * 1000, motor_off_cb, fdd);
+        fdd->spin_down = fd32_event_post(fdd->dp->spin_down, motor_off_cb, fdd);
         if (fdd->spin_down == -1) LOG_PRINTF(("[FDC] motor_down: out of events!\n"));
         fdd->flags |= DF_SPINDN;
     }
@@ -400,7 +400,7 @@ static void recalibrate(Fdd *fdd)
         fdd->track    = getbyte(fdd->fdc->base_port);
         if (!(fdd->fdc->sr0 & 0x10)) break; /* Exit if Unit Check is not set */
     }
-    LOG_PRINTF(("Calibration result on drive %u: SR0=%02X, Track=%u\n",
+    LOG_PRINTF(("Calibration result on drive %u: SR0=%02xh, Track=%u\n",
                 fdd->number, fdd->fdc->sr0, fdd->track));
 }
 
@@ -422,11 +422,11 @@ int fdc_seek(Fdd *fdd, unsigned track)
     /* Check that seek worked */
     if ((fdd->fdc->sr0 != 0x20 + fdd->number) || (fdd->track != track))
     {
-        LOG_PRINTF(("Seek error on drive %u: SR0=%02X, Track=%u Expected=%u\n",
+        LOG_PRINTF(("Seek error on drive %u: SR0=%02xh, Track=%u Expected=%u\n",
                     fdd->number, fdd->fdc->sr0, fdd->track, track));
         return FDC_ERROR;
     }
-    LOG_PRINTF(("Seek result on drive %u: SR0=%02X, Track=%u\n", fdd->number,
+    LOG_PRINTF(("Seek result on drive %u: SR0=%02xh, Track=%u\n", fdd->number,
                 fdd->fdc->sr0, fdd->track));
     return FDC_OK;
 }
@@ -468,14 +468,14 @@ static void reset_fdc(Fdc *fdc)
     int irq_timeout_event;
 
     fd32_outb(fdc->base_port + FDC_DOR, 0);    /* Stop the motor and disable IRQ/DMA  */
+    /* TODO: Add a small delay (20 us) to make older controllers more happy */
     fd32_outb(fdc->base_port + FDC_DOR, 0x0C); /* Re-enable IRQ/DMA and release reset */
     fdc->dor = 0x0C;
-    /* Resetting triggered an interrupt - handle it */
-    irq_timeout_event = fd32_event_post(default_drive_params[0].int_tmout * 1000, irq_timeout_cb, (void *) &irq_timeout);
+    /* Resetting triggered 4 interrupts - handle them */
+    irq_timeout_event = fd32_event_post(default_drive_params[0].int_tmout, irq_timeout_cb, (void *) &irq_timeout);
     /* TODO: Check for FD32_EVENT_NULL */
     WFC(!irq_signaled && !irq_timeout);
     fd32_event_delete(irq_timeout_event);
-    irq_signaled = 0;
     if (irq_timeout)
         LOG_PRINTF(("Timed out while waiting for FDC after reset\n"));
     /* FDC specs say to sense interrupt status four times */
@@ -486,6 +486,7 @@ static void reset_fdc(Fdc *fdc)
         fdc->sr0            = getbyte(fdc->base_port);
         fdc->drive[k].track = getbyte(fdc->base_port);
     }
+    irq_signaled = 0;
 }
 
     
@@ -509,6 +510,7 @@ static void reset_drive(Fdd *fdd)
 /* The drive is supposed to be selected (motor on).      */
 static int fdc_xfer(Fdd *fdd, const Chs *chs, DWORD dma_addr, unsigned num_sectors, FdcTransfer op)
 {
+    LOG_PRINTF(("[FDC] fdc_xfer: C=%u, H=%u, S=%u, n=%u, op=%u\n", chs->c, chs->h, chs->s, num_sectors, op));
     /* Wait for motor spin quickly enough */
     WFC(!(fdd->flags & DF_SPINUP));
 
@@ -728,6 +730,7 @@ static int probe_format(Fdd *fdd, unsigned format)
     fdd->fmt = &floppy_formats[format];
     chs.s = fdd->fmt->sec_per_trk;
     res = fdc_read(fdd, &chs, NULL, 1);
+    LOG_PRINTF(("[FDC] probe_format: fdc_read returned %i\n", res));
     if (res < 0) return res;
     LOG_PRINTF(("%s format detected\n", fdd->fmt->name));
     return FDC_OK;
@@ -778,6 +781,7 @@ static int setup_drive(Fdc *fdc, unsigned drive, unsigned cmos_type)
     fdc->drive[drive].spin_down = -1;
     if ((cmos_type > 0) && (cmos_type <= 6))
     {
+        fd32_message("[FLOPPY] Drive %u set to %s\n", drive, default_drive_params[cmos_type].name);
         fdc->drive[drive].dp        = &default_drive_params[cmos_type];
         fdc->drive[drive].flags     = DF_CHANGED;
     }
@@ -804,6 +808,19 @@ int fdc_setup(FdcSetupCallback *setup_cb)
     dma_addr = ((DWORD) dma_seg << 4) + (DWORD) dma_off;
     LOG_PRINTF(("DMA buffer allocated at physical address %08lxh\n", dma_addr));
 
+    /* Reset primary controller */
+    pri_fdc.base_port = FDC_BPRI;
+    reset_fdc(&pri_fdc);
+    sendbyte(pri_fdc.base_port, CMD_VERSION);
+    res = getbyte(pri_fdc.base_port);
+    LOG_PRINTF(("Byte got from CMD_VERSION: %08xh\n", res));
+    switch (res)
+    {
+        case 0x80: fd32_message("[FLOPPY] NEC765 FDC found on base port %04xh\n", pri_fdc.base_port); break;
+        case 0x90: fd32_message("[FLOPPY] Enhanced FDC found on base port %04xh\n", pri_fdc.base_port); break;
+        default  : fd32_message("[FLOPPY] FDC not found on base port %04xh\n", pri_fdc.base_port);
+    }
+    
     /* Read floppy drives types from CMOS memory (up to two drives). */
     /* They are supposed to belong to the primary FDC.               */
     fd32_outb(0x70, 0x10);
@@ -813,20 +830,9 @@ int fdc_setup(FdcSetupCallback *setup_cb)
     setup_drive(&pri_fdc, 0, cmos_drive0);
     setup_drive(&pri_fdc, 1, cmos_drive1);
 
-    /* Reset primary controller */
-    pri_fdc.base_port = FDC_BPRI;
-    reset_fdc(&pri_fdc);
-    sendbyte(pri_fdc.base_port, CMD_VERSION);
-    res = getbyte(pri_fdc.base_port);
-    LOG_PRINTF(("Byte got from CMD_VERSION: %08x\n", res));
-    switch (res)
-    {
-        case 0x80: LOG_PRINTF(("NEC765 FDC found on base port %04Xh\n", pri_fdc.base_port)); break;
-        case 0x90: LOG_PRINTF(("Enhanced FDC found on base port %04Xh\n", pri_fdc.base_port)); break;
-        default  : LOG_PRINTF(("FDC not found on base port %04Xh\n", pri_fdc.base_port));
-    }
     for (res = FDC_OK, k = 0; k < MAXDRIVES; k++)
-        if (setup_cb(&pri_fdc.drive[k]) < 0) res = -1;
+        if (pri_fdc.drive[k].dp->cmos_type)
+            if (setup_cb(&pri_fdc.drive[k]) < 0) res = -1;
 
     #ifdef HAS2FDCS
     setup_drive(&sec_fdc, 0, 0);

@@ -106,6 +106,7 @@ static int read_sector(Floppy *f, unsigned block, void *buffer)
     Chs chs;
 
     if (lba_to_chs(block, &chs, f->fdd)) return -1;
+    LOG_PRINTF(("[FLOPPY] read_sector: C=%u, H=%u, S=%u\n", chs.c, chs.h, chs.s));
     res = fdc_read(f->fdd, &chs, buffer, 1);
     if (res < 0) LOG_PRINTF(("[FLOPPY] read_sector: read error!\n"));
     return res;
@@ -149,6 +150,7 @@ static int write_sector(Floppy *f, unsigned block, const void *buffer)
         f->buffers[0].flags = 0;
     #endif
     if (lba_to_chs(block, &chs, f->fdd)) return -1;
+    LOG_PRINTF(("[FLOPPY] write_sector: C=%u, H=%u, S=%u\n", chs.c, chs.h, chs.s));
     res = fdc_write(f->fdd, &chs, buffer, 1);
     if (res < 0) LOG_PRINTF(("[FLOPPY] write_sector: write error!\n"));
     return res;
