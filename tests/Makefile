@@ -4,10 +4,13 @@ endif
 ifndef DRIVERS
 DRIVERS = ../drivers
 endif
+ifndef OSLIB
+OSLIB = ../oslib
+endif
 
 BASE = $(FD32)/oslib
 
-include $(BASE)/config.mk
+include $(OSLIB)/config.mk
 
 DJGPP_TESTS = hello.out empty.out exctest.out get.out argtest.out filetest.out exectest.out
 NATIVE_TESTS = fstest.32 read.32
@@ -27,10 +30,10 @@ hello.out: hello.o main.o
 main.o: main.c
 	$(CC) -c $(C_OPT_1) main.c
 command.exe: command.c
-	$(CC) -Xlinker -Ttext -Xlinker 0x150000 command.c -o command.exe
+	$(CC) -Xlinker -Ttext -Xlinker 0x200000 command.c -o command.exe
 
 # Common rules
 %.32: %.c
-	$(CC) $(C_OPT) -I$(FD32)/include -I$(DRIVERS)/include/fd32 -I$(BASE)/ll -c $< -o $@
+	$(CC) $(C_OPT) -I$(FD32)/include -I$(DRIVERS)/include/fd32 -I$(OSLIB) -c $< -o $@
 %.out: %.c
-	$(CC) -Xlinker -Ttext -Xlinker 0x400000 $< -o $@
+	$(CC) -Xlinker -Ttext -Xlinker 0x250000 $< -o $@
