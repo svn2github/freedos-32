@@ -18,7 +18,6 @@
 struct symbol_info {
   char *name;
   DWORD offset;
-//  DWORD off1;
   WORD section;
 };
 

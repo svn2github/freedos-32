@@ -58,7 +58,8 @@ int main (int argc, char *argv[])
   sti();
 
   message("FreeDOS/32 Kernel booting...\n");
-  message("System information from multiboot (flags 0x%lx):\n", mbi->flags);
+  message("System information from multiboot (flags 0x%lx):\n",
+	  mbi->flags);
 
   if (mbi->flags & MB_INFO_MEMORY) {
 #ifdef __BOOT_DEBUG__

@@ -13,8 +13,6 @@
 #include "common.h"
 #define LOCAL_BSS 1024
 
-//#define __COFF_DEBUG__
-
 int common_relocate_section(struct kern_funcs *kf,DWORD base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
   int i, idx;

@@ -167,7 +167,8 @@ int pmm_free(struct mempool *mp, DWORD base, DWORD size)
       /* Here, base < b + p->size... */
       
       /*
-        Sanity check: The region to free must not overlap with any free chunk...
+       * Sanity check: The region to free must not overlap with
+       * any free chunk...
        */
       if (base + size > b) {
         /* Error: there is an overlap... */

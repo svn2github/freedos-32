@@ -13,6 +13,7 @@
 #include <ll/i386/cons.h>
 #include <ll/i386/error.h>
 #include <ll/stdlib.h>
+#include <ll/stdio.h>
 #include <ll/string.h>
 #include <ll/ctype.h>
 
@@ -21,7 +22,7 @@
 #include "format.h"
 #include "devices.h"
 #include "logger.h"
-#include <filesys.h>
+#include "filesys.h"
 
 extern DWORD ll_exc_table[16];
 extern struct handler exc_table[32];
@@ -32,16 +33,8 @@ extern CONTEXT context_save(void);
 extern union gdt_entry *GDT_base;
 
 
-//int fd32_write(int handle, char *buffer, int len); /* To be put in kernel.h */
-//int fd32_read(int handle, char *buffer, int len); /* To be put in kernel.h */
-int fd32_register(int handle, void *func, int type);
-void *fd32_getregistered(int handle);
-void fd32_dev_enum(int (*dev_found_callback)(fd32_dev_t *, void *),
-                   int (*ops_found_callback)(fd32_dev_ops_t *, void *),
-                   void *DevParams, void *OpsParams);
 void restore_sp(int res);
 extern struct psp *current_psp;
-int ksprintf(char *buf,char *fmt,...);
 
 #define EMPTY_SLOT {0, (DWORD)0xFFFFFFFF}
 
@@ -49,8 +42,6 @@ int fd32_unimplemented(void)
 {
   return -1;
 }
-
-void *get_syscall_table(void);
 
 static struct symbol syscall_table[] = {
   {"cputc", (DWORD)cputc},
@@ -68,7 +59,7 @@ static struct symbol syscall_table[] = {
   {"IDT_place", (DWORD)IDT_place},
   {"GDT_place", (DWORD)GDT_place},
   {"GDT_base", (DWORD)(&GDT_base)},
-  /*
+/*
   {"fd32_allocate_descriptors", (DWORD)fd32_allocate_descriptors},
   {"fd32_free_descriptor", (DWORD)fd32_free_descriptor},
   {"fd32_segment_to_descriptor", (DWORD)fd32_segment_to_descriptor},
@@ -80,7 +71,7 @@ static struct symbol syscall_table[] = {
   {"fd32_create_alias_descriptor", (DWORD)fd32_create_alias_descriptor},
   {"fd32_get_descriptor", (DWORD)fd32_get_descriptor},
   {"fd32_set_descriptor", (DWORD)fd32_set_descriptor},
-  */
+*/
   {"rm_irq_table", (DWORD)(&rm_irq_table)},
   {"exc_table", (DWORD)(&exc_table)},
   {"IDT", (DWORD)(&IDT)},

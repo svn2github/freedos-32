@@ -46,8 +46,7 @@ struct psp {
   DWORD DOS_mem_buff;
   DWORD info_sel;
 
-  void *Dta; /* Under DOS this pointer is stored in the SDA */
-//  struct jft *jft;
+  void *dta; /* Under DOS this pointer is stored in the SDA */
 
   /* Gap */
   BYTE gap[20];

@@ -24,7 +24,6 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
   union rmregs *r1;
   int res;
 
-//  r1 = (struct rmcall *)(base + r->d.edi);
   r1 = (union rmregs *)rmcs_address;
   switch (intnum) {
     case 0x10:

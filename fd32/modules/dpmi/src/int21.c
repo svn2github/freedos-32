@@ -515,15 +515,15 @@ void int21_handler(union rmregs *r)
     /* DOS 1+ - Set Disk Transfer Area address */
     case 0x1A:
       /* DS:DX pointer to the new DTA */
-      current_psp->Dta = (void *) (r->x.ds << 4) + r->x.dx;
+      current_psp->dta = (void *) (r->x.ds << 4) + r->x.dx;
       return;
 
     /* DOS 2+ - Get Disk Transfer Area address */
     case 0x2F:
       /* ES:BX pointer to the current DTA */
       /* FIX ME: I assumed low memory DTA, I'm probably wrong! */
-      r->x.es = (DWORD) current_psp->Dta >> 4;
-      r->x.bx = (DWORD) current_psp->Dta & 0xF;
+      r->x.es = (DWORD) current_psp->dta >> 4;
+      r->x.bx = (DWORD) current_psp->dta & 0xF;
       return;
 
     /* DOS 2+ - Get DOS version */
@@ -740,13 +740,13 @@ void int21_handler(union rmregs *r)
       /* CX    allowable attributes (archive and readonly ignored) */
       /* DS:DX pointer to the ASCIZ file specification             */
       Res = fd32_dos_findfirst((char *) (r->x.ds << 4) + r->x.dx,
-                               r->x.cx, current_psp->Dta);
+                               r->x.cx, current_psp->dta);
       dos_return(Res, r);
       return;
 
     /* DOS 2+ - "FINDNEXT" - Find next matching file */
     case 0x4F:
-      Res = fd32_dos_findnext(current_psp->Dta);
+      Res = fd32_dos_findnext(current_psp->dta);
       dos_return(Res, r);
       return;
 

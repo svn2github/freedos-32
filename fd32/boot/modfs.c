@@ -7,11 +7,6 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/mem.h>
 #include <ll/i386/error.h>
-/*
-#include <ll/i386/stdlib.h>
-#include <ll/i386/cons.h>
-#include <ll/ctype.h>
-*/
 
 #include "dev/char.h"
 #include "mods.h"

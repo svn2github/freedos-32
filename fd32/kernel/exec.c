@@ -21,20 +21,19 @@
 #include "exec.h"
 #include "logger.h"
 
+/* Read an executable in memory, and execute it... */
 void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline)
 {
-  //  int res;
   void (*fun)(void);
   DWORD offset;
   int retval;
   int size;
   DWORD exec_space;
-  //  DWORD entry;
   int bss_sect, relocate, i;
   DWORD dyn_entry;
   int symsize;
   struct section_info *sections;
-  struct symbol_info *symbols;
+  struct symbol_info *symbols = NULL;
   struct table_info tables;
   int run(DWORD address, WORD psp_sel);
 
@@ -56,7 +55,8 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
     symbols = (struct symbol_info *)mem_get(symsize);
     if (symbols == 0) {
       error("Error allocating symbols table\n");
-      
+      mem_free((DWORD)sections, sizeof(struct section_info));
+
       /* Should provide some error code... */
       return;
     }
@@ -71,18 +71,25 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
   }
   
   if (dyn_entry == 0) {
+    /* No entry point... We assume that we need dynamic linking */
     int init_sect;
     DWORD uninitspace;
     int res;
     void *kernel_symbols;
 
-    exec_space = parser->load_relocatable(p, file, tables.num_sections, sections, &size);
+    exec_space = parser->load_relocatable(p, file,
+	    tables.num_sections, sections, &size);
     if (relocate == 0) {
       error("Warning: file is not an executable, but it has not any reloc info!!!\n");
+      /* But we try to go on anyway... */
     }
     if ((bss_sect < 0) || (bss_sect > tables.num_sections)) {
       error("Error: strange file --- no BSS section\n");
-      /* TODO: Return code; free allocated resources... */
+      /* TODO: Return code... */
+      mem_free((DWORD)sections, sizeof(struct section_info));
+      if (symbols != NULL) {
+        mem_free((DWORD)symbols, symsize);
+      }
       return;
     }
     uninitspace = size;
@@ -91,11 +98,15 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
 #endif
     kernel_symbols = get_syscall_table();
     for (i = 0 ; i < tables.num_sections; i++) {
-      res = parser->relocate_section(p, exec_space, uninitspace, sections,
-				     i, symbols, kernel_symbols);
+      res = parser->relocate_section(p, exec_space,
+	      uninitspace, sections, i, symbols, kernel_symbols);
       if (res < 0) {
 	error("Error: relocation failed!!!\n");
-	/* TODO: Return code; free allocated resources... */
+	/* TODO: Return code... */
+        mem_free((DWORD)sections, sizeof(struct section_info));
+        if (symbols != NULL) {
+          mem_free((DWORD)symbols, symsize);
+        }
 	return;
       }
     }
@@ -104,11 +115,15 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
 #endif
     if (symbols == 0) {
       error("Error: no symbols!!!\n");
-      /* TODO: Return code; free allocated resources... */
+      /* TODO: Return code... */
+      mem_free((DWORD)sections, sizeof(struct section_info));
+      if (symbols != NULL) {
+        mem_free((DWORD)symbols, symsize);
+      }
       return;
     }
-    dyn_entry = (DWORD)parser->import_symbol(p, tables.num_symbols, symbols,
-					     "_init", &init_sect);
+    dyn_entry = (DWORD)parser->import_symbol(p, tables.num_symbols,
+	    symbols, "_init", &init_sect);
     if (init_sect != -1) {
 #ifdef __EXEC_DEBUG__
       fd32_log_printf("Found: (%d =  0x%x) 0x%lx\n", init_sect,
@@ -129,11 +144,16 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
       message("Not found\n");
     }
   } else {
-    exec_space = parser->load_executable(p, file, tables.num_sections, sections, &size);
+    exec_space = parser->load_executable(p, file,
+	    tables.num_sections, sections, &size);
     if (exec_space == 0) {
 #ifdef __EXEC_DEBUG__
       message("Error decoding the Executable data\n");
 #endif
+      mem_free((DWORD)sections, sizeof(struct section_info));
+      if (symbols != NULL) {
+        mem_free((DWORD)symbols, symsize);
+      }
       return;
     }
     offset = exec_space - sections[0].base;
@@ -142,9 +162,13 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
     fd32_log_printf("[EXEC] Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
 	    (DWORD)fun, dyn_entry, offset);
 #endif
-    /*  retval = run(entry_offset + offset); */
-    retval = create_process(dyn_entry + offset, exec_space, size, cmdline);
+    retval = create_process(dyn_entry + offset, exec_space,
+	    size, cmdline);
     message("Returned: %d!!!\n", retval);
     mem_free(exec_space, size);
+    mem_free((DWORD)sections, sizeof(struct section_info));
+    if (symbols != NULL) {
+      mem_free((DWORD)symbols, symsize);
+    }
   }
 }

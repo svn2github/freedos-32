@@ -11,17 +11,12 @@
 #include <ll/i386/mb-info.h>
 #include <ll/i386/hw-data.h>
 #include <ll/i386/error.h>
+
 #include "pmm.h"
 #include "mmap.h"
 #include "kmem.h"
 #include "mods.h"
 #include "logger.h"
-
-/*
-static DWORD mem_start = 0;
-static DWORD mem_size = 0;
-static DWORD mem_available = 0;
-*/
 
 struct mempool high_mem_pool;
 
@@ -90,6 +85,7 @@ static void mem_init_from_mmap(DWORD mmap_addr, WORD mmap_size)
 	pmm_add_region(&high_mem_pool, bal, ll);
       } else {
 	/* DOS mem is not currently managed :( */
+	/* FIXME: Implement something here... */
       }
     }
   }
@@ -177,17 +173,5 @@ int mem_free(DWORD base, DWORD size)
 
 DWORD mem_get(DWORD amount)
 {
-  /*
-  DWORD res;
-
-  if (amount < mem_available) {
-    res = mem_start;
-    mem_start += amount;
-    mem_available -= amount;
-    return res;
-  }
-
-  return 0;
-  */
   return pmm_alloc(&high_mem_pool, amount);
 }

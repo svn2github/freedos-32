@@ -15,9 +15,6 @@
 
 #define LOCAL_BSS 100
 
-/*
-char elf_signature[] = "\0x7FELF";
-*/
 char elf_signature[] = "\177ELF";
 
 DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)

@@ -26,13 +26,12 @@ WORD kern_CS, kern_DS;
 
 /* Still to check:
      minstack  OK? (used to allocate initial stack...)
-     memory_handle!!!        <--- Search how to compute it...
 
-   The correctness of the following still has to be checked...
+   There probably is some error in one of the following
+   (see argtest)...
      env_size
      base_name
      argv0
-     dpmi_server
 */
 
 #define RUN_RING   0
@@ -40,15 +39,12 @@ WORD kern_CS, kern_DS;
 
 #define MAX_OPEN_FILES 20
 
-/*
-  extern DWORD current_SP;
-  */
 extern DWORD current_SP;
 struct psp *current_psp = 0;
 
 void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD base, DWORD end, DWORD m)
 {
-  struct jft *NewJft;
+  struct jft *newjft;
   fd32_dev_char_t *console_ops;
   int console_type;
 
@@ -64,17 +60,15 @@ void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD b
   npsp->memlimit = base + end;
 
   /* Allocate a JFT, and associate it to the current PSP */
-//  newjft = (struct jft *)mem_get(sizeof(struct jft) * MAX_OPEN_FILES);
-  NewJft = (struct jft *) mem_get(sizeof(struct jft) * MAX_OPEN_FILES);
+  newjft = (struct jft *)mem_get(sizeof(struct jft) * MAX_OPEN_FILES);
   if (npsp->link == NULL) {
-//    memset(newjft, 0, sizeof(struct jft) * MAX_OPEN_FILES);
-    memset(NewJft, 0, sizeof(struct jft) * MAX_OPEN_FILES);
+    memset(newjft, 0, sizeof(struct jft) * MAX_OPEN_FILES);
     console_ops = fd32_dev_query("con", FD32_DEV_CHAR);
     if (console_ops == 0) {
       message("No console driver... Task will not be able to do input!!!\n");
     } else {
       console_type = (console_ops->ioctl(0, FD32_SET_NONBLOCKING_IO, 0) > 0);
-      NewJft[0].Ops = (fd32_dev_ops_t *) console_ops;
+      newjft[0].Ops = (fd32_dev_ops_t *) console_ops;
       if (!console_type) {
 	extern fd32_dev_char_t fake_console;
 	int fake_console_input(void *p, DWORD len, BYTE *buffer);
@@ -83,25 +77,24 @@ void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD b
 	  memcpy(&fake_console, console_ops, sizeof(fd32_dev_char_t));
 	  fake_console.P = console_ops;
 	  fake_console.read = fake_console_input;
-	  NewJft[0].Ops = (fd32_dev_ops_t *) &fake_console;
+	  newjft[0].Ops = (fd32_dev_ops_t *) &fake_console;
 	}
       }
-      //      newjft[0].driver_type = console_type;
-      message("Console Type:%d\n", console_type);//newjft[0].driver_type);
+      /*
+        message("Console Type:%d\n", console_type);
+      */
       if ((console_type & DRIVER_TYPE_WRITE) == 0) {
 	message("Limited console capabilities: using cprintf for task output!!!");
       } else {
-	NewJft[1].Ops = (fd32_dev_ops_t *) console_ops;
-	NewJft[2].Ops = (fd32_dev_ops_t *) console_ops;
-	//newjft[1].driver_type = console_type;
-	//newjft[2].driver_type = console_type;
+	newjft[1].Ops = (fd32_dev_ops_t *) console_ops;
+	newjft[2].Ops = (fd32_dev_ops_t *) console_ops;
       }
     }
-  }else {
-    memcpy(NewJft, npsp->link->Jft, sizeof(struct jft));
+  } else {
+    memcpy(newjft, npsp->link->Jft, sizeof(struct jft));
   }
   npsp->JftSize = MAX_OPEN_FILES;
-  npsp->Jft     = NewJft;
+  npsp->Jft     = newjft;
 
   /* And now... Set the arg list!!! */
   npsp->command_line_len = strlen(args);
@@ -137,7 +130,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 
   /*Environment lenght + 2 zeros + 1 word + program name... */
   env_size = 2 + 2 + strlen(prgname);
-  size = sizeof(struct stubinfo) + sizeof(struct psp) + env_size;
+  size = sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE;
   /* Always allocate a fixed amount of memory...
    * Keep some space for adding environment variables
    */
@@ -163,7 +156,8 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     mem_free((DWORD)allocated, size);
     return NULL;
   }
-  GDT_place(sel, (DWORD)info, sizeof(struct stubinfo), 0x92 | (RUN_RING << 5), 0x40);
+  GDT_place(sel, (DWORD)info, sizeof(struct stubinfo),
+	  0x92 | (RUN_RING << 5), 0x40);
   
   newpsp = (struct psp *)(allocated + sizeof(struct stubinfo));
   
@@ -185,10 +179,12 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] PSP Selector Allocated: = 0x%x\n", psp_selector);
 #endif
-  GDT_place(psp_selector, (DWORD)newpsp, sizeof(struct psp), 0x92 | (RUN_RING << 5), 0x40);
+  GDT_place(psp_selector, (DWORD)newpsp, sizeof(struct psp),
+	  0x92 | (RUN_RING << 5), 0x40);
 
   /* Allocate Environment Space & Selector */
-  envspace = (char *)(allocated + sizeof(struct stubinfo) + sizeof(struct psp));
+  envspace = (char *)(allocated + sizeof(struct stubinfo) +
+	  sizeof(struct psp));
   memset(envspace, 0, env_size);
   *((WORD *)envspace + 2) = 1;
   strcpy(envspace + 2 + sizeof(WORD), prgname); /* No environment... */
@@ -212,31 +208,27 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Environment Selector Allocated: = 0x%x\n", env_selector);
 #endif
-  GDT_place(env_selector, (DWORD)envspace, ENV_SIZE, 0x92 | (RUN_RING << 5), 0x40);
+  GDT_place(env_selector, (DWORD)envspace, ENV_SIZE,
+	  0x92 | (RUN_RING << 5), 0x40);
   
   ksprintf(info->magic, "go32stub, v 2.00");
   info->size = sizeof(struct stubinfo);
 
-  info->minstack = 0x40000;        /* ??? */
+  info->minstack = 0x40000;        /* FIXME: Check this!!! */
   info->memory_handle = mem_handle;
 	/* Memory pre-allocated by the kernel... */
   info->initial_size = image_end;        /* align? */
 
-	/* If minkeep == 0, ds_segment is not used!!! */
-#if 1
-  info->minkeep = 0x1000;        /* DOS buffer size... If 0, allocate new one */
+  info->minkeep = 0x1000;        /* DOS buffer size... */
   m = (DWORD)DOS_alloc(0x1010);
   info->ds_segment = (m >> 4) + 1;
 
-#else
-  info->minkeep = 0;        /* DOS buffer size... If 0, allocate new one */
-  info->ds_segment = 0;         /* RM DS... does not exist!!! */
-#endif
   info->ds_selector = get_DS();
   info->cs_selector = get_CS();
 
   info->psp_selector = psp_selector;
 
+  /* FIXME: There should be some error down here... */
   info->env_size = env_size;
 
   argname = filename; c = filename; done = 0; i = 0;
@@ -261,7 +253,6 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
 #if 0
   /* Seems that this is not used... */
   ksprintf(info->basename, filename);
-  info->basename[0] = 0;
   strcpy(info->argv0, prgname);
 #else 
   info->basename[0] = 0;
@@ -291,8 +282,10 @@ void restore_psp(void)
   base1 = GDT_read(info->psp_selector, NULL, NULL, NULL);
   if (base1 != (DWORD)current_psp) {
     error("Restore PSP: paranoia check failed...\n");
-    message("Stubinfo Sel: 0x%x;    Base: 0x%lx\n", stubinfo_sel, base);
-    message("Current psp: 0x%lx;    Base1: 0x%lx\n", (DWORD)current_psp, base1);
+    message("Stubinfo Sel: 0x%x;    Base: 0x%lx\n",
+	    stubinfo_sel, base);
+    message("Current psp: 0x%lx;    Base1: 0x%lx\n",
+	    (DWORD)current_psp, base1);
     fd32_abort();
   }
   GDT_place(stubinfo_sel, 0, 0, 0, 0);
@@ -304,7 +297,8 @@ void restore_psp(void)
     fd32_abort();
   }
 
-  ok = mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE);
+  ok = mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp)
+	  + ENV_SIZE);
   if (ok != 1) {
     error("Restore PSP panicing while freeing memory...\n");
     fd32_abort();
@@ -328,7 +322,8 @@ int create_process(DWORD entry, DWORD base, DWORD size, char *name)
   int run(DWORD, WORD);
 
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n", entry, size);
+  fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n",
+	  entry, size);
 #endif
   stubinfo_sel = stubinfo_init(base, size, 0, name);
   if (stubinfo_sel == 0) {
