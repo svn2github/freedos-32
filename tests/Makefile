@@ -12,7 +12,7 @@ include $(BASE)/config.mk
 DJGPP_TESTS = hello.out empty.out exctest.out get.out argtest.out filetest.out exectest.out
 NATIVE_TESTS = fstest.32 read.32
 
-all: $(DJGPP_TESTS) $(NATIVE_TESTS)
+all: $(DJGPP_TESTS) $(NATIVE_TESTS) command.exe
 	make -C fat
 clean:
 	$(RM) *.exe
