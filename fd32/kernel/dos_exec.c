@@ -39,7 +39,7 @@ static int my_seek(int id, int pos, int w)
 }
 
 int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
-	DWORD fcb1, DWORD fcb2)
+	DWORD fcb1, DWORD fcb2, BYTE *return_val)
 {
   struct kern_funcs p;
   int mod_type;
@@ -108,7 +108,7 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
       fd32_log_printf("Executable: entry point = 0x%lx\n", entry_point);
 #endif
     }
-    exec_process(&p, (int)(&f), &parser, filename);
+    *return_val = exec_process(&p, (int)(&f), &parser, filename);
   }
   return 1;
 }

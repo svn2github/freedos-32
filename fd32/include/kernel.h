@@ -8,7 +8,7 @@
 #define __KERNEL_H_
 
 int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
-	DWORD fcb1, DWORD fcb2);
+	DWORD fcb1, DWORD fcb2, BYTE *return_value);
 
 int create_process(DWORD entry, DWORD base, DWORD size, char *name);
 void fd32_abort(void);

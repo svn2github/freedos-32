@@ -161,7 +161,7 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
 }
 
 /* Read an executable in memory, and execute it... */
-void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline)
+int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline)
 {
   int retval;
   int size;
@@ -186,6 +186,8 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
     run(dyn_entry, 0, (DWORD)cmdline);
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("       Returned\n");
+    
+    retval = 0;
 #endif
   } else {
 #ifdef __EXEC_DEBUG__
@@ -201,4 +203,5 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
     }
     */
   }
+  return retval;
 }

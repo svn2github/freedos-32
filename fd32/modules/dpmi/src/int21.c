@@ -27,6 +27,7 @@ struct par_block {
 };
 
 int use_lfn;
+static BYTE dos_return_code;
 
 /* Given a FD32 return code, prepare the standard DOS return status. */
 /* - on error: carry flag set, error (positive) in AX.               */
@@ -758,11 +759,20 @@ void int21_handler(union rmregs *r)
 	  return;
         }
         Res = dos_exec((char *)((r->x.ds << 4) + r->x.dx),
-	      pb->env, pb->cmd_tail, pb->fcb1, pb->fcb2);
+	      pb->env, pb->cmd_tail, pb->fcb1, pb->fcb2,
+	      &dos_return_code);
       }
       dos_return(Res, r);
       return;
 
+    /* DOS 2+ - Get return code */
+    case 0x4D:
+      {
+	RMREGS_CLEAR_CARRY;
+	r->h.ah = 0;	/* Only normal termination, for now...*/
+	r->h.al = dos_return_code;
+	return;
+      }
     /* DOS 2+ - "FINDFIRST" - Find first matching file */
     case 0x4E:
       /* AL    special flag for APPEND (ignored)                   */
