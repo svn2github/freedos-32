@@ -57,11 +57,7 @@ int fd32_log_printf(char *fmt, ...)
   NumWritten =  vksprintf(Buf, fmt, parms);
   va_end(parms);
   /* And send it to the Bochs window */
-  for (i = 0; i < NumWritten; i++)
-  {
-    if (Buf[i] == '\n') outp(0xE9, '\t'); /* TODO: For Luca: why? */
-    outp(0xE9, Buf[i]);
-  }
+  for (i = 0; i < NumWritten; i++) outp(0xE9, Buf[i]);
   #else
   /* First we check if this function is called before initing the logger */
   if (!LogBufPos) return 0;
