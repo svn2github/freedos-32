@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <ll/i386/hw-data.h>
 #include <ll/i386/error.h>
