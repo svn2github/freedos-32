@@ -19,6 +19,7 @@ struct funky_file {
   fd32_request_t *request;
   void *file_id;
 };
+extern DWORD current_SP;
 
 static int my_read(int id, void *b, int len)
 {
@@ -141,6 +142,8 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
     
     if (exec_base == 0) {
       struct process_info pi;
+      DWORD tmp;
+
 #ifdef __DEBUG__
       fd32_log_printf("Seems to be a native application?\n");
 #endif
@@ -151,6 +154,7 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
       }
       pi.memlimit = base + size + LOCAL_BSS;
       pi.name = filename;
+      tmp = current_SP;
 #ifdef __DEBUG__
       message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", pi.memlimit, base, size);
 #endif
@@ -160,6 +164,8 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #else
       run(entry_point, 0, (DWORD)&pi);
 #endif
+      current_SP = tmp;
+
       return 0;
     } else {
 #ifdef __DEBUG__
