@@ -338,11 +338,11 @@ static int open_existing(tFile *Fp, tFile *Ff, tDirEntry *D, DWORD Mode)
   Ff->References     = 1;
   Ff->FilSig         = FAT_FILSIG;
   Ff->DirEntryOffset = Fp->TargetPos - 32;
-  Ff->DirEntrySector = Fp->SectorInCluster;
-  if ISROOT(Fp)
-    Ff->DirEntrySector += Fp->V->FirstRootSector;
+  if ISROOT(Fp) /* ISROOT checks Fp->DirEntrySector */
+    Ff->DirEntrySector = Fp->SectorInCluster + Fp->V->FirstRootSector;
    else
-    Ff->DirEntrySector += fat_first_sector_of_cluster(Fp->Cluster, Fp->V);
+    Ff->DirEntrySector = Fp->SectorInCluster
+                       + fat_first_sector_of_cluster(Fp->Cluster, Fp->V);
   Ff->DirEntrySecOff = Fp->ByteInSector - 31;
   Ff->ParentFstClus  = FIRSTCLUSTER(Fp->DirEntry);
   Ff->Mode           = 0;

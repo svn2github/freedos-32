@@ -277,12 +277,13 @@ int fat_creat(tFile *Fp, tFile *Ff, char *Name, BYTE Attr, WORD AliasHint)
   if (Res < 0) return Res;
 
   /* Now fill the passed Ff file structure with the status of the new file */
+  Ff->V              = Fp->V;
   Ff->DirEntryOffset = Res;
-  Ff->DirEntrySector = Fp->SectorInCluster;
-  if ISROOT(Fp)
-    Ff->DirEntrySector += Fp->V->FirstRootSector;
+  if ISROOT(Fp) /* ISROOT checks Fp->DirEntrySector */
+    Ff->DirEntrySector = Fp->SectorInCluster + Fp->V->FirstRootSector;
    else
-    Ff->DirEntrySector += fat_first_sector_of_cluster(Fp->Cluster, Fp->V);
+    Ff->DirEntrySector = Fp->SectorInCluster
+                       + fat_first_sector_of_cluster(Fp->Cluster, Fp->V);
   Ff->DirEntrySecOff  = Fp->ByteInSector - 31;
   Ff->ParentFstClus   = (Fp->DirEntry.FstClusHI << 16) + Fp->DirEntry.FstClusLO;
   Ff->Mode            = 0;
