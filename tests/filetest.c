@@ -1,21 +1,23 @@
 #include <stdio.h>
 
+#define FILENAME "c:\\test.txt"
+
 int main(int argc, char *argv[])
 {
   FILE *f;
   char buff[100];
   int res;
 
-  printf("Going to open a file...\n");
-  f = fopen("c:\\test.txt", "r");
+  printf("Going to open \"%s\"...\n", FILENAME);
+  f = fopen(FILENAME, "rb");
 
   if (f == NULL) {
-    perror("Error opening test.txt");
+    perror("Error opening the file");
     exit(-1);
   }
-  res = fread(buff, 100, 1, f);
+  res = fread(buff, 1, 100, f);
   buff[99] = 0;
-  printf("Read %d chars: %s\n", res, buff);
+  printf("Read %d bytes: %s\n", res, buff);
   fclose(f);
 
   return 0;
