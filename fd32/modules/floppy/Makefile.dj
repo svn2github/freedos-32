@@ -1,0 +1,53 @@
+# The FreeDOS32 Floppy Driver
+# Makefile for the DOS target, using DJGPP
+# by Salvo Isaja
+# ----------------------------------------
+# - "make -f Makefile.dj readtest.exe" builds a floppy read test executable,
+#   performing random sector reads followed by sequential sector reads
+#   (see djgpp/readtest.c).
+#
+# - "make -f Makefile.dj writtest.exe" builds a floppy read/write test
+#   executable, performing sequential sector writes followed by sequential
+#   sector reads, checking if data match (see djgpp/writtest.c).
+#
+# - "make -f Makefile.dj" or "make -f Makefile.dj all" build both examples.
+#
+# - "make -f Makefile.dj clean" removes rebuildable files.
+
+ifndef PORTAB
+PORTAB = ../include/djgpp
+endif
+
+CFLAGS = -Wall -O3 -I. -I$(PORTAB)
+
+.PHONY: all clean
+
+all: readtest.exe writtest.exe
+
+fdc.o: fdc.c fdc.h
+	gcc -c $(CFLAGS) fdc.c -o $@
+
+bootsect.o: bootsect.c fdc.h
+	gcc -c $(CFLAGS) bootsect.c -o $@
+
+blockio.o: blockio.c blockio.h fdc.h
+	gcc -c $(CFLAGS) blockio.c -o $@
+
+events.o: $(PORTAB)/dr-env/events.c $(PORTAB)/dr-env/events.h
+	gcc -c $(CFLAGS) $(PORTAB)/dr-env/events.c -o $@
+
+readtest.o: djgpp/readtest.c blockio.h fdc.h
+	gcc -c $(CFLAGS) djgpp/readtest.c -o $@
+
+writtest.o: djgpp/writtest.c blockio.h fdc.h
+	gcc -c $(CFLAGS) djgpp/writtest.c -o $@
+
+readtest.exe: fdc.o bootsect.o blockio.o events.o readtest.o
+	gcc -s $(CFLAGS) $^ -o $@
+	
+writtest.exe: fdc.o bootsect.o blockio.o events.o writtest.o
+	gcc -s $(CFLAGS) $^ -o $@
+
+clean :
+	del *.o
+	del *.exe
