@@ -7,7 +7,7 @@
 #include "dpmiexc.h"
 
 extern DWORD ll_exc_table[16];
-extern BYTE exc_table[1];
+extern struct handler exc_table[32];
 
 extern GATE IDT[256];
 
@@ -40,8 +40,6 @@ int fd32_set_real_mode_int(int intnum, WORD segment, WORD offset)
 
 int fd32_get_exception_handler(int excnum, WORD *selector, DWORD *offset)
 {
-  struct handler *entry;
-
   if (excnum > 0x1F) {
     return ERROR_INVALID_VALUE;
 #if 0
@@ -54,30 +52,24 @@ int fd32_get_exception_handler(int excnum, WORD *selector, DWORD *offset)
 #endif
   }
   
-  entry = (struct handler *)(exc_table + excnum * sizeof(struct handler));
-
   /* CX:EDX = <selector>:<offset> of the exception handler */
-  *selector = entry->cs;
-  *offset = entry->eip;
+  *selector = exc_table[excnum].cs;
+  *offset = exc_table[excnum].eip;
 
   return 0;
 }
 
 int fd32_set_exception_handler(int excnum, WORD selector, DWORD offset)
 {
-  struct handler *entry;
-
   if (excnum > 0x1F) {
     return ERROR_INVALID_VALUE;
   }
   
-  entry = (struct handler *)(exc_table + excnum * sizeof(struct handler));
-
   /* CX:EDX = <selector>:<offset> of the exception handler */
   /* Set it */
   /* Warn: we have to add a check on the selector value (CX) */
-  entry->cs = selector;
-  entry->eip = offset;
+  exc_table[excnum].cs = selector;
+  exc_table[excnum].eip = offset;
 
   return 0;
 }
