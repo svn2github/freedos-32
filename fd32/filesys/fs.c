@@ -400,3 +400,24 @@ int fd32_get_fsinfo(char *PathName, fd32_fs_info_t *FSInfo)
     if (Res != FD32_ENMOUNT) return Res;
   }
 }
+
+
+/* The GET FREE SPACE ON FS system call.                            */
+/* Wrapper for the "get_fsfree" function of the appropriate driver. */
+/* Returns 0 on success, or a negative error code on failure.       */
+int fd32_get_fsfree(char *PathName, fd32_getfsfree_t *FSFree)
+{
+  fd32_request_t *request;
+  char            AuxName[FD32_LFNPMAX];
+  int             Res;
+
+  if ((Res = fd32_truename(AuxName, PathName, FD32_TNSUBST)) < 0) return Res;
+  if (FSFree->Size < sizeof(fd32_getfsfree_t)) return FD32_EFORMAT;
+  for (;;)
+  {
+    Res = fd32_get_drive(AuxName, &request, &FSFree->DeviceId, NULL);
+    if (Res < 0) return Res;
+    Res = request(FD32_GETFSFREE, FSFree);
+    if (Res != FD32_ENMOUNT) return Res;
+  }
+}

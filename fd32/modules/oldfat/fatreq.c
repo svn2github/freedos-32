@@ -189,6 +189,8 @@ int fat_request(DWORD Function, void *Params)
       if (X->Size < sizeof(fd32_getfsinfo_t)) return FD32_EFORMAT;
       return fat_get_fsinfo((fd32_fs_info_t *) X->FSInfo);
     }
+    case FD32_GETFSFREE:
+      return fat_get_fsfree((fd32_getfsfree_t *) Params);
   }
   return FD32_EINVAL;
 }

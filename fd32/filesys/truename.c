@@ -341,6 +341,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
 
 /* TODO: make Source const char */
 /* TODO: doesn't work on SUBSTed drives */
+/* TODO: There's a bug here, p is never reassigned to Partial, but I'm too lazy to think on it now... */
 int fd32_sfn_truename(char *Dest, char *Source)
 {
   int                Res, NumSlashes = 0;

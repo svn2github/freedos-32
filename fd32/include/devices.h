@@ -31,6 +31,7 @@ enum
   FD32_SETATTR,
   FD32_REOPENDIR,
   FD32_GETFSINFO,
+  FD32_GETFSFREE,
   /* Block device functions */
   FD32_BLOCKWRITE = 0x100,
   FD32_BLOCKREAD,
@@ -304,6 +305,22 @@ typedef struct fd32_getfsinfo
   void  *FSInfo;   /* OUT: File system info structure      */
 }
 fd32_getfsinfo_t;
+/* Returns 0 on success */
+
+
+/****************************************************************************/
+/* GETFSFREE - Get free space on file system                                */
+/****************************************************************************/
+typedef struct fd32_getfsfree
+{
+  DWORD  Size;        /* Size in bytes of this structure           */
+  void  *DeviceId;    /* Identifier of the file system device      */
+  DWORD  SecPerClus;  /* OUT: Sectors per allocation unit          */
+  DWORD  BytesPerSec; /* OUT: Bytes per sector                     */
+  DWORD  AvailClus;   /* OUT: Number of available allocation units */
+  DWORD  TotalClus;   /* OUT: Total number of allocation units     */
+}
+fd32_getfsfree_t;
 /* Returns 0 on success */
 
 

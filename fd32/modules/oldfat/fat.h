@@ -386,7 +386,9 @@ int    fat_close    (tFile *F);
 DWORD fat_first_sector_of_cluster(DWORD N, tVolume *V);
 void  fat_timestamps(WORD *Time, WORD *Date, BYTE *Hund);
 int   fat_lseek(tFile *F, LONGLONG *Offset, int Origin);
-int  fat_get_fsinfo(fd32_fs_info_t *Fsi);
+int   fat_get_fsinfo(fd32_fs_info_t *Fsi);
+int   fat_get_fsfree(fd32_getfsfree_t *F);
+
 
 /* READDIR.C - File find procedures */
 int fat_find   (tFile *F, char *FileSpec, DWORD Flags, tFatFind *FindData);

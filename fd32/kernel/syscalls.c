@@ -144,6 +144,7 @@ static struct symbol syscall_table[] = {
   { "fd32_set_attributes",    (DWORD) fd32_set_attributes    },
   { "fd32_rename",            (DWORD) fd32_rename            },
   { "fd32_get_fsinfo",        (DWORD) fd32_get_fsinfo        },
+  { "fd32_get_fsfree",        (DWORD) fd32_get_fsfree        },
   { "fd32_dos_findfirst",     (DWORD) fd32_dos_findfirst     },
   { "fd32_dos_findnext",      (DWORD) fd32_dos_findnext      },
   { "fd32_lfn_findfirst",     (DWORD) fd32_lfn_findfirst     },

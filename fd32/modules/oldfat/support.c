@@ -113,6 +113,22 @@ int fat_get_fsinfo(fd32_fs_info_t *Fsi)
 }
 
 
+/* Gets allocation informations on a FAT volume.              */
+/* Returns 0 on success, or a negative error code on failure. */
+int fat_get_fsfree(fd32_getfsfree_t *F)
+{
+  tVolume *V;
+  if (F->Size < sizeof(fd32_getfsfree_t)) return FD32_EFORMAT;
+  V = (tVolume *) F->DeviceId;
+  if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+  F->SecPerClus  = V->Bpb.BPB_SecPerClus;
+  F->BytesPerSec = V->Bpb.BPB_BytsPerSec;
+  F->AvailClus   = V->FSI_Free_Count;
+  F->TotalClus   = V->DataClusters;
+  return 0;
+}
+
+
 #if 0
 /* The bytes actually allocated for the file F (usually > FileSize) */
 static inline DWORD file_occupation_in_bytes(tFile *F)
@@ -120,18 +136,5 @@ static inline DWORD file_occupation_in_bytes(tFile *F)
   return clusters_amount(F->FileSize, &F->Volume->Bpb)
          * F->Volume->Bpb.BPB_BytsPerSec
          * F->Volume->Bpb.BPB_SecPerClus;
-}
-
-
-int fat_free_disk_space(tVolume *V, DWORD *SectorsPerCluster,
-                        DWORD *FreeClusters,
-                        DWORD *BytesPerSector,
-                        DWORD *TotalClusters)
-{
-  if (SectorsPerCluster) *SectorsPerCluster = V->Bpb.BPB_SecPerClus;
-  if (FreeClusters)      *FreeClusters      = V->FSI_Free_Count;
-  if (BytesPerSector)    *BytesPerSector    = V->Bpb.BPB_BytsPerSec;
-  if (TotalClusters)     *TotalClusters     = V->DataClusters;
-  return 0;
 }
 #endif

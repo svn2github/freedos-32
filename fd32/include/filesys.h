@@ -242,6 +242,8 @@ int  fd32_get_attributes   (int Handle, fd32_fs_attr_t *A);
 int  fd32_set_attributes   (int Handle, fd32_fs_attr_t *A);
 int  fd32_rename           (char *OldName, char *NewName);
 int  fd32_get_fsinfo       (char *PathName, fd32_fs_info_t *FSInfo);
+int  fd32_get_fsfree       (char *PathName, fd32_getfsfree_t *FSFree);
+
 
 /* FIND.C - Find services */
 int  fd32_dos_findfirst    (char *FileSpec, BYTE Attrib, fd32_fs_dosfind_t *Dta);

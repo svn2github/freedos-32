@@ -42,6 +42,27 @@ tExecParams;
 static WORD DosReturnCode;
 
 
+/* Data structure for INT 21 AX=7303h                   */
+/* Windows95 - FAT32 - Get extended free space on drive */
+typedef struct
+{
+  WORD  Size;            /* Size of the returned structure (this one)  */
+  WORD  Version;         /* Version of this structure (desired/actual) */
+  /* The following are *with* adjustment for compression */
+  DWORD SecPerClus;      /* Sectors per cluster               */
+  DWORD BytesPerSec;     /* Bytes per sector                  */
+  DWORD AvailClus;       /* Number of available clusters      */
+  DWORD TotalClus;       /* Total number of clusters on drive */
+  /* The following are *without* adjustment for compression */
+  DWORD RealSecPerClus;  /* Number of sectors per cluster     */
+  DWORD RealBytesPerSec; /* Bytes per sector                  */
+  DWORD RealAvailClus;   /* Number of available clusters      */
+  DWORD RealTotalClus;   /* Total number of clusters on drive */
+  BYTE  Reserved[8];
+}
+__attribute__ ((packed)) tExtDiskFree;
+
+
 /* Converts the passed path name to a valid path of 8.3 names,  */
 /* in the OEM code page, as required for short file name calls. */
 /* Returns 0 on success, or a negative error code on failure.   */
@@ -462,7 +483,7 @@ static inline void lfn_functions(union rmregs *r)
       char *Dest = (char *) (r->x.ds << 4) + r->x.si;
 
       Drive[0] = fd32_get_default_drive();
-      if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A';
+      if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A' - 1;
       fd32_getcwd(Drive, Cwd);
       strcpy(Dest, Cwd + 1); /* Skip leading backslash as required from DOS */
       return;
@@ -672,11 +693,36 @@ void int21_handler(union rmregs *r)
         RMREGS_CLEAR_CARRY;
         return;
       }
-      /* FIX ME: MS-DOS returns AL=FFh for invalid subfunctions.     */
-      /*         Make this behaviour consistent with other services. */
+      /* TODO: MS-DOS returns AL=FFh for invalid subfunctions.     */
+      /*       Make this behaviour consistent with other services. */
       r->h.al = 0xFF;
       RMREGS_SET_CARRY;
       return;
+      
+    /* DOS 2+ - Get free disk space */
+    case 0x36:
+    {
+      /* DL    drive number (00h = default, 01h = A:, etc) */
+      char             DriveSpec[4] = " :\\";
+      fd32_getfsfree_t FSFree;
+      DriveSpec[0] = fd32_get_default_drive();
+      if (r->h.dl != 0x00) DriveSpec[0] = r->h.dl + 'A' - 1;
+      FSFree.Size = sizeof(fd32_getfsfree_t);
+      Res = fd32_get_fsfree(DriveSpec, &FSFree);
+      LOG_PRINTF(("INT 21h - Getting free disk space for \"%s\", returns %08x\n", DriveSpec, Res));
+      LOG_PRINTF(("          Got: %lu secperclus, %lu availclus, %lu bytspersec, %lu totclus\n",
+                  FSFree.SecPerClus, FSFree.AvailClus, FSFree.BytesPerSec, FSFree.TotalClus));
+      if (Res < 0)
+      {
+        r->x.ax = 0xFFFF; /* Unusual way to report error condition */
+        return;
+      }
+      r->x.ax = FSFree.SecPerClus;  /* AX = Sectors per clusters */
+      r->x.bx = FSFree.AvailClus;   /* BX = Number of free clusters */
+      r->x.cx = FSFree.BytesPerSec; /* CX = Bytes per sector        */
+      r->x.dx = FSFree.TotalClus;   /* DX = Total clusters on drive */
+      return;
+    }
 
     /* DOS 2+ - "MKDIR" - Create subdirectory */
     case 0x39:
@@ -884,7 +930,7 @@ void int21_handler(union rmregs *r)
 
       LOG_PRINTF(("INT 21h - Getting current dir of drive %02x\n", r->h.dl));
       Drive[0] = fd32_get_default_drive();
-      if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A';
+      if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A' - 1;
       fd32_getcwd(Drive, Cwd);
       fd32_sfn_truename(Cwd, Cwd); /* Convert all component to 8.3 format */
       strcpy(Dest, Cwd + 1); /* Skip leading backslash as required from DOS */
@@ -1039,6 +1085,50 @@ void int21_handler(union rmregs *r)
       Res = fd32_lfn_findclose(r->x.bx);
       dos_return(Res, r);
       return;
+      
+    /* Windows 95 FAT32 services */
+    /* By now only AX=7303h "Get extended free space on drive" is supported */
+    case 0x73:
+    {
+      tExtDiskFree     *Edf;
+      fd32_getfsfree_t  FSFree;
+      if (r->h.al != 0x03)
+      {
+        r->h.al = 0xFF; /* Unimplemented subfunction */
+        RMREGS_SET_CARRY;
+      }
+      /* DS:DX ASCIZ string for drive ("C:\" or "\\SERVER\Share")      */
+      /* ES:DI Buffer for extended free space structure (tExtFreSpace) */
+      /* CX    Length of buffer for extended free space                */
+      if (r->x.cx < sizeof(tExtDiskFree))
+      {
+        dos_return(FD32_EFORMAT, r);
+        return;
+      }
+      Edf = (tExtDiskFree *) (r->x.es << 4) + r->x.di;
+      if (Edf->Version != 0x0000)
+      {
+        dos_return(FD32_EFORMAT, r);
+        return;
+      }
+      FSFree.Size = sizeof(fd32_getfsfree_t);
+      Res = fd32_get_fsfree((char *) (r->x.ds << 4) + r->x.dx, &FSFree);
+      if (Res >= 0)
+      {
+        Edf->Size = sizeof(tExtDiskFree);
+        /* Currently we don't support volume compression */
+        Edf->SecPerClus  = FSFree.SecPerClus;
+        Edf->BytesPerSec = FSFree.BytesPerSec;
+        Edf->AvailClus   = FSFree.AvailClus;
+        Edf->TotalClus   = FSFree.TotalClus;
+        Edf->RealSecPerClus  = FSFree.SecPerClus;
+        Edf->RealBytesPerSec = FSFree.BytesPerSec;
+        Edf->RealAvailClus   = FSFree.AvailClus;
+        Edf->RealTotalClus   = FSFree.TotalClus;
+      }
+      dos_return(Res, r);
+      return;
+    }
 
     /* Unsupported or invalid functions */
     default:

@@ -17,19 +17,22 @@
 
 extern int videobios_int(union rmregs *r);
 extern void int21_handler(union rmregs *r);
+extern int keybbios_int(union rmregs *r);
 
 //#define __RM_INT_DEBUG__
 
 int fd32_real_mode_int(int intnum, DWORD rmcs_address)
 {
   union rmregs *r1;
-  int res;
 
   r1 = (union rmregs *)rmcs_address;
   switch (intnum) {
     case 0x10:
-      res = videobios_int(r1);
-      return res;
+      return videobios_int(r1);
+
+//    case 0x16:
+//      return keybbios_int(r1);
+
     case 0x21:
 #ifdef __RM_INT_DEBUG__
       fd32_log_printf("INT 21h - AX=%04x BX=%04x CX=%04x DX=%04x SI=%04x DI=%04x DS=%04x ES=%04x...\n",
