@@ -40,7 +40,8 @@
 #include <logger.h>
 #include "rmint.h"
 
-/* Define the DEBUG symbol in order to activate log output */
+/* Define the __DEBUG__ symbol in order to activate log output */
+//#define __DEBUG__
 #ifdef __DEBUG__
  #define LOG_PRINTF(s) fd32_log_printf s
 #else
@@ -107,7 +108,7 @@ static int make_sfn_path(char *Dest, const char *Source)
   char       *c;
   BYTE        FcbName[11];
   int         Res;
-  #ifdef DEBUG
+  #ifdef __DEBUG__
   char       *Save = Dest;
   #endif
 
@@ -138,7 +139,7 @@ static int make_sfn_path(char *Dest, const char *Source)
   }
   /* Finally add the null terminator */
   *Dest = 0;
-  LOG_PRINTF(("Name shortened to '%s'\n", Save));
+  LOG_PRINTF(("INT 21h - Name shortened to '%s'\n", Save));
   return 0;
 }
 
@@ -148,6 +149,7 @@ static int make_sfn_path(char *Dest, const char *Source)
 /* - on success: carry flag clear, AX destroied.                     */
 static void dos_return(int Res, union rmregs *r)
 {
+  LOG_PRINTF(("INT 21h - Result: %08x\n", Res));
   if (Res < 0)
   {
     RMREGS_SET_CARRY;
@@ -278,6 +280,8 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
   dos_return(Res, r);
   if (Res < 0) return;
   Handle = fd32_open(SfnPath, FD32_OREAD | FD32_OEXIST, FD32_ANONE, 0, NULL);
+  if (Handle < 0) /* It could be a directory... */
+    Handle = fd32_open(SfnPath, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, NULL);
   dos_return(Handle, r);
   if (Handle < 0) return;
   /* AL contains the action */
@@ -286,7 +290,7 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
   {
     /* Get file attributes */
     case 0x00:
-      LOG_PRINTF(("INT 21h - Getting attributes of file \"%s\"\n", SfnPath));
+      LOG_PRINTF(("INT 21h - Getting attributes of \"%s\"\n", SfnPath));
       /* CX attributes        */
       /* AX = CX (DR-DOS 5.0) */
       Res = fd32_get_attributes(Handle, &A);
@@ -296,36 +300,30 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 
     /* Set file attributes */
     case 0x01:
-      LOG_PRINTF(("INT 21h - Setting attributes of file \"%s\" to %04x\n", SfnPath, r->x.cx));
+      LOG_PRINTF(("INT 21h - Setting attributes of \"%s\" to %04x\n", SfnPath, r->x.cx));
       /* CX new attributes */
+      /* Volume label and directory attributes cannot be changed. */
+      if (r->x.cx & (FD32_AVOLID | FD32_ADIR))
+      {
+        Res = FD32_EACCES;
+        goto Error;
+      }
       Res = fd32_get_attributes(Handle, &A);
       /* FIX ME: Should close the file if currently open in sharing-compat */
       /*         mode, or generate a sharing violation critical error in   */
       /*         the file is currently open.                               */
+      /* Mah! Would that be true with the new things? Mah...               */
       if (Res < 0) goto Error;
       /* Volume label and directory attributes cannot be changed.         */
       /* To change the other attributes bits of a directory the directory */
       /* flag must be clear, even if it will be set after this call.      */
-      #if 0
-      if (A.Attr == FD32_ATTR_VOLUMEID)
+      if (A.Attr == FD32_AVOLID)
       {
-        Res = FD32_ERROR_ACCESS_DENIED;
+        Res = FD32_EACCES;
         goto Error;
       }
-      if (A.Attr & FD32_ATTR_DIRECTORY)
-      {
-        if (r->x.cx & FD32_ATTR_DIRECTORY)
-        {
-          Res = FD32_ERROR_ACCESS_DENIED;
-          goto Error;
-        }
-        A.Attr &= FD32_ATTR_DIRECTORY;
-        A.Attr |= r->x.cx & ~(FD32_ATTR_VOLUMEID | FD32_ATTR_DIRECTORY);
-      }
-      else A.Attr = r->x.cx & ~(FD32_ATTR_VOLUMEID | FD32_ATTR_DIRECTORY);
-      #else
-      A.Attr = r->x.cx;
-      #endif
+      if (A.Attr & FD32_ADIR) A.Attr = r->x.cx | FD32_ADIR;
+                         else A.Attr = r->x.cx;
       Res = fd32_set_attributes(Handle, &A);
       if (Res < 0) goto Error;
       goto Success;
@@ -359,6 +357,9 @@ static inline void lfn_get_and_set_attributes(union rmregs *r)
   /* DS:DX pointer to the ASCIZ file name */
   Handle = fd32_open((char *) (r->x.ds << 4) + r->x.dx, FD32_ORDWR | FD32_OEXIST,
                      FD32_ANONE, 0, NULL);
+  if (Handle < 0) /* It could be a directory... */
+    Handle = fd32_open((char *) (r->x.ds << 4) + r->x.dx, FD32_ORDWR | FD32_OEXIST | FD32_ODIR,
+                       FD32_ANONE, 0, NULL);
   dos_return(Handle, r);
   if (Handle < 0) return;
   /* BL contains the action */
@@ -708,6 +709,7 @@ void int21_handler(union rmregs *r)
 
     /* DOS 1+ - Set default drive */
     case 0x0E:
+      LOG_PRINTF(("INT 21h - Set default drive to %02x\n", r->h.dl));
       /* DL new default drive (0='A', etc.) */
       Res = fd32_set_default_drive(r->h.dl + 'A');
       if (Res < 0) return; /* No error code is documented. Check this. */
@@ -718,14 +720,15 @@ void int21_handler(union rmregs *r)
 
     /* DOS 1+ - Get default drive */
     case 0x19:
-      LOG_PRINTF(("INT 21h - Getting default drive\n"));
       /* Return the default drive in AL (0='A', etc.) */
       r->h.al = fd32_get_default_drive() - 'A';
+      LOG_PRINTF(("INT 21h - Getting default drive: %02x\n", r->h.al));
       RMREGS_CLEAR_CARRY;
       return;
 
     /* DOS 1+ - Set Disk Transfer Area address */
     case 0x1A:
+      LOG_PRINTF(("INT 21h - Set Disk Transfer Area Address: %04x:%04x\n", r->x.ds, r->x.dx));
       /* DS:DX pointer to the new DTA */
       current_psp->dta = (void *) (r->x.ds << 4) + r->x.dx;
       return;
@@ -736,11 +739,13 @@ void int21_handler(union rmregs *r)
       /* FIX ME: I assumed low memory DTA, I'm probably wrong! */
       r->x.es = (DWORD) current_psp->dta >> 4;
       r->x.bx = (DWORD) current_psp->dta & 0xF;
+      LOG_PRINTF(("INT 21h - Get Disk Transfer Area Address: %04x:%04x\n", r->x.es, r->x.bx));
       return;
 
     /* DOS 2+ - Get DOS version */
     /* FIX ME: This call is subject to modification by SETVER */
     case 0x30:
+      LOG_PRINTF(("INT 21h - Get DOS version\n"));
       /* AL what to return in BH: 0=OEM number, 1=version flag */
       if (r->h.al) r->h.bh = 0x00; /* DOS is not in ROM (bit 3) */
               else r->h.bh = 0xFD; /* We claim to be FreeDOS    */
@@ -754,6 +759,7 @@ void int21_handler(union rmregs *r)
 
     /* DOS 2+ - AL = 06h - Get ture DOS version */
     case 0x33:
+      LOG_PRINTF(("INT 21h - Get true DOS version\n"));
       if (r->h.al == 0x06)
       {
         r->x.bx = 0x0A07; /* We claim to be 7.10     */
@@ -796,6 +802,7 @@ void int21_handler(union rmregs *r)
     case 0x39:
       /* DS:DX pointer to the ASCIZ directory name */
       Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      LOG_PRINTF(("INT 21h - Make directory \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
       Res = fd32_mkdir(SfnPath);
@@ -806,6 +813,7 @@ void int21_handler(union rmregs *r)
     case 0x3A:
       /* DS:DX pointer to the ASCIZ directory name */
       Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      LOG_PRINTF(("INT 21h - Remove directory \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
       Res = fd32_rmdir(SfnPath);
@@ -816,6 +824,7 @@ void int21_handler(union rmregs *r)
     case 0x3B:
       /* DS:DX pointer to the ASCIZ directory name */
       Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      LOG_PRINTF(("INT 21h - Change directory to \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
       Res = fd32_chdir(SfnPath);
@@ -925,6 +934,7 @@ void int21_handler(union rmregs *r)
       /* CL    attribute mask for deletion (?server call?)     */
       /*       FIX ME: check if they are required or allowable */
       Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      LOG_PRINTF(("INT 21h - Delete file \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
       Res = fd32_unlink(SfnPath, FD32_FAALL | FD32_FRNONE);
@@ -1022,13 +1032,13 @@ void int21_handler(union rmregs *r)
       Drive[0] = fd32_get_default_drive();
       if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A' - 1;
       fd32_getcwd(Drive, Cwd);
-      fd32_log_printf("After getcwd:\"%s\"\n", Cwd);
+      LOG_PRINTF(("After getcwd:\"%s\"\n", Cwd));
       fd32_sfn_truename(Cwd, Cwd); /* Convert all component to 8.3 format */
-      fd32_log_printf("After sfn_truename:\"%s\"\n", Cwd);
+      LOG_PRINTF(("After sfn_truename:\"%s\"\n", Cwd));
       /* Skip drive specification and initial backslash as required from DOS */
       for (c = Cwd; *c != '\\'; c++);
       strcpy(Dest, c + 1);
-      fd32_log_printf("Returned CWD:\"%s\"\n", Dest);
+      LOG_PRINTF(("Returned CWD:\"%s\"\n", Dest));
       r->x.ax = 0x0100; /* Undocumented success return value, from RBIL */
       return;
     }
@@ -1089,6 +1099,7 @@ void int21_handler(union rmregs *r)
       if (Res < 0) return;
       Res = make_sfn_path(SfnPathNew, (char *) (r->x.es << 4) + r->x.di);
       dos_return(Res, r);
+      LOG_PRINTF(("INT 21h - Renaming \"%s\" to \"%s\"\n", SfnPath, SfnPathNew));
       if (Res < 0) return;
       Res = fd32_rename(SfnPath, SfnPathNew);
       dos_return(Res, r);
@@ -1105,6 +1116,7 @@ void int21_handler(union rmregs *r)
       /* CX    attribute mask for the new file */
       /* DS:DX pointer to the ASCIZ file name  */
       Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      LOG_PRINTF(("INT 21h - Creating new file (AH=5Bh) \"%s\" with attr %04x\n", SfnPath, r->x.cx));
       dos_return(Res, r);
       if (Res < 0) return;
       Res = fd32_open(SfnPath, FD32_ORDWR | FD32_OCOMPAT | FD32_OCREAT,
@@ -1123,6 +1135,7 @@ void int21_handler(union rmregs *r)
     /* DOS 4.0+ Undocumented - Commit file */
     case 0x68:
     case 0x6A:
+      LOG_PRINTF(("INT 21h - fflush\n"));
       /* BX file handle */
       Res = fd32_fflush(r->x.bx);
       dos_return(Res, r);
@@ -1130,6 +1143,7 @@ void int21_handler(union rmregs *r)
 
     /* DOS 5+ Undocumented - Null function */
     case 0x6B:
+      LOG_PRINTF(("INT 21h - Null function. Hey, somebody calls it!\n"));
       r->h.al = 0;
       return;
 
@@ -1167,9 +1181,9 @@ void int21_handler(union rmregs *r)
 
     /* Long File Name functions */
     case 0x71:
-      if (use_lfn) {
-	lfn_functions(r);
-      } else {
+      if (use_lfn) lfn_functions(r);
+      else
+      {
         r->x.ax = 0x7100;
         RMREGS_SET_CARRY;
       }
@@ -1188,6 +1202,7 @@ void int21_handler(union rmregs *r)
     {
       tExtDiskFree     *Edf;
       fd32_getfsfree_t  FSFree;
+      LOG_PRINTF(("INT 21h - FAT32 service %02x issued\n", r->h.al));
       if (r->h.al != 0x03)
       {
         r->h.al = 0xFF; /* Unimplemented subfunction */
