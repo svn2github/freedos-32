@@ -11,17 +11,22 @@ LIB_DIR  = $(BASE)\lib
 
 #LINK_OPT = -T oslib/os.x -Bstatic -Ttext 0x320000 -nostartfiles -nostdlib -L$(LIB_PATH)
 
-OBJS = boot/fdboot.o kernel/kernel.o dynalink/dynalink.o
+OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
+	kernel/kernel.o nls/cp437.o unicode/unicode.o
 
-KERNEL_DIRS = boot kernel dynalink oslib
+KERNEL_DIRS = boot devices dynalink filesys kernel nls oslib unicode
 
 all: fd32.bin drv_subdir
 
 clean :
 	$(RM) fd32.bin
-	make -C kernel clean
 	make -C boot clean
+	make -C devices clean
 	make -C dynalink clean
+	make -C filesys clean
+	make -C kernel clean
+	make -C nls clean
+	make -C unicode clean
 	make -C drivers/dpmi clean
 
 allclean: clean
