@@ -7,7 +7,6 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/hw-instr.h>
 #include <ll/i386/hw-func.h>
-#include <ll/i386/x-dosmem.h>
 #include <ll/i386/stdlib.h>
 #include <ll/i386/string.h>
 #include <ll/i386/mem.h>
@@ -213,7 +212,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
   info->initial_size = image_end;        /* align? */
 
   info->minkeep = 0x1000;        /* DOS buffer size... */
-  m = (DWORD)DOS_alloc(0x1010);
+  m = dosmem_get(0x1010);
   info->ds_segment = (m >> 4) + 1;
 
   info->ds_selector = get_DS();
@@ -283,7 +282,7 @@ void restore_psp(void)
   GDT_place(stubinfo_sel, 0, 0, 0, 0);
   GDT_place(info->psp_selector, 0, 0, 0, 0);
   GDT_place(current_psp->environment_selector, 0, 0, 0, 0);
-  ok = DOS_free((void *)current_psp->DOS_mem_buff, 0x1010);
+  ok = dosmem_free(current_psp->DOS_mem_buff, 0x1010);
   if (ok != 1) {
     error("Restore PSP panicing while freeing DOS memory...\n");
     fd32_abort();

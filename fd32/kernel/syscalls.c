@@ -9,7 +9,6 @@
 #include <ll/i386/hw-arch.h>
 #include <ll/i386/pic.h>
 #include <ll/i386/x-bios.h>
-#include <ll/i386/x-dosmem.h>
 #include <ll/i386/cons.h>
 #include <ll/i386/error.h>
 #include <ll/stdlib.h>
@@ -82,8 +81,6 @@ static struct symbol syscall_table[] = {
   { "vm86_callBIOS", (DWORD)vm86_callBIOS },
   { "vm86_init", (DWORD)vm86_init },
   { "context_save", (DWORD)context_save },
-  { "DOS_alloc", (DWORD)DOS_alloc },
-  { "DOS_free", (DWORD)DOS_free },
   { "irq_unmask", (DWORD)irq_unmask },
   { "add_call", (DWORD)add_call },
   { "l1_int_bind", (DWORD)l1_int_bind },
