@@ -20,6 +20,10 @@ void (* cpu_release)(void);
 
 static void halt_it(void)
 {
+  /* Uhmmm.... Here, the idea is to block.
+     We need to define a good kernel semantic for this; for the moment,
+     I simply try halting the system...
+  */
   __asm__ __volatile__ ("hlt");
 }
 
