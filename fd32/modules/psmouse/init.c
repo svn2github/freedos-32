@@ -125,7 +125,7 @@ static int request(DWORD function, void *params)
 static void psmouse_handler(int n)
 {
 #ifdef __PSMOUSE_DEBUG__
-  fd32_log_printf("PS/2 Mouse handler X%d Y%d...\n", x, y);
+  fd32_log_printf("[PSMOUSE] PS/2 Mouse handler X%d Y%d...\n", x, y);
 #endif
 
   info.d.data[info.d.index] = fd32_inb(0x60);
@@ -134,7 +134,7 @@ static void psmouse_handler(int n)
   if(info.d.index > 2) /* The precision */
   {
 #ifdef __PSMOUSE_DEBUG__
-    fd32_log_printf("L%x R%x M%x #%x XS%x YS%x XO%x YO%x x: %x y: %x\n", info.i.lbutton, info.i.rbutton, info.i.mbutton, info.i.reserved, info.i.xsignbit, info.i.ysignbit, info.i.xoverflow, info.i.yoverflow, info.i.xmovement, info.i.ymovement);
+    fd32_log_printf("[PSMOUSE] L%x R%x M%x #%x XS%x YS%x XO%x YO%x x: %x y: %x\n", info.i.lbutton, info.i.rbutton, info.i.mbutton, info.i.reserved, info.i.xsignbit, info.i.ysignbit, info.i.xoverflow, info.i.yoverflow, info.i.xmovement, info.i.ymovement);
 #endif
     info.d.index = 0;
     x += info.i.xmovement;
@@ -176,9 +176,9 @@ static void tmp_wait(void)
 
 
 /* The temporary handler only for initialization */
+static DWORD stage = 0;
 static void tmp_handler(int n)
 {
-  static DWORD stage = 0;
   static struct PSMOUSEINITSEQ
   {
     WORD cmd;
@@ -190,10 +190,10 @@ static void tmp_handler(int n)
   };
   BYTE code = fd32_inb(0x60);
 
-  switch(code)
+  switch (code)
   {
     case 0xFA: /* ACK */
-      if(psmouse_init_seq[stage].data != 0)
+      if (psmouse_init_seq[stage].data != 0)
       {
         tmp_wait();
         fd32_outb(0x64, psmouse_init_seq[stage].cmd);
@@ -202,12 +202,15 @@ static void tmp_handler(int n)
       } else {
         /* Set the real interrupt handler in the end */
         fd32_irq_bind(12, psmouse_handler);
+        stage = 0xFFFFFFFE;
       }
-      fd32_message("ACK: %lx code: %x\n", stage, code);
+#ifdef __PSMOUSE_DEBUG__
+      fd32_log_printf("[PSMOUSE] ACK: %lx code: %x\n", stage, code);
+#endif
       stage++;
       break;
     default:
-      fd32_message("Unknown code %x\n", code);
+      fd32_message("[PSMOUSE] Unknown code %x\n", code);
       break;
   }
 
@@ -236,7 +239,7 @@ void psmouse_init(void)
   tmp_wait();
   fd32_outb(0x64, CMD_READ_MODE);
   tmp_wait();
-  fd32_message("PS/2 CTRL mode is: %x\n", reserved);
+  fd32_log_printf("[PSMOUSE] PS/2 CTRL mode is: %x\n", reserved);
 #endif
 
   /* Reset defaults and disable mouse data reporting */
@@ -245,8 +248,9 @@ void psmouse_init(void)
   tmp_wait();
   fd32_outb(0x60, PSMOUSE_CMD_RESET_DIS);
 
-  /* Triger the start phase through the handler */
+  /* Triger the start phase through a temporary handler then wait for ready */
+  WFC (stage != 0xFFFFFFFF);
 
-  if(fd32_dev_register(request, 0, "mouse") < 0)
+  if (fd32_dev_register(request, 0, "mouse") < 0)
     fd32_message("Could not register the mouse device\n");
 }
