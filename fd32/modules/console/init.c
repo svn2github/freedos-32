@@ -33,7 +33,7 @@ static int write(BYTE *buf, DWORD size)
     if (n > count) n = count;
     memcpy(string, buf, n);
     string[n] = 0;
-    fd32_message(string);
+    cputs(string);
     count -= n;
     buf += n;
   }
