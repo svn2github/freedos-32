@@ -6,6 +6,7 @@ int main(int argc, char *argv[])
   char buff[100];
   int res;
 
+  printf("Going to open a file...\n");
   f = fopen("c:\\test.txt", "r");
 
   if (f == NULL) {
