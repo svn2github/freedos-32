@@ -288,6 +288,7 @@ int fat_creat(tFile *Fp, tFile *Ff, char *Name, BYTE Attr, WORD AliasHint)
   Ff->ParentFstClus   = (Fp->DirEntry.FstClusHI << 16) + Fp->DirEntry.FstClusLO;
   Ff->Mode            = 0;
   Ff->DirEntry        = D;
+  Ff->DirEntryChanged = 1;
   /* Rewind the file */
   Ff->TargetPos       = 0;
   Ff->FilePos         = 0;

@@ -60,6 +60,7 @@ int fat_set_attr(tFile *F, fd32_fs_attr_t *A)
   F->DirEntry.CrtTime      = A->CTime;
   F->DirEntry.CrtTimeTenth = (BYTE) A->CHund;
   #ifdef FATSHARE
+  F->DirEntryChanged = 1;
   return fat_syncentry(F);
   #else
   return 0;

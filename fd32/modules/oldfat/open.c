@@ -109,6 +109,7 @@ static int write_direntry(tFile *F)
   /* If the file is not the root, write its directory entry */
   if ((Buf = fat_readbuf(F->V, F->DirEntrySector)) < 0) return Buf;
   memcpy(F->V->Buffers[Buf].Data + F->DirEntrySecOff, &F->DirEntry, 32);
+  F->DirEntryChanged = 0;
   return fat_writebuf(F->V, Buf);
 }
 
@@ -122,11 +123,15 @@ int fat_syncentry(tFile *F)
   tFile *F1; /* F1 is used for other instances of F */
   int    k;
 
+  if (!F->DirEntryChanged) return 0;
   for (k = 0; k < NumFiles; k++)
   {
     F1 = &Files[k];
     if ((F != F1) && SAMEFILE(F1, F))
+    {
+      F1->DirEntryChanged = 0;
       F1->DirEntry = F->DirEntry;
+    }
   }
   return write_direntry(F);
 }
@@ -347,6 +352,7 @@ static int open_existing(tFile *Fp, tFile *Ff, tDirEntry *D, DWORD Mode)
   Ff->ParentFstClus  = FIRSTCLUSTER(Fp->DirEntry);
   Ff->Mode           = 0;
   Ff->DirEntry       = *D;
+  Ff->DirEntryChanged = 0;
   /* Check if we are going to open the root directory, identified as a dir */
   /* starting at cluster 0, like in "..", even if the volume is FAT32.     */
   if ((FIRSTCLUSTER(Ff->DirEntry) == 0) && (Ff->DirEntry.Attr & FD32_ADIR))
@@ -408,6 +414,7 @@ static int descend_path(tVolume *V, char *Path, tFile **Fp)
   F->V    = V;
   F->Mode = 0;
   memset(&F->DirEntry, 0, sizeof(tDirEntry));
+  F->DirEntryChanged = 0;
   F->DirEntry.Attr = FD32_ADIR;
   /* Start to descend the path from the root directory */
   if (*Path == '\\') Path++;

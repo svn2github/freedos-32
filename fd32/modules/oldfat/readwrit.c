@@ -294,6 +294,7 @@ static int move_to_targetpos(tFile *F, tMoveType Op)
       if ((Res = allocate_first_cluster(F, &NewCluster)) < 0) return Res;
       if (!(F->DirEntry.Attr & FD32_ADIR)) F->DirEntry.FileSize++;
       F->PrevCluster = F->Cluster = NewCluster;
+      F->DirEntryChanged = 1;
       if ((Res = fat_syncentry(F)) < 0) return Res;
       #endif
     }
@@ -316,6 +317,7 @@ static int move_to_targetpos(tFile *F, tMoveType Op)
         F->Cluster = NewCluster;
       }
       if (!(F->DirEntry.Attr & FD32_ADIR)) F->DirEntry.FileSize++;
+      F->DirEntryChanged = 1;
       if ((Res = fat_syncentry(F)) < 0) return Res;
       #endif
     }
@@ -535,6 +537,7 @@ static int truncate_or_extend(tFile *F)
   LOG_PRINTF(("File successfully truncated/extended at offset %lu\n",
               F->DirEntry.FileSize));
   fat_syncpos(F);
+  F->DirEntryChanged = 1;
   return fat_syncentry(F);
 }
 
@@ -594,6 +597,7 @@ int fat_write(tFile *F, void *Buffer, int Size)
     fat_timestamps(&F->DirEntry.WrtTime, &F->DirEntry.WrtDate, NULL);
     F->DirEntry.LstAccDate = F->DirEntry.WrtDate;
     F->DirEntry.Attr      |= FD32_AARCHIV;
+    F->DirEntryChanged = 1;
     if ((Res = fat_syncentry(F)) < 0) return Res;
   }
   if (F->Mode & FD32_OCOMMIT)

@@ -227,15 +227,16 @@ tVolume;
 /* The file structure stores all the informations about an open file. */
 typedef struct
 {
-  tVolume   *V;              /* Pointer to the volume hosting the file */
-  DWORD      ParentFstClus;  /* First cluster of the parent directory  */
-  DWORD      DirEntryOffset; /* Offset of the dir entry in the parent  */
-  DWORD      DirEntrySector; /* Sector containing the directory entry  */
-  DWORD      DirEntrySecOff; /* Byte offset of the dir entry in sector */
-  tDirEntry  DirEntry;       /* The file's directory entry             */
-  DWORD      Mode;           /* File opening mode                      */
-  DWORD      References;     /* Number of times the file is open       */
-  DWORD      FilSig;         /* Must be FAT_FILSIG for a valid file    */
+  tVolume   *V;               /* Pointer to the volume hosting the file */
+  DWORD      ParentFstClus;   /* First cluster of the parent directory  */
+  DWORD      DirEntryOffset;  /* Offset of the dir entry in the parent  */
+  DWORD      DirEntrySector;  /* Sector containing the directory entry  */
+  DWORD      DirEntrySecOff;  /* Byte offset of the dir entry in sector */
+  tDirEntry  DirEntry;        /* The file's directory entry             */
+  DWORD      Mode;            /* File opening mode                      */
+  DWORD      References;      /* Number of times the file is open       */
+  DWORD      FilSig;          /* Must be FAT_FILSIG for a valid file    */
+  int        DirEntryChanged; /* Nonzero if dir entry should be written */
 
   /* The following fields refer to the byte position into the file */
   long long int TargetPos;       /* The target position for an I/O         */
