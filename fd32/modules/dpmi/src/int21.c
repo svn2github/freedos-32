@@ -439,6 +439,23 @@ static inline void lfn_functions(union rmregs *r)
       lfn_get_and_set_attributes(r);
       return;
 
+    /* Get current directory */
+    /* Same as INT 21 AH=47h, but we don't convert to 8.3 the resulting path */
+    case 0x47:
+    {
+      /* DL    drive number (00h = default, 01h = A:, etc) */
+      /* DS:SI 64-byte buffer for ASCIZ pathname           */
+      char  Drive[2] = "\0\0";
+      char  Cwd[FD32_LFNPMAX];
+      char *Dest = (char *) (r->x.ds << 4) + r->x.si;
+
+      Drive[0] = fd32_get_default_drive();
+      if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A';
+      fd32_getcwd(Drive, Cwd);
+      strcpy(Dest, Cwd + 1); /* Skip leading backslash as required from DOS */
+      return;
+    }
+
     /* Find first matching file */
     case 0x4E:
       /* CL allowable attributes                                 */
@@ -574,6 +591,20 @@ void int21_handler(union rmregs *r)
 
   switch (r->h.ah)
   {
+    /* DOS 1+ - Direct character input, without echo */
+    case 0x07:
+    {
+      /* Perform 1-byte read from the stdin, file handle 0. */
+      /* This call doesn't check for Ctrl-C or Ctrl-Break.  */
+      char Ch;
+      Res = fd32_read(0, &Ch, 1);
+      if (Res >= 0) r->h.al = Ch; /* Return the character in AL */
+      /* TODO: from RBIL:
+         if the interim console flag is set (see AX=6301h), partially-formed
+         double-byte characters may be returned */
+      return;
+    }
+
     /* DOS 1+ - Set default drive */
     case 0x0E:
       /* DL new default drive (0='A', etc.) */
@@ -822,6 +853,24 @@ void int21_handler(union rmregs *r)
       dos_return(Res, r);
       return;
 
+    /* DOS 2+ - "CWD" - Get current directory */
+    case 0x47:
+    {
+      /* DL    drive number (00h = default, 01h = A:, etc) */
+      /* DS:SI 64-byte buffer for ASCIZ pathname           */
+      char  Drive[2] = "\0\0";
+      char  Cwd[FD32_LFNPMAX];
+      char *Dest = (char *) (r->x.ds << 4) + r->x.si;
+
+      Drive[0] = fd32_get_default_drive();
+      if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A';
+      fd32_getcwd(Drive, Cwd);
+      fd32_sfn_truename(Cwd, Cwd); /* Convert all component to 8.3 format */
+      strcpy(Dest, Cwd + 1); /* Skip leading backslash as required from DOS */
+      r->x.ax = 0x0100; /* Undocumented success return value, from RBIL */
+      return;
+    }
+
     /* DOS 2+ - "EXEC" - Load and/or Execute program */
     case 0x4B:
     {
@@ -839,7 +888,7 @@ void int21_handler(union rmregs *r)
     }
     dos_return(Res, r);
     return;
-
+    
     /* DOS 2+ - Get return code */
     case 0x4D:
       RMREGS_CLEAR_CARRY;

@@ -56,6 +56,15 @@ int videobios_int(union rmregs *r)
       r->h.al = ' ';
       RMREGS_CLEAR_CARRY;
       return 0;
+      
+    /* Video - Teletype output */
+    case 0x0E:
+      /* AL = Character to write */
+      /* BH = Page number        */
+      /* BL = Foreground color   */
+      /* TODO: page, colors and special BEL character (07h) are ignored */
+      if (r->h.al != 0x07) cputc(r->h.al);
+      return 0;
 
     case 0x1A:
       if (r->h.al != 0x00) break;

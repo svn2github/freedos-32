@@ -18,7 +18,7 @@
 extern int videobios_int(union rmregs *r);
 extern void int21_handler(union rmregs *r);
 
-/* #define __RM_INT_DEBUG__ */
+//#define __RM_INT_DEBUG__
 
 int fd32_real_mode_int(int intnum, DWORD rmcs_address)
 {
