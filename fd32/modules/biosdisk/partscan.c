@@ -91,10 +91,13 @@ static DWORD chs_to_lba(unsigned c, unsigned h, unsigned s, unsigned num_h, unsi
 
 static void check_lba(PartTabl *p, const tDisk *d)
 {
+    DWORD lba_start;
+    DWORD lba_size;
+
     if (d->TotalBlocks / (d->BiosH * d->BiosS) > 1024) return; /* ...since we trust them */
-    DWORD lba_start = chs_to_lba(p->start_c + ((WORD) (p->start_s & 0xC0) << 2),
+    lba_start = chs_to_lba(p->start_c + ((WORD) (p->start_s & 0xC0) << 2),
                                  p->start_h, p->start_s & 0x3F, d->BiosH, d->BiosS);
-    DWORD lba_size  = chs_to_lba(p->end_c + ((WORD) (p->end_s & 0xC0) << 2),
+    lba_size = chs_to_lba(p->end_c + ((WORD) (p->end_s & 0xC0) << 2),
                                  p->end_h, p->end_s & 0x3F, d->BiosH, d->BiosS)
                     - lba_start + 1;
     if ((lba_start != p->lba_start) || (lba_size != p->lba_size))
