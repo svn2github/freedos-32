@@ -42,6 +42,7 @@ void biosdisk_init(const char *cmdline)
 {
     char *c;
     int   want_hd = 1, want_fd = 1;
+    DWORD buffer;
     
     message("Initing BIOSDisk...\n");
 
@@ -93,7 +94,7 @@ void biosdisk_init(const char *cmdline)
 //    l1_irq_bind(0, biosdisk_reflect);
 //    irq_unmask(0);
 
-    if (want_fd) biosdisk_detect_fd(want_fd, want_hd);
+    if (want_fd) biosdisk_detect_fd();
     if (want_hd) biosdisk_detect_hd();
     message("BIOSDisk initialized.\n");
 }
