@@ -16,6 +16,10 @@ static inline char *args_get(struct process_info *p)
 {
   return p->args;
 }
+static inline char *name_get(struct process_info *p)
+{
+  return p->name;
+}
 static inline DWORD maxmem_get(struct process_info *p)
 {
   return p->memlimit;
