@@ -10,7 +10,6 @@
 #include "ata-wait.h"
 
 
-extern volatile int signaled[8];
 
 static void private_timed_out(void *p)
 {
