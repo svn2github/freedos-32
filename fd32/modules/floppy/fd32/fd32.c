@@ -109,8 +109,8 @@ void floppy_init(void)
 {
     if (fdc_setup(drive_detected) < 0)
     {
-        message("Error while initializing floppy support\n");
+        message("[FLOPPY] Error while initializing floppy support\n");
         return;
     }
-    message("Floppy Driver installed\n");
+    message("[FLOPPY] Floppy Driver installed\n");
 }
