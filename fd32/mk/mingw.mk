@@ -2,11 +2,13 @@ CC  = mingw32-gcc
 AS  = mingw32-gcc
 LD  = ld
 AR  = ar
+DLLTOOL = dlltool
 
 ifndef OSLIB_DIR
 OSLIB_DIR = ..\oslib
 endif
 
+SEP    = \\
 INCL   = $(BASE)
 VMINCL  = -I$(BASE)/include/i386 -I$(BASE)/include -I$(BASE)/include/sys/ll
 LIB_PATH    = $(BASE)/lib/

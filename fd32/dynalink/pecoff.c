@@ -27,6 +27,7 @@ struct pecoff_extra_info {
   DWORD base_reloc_size;
   DWORD base_reloc_offset;
   DWORD section_0_base;
+  DWORD flags; /* File header flags */
 };
 
 
@@ -39,34 +40,35 @@ DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *table
   kf->file_seek(f, kf->file_offset, 0);
   kf->file_read(f, &header, sizeof(struct external_filehdr));
   
-  if (header.f_magic != I386MAGIC)
+  /* Note: check for the target machine */
+  if (header.f_magic != IMAGE_FILE_MACHINE_I386)
   {
-    kf->message("Not a PE COFF file (Wrong Magic: 0x%x)!!!\n", header.f_magic);
+    kf->message("[PECOFF] Target machine not supported or wrong magic: 0x%x!!!\n", header.f_magic);
     return 0;
   }
   #ifdef __PECOFF_DEBUG__
-  kf->log("Number of sections: %d\n", header.f_nscns);
-  kf->log("Flags: %x\n", header.f_flags);
+  kf->log("[PECOFF] Number of sections: %d\n", header.f_nscns);
+  kf->log("[PECOFF] Flags: %x\n", header.f_flags);
   #endif
   tables->num_sections = header.f_nscns;
-  if (header.f_flags&IMAGE_FILE_DLL)
-    tables->flags |= DLL_WITH_ENTRY;
-  else
-    tables->flags = 0; /* Note: Do not set NEED_IMAGE_RELOCATION, only when the base_reloc_size != 0 */
+  tables->flags = 0; /* Note: Do not set NEED_IMAGE_RELOCATION, only when the base_reloc_size != 0 */
   tables->image_base = 0;
   
   entry = 0;
   if (header.f_opthdr !=0)
   {
     kf->file_read(f, &optheader, header.f_opthdr);
-    if (optheader.magic != PE32MAGIC)
-    {
-      kf->message("Wrong Magic (0x%x)\n", optheader.magic);
-    }
-    else
-    {
+    if (optheader.magic != PE32MAGIC) {
+      kf->message("[PECOFF] Wrong Magic (0x%x)\n", optheader.magic);
+    } else {
       entry = optheader.entry;
+      if (header.f_flags&IMAGE_FILE_DLL && optheader.subsystem != IMAGE_SUBSYSTEM_NATIVE)
+        tables->flags |= DLL_WITH_STDCALL;
+      else
+        tables->flags |= NO_ENTRY;
+      /* Note: Otherwise the DLL could be a FD32 driver */
       tables->image_base = optheader.image_base;
+      pee_info->flags = header.f_flags;
       pee_info->export_symbol = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_EXPORT].vaddr;
       pee_info->export_symbol_size = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_EXPORT].size;
       pee_info->base_reloc = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_BASERELOC].vaddr;
@@ -191,7 +193,7 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
     s[0].num_reloc = 1;
     r = (struct pe_reloc_info *)kf->mem_alloc(sizeof(struct pe_reloc_info));
     r->offset = reloc_offset;
-    r->addr = pee_info->base_reloc;
+    r->addr = pee_info->base_reloc+image_base;
     r->size = pee_info->base_reloc_size;
     s[0].reloc = (struct reloc_info *)r;
   }
@@ -264,7 +266,7 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   /* Save the essential info */
   *size = image_memory_size;
   /* Note: If the image is NORMAL executable not DLL, set its image_base += s[0].base (it means it has local stack space?) */
-  if (!(tables->flags&DLL_WITH_ENTRY))
+  if (!(pee_info->flags&IMAGE_FILE_DLL))
     image_base += s[0].base;
   /* Return the exec space */
   return image_base;
@@ -286,7 +288,7 @@ int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
     DWORD *edir_funcaddr = (DWORD *)(image_base+edir->func_addr);
     DWORD handle = image_base;
 #ifdef __PECOFF_DEBUG__
-    kf->log("DLL name: %s Func number: %x\n", image_base+edir->name, edir->func_num);
+    kf->log("[PECOFF] DLL name: %s symbol number: %x\n", image_base+edir->name, edir->func_num);
 #endif
     symbol_array = (struct symbol *)kf->mem_alloc(sizeof(struct symbol)*edir->func_num);
     for(i = 0; i < edir->func_num; i++)
@@ -298,7 +300,7 @@ int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
       symbol_array[i].name = (char *)image_base+edir_funcname[i];
       symbol_array[i].address = image_base+edir_funcaddr[i];
       #ifdef __PECOFF_DEBUG__
-      kf->log("Func name: %s Func address: %x RVA %x\n", symbol_array[i].name, symbol_array[i].address, edir_funcaddr[i]);
+      kf->log("[PECOFF] Symbol name: %s\taddress: 0x%08x RVA 0x%08x\n", symbol_array[i].name, symbol_array[i].address, edir_funcaddr[i]);
       #endif
     }
     kf->add_dll_table((char *)image_base+edir->name, handle, edir->func_num, symbol_array);
@@ -341,9 +343,8 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssba
     return 0;
   reloc_offset = r->offset;
   /* Process the reloc symbols */
-  base_reloc_dir = (BYTE *)image_base + r->addr;
+  base_reloc_dir = (BYTE *)r->addr;
   base_reloc_at = 0;
-  
   while(base_reloc_at < r->size)
   {
     struct base_reloc *reloc = (struct base_reloc *)(base_reloc_dir+base_reloc_at);
@@ -361,7 +362,7 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssba
     else if(reloc_memory_first_start == reloc_memory_start)
       break;
     #ifdef __PECOFF_DEBUG__
-    kf->log("RELOC vaddr: %x, block size: %x\n", reloc->vaddr, reloc->block_size);
+    kf->log("[PECOFF] RELOC vaddr: %x, block size: %x\n", reloc->vaddr, reloc->block_size);
     #endif
     for(i = 0; i < reloc_number; i++)
     {
@@ -384,12 +385,8 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssba
           case IMAGE_REL_BASED_HIGHLOW:
             *mem += reloc_offset;
             break;
-          /* Don't understand this relocation.
-          case IMAGE_REL_BASED_HIGHADJ:
-            break;
-           */
           default:
-            kf->message("Unsupported reloc type : %x\n", reloc->type_offset[i].type);
+            kf->message("[PECOFF] Unsupported reloc type : %x\n", reloc->type_offset[i].type);
             return 0;
         }
       }

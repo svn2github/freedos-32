@@ -21,7 +21,7 @@
 #define NEED_LOAD_RELOCATABLE	4
 #define NEED_AR32WR_RELOCATION  8
 #define NO_ENTRY		16
-#define DLL_WITH_ENTRY		32
+#define DLL_WITH_STDCALL	32
 
 struct symbol_info {
   char *name;

@@ -295,7 +295,7 @@ static struct dll_internal_table dylt_int_array[DLL_TABLE_NUMBER] = {
 /* FD32 syscalls' DLL */	{0x00000001, 0xFFFFFFFF}
 };
 static struct dll_table dylt_array[DLL_TABLE_NUMBER] = {
-/* FD32 syscalls' DLL */	{"fd32.dll", sizeof(syscall_table)/sizeof(struct symbol), syscall_table}
+/* FD32 syscalls' DLL */	{"fd32-sys.dll", sizeof(syscall_table)/sizeof(struct symbol), syscall_table}
 };
 static DWORD empty_table_num = DLL_TABLE_NUMBER-1;
 
@@ -350,7 +350,7 @@ int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol 
   dylt_array[i].symbol_array = symbol_array;
   empty_table_num--;
   
-  message("Add DLL %s at %d\n", dll_name, i);
+  fd32_log_printf("Add DLL %s at %d\n", dll_name, i);
   
   return i;
 }
