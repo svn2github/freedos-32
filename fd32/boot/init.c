@@ -12,13 +12,10 @@
 #include "kmem.h"
 #include "pmm.h"
 
-struct mempool dos_mempool;
-
 void system_init(void *mbp)
 {
   /* The interrupt handlers are in the drivers, now!!! */
   /* (and exception handlers are set by kernel_init() */
-
   mem_init(mbp);
   kernel_init();
 }
@@ -27,9 +24,6 @@ void dos_init(void *p)
 {
   struct multiboot_info *mbp;
   DWORD membase, memsize;
-
-
-  DOS_mem_init();		/* Hack!!! */
 
 
   mbp = p;
@@ -42,15 +36,14 @@ void dos_init(void *p)
     message("DOS Mem Size: %lx %lu\n", memsize, memsize);
 #endif
 	  /* Randomly chosen safe value :) */
-    membase = 64 * 1024;
+    membase = 16 * 1024;
     if (mbp->flags & MB_INFO_BOOT_LOADER_NAME) {
       if (*((char *)(mbp->boot_loader_name)) == 'X') {
         membase = mbp->mem_lowbase;
       }
     }
-
-    pmm_init(&dos_mempool);
-    pmm_add_region(&dos_mempool, membase, memsize);
+    memsize = 256 * 1024; /* Hack! */
+    dosmem_init(membase, memsize);
   } else {
     message("Cannot initialize the DOS Memory Pool\n");
   }

@@ -152,10 +152,11 @@ int pmm_free(struct mempool *mp, DWORD base, DWORD size)
 	  mp->free += size;
 	  return 1;
 	} else {
-	  if (base + size > (DWORD)p->next) {
+	  if ((base + size > (DWORD)p->next) && ((DWORD)p->next != 0)) {
             /* Error: there is an overlap... */
             message("Free Chunk: %lx ---\n", (DWORD)p->next);
             message("Region to Free: %lx - %lx\n", base, base + size);
+            message("Overlapping region: %lx - %lx\n", b, b + p->size);
             error("PMM Free: strange overlap...\n");
             fd32_abort();
 	  }

@@ -19,6 +19,7 @@
 #include "logger.h"
 
 struct mempool high_mem_pool;
+struct mempool dos_mem_pool;
 
 static void mem_init2(DWORD ks, DWORD ke, DWORD mstart, int mnum)
 {
@@ -106,7 +107,7 @@ void mem_init(void *p)
   struct multiboot_info *mbp;
   extern DWORD _start;
   extern DWORD end;
-  DWORD lsize, hsize, lbase, hbase;
+  DWORD lsize, hsize, hbase;
   int mnum;
   DWORD mstart;
 
@@ -142,9 +143,6 @@ void mem_init(void *p)
       }
 
 #ifdef __MEM_DEBUG__
-      message("\t\tLow Memory: %ld - %ld (%lx - %lx) \n", 
-	      lbase, lbase + lsize,
-	      lbase, lbase + lsize);
       message("\t\tHigh Memory: %ld - %ld (%lx - %lx)\n", 
 	      hbase, hbase + hsize,
 	      hbase, hbase + hsize);
@@ -162,6 +160,32 @@ void mem_init(void *p)
   }
 
   mem_init2((DWORD)(&_start), (DWORD)(&end), mstart, mnum);
+}
+
+void dosmem_init(DWORD base, DWORD size)
+{
+#ifdef __MEM_DEBUG__
+  message("Initing dos mem: 0x%lx 0x%lx\n", base, size);
+#endif
+  pmm_init(&dos_mem_pool);
+  pmm_add_region(&dos_mem_pool, base, size);
+}
+
+int dosmem_get_region(DWORD base, DWORD size)
+{
+  return pmm_alloc_address(&dos_mem_pool, base, size);
+}
+
+int dosmem_free(DWORD base, DWORD size)
+{
+  return pmm_free(&dos_mem_pool, base, size);
+}
+
+DWORD dosmem_get(DWORD amount)
+{
+  DWORD m;
+  m = pmm_alloc(&dos_mem_pool, amount);
+  return m;
 }
 
 int mem_get_region(DWORD base, DWORD size)
