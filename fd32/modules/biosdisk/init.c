@@ -45,6 +45,8 @@ void biosdisk_init(void)
 
   vm86_init();
 
+  /* In some bioses, INT 0x13 calls INT 0x40 */
+  l1_int_bind(0x40, biosdisk_reflect);
   l1_irq_bind(6, biosdisk_reflect);
   l1_int_bind(0x15, biosdisk_reflect);
   l1_irq_bind(15, biosdisk_reflect);

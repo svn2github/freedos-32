@@ -56,11 +56,16 @@ void biosdisk_reflect(DWORD intnum, union regs r)
     if ((intnum >= PIC1_BASE) && (intnum < PIC1_BASE + 8)) {
       rmint = intnum - PIC1_BASE + 8;
     } else {
-      if ((intnum < PIC2_BASE) || (intnum > PIC2_BASE + 8)) {
-	/* Error!!! Should we panic? */
-	return;
+      if ((intnum >= PIC2_BASE) && (intnum < PIC2_BASE + 8)) {
+        rmint = intnum;
+      } else {
+        if (intnum == 0x40) {
+          rmint = 0x40;
+        } else {
+          /* Error!!! Should we panic? */
+          return;
+        }
       }
-      rmint = intnum;
     }
 
 #ifdef __VM86_REFLECT_DEBUG__
