@@ -46,18 +46,6 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
 
   bss_sect = parser->read_section_headers(p, file, &tables, sections);
   symbols = NULL;
-  if (tables.num_symbols != 0) {
-    symsize = tables.num_symbols * sizeof (struct symbol_info);
-    symbols = (struct symbol_info *)mem_get(symsize);
-    if (symbols == 0) {
-      error("Error allocating symbols table\n");
-      parser->free_tables(p, &tables, symbols, sections);
-
-      /* Should provide some error code... */
-      return -1;
-    }
-    parser->read_symbols(p, file, &tables, symbols);
-  }
 
   if (tables.flags & NEED_LOAD_RELOCATABLE) {
     exec_space = parser->load_relocatable(p, file, &tables,
@@ -71,10 +59,22 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
     message("Error decoding the Executable data\n");
 #endif
     parser->free_tables(p, &tables, symbols, sections);
-    
+
     return -1;
   }
-    
+
+  if (tables.num_symbols != 0) {
+    symsize = tables.num_symbols * sizeof (struct symbol_info);
+    symbols = (struct symbol_info *)mem_get(symsize);
+    if (symbols == 0) {
+      error("Error allocating symbols table\n");
+      parser->free_tables(p, &tables, symbols, sections);
+
+      /* Should provide some error code... */
+      return -1;
+    }
+    parser->read_symbols(p, file, &tables, symbols);
+  }
 
   if ((tables.flags & NEED_SECTION_RELOCATION) || (tables.flags & NEED_IMAGE_RELOCATION)) { 
     DWORD uninitspace;
@@ -116,7 +116,6 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
     }
   }
 
-
   if (tables.flags & NO_ENTRY) {
     int init_sect;
 
@@ -146,7 +145,7 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
       parser->free_tables(p, &tables, symbols, sections);
       return dyn_entry;
     } else {
-      message("Not found\n");
+      message("WARNING: Initialization function not found!\n");
       return -1;
     }
   } else {
@@ -175,7 +174,6 @@ int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char
   DWORD dyn_entry;
   int run(DWORD address, WORD psp_sel, DWORD parm);
   DWORD base;
-
 
   dyn_entry = load_process(p, file, parser, &exec_space, &base, &size);
 

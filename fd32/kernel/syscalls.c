@@ -226,6 +226,11 @@ void *get_syscall_table(void)
   return syscall_table;
 }
 
+DWORD get_syscall_table_size(void)
+{
+	return sizeof(syscall_table)/sizeof(struct symbol);
+}
+
 int add_call(char *name, DWORD address, int mode)
 {
   int i;
@@ -272,7 +277,10 @@ int add_call(char *name, DWORD address, int mode)
 }
 
 
-/* DLL Table management... By Hanzac Chen */
+/*
+   DLL Table management... pre-install FD32 syscalls' DLL
+   - Hanzac Chen 
+ */
 
 #define DLL_TABLE_NUMBER         (0x100)
 
@@ -282,9 +290,13 @@ struct dll_internal_table
   DWORD handle;                /* use to release */
 };
 
-static struct dll_internal_table dylt_int_array[DLL_TABLE_NUMBER];
-static struct dll_table dylt_array[DLL_TABLE_NUMBER];
-static DWORD empty_table_num = DLL_TABLE_NUMBER;
+static struct dll_internal_table dylt_int_array[DLL_TABLE_NUMBER] = {
+/* FD32 syscalls' DLL */	{0x00000001, 0xFFFFFFFF}
+};
+static struct dll_table dylt_array[DLL_TABLE_NUMBER] = {
+/* FD32 syscalls' DLL */	{"fd32.dll", sizeof(syscall_table)/sizeof(struct symbol), syscall_table}
+};
+static DWORD empty_table_num = DLL_TABLE_NUMBER-1;
 
 /* there should be a exit_dll_process function */
 void destroy_process(DWORD dll_handle) {}
@@ -337,7 +349,7 @@ int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol 
   dylt_array[i].symbol_array = symbol_array;
   empty_table_num--;
   
-  message("add dynalink table: %s at %d\n", dll_name, i);
+  message("Add DLL %s at %d\n", dll_name, i);
   
   return i;
 }
@@ -347,9 +359,8 @@ struct dll_table *get_dll_table(char *dll_name)
   int i;
   WORD retval;
   strlwr(dll_name);
-  
-  /* message("dynalink name : %s\n", dynalink_name); */
-  
+
+  /* find the DLL */
   for(i = 0; i < DLL_TABLE_NUMBER; i++)
   {
     if(dylt_int_array[i].handle != 0 && strcmp(dylt_array[i].name, dll_name) == 0)
@@ -360,14 +371,16 @@ struct dll_table *get_dll_table(char *dll_name)
     }
   }
   
-  /* find the dynalink library */
-  message("Find %s\n", dll_name);
-  dos_exec("C:\\fd32lib\\kernel32.dll", 0, 0, 0, 0, &retval);
+  /* find and load the DLL */
+  message("Find and Load %s\n", dll_name);
+  /* dos_exec("C:\\fd32lib\\kernel32.dll", 0, 0, 0, 0, &retval); */
   /* load the dynalink library */
   
   /* create the process */
   
   /* add the dynalink table */
+  
+  /* find the DLL again */
   for(i = 0; i < DLL_TABLE_NUMBER; i++)
   {
     if(dylt_int_array[i].handle != 0 && strcmp(dylt_array[i].name, dll_name) == 0)
@@ -376,7 +389,7 @@ struct dll_table *get_dll_table(char *dll_name)
       dylt_int_array[i].ref_num++;
       return &dylt_array[i];
     }
-  }  
+  }
   /* return the dynalink table */
   
   return NULL;

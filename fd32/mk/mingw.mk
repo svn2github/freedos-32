@@ -3,14 +3,18 @@ AS  = mingw32-gcc
 LD  = ld
 AR  = ar
 
+ifndef OSLIB_DIR
+OSLIB_DIR = ..\oslib
+endif
+
 INCL   = $(BASE)
 VMINCL  = -I$(BASE)/include/i386 -I$(BASE)/include -I$(BASE)/include/sys/ll
 LIB_PATH    = $(BASE)/lib/
-LIB_DIR  = $(BASE)/lib
+LIB_DIR  = $(BASE)\lib
 
 C_OPT =  -Wall -O -finline-functions -nostdinc -mno-stack-arg-probe -ffreestanding -D__WIN32__ -I$(INCL)
 ASM_OPT =  -x assembler-with-cpp -D__WIN32__ -I$(INCL)
-LINK_OPT = -T $(OSLIB)/mk/os-mingw.x -Bstatic -Ttext 0x120000 -nostartfiles -nostdlib -L$(LIB_PATH)
+LINK_OPT = -T $(OSLIB)/mk/os-mingw.x -Bstatic -Ttext 0x120000 -s -nostartfiles -nostdlib -L$(LIB_PATH)
 
 MKDIR	= md
 CP	= copy

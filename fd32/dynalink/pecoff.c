@@ -26,6 +26,7 @@ struct pecoff_extra_info {
   DWORD base_reloc;
   DWORD base_reloc_size;
   DWORD base_reloc_offset;
+  DWORD section_0_base;
 };
 
 
@@ -38,7 +39,7 @@ DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *table
   kf->file_seek(f, kf->file_offset, 0);
   kf->file_read(f, &header, sizeof(struct external_filehdr));
   
-  if (header.f_magic != 0x014c)
+  if (header.f_magic != I386MAGIC)
   {
     kf->message("Not a PE COFF file (Wrong Magic: 0x%x)!!!\n", header.f_magic);
     return 0;
@@ -48,14 +49,17 @@ DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *table
   kf->log("Flags: %x\n", header.f_flags);
   #endif
   tables->num_sections = header.f_nscns;
-  tables->flags = /*NEED_IMAGE_RELOCATION*/ 0;
+  if (header.f_flags&IMAGE_FILE_DLL)
+    tables->flags |= NO_ENTRY;
+  else
+    tables->flags = /*NEED_IMAGE_RELOCATION*/ 0;
   tables->image_base = 0;
   
   entry = 0;
   if (header.f_opthdr !=0)
   {
     kf->file_read(f, &optheader, header.f_opthdr);
-    if (optheader.magic != 0x010b)
+    if (optheader.magic != PE32MAGIC)
     {
       kf->message("Wrong Magic (0x%x)\n", optheader.magic);
     }
@@ -110,6 +114,8 @@ int PECOFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info 
     if(h.s_vaddr <= pee_info->export_symbol && h.s_vaddr+h.s_vsize > pee_info->export_symbol)
       e_section = i;    
   }
+  /* Save the section[0] base */
+  pee_info->section_0_base = s[0].base;
 
   /* The number of symbols should be export symbols */
   tables->num_symbols = 0;
@@ -144,34 +150,34 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   /* Load this sections to process the symbols and reloc info */
   image_memory_size = s[n - 1].base + s[n - 1].filesize - s[0].base;
   #ifdef __PECOFF_DEBUG__
-  kf->log("Trying to get %lx to load the COFF\n", image_memory_size);
+  kf->log("Allocate %lx to load the PE image ...\n", image_memory_size);
   #endif
   image_memory_start = s[0].base+image_base;
-  res = kf->mem_alloc_region(image_memory_start, image_memory_size);
-  if (res == -1) {
-    #ifdef __PECOFF_DEBUG__
-    kf->log("If the pe image starts at %lx, no enough memory\n", image_memory_start);
-    #endif
-    /* Decide whether relocatable or not */
-    if(pee_info->base_reloc_size == 0)
-    {
-      kf->message("The pe image isn't relocated!\n");
-      return -1;
-    }
+  
+  /* Relocate if having BASERELOC */
+  if(pee_info->base_reloc_size != 0)
+  {
     image_memory_start = (DWORD)(kf->mem_alloc(image_memory_size));
     reloc_offset = image_memory_start-s[0].base-image_base;
     #ifdef __PECOFF_DEBUG__
-    kf->log("Located at %lx instead\n", image_memory_start);
+    kf->log("Relocated to: %lx\n", image_memory_start);
     kf->log("Relocated offset: %lx\n", reloc_offset);
     #endif
+  } else {
+    res = kf->mem_alloc_region(image_memory_start, image_memory_size);
+    if(res == -1)
+    {
+      kf->message("WARNING: The PE image memory base isn't available and image not relocatable!\n");
+      return -1;
+    }
   }
 
   if (image_memory_start == 0) {
-    kf->message("Not enough memory to load the pe image\n");
+    kf->message("WARNING: Not enough memory to load the PE image\n");
     kf->message("Needed memory = %lu bytes - image memory starts = 0x%lx\n", image_memory_size, s[0].base);
     return -1;
   }
-  
+
   /* The new image base */
   image_base = image_base+reloc_offset;
   tables->image_base = image_base;
@@ -180,8 +186,8 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   {
     struct pe_reloc_info *r;
     /* Set the relocation method */
-    /* The PE file only have one reloc info, we set it on the first section */
     tables->flags |= NEED_IMAGE_RELOCATION;
+    /* PE only have one RELOC info, we set it on the first section */
     s[0].num_reloc = 1;
     r = (struct pe_reloc_info *)kf->mem_alloc(sizeof(struct pe_reloc_info));
     r->offset = reloc_offset;
@@ -227,30 +233,29 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
       hint = (DWORD *)(image_base+desc->orithunk);
       entry = image_base+desc->thunk;
       #ifdef __PECOFF_DEBUG__
-      kf->log("Try to link dynalink lib %s!\n", dll_name);
+      kf->log("Find and Link DLL %s ...\n", dll_name);
       #endif
       for(i = 0; hint[i] != 0; i++, entry += 4)
       {
         dylt = kf->get_dll_table(dll_name);
         if(dylt == NULL)
         {
-          kf->message("Dynalink lib %s not found!\n", dll_name);
+          kf->message("WARNING: DLL %s not found!\n", dll_name);
           /* Should try to load the target Dynalink lib in get_dll_table */
           /* Now just return 0 */
           return 0;
         }
         imp = (struct imp_name *)(image_base+hint[i]);
-        /* We should use better algorithm to find the entry Á½·Ö·¨ */
+        /* TODO: QSORT and QSEARCH? */
         for(j = 0; j < dylt->symbol_num; j++)
           if(strcmp(dylt->symbol_array[j].name, imp->name) == 0)
           {
             func = (DWORD *)entry;
             *func = dylt->symbol_array[j].address;
-            goto IMPORTED_SYMBOL;
+            break;
           }
-        kf->message("Import symbol %s not found in %s dynalink lib!\n", imp->name, dll_name);
-        IMPORTED_SYMBOL:
-          continue;
+        if(j == dylt->symbol_num)
+          kf->message("WARNING: Import Symbol %s not found in %s DLL!\n", imp->name, dll_name);
       }
       desc = (struct imp_desc *)((BYTE *)desc+sizeof(struct imp_desc));
     }
@@ -258,7 +263,8 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
 
   /* Save the essential info */
   *size = image_memory_size;
-  return image_memory_start;
+  /* Return the exec space */
+  return image_base;
 }
 
 int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables, struct symbol_info *syms)
@@ -277,13 +283,14 @@ int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
     DWORD *edir_funcaddr = (DWORD *)(image_base+edir->func_addr);
     DWORD handle = image_base;
 #ifdef __PECOFF_DEBUG__
-    kf->log("Dynalink lib name: %s Func number: %x\n", image_base+edir->name, edir->func_num);
+    kf->log("DLL name: %s Func number: %x\n", image_base+edir->name, edir->func_num);
 #endif
     symbol_array = (struct symbol *)kf->mem_alloc(sizeof(struct symbol)*edir->func_num);
     for(i = 0; i < edir->func_num; i++)
     {
       syms[i].name = (char *)image_base+edir_funcname[i];
-      syms[i].offset = edir_funcaddr[i];
+      /* Get the symbol's memory offset to section */
+      syms[i].offset = edir_funcaddr[i]-pee_info->section_0_base;
       syms[i].section = 0;
       symbol_array[i].name = (char *)image_base+edir_funcname[i];
       symbol_array[i].address = image_base+edir_funcaddr[i];
@@ -302,7 +309,7 @@ DWORD PECOFF_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *sym
   int i;
   
   for(i = 0; i < n; i++)
-    if(strcmp(syms[i].name, name) == 0)
+    if(strstr(syms[i].name, name) != 0)
     {
       *sect = syms[i].section;
       return syms[i].offset;
@@ -312,10 +319,10 @@ DWORD PECOFF_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *sym
   return 0;
 }
 
-int PECOFF_relocate_section(struct kern_funcs *kf, DWORD base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
+int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
   int i;
-  DWORD image_base = base-s[0].base;
+  /* DWORD image_base = base-s[0].base; */
   /* Use to prevent the duplicated reloc block */
   DWORD reloc_memory_first_start = 0;
   int reloc_offset;
@@ -351,7 +358,7 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD base, DWORD bssbase, st
     else if(reloc_memory_first_start == reloc_memory_start)
       break;
     #ifdef __PECOFF_DEBUG__
-    kf->log("Reloc vaddr: %x, block size: %x\n", reloc->vaddr, reloc->block_size);
+    kf->log("RELOC vaddr: %x, block size: %x\n", reloc->vaddr, reloc->block_size);
     #endif
     for(i = 0; i < reloc_number; i++)
     {
@@ -389,6 +396,7 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD base, DWORD bssbase, st
 
   return 1;
 }
+
 void PECOFF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
 {
   struct pecoff_extra_info *pee_info;
