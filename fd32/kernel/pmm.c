@@ -6,10 +6,6 @@
  * This is free software; see GPL.txt
  */
 
-/*
-#define __DEBUG__
-*/
-
 #include <ll/i386/error.h>
 #include <ll/i386/hw-data.h>
 
@@ -29,23 +25,24 @@ int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
   DWORD size2, b;
 
 #ifdef __DEBUG__
-    fd32_log_printf("PMM A_addr  0x%lx 0x%lx...", base, size);
+    fd32_log_printf("[PMM] Alloc Address  0x%lx 0x%lx...\n",
+	    base, size);
 #endif
   for (p1 = 0, p = mp->first; p!= 0; p1 = p, p = p->next) {
     b = (DWORD)p;
 #ifdef __DEBUG__
-    fd32_log_printf("Block 0x%lx-0x%lx  ", b, b + p->size);
+    fd32_log_printf("        Block 0x%lx-0x%lx\n", b, b + p->size);
 #endif
     if ((b <= base) && ((b + p->size) >= (base + size))) {
       /* OK, we have to remove from this chunk... */
       size2 = (b + p->size - (base + size));
       if (size2 < sizeof(struct memheader)) {
 	if (size2 != 0) {
-          fd32_log_printf("PMM alloc address: WARNING - loosing %ld bytes\n", size2);
+          message("[PMM] alloc address: WARNING - loosing %ld bytes\n", size2);
 	}
 	if (b >= base - sizeof(struct memheader)) {
 	  if (b != base) {
-            fd32_log_printf("PMM alloc address: WARNING - loosing %ld bytes\n",
+            message("[PMM] alloc address: WARNING - loosing %ld bytes\n",
 		    base - b);
 	  }
 	  if (p1 == 0) {
@@ -62,7 +59,7 @@ int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
 	h1->next = p->next;
 	if (b >= base - sizeof(struct memheader)) {
 	  if (b != base) {
-            fd32_log_printf("PMM alloc address: WARNING - loosing %ld bytes\n",
+            message("[PMM] alloc address: WARNING - loosing %ld bytes\n",
 		    base - b);
 	  }
 	  if (p1 == 0) {
@@ -78,7 +75,7 @@ int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
       return 1;
     }
   }
-  error("PMM alloc address: memory not available...\n");
+  error("[PMM] alloc address: memory not available...\n");
   return -1;
 }
 
@@ -88,22 +85,22 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
   DWORD size2, b;
 
 #ifdef __DEBUG__
-    fd32_log_printf("PMM Alloc 0x%lx...", size);
+    fd32_log_printf("[PMM] Alloc 0x%lx...\n", size);
 #endif
   for (p1 = 0, p = mp->first; p!= 0; p1 = p, p = p->next) {
     b = (DWORD)p;
 #ifdef __DEBUG__
-    fd32_log_printf("Block 0x%lx-0x%lx  ", b, b + p->size);
+    fd32_log_printf("        Block 0x%lx-0x%lx\n", b, b + p->size);
 #endif
     if (p->size >= size) {
 #ifdef __DEBUG__
-    fd32_log_printf("OK\n");
+      fd32_log_printf("        Found: 0x%lx\n", b + p->size - size);
 #endif
       /* OK, we found enough memory */
       size2 = (p->size - size);
       if (size2 < sizeof(struct memheader)) {
 	if (size2 != 0) {
-          fd32_log_printf("PMM alloc: WARNING - loosing %ld bytes\n", size2);
+          message("[PMM] alloc: WARNING - loosing %ld bytes\n", size2);
 	}
 	if (p1 == 0) {
 	  mp->first = p->next;
@@ -117,11 +114,11 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
       }
     }
 #ifdef __DEBUG__
-    fd32_log_printf("No: 0x%lx < 0x%lx...", p->size, size);
+    fd32_log_printf("        No: 0x%lx < 0x%lx...", p->size, size);
 #endif
 
   }
-  error("PMM alloc: not enough memory\n");
+  error("[PMM] alloc: not enough memory\n");
   return 0;
 }
 
@@ -130,6 +127,9 @@ int pmm_free(struct mempool *mp, DWORD base, DWORD size)
   struct memheader *h, *p, *p1;
   DWORD b;
 
+#ifdef __DEBUG__
+    fd32_log_printf("[PMM] Free 0x%lx 0x%lx...\n", base, size);
+#endif
   if (mp->first == 0) {
     h = (struct memheader *)base;
     h->size = size;

@@ -4,10 +4,6 @@
  * This is free software; see GPL.txt
  */
 
-/*
-#define __MEM_DEBUG__
-*/
-
 /* In-kernel static memory management... */
 #ifdef __MEM_DEBUG__
 #include <ll/i386/error.h>

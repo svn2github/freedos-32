@@ -30,7 +30,7 @@ void mmap_process(DWORD addr, DWORD len, DWORD *lb, DWORD *ls, DWORD *hb, DWORD 
 
   while (p < (struct mmap *)(addr + len)) {
 #ifdef __MMAP_DEBUG__
-    fd32_log_printf("region %d: %lx:%lx - %lx:%lx ===> %lu\n", i,
+    fd32_log_printf("[Memory Map] region %d: %lx:%lx - %lx:%lx ===> %lu\n", i,
 	    p->base_addr_high, p->base_addr_low,
 	    p->base_addr_high + p->lenght_high,
 	    p->base_addr_low + p->lenght_low,

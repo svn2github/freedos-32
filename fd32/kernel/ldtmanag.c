@@ -51,9 +51,6 @@
 #define RUN_RING   0      /* Not too sure */
 #define USE_GDT           /* We use the GDT instead of the LDT */
 
-#define __DEBUG__
-
-
 #ifdef USE_GDT
   extern union gdt_entry *GDT_base;
   #define DESCRIPTOR_TABLE(i)         GDT_base[i].d

@@ -5,6 +5,7 @@
  */
 
 #include <ll/i386/hw-data.h>
+#include <ll/i386/hw-instr.h>
 #include <ll/i386/error.h>
 #include <ll/stdio.h>
 #include <ll/stdarg.h>
@@ -18,6 +19,7 @@
 static char *LogBufStart = 0;
 static char *LogBufPos   = 0;
 
+#define __BOCHS_DBG__
 
 /* Allocates the log buffer and sets write position to the beginning */
 void fd32_log_init()
@@ -61,9 +63,19 @@ void fd32_log_display()
 /* Shows the buffer starting address, size and current position      */
 void fd32_log_stats()
 {
+  char *k;
   message("Log buffer allocated at %xh (%u bytes)\n",
           (unsigned) LogBufStart, LOGBUFSIZE);
   message("Current position is %xh, %u bytes written",
           (unsigned) LogBufPos, (unsigned) LogBufPos - (unsigned) LogBufStart);
+
+#ifdef __BOCHS_DBG__
+  for (k = LogBufStart; k < LogBufPos; k++) {
+    if (*k == '\n') {
+      outp(0xE9, '\t');
+    }
+    outp(0xE9, *k);
+  }
+#endif /* __BOCHS_DBG__ */
 }
 

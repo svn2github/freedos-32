@@ -43,7 +43,7 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
 
   sections = (struct section_info *)mem_get(sizeof(struct section_info) * tables.num_sections);
   if (sections == 0) {
-    fd32_log_printf("Error allocating sections array\n");
+    error("Error allocating sections array\n");
     
     /* Should provide some error code... */
     return;
@@ -55,7 +55,7 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
     symsize = tables.num_symbols * sizeof (struct symbol_info);
     symbols = (struct symbol_info *)mem_get(symsize);
     if (symbols == 0) {
-      fd32_log_printf("Error allocating symbols table\n");
+      error("Error allocating symbols table\n");
       
       /* Should provide some error code... */
       return;
@@ -78,30 +78,32 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
 
     exec_space = parser->load_relocatable(p, file, tables.num_sections, sections, &size);
     if (relocate == 0) {
-      fd32_log_printf("Warning: file is not an executable, but it has not any reloc info!!!\n");
+      error("Warning: file is not an executable, but it has not any reloc info!!!\n");
     }
     if ((bss_sect < 0) || (bss_sect > tables.num_sections)) {
-      fd32_log_printf("Error: strange file --- no BSS section\n");
+      error("Error: strange file --- no BSS section\n");
       /* TODO: Return code; free allocated resources... */
       return;
     }
     uninitspace = size;
-    fd32_log_printf("Start of local BSS: 0x%lx\n", uninitspace);
+#ifdef __EXEC_DEBUG__
+    fd32_log_printf("[EXEC] Start of local BSS: 0x%lx\n", uninitspace);
+#endif
     kernel_symbols = get_syscall_table();
     for (i = 0 ; i < tables.num_sections; i++) {
       res = parser->relocate_section(p, exec_space, uninitspace, sections,
 				     i, symbols, kernel_symbols);
       if (res < 0) {
-	fd32_log_printf("Error: relocation failed!!!\n");
+	error("Error: relocation failed!!!\n");
 	/* TODO: Return code; free allocated resources... */
 	return;
       }
     }
 #ifdef __EXEC_DEBUG__
-    fd32_log_printf("Searcing for the initialization function...\n");
+    fd32_log_printf("[EXEC] Searcing for the initialization function...");
 #endif
     if (symbols == 0) {
-      fd32_log_printf("Error: no symbols!!!\n");
+      error("Error: no symbols!!!\n");
       /* TODO: Return code; free allocated resources... */
       return;
     }
@@ -109,20 +111,19 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
 					     "_init", &init_sect);
     if (init_sect != -1) {
 #ifdef __EXEC_DEBUG__
-      fd32_log_printf("Found: (%d =  0x%x) 0x%lx\n", init_sect, init_sect, dyn_entry);
-      fd32_log_printf("Section Base: 0x%lx       Exec Space: 0x%lx\n",
+      fd32_log_printf("Found: (%d =  0x%x) 0x%lx\n", init_sect,
+	      init_sect, dyn_entry);
+      fd32_log_printf("       Section Base: 0x%lx       Exec Space: 0x%lx\n",
 	      sections[init_sect].base, exec_space);
 #endif
       dyn_entry += sections[init_sect].base + exec_space;
 #ifdef __EXEC_DEBUG__
-      fd32_log_printf("Entry point: 0x%lx\n", dyn_entry);
-      fd32_log_printf("Going to run...\n");
+      fd32_log_printf("       Entry point: 0x%lx\n", dyn_entry);
+      fd32_log_printf("       Going to run...\n");
 #endif
-      message("Going to run...\n");
       run(dyn_entry, 0);
-      message("Done!!!\n");
 #ifdef __EXEC_DEBUG__
-      fd32_log_printf("Returned\n");
+      fd32_log_printf("       Returned\n");
 #endif
     } else {
       message("Not found\n");
@@ -131,14 +132,14 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
     exec_space = parser->load_executable(p, file, tables.num_sections, sections, &size);
     if (exec_space == 0) {
 #ifdef __EXEC_DEBUG__
-      fd32_log_printf("Error decoding the Executable data\n");
+      message("Error decoding the Executable data\n");
 #endif
       return;
     }
     offset = exec_space - sections[0].base;
     fun = (void *)(dyn_entry + offset);
 #ifdef __EXEC_DEBUG__
-    fd32_log_printf("Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
+    fd32_log_printf("[EXEC] Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
 	    (DWORD)fun, dyn_entry, offset);
 #endif
     /*  retval = run(entry_offset + offset); */

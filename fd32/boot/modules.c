@@ -16,7 +16,6 @@
 #include "kmem.h"
 #include "mods.h"
 #include "format.h"
-//#include "coff.h"
 #include "modfs.h"
 #include "doshdr.h"
 #include "format.h"
@@ -51,7 +50,7 @@ int istext(struct kern_funcs *kf, int file)
   res = 256;
   while ((!done) && (res == 256)) {
     res = kf->file_read(file, p, 256);
-#ifdef __ASCII_DEBUG__
+#ifdef __MOD_DEBUG__
     fd32_log_printf("%c %u|", *p, (unsigned int)*p);
 #endif
     for (i = 0; i < res; i++) {
@@ -60,8 +59,8 @@ int istext(struct kern_funcs *kf, int file)
         done = 1;
       }
     }
-#ifdef __ASCII_DEBUG__
-    else fd32_log_printf("\n");
+#ifdef __MOD_DEBUG__
+    fd32_log_printf("\n");
 #endif
   }
   return !done;
@@ -105,7 +104,7 @@ void process_ascii_module(struct kern_funcs *p, int file)
   while (res == 256) {
     res = p->file_read(file, c, 255);
     c[res] = 0;
-    fd32_log_printf("%s", c);
+    message("%s", c);
   }
 }
 
@@ -114,9 +113,9 @@ void process_dos_module(struct kern_funcs *p, int file)
   struct dos_header hdr;
   DWORD nt_sgn;
 
-#ifdef __ASCII_DEBUG__
-  fd32_log_printf("Seems to be a DOS file...\n");
-  fd32_log_printf("Perhaps a PE? Only them are supported...\n");
+#ifdef __MOD_DEBUG__
+  fd32_log_printf("    Seems to be a DOS file...\n");
+  fd32_log_printf("    Perhaps a PE? Only them are supported...\n");
 #endif
 
   p->file_read(file, &hdr, sizeof(struct dos_header));
@@ -125,17 +124,13 @@ void process_dos_module(struct kern_funcs *p, int file)
   p->file_read(file, &nt_sgn, 4);
     
   if (nt_sgn == 0x00004550) {
-    fd32_log_printf("It seems to be an NT PE\n");
+    message("It seems to be an NT PE\n");
   }
   p->file_seek(file, hdr.e_lfanew + 4, 0);
   /* ULTRAWARN!!!! THIS HAS TO BE FIXED!!!*/
   exec_process(p, file, NULL, NULL);
   return;
 }
-
-/*
-#define __COFF_DEBUG__
-*/
 
 static int mod_read(int id, void *b, int len)
 {
@@ -168,8 +163,8 @@ void process_modules(int mods_count, DWORD mods_addr)
   kf.seek_set = 0;
   kf.seek_cur = 1;
   for (i = 0; i < mods_count; i++) {
-#ifdef __ASCII_DEBUG__
-    fd32_log_printf("Processing module #%d\n", i);
+#ifdef __MOD_DEBUG__
+    fd32_log_printf("[BOOT] Processing module #%d\n", i);
 #endif
     message("Processing module #%d\n", i);
     command_line = module_cl(mods_addr, i);
@@ -181,10 +176,16 @@ void process_modules(int mods_count, DWORD mods_addr)
       process_ascii_module(&kf, i);
       break;
     case MOD_ELF:
+#ifdef __MOD_DEBUG__
+      fd32_log_printf("    ELF Module\n");
+#endif
       message("going to exec ELF...\n");
       exec_process(&kf, i, &parser, command_line);
       break;
     case MOD_COFF:
+#ifdef __MOD_DEBUG__
+      fd32_log_printf("    COFF Module\n");
+#endif
       message("going to exec COFF...\n");
       exec_process(&kf, i, &parser, command_line);
       break;
@@ -192,9 +193,7 @@ void process_modules(int mods_count, DWORD mods_addr)
       process_dos_module(&kf, i);
       break;
     default:
-#ifdef __ASCII_DEBUG__
-      fd32_log_printf("Unknown module type\n");
-#endif
+      message("Unknown module type\n");
     }
   }
 }

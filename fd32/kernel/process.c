@@ -15,10 +15,6 @@
 #include <ll/i386/error.h>
 #include <ll/i386/cons.h>
 
-/*
-#define __PROCESS_DEBUG__
-*/
-
 #include "stubinfo.h"
 #include "jft.h"
 #include "kmem.h"
@@ -62,7 +58,7 @@ void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD b
   npsp->link = current_psp;
   current_psp = npsp;
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("New PSP: 0x%x\n", current_psp);
+  fd32_log_printf("[PROCESS] New PSP: 0x%x\n", current_psp);
 #endif
   npsp->old_stack = current_SP;
   npsp->memlimit = base + end;
@@ -161,7 +157,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     }
   }
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("StubInfo Selector Allocated: = 0x%x\n", sel);
+  fd32_log_printf("[PROCESS] StubInfo Selector Allocated: = 0x%x\n", sel);
 #endif
   if (done == 0) {
     mem_free((DWORD)allocated, size);
@@ -187,7 +183,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     return NULL;
   }
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("PSP Selector Allocated: = 0x%x\n", psp_selector);
+  fd32_log_printf("[PROCESS] PSP Selector Allocated: = 0x%x\n", psp_selector);
 #endif
   GDT_place(psp_selector, (DWORD)newpsp, sizeof(struct psp), 0x92 | (RUN_RING << 5), 0x40);
 
@@ -214,7 +210,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     return NULL;
   }
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("Environment Selector Allocated: = 0x%x\n", env_selector);
+  fd32_log_printf("[PROCESS] Environment Selector Allocated: = 0x%x\n", env_selector);
 #endif
   GDT_place(env_selector, (DWORD)envspace, ENV_SIZE, 0x92 | (RUN_RING << 5), 0x40);
   
@@ -289,7 +285,7 @@ void restore_psp(void)
   stubinfo_sel = current_psp->info_sel;
   base = GDT_read(stubinfo_sel, NULL, NULL, NULL);
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("Stubinfo Sel: 0x%x --- 0x%lx\n", stubinfo_sel, base);
+  fd32_log_printf("[PROCESS] Stubinfo Sel: 0x%x --- 0x%lx\n", stubinfo_sel, base);
 #endif
   info = (struct stubinfo *)base;
   base1 = GDT_read(info->psp_selector, NULL, NULL, NULL);
@@ -332,7 +328,7 @@ int create_process(DWORD entry, DWORD base, DWORD size, char *name)
   int run(DWORD, WORD);
 
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("Going to run 0x%lx, size 0x%lx\n", entry, size);
+  fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n", entry, size);
 #endif
   stubinfo_sel = stubinfo_init(base, size, 0, name);
   if (stubinfo_sel == 0) {
@@ -340,12 +336,12 @@ int create_process(DWORD entry, DWORD base, DWORD size, char *name)
     return -1;
   }
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("Calling run 0x%lx 0x%lx\n", entry, size);
+  fd32_log_printf("[PROCESS] Calling run 0x%lx 0x%lx\n", entry, size);
 #endif
 
   res = run(entry, stubinfo_sel);
 #ifdef __PROCESS_DEBUG__
-  fd32_log_printf("Returned 0x%lx: now restoring PSP\n", res);
+  fd32_log_printf("[PROCESS] Returned 0x%lx: now restoring PSP\n", res);
 #endif
 
   restore_psp();

@@ -8,7 +8,9 @@ INCL   = $(BASE)
 LIB_PATH    = $(BASE)/lib/
 LIB_DIR  = $(BASE)\lib
 
-C_OPT +=  -I$(INCL) -I../include
+DEBUG = -D__MOD_DEBUG__ -D__BOOT_DEBUG__
+
+C_OPT +=  -I$(INCL) -I../include $(DEBUG)
 ASM_OPT += -I$(INCL)
 LINK_OPT = -Bstatic
 
