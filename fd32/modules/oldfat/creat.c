@@ -82,7 +82,8 @@ static int split_lfn(tLfnEntry *Slot, tDirEntry *D, char *LongName, int *NumSlot
     if (SlotPos == 13)
     {
       SlotPos = 0;
-      Slot[Order].Order    = ++Order + 1; /* 1-based numeration */
+      Order++;
+      Slot[Order].Order    = Order + 1; /* 1-based numeration */
       Slot[Order].Attr     = FD32_ALNGNAM;
       Slot[Order].Reserved = 0;
       Slot[Order].Checksum = Checksum;
