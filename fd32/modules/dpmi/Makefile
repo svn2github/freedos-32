@@ -12,7 +12,7 @@ C_OPT += -I$(INCL) -I../../include -I ./include
 ASM_OPT +=-I$(INCL)
 LINK_OPT = -Bstatic
 
-OBJS = handlers.o chandler.o dpmimem.o init.o \
+OBJS = handlers.o chandler.o dpmimem.o dpmiexc.o rmint.o init.o \
 	int31_00.o int31_02.o int31_03.o int31_04.o int31_05.o \
 	int31_06.o int31_0e.o int10.o int21.o
 

@@ -3,14 +3,15 @@
 /*         possibility of recalling the old one.                    */
 
 
-#include<ll/i386/hw-data.h>
+#include <ll/i386/hw-data.h>
 #include <ll/i386/string.h>
-#include <filesys.h>
-#include <dev/fs.h>
-#include <dpmi.h>
-#include <stubinfo.h>
-#include <logger.h>
 
+#include "filesys.h"
+#include "dev/fs.h"
+#include "stubinfo.h"
+#include "logger.h"
+
+#include "rmint.h"
 
 extern struct psp *current_psp;
 

@@ -24,16 +24,15 @@ void int31_0501(union regs *r)
   fd32_log_printf("[FD32] Allocate Memory Block\n");
   fd32_log_printf("       Block size: 0x%lx (%ld)\n", blocksize, blocksize);
 #endif
-  r->d.ebx = r->d.ebx & 0xFFFF0000;
-  r->d.ecx = r->d.ecx & 0xFFFF0000;
-  r->d.esi = r->d.esi & 0xFFFF0000;
-  r->d.edi = r->d.edi & 0xFFFF0000;
   handle = dpmi_alloc(blocksize, &base);
   if (handle == 0) {
     /* Error!!!! */
     SET_CARRY;
+    /* For the moment, let's not care about the error code... We have
+     * an abort...
+     */
     error("Error: No more physical memory!!!\n");
-    r->d.eax = ((r->d.eax & 0xFFFF0000) | 8013); /* Physical memory not available */
+    r->x.ax = 0x8013; /* Physical memory not available */
     fd32_abort();
     return;
   }
@@ -42,10 +41,11 @@ void int31_0501(union regs *r)
   fd32_log_printf("       Handle: 0x%lx\n", handle);
 #endif
   CLEAR_CARRY;
-  r->d.ebx = r->d.ebx |  ((base >> 16) & 0x0000FFFF);
-  r->d.ecx = r->d.ecx | (base & 0x0000FFFF);
-  r->d.esi = r->d.esi |  ((handle >> 16) & 0x0000FFFF);
-  r->d.edi = r->d.edi | (handle & 0x0000FFFF);
+  r->x.ax = 0;
+  r->x.bx = (base >> 16) & 0x0000FFFF;
+  r->x.cx = base & 0x0000FFFF;
+  r->x.si = (handle >> 16) & 0x0000FFFF;
+  r->x.di = handle & 0x0000FFFF;
 #ifdef __DEBUG__
   fd32_log_printf("       EAX: 0x%lx EBX: 0x%lx ECX: 0x%lx\n",
                   r->d.eax, r->d.ebx, r->d.ecx);
@@ -70,7 +70,7 @@ void int31_0502(union regs *r)
     res = dpmi_free(handle);
   }
   CLEAR_CARRY;
-  r->d.eax |= 0xFFFF0000;
+  r->x.ax = 0x0000;
   if (res != 1) {
     error("Failed\n");
     fd32_abort();

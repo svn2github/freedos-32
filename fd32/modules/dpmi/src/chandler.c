@@ -8,10 +8,11 @@
 #include<ll/i386/hw-instr.h>
 #include<ll/i386/error.h>
 #include<ll/i386/cons.h>
-#include<logger.h>
-#include "dpmi.h"
+
+#include "logger.h"
 #include "kernel.h"
 
+#include "dpmi.h"
 #include "int31_00.h"
 #include "int31_02.h"
 #include "int31_03.h"
@@ -25,25 +26,6 @@
 /*
 #define __DPMI_DEBUG__
 */
-
-#if 0
-/* Warning!!! This depends on what handler.s is pushing... */
-struct regs {
-  DWORD flags;
-  DWORD egs;
-  DWORD efs;
-  DWORD ees;
-  DWORD eds;
-  DWORD edi;
-  DWORD esi;
-  DWORD ebp;
-  DWORD esp;
-  DWORD ebx;
-  DWORD edx;
-  DWORD ecx;
-  DWORD eax;
-};
-#endif
 
 int stop = -1;
 

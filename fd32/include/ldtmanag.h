@@ -16,18 +16,18 @@
  * I've set them the same as the DPMI error codes
  */
 #define NO_ERROR                      0
-#define ERROR_DESCRIPTOR_UNAVAILABLE  0x8011
-#define ERROR_INVALID_SELECTOR        0x8022
+#define ERROR_DESCRIPTOR_UNAVAILABLE  0xFFFF8011
+#define ERROR_INVALID_SELECTOR        0xFFFF8022
 
 
 /* Implementation of DPMI 0.9 service 0000h "Allocate LDT Descriptors" */
-int fd32_allocate_descriptors(WORD NumSelectors, WORD *BaseSelector);
+int fd32_allocate_descriptors(WORD NumSelectors);
 
 /* Implementation of DPMI 0.9 service 0001h "Free LDT Descriptor" */
 int fd32_free_descriptor(WORD Selector);
 
 /* Implementation of DPMI 0.9 service 0002h "Segment to Descriptor" */
-int fd32_segment_to_descriptor(WORD RealModeSegment, WORD *Selector);
+int fd32_segment_to_descriptor(WORD RealModeSegment);
 
 /* Implementation of DPMI 0.9 service 0003h "Get Selector Increment Value" */
 WORD fd32_get_selector_increment_value();
@@ -45,7 +45,7 @@ int fd32_set_segment_limit(WORD Selector, DWORD Limit);
 int fd32_set_descriptor_access_rights(WORD Selector, WORD Rights);
 
 /* Implementation of DPMI 0.9 service 000Ah "Create Alias Descriptor" */
-int fd32_create_alias_descriptor(WORD Selector, WORD *NewSelector);
+int fd32_create_alias_descriptor(WORD Selector);
 
 /* Implementation of DPMI 0.9 service 000Bh "Get Descriptor" */
 int fd32_get_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset);

@@ -5,10 +5,12 @@
  */
 
 #include <ll/i386/hw-data.h>
+
 #include "kmem.h"
-#include "dpmimem.h"
 #include "stubinfo.h"
 #include "kernel.h"
+
+#include "dpmimem.h"
 
 #define MEMSIG 0xFD32
 

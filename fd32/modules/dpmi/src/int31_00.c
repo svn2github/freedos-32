@@ -22,20 +22,6 @@
 #define __DEBUG__
 */
 
-/*
- * Error codes for Descriptor Management Routines
- * I've set them the same as the DPMI error codes
- */
-#define NO_ERROR                      0
-#define ERROR_DESCRIPTOR_UNAVAILABLE  0x8011
-#define ERROR_INVALID_SELECTOR        0x8022
-
-
-/* DPMI error codes */
-#define DPMI_DESCRIPTOR_UNAVAILABLE   0x8011
-#define DPMI_INVALID_SELECTOR         0x8022
-
-
 /* Descriptors Management Routines
  *
  * Implemented routines:
@@ -76,10 +62,10 @@ extern WORD kern_CS, kern_DS;
 
 void int31_0000(union regs *r)
 {
-  int  ErrorCode;
+  int  newsel;
   WORD BaseSelector;
 	
-  ErrorCode = fd32_allocate_descriptors((WORD) r->d.ecx, &BaseSelector);
+  newsel = fd32_allocate_descriptors((WORD) r->d.ecx);
 
 #ifdef __DEBUG__
   fd32_log_printf("   Base selector: 0x%x   Exit code: 0x%x\n",
@@ -87,22 +73,7 @@ void int31_0000(union regs *r)
 #endif
 
   /* Return the result in AX */
-  r->d.eax &= 0xFFFF0000;
-
-  switch (ErrorCode) {
-    case NO_ERROR :
-      r->d.eax += BaseSelector;
-      CLEAR_CARRY;
-      break;
-    case ERROR_DESCRIPTOR_UNAVAILABLE :
-      r->d.eax += DPMI_DESCRIPTOR_UNAVAILABLE;
-      SET_CARRY;
-      break;
-    default:
-      /* Should never reach this point */
-      error("Unknown result");
-      fd32_abort();
-  }
+  dpmi_return(newsel, r);
 }
 
 
@@ -117,49 +88,29 @@ void int31_0001(union regs *r)
   }
   ErrorCode = fd32_free_descriptor((WORD) r->d.ebx);
 
-  if (ErrorCode == ERROR_INVALID_SELECTOR) {
-    r->d.eax &= 0xFFFF0000;
-    r->d.eax += DPMI_INVALID_SELECTOR;
-    SET_CARRY;
-  } else {
-    CLEAR_CARRY;
-  }
+  dpmi_return(ErrorCode, r);
 }
 
 
 void int31_0002(union regs *r)
 {
-  int  ErrorCode;
+  int  newsel;
   WORD RealModeSelector;
-	
-  ErrorCode = fd32_allocate_descriptors((WORD) r->d.ebx, &RealModeSelector);
+
+  newsel = fd32_segment_to_descriptor(r->x.bx);
 
 #ifdef __DEBUG__
   fd32_log_printf("   Real Mode selector: 0x%x   Exit code: 0x%x\n",
                   RealModeSelector, ErrorCode);
 #endif
 
-  /* Return the result in AX */
-  r->d.eax &= 0xFFFF0000;
-
-  switch (ErrorCode)
-  {
-    case NO_ERROR :
-      r->d.eax += RealModeSelector;
-      CLEAR_CARRY;
-      break;
-    case ERROR_DESCRIPTOR_UNAVAILABLE :
-      r->d.eax += DPMI_DESCRIPTOR_UNAVAILABLE;
-      SET_CARRY;
-      break;
-  }
+  dpmi_return(newsel, r);
 }
 
 
 void int31_0003(union regs *r)
 {
-  r->d.eax &= 0xFFFF0000;
-  r->d.eax += fd32_get_selector_increment_value();
+  r->x.ax = fd32_get_selector_increment_value();
   CLEAR_CARRY;
 }
 
@@ -176,22 +127,11 @@ void int31_0006(union regs *r)
                   BaseAddress, ErrorCode);
 #endif
 
-  switch (ErrorCode) {
-    case NO_ERROR :
-      r->d.edx &= 0xFFFF0000;
-      r->d.ecx &= 0xFFFF0000;
-      r->d.edx += (WORD) BaseAddress;
-      r->d.ecx += BaseAddress >> 16;
-      CLEAR_CARRY;
-      break;
-
-    case ERROR_INVALID_SELECTOR :
-      r->d.eax &= 0xFFFF0000;
-      r->d.eax += DPMI_INVALID_SELECTOR;
-      SET_CARRY;
-      break;
+  dpmi_return(ErrorCode, r);
+  if (ErrorCode >= 0) {
+    r->x.dx = (WORD) BaseAddress;
+    r->x.cx = BaseAddress >> 16;
   }
-  return;
 }
 
 
@@ -209,17 +149,7 @@ void int31_0007(union regs *r)
 					    (((WORD) r->d.ecx << 16) + 
 					     (WORD) r->d.edx));
 
-  switch (ErrorCode) {
-    case NO_ERROR:
-      CLEAR_CARRY;
-      break;
-
-    case ERROR_INVALID_SELECTOR:
-      r->d.eax &= 0xFFFF0000;
-      r->d.eax += DPMI_INVALID_SELECTOR;
-      SET_CARRY;
-      break;
-  }
+  dpmi_return(ErrorCode, r);
 }
 
 
@@ -236,16 +166,7 @@ void int31_0008(union regs *r)
   ErrorCode = fd32_set_segment_limit((WORD) r->d.ebx,(((WORD) r->d.ecx << 16) +
 	(WORD) r->d.edx));
 
-  switch (ErrorCode) {
-    case NO_ERROR:
-      CLEAR_CARRY;
-      break;
-    case ERROR_INVALID_SELECTOR:
-      r->d.eax &= 0xFFFF0000;
-      r->d.eax += DPMI_INVALID_SELECTOR;
-      SET_CARRY;
-      break;
-  }
+  dpmi_return(ErrorCode, r);
 }
 
 
@@ -262,50 +183,23 @@ void int31_0009(union regs *r)
   ErrorCode = fd32_set_descriptor_access_rights((WORD) r->d.ebx,
 						(WORD) r->d.ecx);
 
-  switch (ErrorCode) {
-    case NO_ERROR:
-      CLEAR_CARRY;
-      break;
-
-    case ERROR_INVALID_SELECTOR:
-      r->d.eax &= 0xFFFF0000;
-      r->d.eax += DPMI_INVALID_SELECTOR;
-      SET_CARRY;
-      break;
-  }
+  dpmi_return(ErrorCode, r);
 }
 
 
 void int31_000A(union regs *r)
 {
-  int  ErrorCode;
+  int  aliasel;
   WORD NewSelector;
 
-  ErrorCode = fd32_create_alias_descriptor((WORD) r->d.ebx, &NewSelector);
+  aliasel = fd32_create_alias_descriptor((WORD) r->d.ebx);
 
 #ifdef __DEBUG__
   fd32_log_printf("   New selector: 0x%x   Exit code: 0x%x\n",
                   NewSelector, ErrorCode);
 #endif
 
-  /* Return the result in AX */
-  r->d.eax &= 0xFFFF0000;
-  switch (ErrorCode) {
-    case NO_ERROR:
-      r->d.eax += NewSelector;
-      CLEAR_CARRY;
-      break;
-
-    case ERROR_DESCRIPTOR_UNAVAILABLE:
-      r->d.eax += DPMI_DESCRIPTOR_UNAVAILABLE;
-      SET_CARRY;
-      break;
-
-    case ERROR_INVALID_SELECTOR:
-      r->d.eax += DPMI_INVALID_SELECTOR;
-      SET_CARRY;
-      break;
-  }
+  dpmi_return(aliasel, r);
 }
 
 
@@ -315,18 +209,7 @@ void int31_000B(union regs *r)
 
   ErrorCode = fd32_get_descriptor((WORD) r->d.ebx, (WORD) r->d.ees, r->d.edi);
 
-  switch (ErrorCode)
-  {
-    case NO_ERROR:
-      CLEAR_CARRY;
-      break;
-
-    case ERROR_INVALID_SELECTOR:
-      r->d.eax &= 0xFFFF0000;
-      r->d.eax += DPMI_INVALID_SELECTOR;
-      SET_CARRY;
-      break;
-  }
+  dpmi_return(ErrorCode, r);
 }
 
 
@@ -342,17 +225,5 @@ void int31_000C(union regs *r)
   
   ErrorCode = fd32_set_descriptor((WORD) r->d.ebx, (WORD) r->d.ees, r->d.edi);
 
-  switch (ErrorCode)
-  {
-    case NO_ERROR:
-      CLEAR_CARRY;
-      break;
-
-    case ERROR_INVALID_SELECTOR:
-      r->d.eax &= 0xFFFF0000;
-      r->d.eax += DPMI_INVALID_SELECTOR;
-      SET_CARRY;
-      break;
-  }
+  dpmi_return(ErrorCode, r);
 }
-
