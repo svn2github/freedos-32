@@ -6,7 +6,7 @@ BASE = $(FD32)/oslib
 
 include $(BASE)/config.mk
 
-DJGPP_TESTS = hello.out empty.out exctest.out get.out argtest.out filetest.out
+DJGPP_TESTS = hello.out empty.out exctest.out get.out argtest.out filetest.out exectest.out
 NATIVE_TESTS = fattest.32 read.32
 all: $(DJGPP_TESTS) $(NATIVE_TESTS)
 clean:
