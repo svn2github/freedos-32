@@ -3,7 +3,7 @@
  * Disk drive support via BIOS                                            *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "partscan.c" - Hard disk partitions scanner                    *
  *                                                                        *
@@ -33,18 +33,18 @@
 
 typedef struct
 {
-  BYTE  Active;
-  BYTE  StartH;
-  BYTE  StartS;
-  BYTE  StartC;
-  BYTE  Type;
-  BYTE  EndH;
-  BYTE  EndS;
-  BYTE  EndC;
-  DWORD LbaStart;
-  DWORD LbaSize;
+    BYTE  active;
+    BYTE  start_h;
+    BYTE  start_s;
+    BYTE  start_c;
+    BYTE  type;
+    BYTE  end_h;
+    BYTE  end_s;
+    BYTE  end_c;
+    DWORD lba_start;
+    DWORD lba_size;
 }
-__attribute__ ((packed)) tPartTabl;
+__attribute__ ((packed)) PartTabl;
 
 
 #define PART_EMPTY     0x00
@@ -53,171 +53,201 @@ __attribute__ ((packed)) tPartTabl;
 #define PART_EXT_LINUX 0x85
 
 #ifdef __DEBUG__
-static const struct { BYTE Id; char *Name; } PartitionTypes[] =
+static const struct { BYTE id; char *name; } partition_types[] =
 {
-  { 0x00, "Empty"             },
-  { 0x01, "FAT12"             },
-  { 0x04, "FAT16 up to 32 MB" },
-  { 0x05, "DOS extended"      },
-  { 0x06, "FAT16 over 32 MB"  },
-  { 0x07, "NTFS or HPFS"      },
-  { 0x0B, "FAT32"             },
-  { 0x0C, "FAT32 with LBA"    },
-  { 0x0E, "FAT16 with LBA"    },
-  { 0x0F, "Win extended"      },
-  { 0x82, "Linux Swap"        },
-  { 0x83, "Linux native"      },
-  { 0x85, "Linux extended"    },
-  { 0xFF, "unknown"           },
-  { 0, 0 }
+    { 0x00, "Empty"             },
+    { 0x01, "FAT12"             },
+    { 0x04, "FAT16 up to 32 MB" },
+    { 0x05, "DOS extended"      },
+    { 0x06, "FAT16 over 32 MB"  },
+    { 0x07, "NTFS or HPFS"      },
+    { 0x0B, "FAT32"             },
+    { 0x0C, "FAT32 with LBA"    },
+    { 0x0E, "FAT16 with LBA"    },
+    { 0x0F, "Win extended"      },
+    { 0x82, "Linux Swap"        },
+    { 0x83, "Linux native"      },
+    { 0x85, "Linux extended"    },
+    { 0xFF, "unknown"           },
+    { 0, 0 }
 };
 
 
-static char *partname(BYTE Id)
+static char *partname(BYTE id)
 {
-  int k;
-  for (k = 0; PartitionTypes[k].Name; k++)
-    if (PartitionTypes[k].Id == Id) return PartitionTypes[k].Name;
-  return "unknown";
+    unsigned k;
+    for (k = 0; partition_types[k].name; k++)
+  	    if (partition_types[k].id == id) return partition_types[k].name;
+    return "unknown";
 }
 #endif
 
 
-static DWORD chs_to_lba(DWORD C, DWORD H, DWORD S, DWORD NumH, DWORD NumS)
+static DWORD chs_to_lba(unsigned c, unsigned h, unsigned s, unsigned num_h, unsigned num_s)
 {
-  return (C * NumH + H) * NumS + S - 1;
+    return (DWORD) ((c * num_h + h) * num_s + s - 1);
 }
 
 
-static int add_partition(tDisk *D, char *Name, int Part, tPartTabl *P)
+static void check_lba(PartTabl *p, const tDisk *d)
 {
-  #ifdef BIOSDISK_FD32DEV
-  int    Res;
-  char  *DevName;
-  #endif
-  DWORD  LbaStart = P->LbaStart;
-  DWORD  LbaEnd   = P->LbaStart + P->LbaSize - 1;
-  DWORD  Type;
-  char   NewName[256];
-  tDisk *NewD;
+    if (d->TotalBlocks / (d->BiosH * d->BiosS) > 1024) return; /* ...since we trust them */
+    DWORD lba_start = chs_to_lba(p->start_c + ((WORD) (p->start_s & 0xC0) << 2),
+                                 p->start_h, p->start_s & 0x3F, d->BiosH, d->BiosS);
+    DWORD lba_size  = chs_to_lba(p->end_c + ((WORD) (p->end_s & 0xC0) << 2),
+                                 p->end_h, p->end_s & 0x3F, d->BiosH, d->BiosS)
+                    - lba_start + 1;
+    if ((lba_start != p->lba_start) || (lba_size != p->lba_size))
+        fd32_message("LBA values for the partition are not consistent with CHS values!\n");
+    p->lba_start = lba_start;
+    p->lba_size  = lba_size;
+}
 
-  if ((P->StartC != 0xFF) && (P->StartH != 0xFF) && (P->StartS != 0xFF))
-    LbaStart = chs_to_lba(P->StartC + ((WORD) (P->StartS & 0xC0) << 2),
-                          P->StartH, P->StartS & 0x3F, D->BiosH, D->BiosS);
 
-  if ((P->EndC != 0xFF) && (P->EndH != 0xFF) && (P->EndS != 0xFF))
-    LbaEnd   = chs_to_lba(P->EndC + ((WORD) (P->EndS & 0xC0) << 2),
-                          P->EndH, P->EndS & 0x3F, D->BiosH, D->BiosS);
-
-  if ((P->Type != PART_EMPTY)
-   && (P->Type != PART_EXT_DOS)
-   && (P->Type != PART_EXT_WIN)
-   && (P->Type != PART_EXT_LINUX))
-  {
-    ksprintf(NewName, "%s%d", Name, Part);
-    Type = FD32_BILOG;
-    if (Part < 5)
-    {
-      if (P->Active) Type = FD32_BIACT;
-                else Type = FD32_BIPRI;
-    }
-    Type |= (DWORD) P->Type << 4;
-    #ifdef __DEBUG__
-    fd32_message("%s is %s (%02xh), Start: %lu, Size: %lu (%lu MiB)\n",
-                 NewName, partname(P->Type), (int) P->Type, LbaStart,
-                 LbaEnd - LbaStart + 1, (LbaEnd - LbaStart + 1) * D->BlockSize / 1048576);
-    #endif
-
-    /* Allocate and initialize the private data structure */
-    if ((NewD = (tDisk *) fd32_kmem_get(sizeof(tDisk))) == NULL)
-      return FD32_ENOMEM;
-    *NewD = *D;
-    NewD->OpenCount = 0;
-    NewD->FirstSector = LbaStart;
-    NewD->TotalBlocks = LbaEnd - LbaStart + 1;
-    NewD->Type        = Type;
-    NewD->MultiBootId = (D->MultiBootId & 0xFF00FFFF) | ((Part - 1) << 24);
-
+static int add_partition(const tDisk *d, const char *name, unsigned part, PartTabl *p)
+{
     #ifdef BIOSDISK_FD32DEV
-    /* Register the new device to the FD32 kernel */
-    DevName = (char *) fd32_kmem_get(strlen(NewName) + 1);
-    if (DevName == NULL) return FD32_ENOMEM;
-    strcpy(DevName, NewName);
-    Res = fd32_dev_register(biosdisk_request, (void *) NewD, DevName);
-    if (Res < 0) return Res;
+    int    res;
+    char  *dev_name;
     #endif
-  }
-  return 0;
+    DWORD  lba_start = p->lba_start;
+    DWORD  lba_end   = p->lba_start + p->lba_size - 1;
+    DWORD  type;
+    char   new_name[256];
+    tDisk *new_d;
+    
+    if ((p->type != PART_EMPTY)
+     && (p->type != PART_EXT_DOS)
+     && (p->type != PART_EXT_WIN)
+     && (p->type != PART_EXT_LINUX))
+    {
+        ksprintf(new_name, "%s%u", name, part);
+        type = FD32_BILOG;
+        if (part < 5)
+        {
+          if (p->active) type = FD32_BIACT;
+                    else type = FD32_BIPRI;
+        }
+        type |= (DWORD) p->type << 4;
+        #ifdef __DEBUG__
+        fd32_message("%s is %s (%02xh), Start: %lu, Size: %lu (%lu MiB)\n",
+                     new_name, partname(p->type), (unsigned) p->type, lba_start,
+                     lba_end - lba_start + 1,
+                     (DWORD) (((long long) (lba_end - lba_start + 1) * d->BlockSize) >> 20));
+        #endif
+        check_lba(p, d);
+
+        /* Allocate and initialize the private data structure */
+        if ((new_d = (tDisk *) fd32_kmem_get(sizeof(tDisk))) == NULL)
+            return FD32_ENOMEM;
+        *new_d = *d;
+        new_d->OpenCount = 0;
+        new_d->FirstSector = lba_start;
+        new_d->TotalBlocks = lba_end - lba_start + 1;
+        new_d->Type        = type;
+        new_d->MultiBootId = (d->MultiBootId & 0xFF00FFFF) | ((part - 1) << 24);
+
+        #ifdef BIOSDISK_FD32DEV
+        /* Register the new device to the FD32 kernel */
+        dev_name = (char *) fd32_kmem_get(strlen(new_name) + 1);
+        if (dev_name == NULL) return FD32_ENOMEM;
+        strcpy(dev_name, new_name);
+        res = fd32_dev_register(biosdisk_request, (void *) new_d, dev_name);
+        if (res < 0) return res;
+        #endif
+    }
+    return 0;
 }
 
 
-int biosdisk_scanpart(tDisk *D, char *DevName)
+int biosdisk_scanpart(tDisk *d, const char *dev_name)
 {
-  tPartTabl Tbl[4];
-  int       k, Res;
-  int       PartNum = 0;
-  BYTE      Buffer[D->BlockSize];
-  DWORD     ExtStart = 0, ExtStart1 = 0;
-
-  /* Read the MBR and copy the partition table in the Tbl array */
-  if ((Res = biosdisk_read(D, 0, 1, Buffer)) < 0) return Res;
-  memcpy(Tbl, Buffer + 446, 64);
-
-  /* If there are no active partitions, mark the first primary as active */
-  for (k = 0; k < 4; k++) if (Tbl[k].Active) break;
-  if (k == 4) for (k = 0; k < 4; k++)
-    if ((Tbl[k].Type != PART_EMPTY)
-     && (Tbl[k].Type != PART_EXT_DOS)
-     && (Tbl[k].Type != PART_EXT_WIN)
-     && (Tbl[k].Type != PART_EXT_LINUX)) { Tbl[k].Active = 0x80; break; }
-  /* Create partition devices for primary partitions */
-  for (k = 0; k < 4; k++) add_partition(D, DevName, ++PartNum, &Tbl[k]);
-  /* Search for an extended partition in the primary partition table */
-  for (k = 0; k < 4; k++)
-  {
-    if ((Tbl[k].Type == PART_EXT_DOS)
-     || (Tbl[k].Type == PART_EXT_WIN)
-     || (Tbl[k].Type == PART_EXT_LINUX))
+    PartTabl  tbl[4];
+    unsigned  k;
+    int       res, part_num = 0;
+    BYTE      buffer[d->BlockSize];
+    DWORD     ext_start = 0, ext_start1 = 0;
+    
+    if (d->TotalBlocks / (d->BiosH * d->BiosS) > 1024)
     {
-      #ifdef __DEBUG__
-      fd32_message("%s%d is a %s partition\n", DevName, k + 1,
-                   partname(Tbl[k].Type));
-      #endif
-      ExtStart = Tbl[k].LbaStart;
-      if ((Res = biosdisk_read(D, ExtStart, 1, Buffer)) < 0) return Res;
-      break;
+        fd32_message("Media is too big to be addressed using CHS (has more than 1024 cylinders).\n");
+        fd32_message("LBA values in the partition tables will be trusted.\n");
     }
-  }
+    else
+    {
+        fd32_message("Media can be addressed using CHS (has up to 1024 cylinders).\n");
+        fd32_message("LBA values will be calculated from their respective CHS values.\n");
+    }
 
-  /* Read extended partitions */
-  if (ExtStart) for (;;)
-  {
-    memcpy(Tbl, Buffer + 446, 64);
+    /* Read the MBR and copy the partition table in the tbl array */
+    res = biosdisk_read(d, 0, 1, buffer);
+    if (res < 0) return res;
+    memcpy(tbl, buffer + 446, 64);
+
+    /* If there are no active partitions, mark the first primary as active */
+    for (k = 0; k < 4; k++) if (tbl[k].active) break;
+    if (k == 4)
+        for (k = 0; k < 4; k++)
+            if ((tbl[k].type != PART_EMPTY)
+             && (tbl[k].type != PART_EXT_DOS)
+             && (tbl[k].type != PART_EXT_WIN)
+             && (tbl[k].type != PART_EXT_LINUX))
+            {
+                tbl[k].active = 0x80;
+                break;
+            }
+    /* Create partition devices for primary partitions */
+    for (k = 0; k < 4; k++) add_partition(d, dev_name, ++part_num, &tbl[k]);
+    /* Search for an extended partition in the primary partition table */
     for (k = 0; k < 4; k++)
     {
-      if ((Tbl[k].Type != PART_EMPTY)
-       && (Tbl[k].Type != PART_EXT_DOS)
-       && (Tbl[k].Type != PART_EXT_WIN)
-       && (Tbl[k].Type != PART_EXT_LINUX))
-      {
-        PartNum++;
-        Tbl[k].LbaStart += ExtStart + ExtStart1;
-      }
-      add_partition(D, DevName, PartNum, &Tbl[k]);
+        if ((tbl[k].type == PART_EXT_DOS)
+         || (tbl[k].type == PART_EXT_WIN)
+         || (tbl[k].type == PART_EXT_LINUX))
+        {
+            #ifdef __DEBUG__
+            fd32_message("%s%u is a %s partition\n", dev_name, k + 1,
+                         partname(tbl[k].type));
+            check_lba(&tbl[k], d);
+            #endif
+            ext_start = tbl[k].lba_start;
+            res = biosdisk_read(d, ext_start, 1, buffer);
+            if (res < 0) return res;
+            break;
+        }
     }
-    for (k = 0; k < 4; k++)
+
+    /* Read extended partitions */
+    if (!ext_start) return 0;
+    for (;;)
     {
-      if ((Tbl[k].Type == PART_EXT_DOS)
-       || (Tbl[k].Type == PART_EXT_WIN)
-       || (Tbl[k].Type == PART_EXT_LINUX))
-      {
-        ExtStart1 = Tbl[k].LbaStart;
-        if ((Res = biosdisk_read(D, ExtStart + ExtStart1, 1, Buffer)) < 0)
-          return Res;
-        break;
-      }
+        memcpy(tbl, buffer + 446, 64);
+        for (k = 0; k < 4; k++)
+        {
+            if ((tbl[k].type != PART_EMPTY)
+             && (tbl[k].type != PART_EXT_DOS)
+             && (tbl[k].type != PART_EXT_WIN)
+             && (tbl[k].type != PART_EXT_LINUX))
+            {
+                part_num++;
+                tbl[k].lba_start += ext_start + ext_start1;
+            }
+            add_partition(d, dev_name, part_num, &tbl[k]);
+        }
+        for (k = 0; k < 4; k++)
+        {
+            if ((tbl[k].type == PART_EXT_DOS)
+             || (tbl[k].type == PART_EXT_WIN)
+             || (tbl[k].type == PART_EXT_LINUX))
+            {
+                ext_start1 = tbl[k].lba_start;
+                check_lba(&tbl[k], d);
+                res = biosdisk_read(d, ext_start + ext_start1, 1, buffer);
+                if (res < 0) return res;
+                break;
+            }
+        }
+        if (k == 4) break;
     }
-    if (k == 4) break;
-  }
-  return 0;
+    return 0;
 }

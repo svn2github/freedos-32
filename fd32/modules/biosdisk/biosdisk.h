@@ -81,7 +81,7 @@ int biosdisk_mediachange(tDisk *D);
 
 /* Initialization functions */
 int biosdisk_detect  (void);
-int biosdisk_scanpart(tDisk *D, char *DevName);
+int biosdisk_scanpart(tDisk *d, const char *dev_name);
 
 /* Driver request function */
 fd32_request_t biosdisk_request;
