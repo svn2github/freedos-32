@@ -254,19 +254,17 @@ DWORD common_load_executable(struct kern_funcs *kf, int file,  struct table_info
   DWORD exec_space;
   DWORD needed_mem;
 
-  needed_mem = s[n - 1].base + s[n - 1].size - s[0].base;
-#ifdef __COFF_DEBUG__
-  kf->log("Trying to get %lx - %lx to load the COFF\n", s[0].base, needed_mem);
-#endif
-
+  needed_mem = s[n - 1].base + s[n - 1].size - tables->image_base;
   exec_space = tables->image_base;
+#ifdef __COFF_DEBUG__
+  kf->log("Trying to get %lx - %lx to load the COFF\n", exec_space, needed_mem);
+#endif
   res = kf->mem_alloc_region(exec_space, needed_mem);
   if (res == -1) {
-    kf->error("Error : Coff starts before Free memory top\n");
-    kf->message("Coff starts at %lx\n", s[0].base);
+    kf->message("Warning: Coff starts at %lx before Free memory top\n", exec_space);
     exec_space = (DWORD)(kf->mem_alloc(needed_mem));
     kf->message("Located at %lx instead\n", exec_space);
-    load_offset = exec_space - s[0].base;
+    load_offset = exec_space - tables->image_base;
     kf->message("Load_offset: %lx\n", load_offset);
   } else {
     load_offset = 0;
