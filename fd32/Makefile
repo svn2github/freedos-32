@@ -2,6 +2,8 @@ include ./config.mk
 
 ifndef OSLIB
 OSLIB = ../oslib
+endif
+ifndef OSLIB_DIR
 OSLIB_DIR = ../oslib
 endif
 
