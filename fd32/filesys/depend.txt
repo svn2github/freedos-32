@@ -1,0 +1,23 @@
+FreeDOS32 File System Layer dependences
+
+--
+dir.c
+fd32_truename from truename.c
+fd32_get_drive from drives.c
+--
+drives.c
+fd32_dev_first, fd32_dev_next, fd32_dev_get from the Devices Engine
+fd32_dev_search from the Devices Engine
+fd32_get_drive: toupper from the libc
+--
+truename.c
+fd32_truename: utf8_stricmp from Unicode Library, strcpy from the libc
+get_cwd: fd32_get_cdslist from the FD32 kernel (PSP), utf8_stricmp from the Unicode Library, strcpy from the libc
+fd32_kmem_get, fd32_kmem_free from the PMM
+--
+filesys.c
+fd32_get_jft from the FD32 kernel (PSP)
+--
+names.c
+NLS functions, which depend on the Unicode Library (only CP437 available at present)
+Also depends on the Unicode Library directly
