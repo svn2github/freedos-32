@@ -13,7 +13,7 @@ int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
 /* from fd32/kernel/exec.c */
 DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, int *s);
 
-#define __DEBUG__
+//#define __DEBUG__
 
 struct funky_file {
   fd32_request_t *request;
@@ -42,9 +42,11 @@ static int my_read(int id, void *b, int len)
   r.Buffer = b;
   r.BufferBytes = len;
   res = f->request(FD32_READ, &r);
+#ifdef __DEBUG__
   if (res < 0) {
     fd32_log_printf("WTF!!!\n");
   }
+#endif
 
   return res;
 }

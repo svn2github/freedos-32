@@ -35,6 +35,15 @@
 #include "fspriv.h"
 
 
+/* Define the __DEBUG__ symbol in order to activate log output */
+//#define __DEBUG__
+#ifdef __DEBUG__
+ #define LOG_PRINTF(s) fd32_log_printf s
+#else
+ #define LOG_PRINTF(s)
+#endif
+
+
 /* We want to do some output even if the   */
 /* console driver does not implement it... */
 int fake_console_write(void *Buffer, int Size)
@@ -121,7 +130,7 @@ void *fd32_init_jft(int JftSize)
   int            hDev;
   tJft          *Jft;
 
-  fd32_message("Initializing JFT...\n");
+  LOG_PRINTF(("Initializing JFT...\n"));
   if (JftSize < 5) return NULL;
   if ((Jft = fd32_kmem_get(sizeof(tJft) * JftSize)) == NULL) return NULL;
   memset(Jft, 0, sizeof(tJft) * JftSize);
@@ -129,7 +138,7 @@ void *fd32_init_jft(int JftSize)
   /* Prepare JFT entries 0, 1 and 2 with the "con" device */
   if ((hDev = fd32_dev_search("con")) < 0)
   {
-    fd32_message("\"con\" device not present. Using fake cosole output only.\n");
+    LOG_PRINTF(("\"con\" device not present. Using fake cosole output only.\n"));
     Jft[0].request = fake_console_request;
   }
   else fd32_dev_get(hDev, &Jft[0].request, &Jft[0].DeviceId, NULL, 0);
@@ -157,7 +166,7 @@ void *fd32_init_jft(int JftSize)
   /* Prepare JFT entry 3 with the "aux" device */
   if ((hDev = fd32_dev_search("aux")) < 0)
   {
-    fd32_message("\"aux\" device not present. Initializing handle 3 with dummy ops.\n");
+    LOG_PRINTF(("\"aux\" device not present. Initializing handle 3 with dummy ops.\n"));
     Jft[3].request = dummy_request;
   }
   else fd32_dev_get(hDev, &Jft[3].request, &Jft[3].DeviceId, NULL, 0);
@@ -165,11 +174,11 @@ void *fd32_init_jft(int JftSize)
   /* Prepare JFT entry 4 with the "prn" device */
   if ((hDev = fd32_dev_search("prn")) < 0)
   {
-    fd32_message("\"prn\" device not present. Initializing handle 4 with dummy ops.\n");
+    LOG_PRINTF(("\"prn\" device not present. Initializing handle 4 with dummy ops.\n"));
     Jft[4].request = dummy_request;
   }
   else fd32_dev_get(hDev, &Jft[4].request, &Jft[4].DeviceId, NULL, 0);
 
-  fd32_message("JFT initialized.\n");
+  LOG_PRINTF(("JFT initialized.\n"));
   return Jft;
 }

@@ -194,7 +194,9 @@ int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
     retval = create_process(dyn_entry, exec_space, size, cmdline);
+#ifdef __EXEC_DEBUG__
     message("Returned: %d!!!\n", retval);
+#endif
     mem_free(exec_space, size);
     /* Well... And this???
     mem_free((DWORD)sections, sizeof(struct section_info));

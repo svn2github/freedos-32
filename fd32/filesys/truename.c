@@ -34,7 +34,13 @@
 #include <unicode.h>
 #include <errors.h>
 
-//#define DEBUG
+/* Define the __DEBUG__ symbol in order to activate log output */
+//#define __DEBUG__
+#ifdef __DEBUG__
+ #define LOG_PRINTF(s) fd32_log_printf s
+#else
+ #define LOG_PRINTF(s)
+#endif
 
 
 /* Current Directury Structure.                                               */
@@ -169,7 +175,7 @@ int fd32_chdir(/*const */char *DirName)
   tCds             *D;
   tCds            **CdsList = (tCds **) fd32_get_cdslist();
 
-  fd32_log_printf("fd32_chdir(\"%s\")\n", DirName);
+  LOG_PRINTF(("[CHDIR] In:\"%s\"\n", DirName));
   /* Open the directory to check if it is a valid directory */
   if ((Res = fd32_truename(Aux, DirName, FD32_TNSUBST)) < 0) return Res;
   for (;;)
@@ -192,9 +198,7 @@ int fd32_chdir(/*const */char *DirName)
   for (Res = 0; Aux[Res] != ':'; Drive[Res] = Aux[Res], Res++);
   Drive[Res] = 0;
 
-//  #ifdef DEBUG
-  fd32_log_printf("Setting the current dir of \"%s\" to \"%s\"\n", Drive, &Aux[Res + 1]);
-//  #endif
+  LOG_PRINTF(("[CHDIR] Setting the current dir of \"%s\" to \"%s\"\n", Drive, &Aux[Res + 1]));
 
   /* Search for the specified drive in the CDS list of the current process */
   for (D = *CdsList; D; D = D->Next)
@@ -249,15 +253,11 @@ int fd32_getcwd(const char *Drive, char *Dest)
     if (utf8_stricmp(C->Drive, Drive) == 0)
     {
       strcpy(Dest, C->CurDir);
-      #ifdef DEBUG
-      fd32_log_printf("Getting the current dir of \"%s\": \"%s\"\n", Drive, Dest);
-      #endif
+      LOG_PRINTF(("[GETCWD] Getting the current dir of \"%s\": \"%s\"\n", Drive, Dest));
       return 0;
     }
   strcpy(Dest, "\\");
-  #ifdef DEBUG
-  fd32_log_printf("No CDS for \"%s\", getting root\n", Drive);
-  #endif
+  LOG_PRINTF(("[GETCWD] No CDS for \"%s\", getting root\n", Drive));
   return 0;
 }
 
@@ -279,7 +279,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
   int     Dots;
   tSubst *S;
 
-  fd32_log_printf("Truenaming: \"%s\"\n", Source);
+  LOG_PRINTF(("[TRUENAME] In:\"%s\"\n", Source));
   /* Get the drive specification */
   for (s = Source; *Source && (*Source != ':'); *(pDrive++) = *(Source++));
   *pDrive = 0;
@@ -332,9 +332,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
     /* Skip consecutive slashes */
     if (pComp == Comp) continue;
     
-    #ifdef DEBUG
-    fd32_log_printf("Component : \"%s\"\n", Comp);
-    #endif
+    LOG_PRINTF(("[TRUENAME] Comp:\"%s\"\n", Comp));
 
     /* Search for ".", "..", "..." etc. entries */
     Dots = 0;
@@ -377,7 +375,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
   if ((*(pAux - 1) == '\\') && (*(pAux - 2) != ':')) pAux--;
   *pAux = 0;
   strcpy(Dest, Aux);
-  fd32_log_printf("Truenamed: \"%s\"\n", Dest);
+  LOG_PRINTF(("[TRUENAME] Out:\"%s\"\n", Dest));
   return 0;
 }
 
@@ -396,9 +394,8 @@ int fd32_sfn_truename(char *Dest, char *Source)
   char              *n;
   fd32_fs_lfnfind_t  F;
 
-  fd32_log_printf("fd32_sfn_truename, Source=\"%s\"\n", Source);
+  LOG_PRINTF(("[SFN_TRUENAME] fd32_sfn_truename, Source=\"%s\"\n", Source));
   if ((Res = fd32_truename(Aux, Source, FD32_TNSUBST)) < 0) return Res;
-  fd32_log_printf("Aux=\"%s\"\n", Aux);
   /* Copy drive specification */
   for (; *a != '\\'; p++, d++, a++)
   {
@@ -413,13 +410,13 @@ int fd32_sfn_truename(char *Dest, char *Source)
     if (*a == 0) break;
     while ((*a != '\\') && *a) *(p++) = *(a++);
     *p = 0;
-    fd32_log_printf("Searching partial=\"%s\"\n", Partial);
+    LOG_PRINTF(("[SFN_TRUENAME] Searching \"%s\"\n", Partial));
     if ((Res = fd32_lfn_findfirst(Partial, FD32_FRNONE | FD32_FAALL, &F)) < 0) return Res;
     if (Res < 0) return Res;
     if ((Res = fd32_lfn_findclose(Res)) < 0) return Res;
     for (n = F.ShortName; (*d = *n); d++, n++);
     *d = 0;
-    fd32_log_printf("Dest=\"%s\"\n", Dest);
+    LOG_PRINTF(("[SFN_TRUENAME] Dest=\"%s\"\n", Dest));
   }
   return 0;
 }
