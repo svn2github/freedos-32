@@ -103,9 +103,13 @@ static int write_direntry(tFile *F)
   int Buf;
 
   /* If the file is the root directory it doesn't have a dir entry */
+  #if 0
   if (((F->V->FatType == FAT32)
    && (FIRSTCLUSTER(F->DirEntry) == F->V->Bpb.BPB_RootClus))
    || ISROOT(F)) return 0;
+  #else
+  if (!F->DirEntrySector) return 0;
+  #endif
   /* If the file is not the root, write its directory entry */
   if ((Buf = fat_readbuf(F->V, F->DirEntrySector)) < 0) return Buf;
   memcpy(F->V->Buffers[Buf].Data + F->DirEntrySecOff, &F->DirEntry, 32);
@@ -648,7 +652,6 @@ int fat_reopendir(tVolume *V, tFindRes *Id, tFile **F)
   (*F)->V = V;
   (*F)->ParentFstClus  = 0; /* Not available */
   (*F)->DirEntryOffset = 0; /* Not available */
-  /* TODO: Setting DirEntrySector=0 causes FAT_ISROOT to be true, and This Is Bad */
   (*F)->DirEntrySector = 0; /* Not available */
   (*F)->DirEntrySecOff = 0; /* Not available */
   memset(&(*F)->DirEntry, 0, sizeof(tDirEntry));  

@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "fat.h" - Driver's constants, structures and prototypes        *
  *                                                                        *
@@ -297,7 +297,7 @@ __attribute__ ((packed)) tFindRes;
 #define SAMEFILE(F1, F2) (!memcmp(F1, F2, sizeof(tFileId)))
 
 /* Nonzero if the file is a FAT12/FAT16 root directory */
-#define ISROOT(F) ((F->DirEntrySector == 0) && (F->V->FatType != FAT32))
+#define ISROOT(F) (!FIRSTCLUSTER(F->DirEntry) && !F->DirEntrySector && (F->V->FatType != FAT32))
 
 
 /* ATTRIB.C - Files' date and time procedures */
