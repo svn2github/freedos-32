@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "attrib.c" - Set/get attributes and time stamps of a file      *
  *                                                                        *
@@ -51,12 +51,7 @@ int fat_get_attr(tFile *F, fd32_fs_attr_t *A)
 /* This is a public driver function.                          */
 int fat_set_attr(tFile *F, fd32_fs_attr_t *A)
 {
-  int    Res;
-
   if (A->Size < sizeof(fd32_fs_attr_t)) return FD32_EFORMAT;
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(F->V)) < 0) return Res;
-  #endif
   F->DirEntry.Attr         = (BYTE) A->Attr;
   F->DirEntry.WrtDate      = A->MDate;
   F->DirEntry.WrtTime      = A->MTime;

@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "support.c" - Small generic support functions                  *
  *                                                                        *
@@ -118,9 +118,14 @@ int fat_get_fsinfo(fd32_fs_info_t *Fsi)
 int fat_get_fsfree(fd32_getfsfree_t *F)
 {
   tVolume *V;
+  int      Res;
+
   if (F->Size < sizeof(fd32_getfsfree_t)) return FD32_EFORMAT;
   V = (tVolume *) F->DeviceId;
   if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+  #ifdef FATREMOVABLE
+  if ((Res = fat_mediachange(V)) < 0) return Res;
+  #endif
   F->SecPerClus  = V->Bpb.BPB_SecPerClus;
   F->BytesPerSec = V->Bpb.BPB_BytsPerSec;
   F->AvailClus   = V->FSI_Free_Count;

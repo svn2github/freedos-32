@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "fatreq.c" - Driver request function of the FAT driver         *
  *                                                                        *
@@ -29,22 +29,33 @@
 
 int fat_request(DWORD Function, void *Params)
 {
+  int Res;
   switch (Function)
   {
     case FD32_READ:
     {
       fd32_read_t *X = (fd32_read_t *) Params;
+      tFile       *F;
       if (X->Size < sizeof(fd32_read_t)) return FD32_EFORMAT;
-      if (((tFile *) X->DeviceId)->FilSig != FAT_FILSIG) return FD32_EBADF;
-      return fat_read((tFile *) X->DeviceId, X->Buffer, X->BufferBytes);
+      F = (tFile *) X->DeviceId;
+      if (F->FilSig != FAT_FILSIG) return FD32_EBADF;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(F->V)) < 0) return Res;
+      #endif
+      return fat_read(F, X->Buffer, X->BufferBytes);
     }
     case FD32_WRITE:
     {
       #ifdef FATWRITE
       fd32_write_t *X = (fd32_write_t *) Params;
+      tFile        *F;
       if (X->Size < sizeof(fd32_write_t)) return FD32_EFORMAT;
-      if (((tFile *) X->DeviceId)->FilSig != FAT_FILSIG) return FD32_EBADF;
-      return fat_write((tFile *) X->DeviceId, X->Buffer, X->BufferBytes);
+      F = (tFile *) X->DeviceId;
+      if (F->FilSig != FAT_FILSIG) return FD32_EBADF;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(F->V)) < 0) return Res;
+      #endif
+      return fat_write(F, X->Buffer, X->BufferBytes);
       #else
       return FD32_EROFS;
       #endif
@@ -59,31 +70,51 @@ int fat_request(DWORD Function, void *Params)
     case FD32_OPENFILE:
     {
       fd32_openfile_t *X = (fd32_openfile_t *) Params;
+      tVolume         *V;
       if (X->Size < sizeof(fd32_openfile_t)) return FD32_EFORMAT;
-      if (((tVolume *) X->DeviceId)->VolSig != FAT_VOLSIG) return FD32_ENODEV;
-      return fat_open((tVolume *) X->DeviceId, X->FileName, X->Mode, X->Attr, X->AliasHint, (tFile **) &X->FileId);
+      V = (tVolume *) X->DeviceId;
+      if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(V)) < 0) return Res;
+      #endif
+      return fat_open(V, X->FileName, X->Mode, X->Attr, X->AliasHint, (tFile **) &X->FileId);
     }
     case FD32_CLOSE:
     {
       fd32_close_t *X = (fd32_close_t *) Params;
+      tFile        *F;
       if (X->Size < sizeof(fd32_close_t)) return FD32_EFORMAT;
-      if (((tFile *) X->DeviceId)->FilSig != FAT_FILSIG) return FD32_EBADF;
-      return fat_close((tFile *) X->DeviceId);
+      F = (tFile *) X->DeviceId;
+      if (F->FilSig != FAT_FILSIG) return FD32_EBADF;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(F->V)) < 0) return Res;
+      #endif
+      return fat_close(F);
     }
     case FD32_READDIR:
     {
       fd32_readdir_t *X = (fd32_readdir_t *) Params;
+      tFile          *F;
       if (X->Size < sizeof(fd32_readdir_t)) return FD32_EFORMAT;
-      if (((tFile *) X->DirId)->FilSig != FAT_FILSIG) return FD32_EBADF;
-      return fat_readdir((tFile *) X->DirId, (fd32_fs_lfnfind_t *) X->Entry);
+      F = (tFile *) X->DirId;
+      if (F->FilSig != FAT_FILSIG) return FD32_EBADF;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(F->V)) < 0) return Res;
+      #endif
+      return fat_readdir(F, (fd32_fs_lfnfind_t *) X->Entry);
     }
     case FD32_FFLUSH:
     {
       #ifdef FATWRITE
       fd32_fflush_t *X = (fd32_fflush_t *) Params;
+      tFile         *F;
       if (X->Size < sizeof(fd32_fflush_t)) return FD32_EFORMAT;
-      if (((tFile *) X->DeviceId)->FilSig != FAT_FILSIG) return FD32_EBADF;
-      return fat_fflush((tFile *) X->DeviceId);
+      F = (tFile *) X->DeviceId;
+      if (F->FilSig != FAT_FILSIG) return FD32_EBADF;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(F->V)) < 0) return Res;
+      #endif
+      return fat_fflush(F);
       #else
       return FD32_EROFS;
       #endif
@@ -106,9 +137,14 @@ int fat_request(DWORD Function, void *Params)
     {
       #ifdef FATWRITE
       fd32_setattr_t *X = (fd32_setattr_t *) Params;
+      tFile          *F;
       if (X->Size < sizeof(fd32_setattr_t)) return FD32_EFORMAT;
-      if (((tFile *) X->FileId)->FilSig != FAT_FILSIG) return FD32_EBADF;
-      return fat_set_attr((tFile *) X->FileId, (fd32_fs_attr_t *) X->Attr);
+      F = (tFile *) X->FileId;
+      if (F->FilSig != FAT_FILSIG) return FD32_EBADF;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(F->V)) < 0) return Res;
+      #endif
+      return fat_set_attr(F, (fd32_fs_attr_t *) X->Attr);
       #else
       return FD32_EROFS;
       #endif
@@ -116,17 +152,27 @@ int fat_request(DWORD Function, void *Params)
     case FD32_REOPENDIR:
     {
       fd32_reopendir_t *X = (fd32_reopendir_t *) Params;
+      tVolume          *V;
       if (X->Size < sizeof(fd32_reopendir_t)) return FD32_EFORMAT;
-      if (((tVolume *) X->DeviceId)->VolSig != FAT_VOLSIG) return FD32_ENODEV;
-      return fat_reopendir((tVolume *) X->DeviceId, (tFindRes *) X->DtaReserved, (tFile **) &X->DirId);
+      V = (tVolume *) X->DeviceId;
+      if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(V)) < 0) return Res;
+      #endif
+      return fat_reopendir(V, (tFindRes *) X->DtaReserved, (tFile **) &X->DirId);
     }
     case FD32_UNLINK:
     {
       #ifdef FATWRITE
       fd32_unlink_t *X = (fd32_unlink_t *) Params;
+      tVolume       *V;
       if (X->Size < sizeof(fd32_unlink_t)) return FD32_EFORMAT;
-      if (((tVolume *) X->DeviceId)->VolSig != FAT_VOLSIG) return FD32_ENODEV;
-      return fat_unlink((tVolume *) X->DeviceId, X->FileName, X->Flags);
+      V = (tVolume *) X->DeviceId;
+      if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(V)) < 0) return Res;
+      #endif
+      return fat_unlink(V, X->FileName, X->Flags);
       #else
       return FD32_EROFS;
       #endif
@@ -135,9 +181,14 @@ int fat_request(DWORD Function, void *Params)
     {
       #ifdef FATWRITE
       fd32_rename_t *X = (fd32_rename_t *) Params;
+      tVolume       *V;
       if (X->Size < sizeof(fd32_rename_t)) return FD32_EFORMAT;
-      if (((tVolume *) X->DeviceId)->VolSig != FAT_VOLSIG) return FD32_ENODEV;
-      return fat_rename((tVolume *) X->DeviceId, X->OldName, X->NewName);
+      V = (tVolume *) X->DeviceId;
+      if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(V)) < 0) return Res;
+      #endif
+      return fat_rename(V, X->OldName, X->NewName);
       #else
       return FD32_EROFS;
       #endif
@@ -146,9 +197,14 @@ int fat_request(DWORD Function, void *Params)
     {
       #ifdef FATWRITE
       fd32_mkdir_t *X = (fd32_mkdir_t *) Params;
+      tVolume      *V;
       if (X->Size < sizeof(fd32_mkdir_t)) return FD32_EFORMAT;
-      if (((tVolume *) X->DeviceId)->VolSig != FAT_VOLSIG) return FD32_ENODEV;
-      return fat_mkdir((tVolume *) X->DeviceId, X->DirName);
+      V = (tVolume *) X->DeviceId;
+      if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(V)) < 0) return Res;
+      #endif
+      return fat_mkdir(V, X->DirName);
       #else
       return FD32_EROFS;
       #endif
@@ -157,9 +213,14 @@ int fat_request(DWORD Function, void *Params)
     {
       #ifdef FATWRITE
       fd32_rmdir_t *X = (fd32_rmdir_t *) Params;
+      tVolume      *V;
       if (X->Size < sizeof(fd32_rmdir_t)) return FD32_EFORMAT;
-      if (((tVolume *) X->DeviceId)->VolSig != FAT_VOLSIG) return FD32_ENODEV;
-      return fat_rmdir((tVolume *) X->DeviceId, X->DirName);
+      V = (tVolume *) X->DeviceId;
+      if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(V)) < 0) return Res;
+      #endif
+      return fat_rmdir(V, X->DirName);
       #else
       return FD32_EROFS;
       #endif
@@ -173,9 +234,14 @@ int fat_request(DWORD Function, void *Params)
     case FD32_UNMOUNT:
     {
       fd32_unmount_t *X = (fd32_unmount_t *) Params;
+      tVolume        *V;
       if (X->Size < sizeof(fd32_unmount_t)) return FD32_EFORMAT;
-      if (((tVolume *) X->DeviceId)->VolSig != FAT_VOLSIG) return FD32_ENODEV;
-      return fat_unmount((tVolume *) X->DeviceId);
+      V = (tVolume *) X->DeviceId;
+      if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(V)) < 0) return Res;
+      #endif
+      return fat_unmount(V);
     }
     case FD32_PARTCHECK:
     {

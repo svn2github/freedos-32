@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "creat.c" - File creation and deletion services                *
  *                                                                        *
@@ -316,10 +316,6 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
   tFileId   Fid;
   int       Res;
 
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(V)) < 0) return Res;
-  #endif
-
   /* Open the source directory */
   /* TODO: Find a decent place for split_path... */
   split_path(OldFullName, OldPath, OldName);
@@ -422,10 +418,6 @@ int fat_unlink(tVolume *V, char *FileName, DWORD Flags)
     AllowableAttributes |= FD32_ATTR_DIRECTORY;
 */
   
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(V)) < 0) return Res;
-  #endif
-
   split_path(FileName, Path, Name);
   LOG_PRINTF(("FAT unlink: file %s in directory %s\n", Name, Path));
   Res = fat_open(V, Path, FD32_ORDWR | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &Dir);

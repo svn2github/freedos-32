@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "open.c" - Open, create and close a file (or even a directory  *
  *                    as a file) in any directory, allocating and freeing *
@@ -497,10 +497,6 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
   LOG_PRINTF(("FAT: Opening '%s'\n", FileName));
   if ((Res = validate_open_arguments(Mode))) return Res;
 
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(V)) < 0) return Res;
-  #endif
-
   #ifdef FATNAMECACHE
   /* The path to open can never be the root because it's not cached */
   if (*FileName) for (Res = 0; Res < V->NumFiles; Res++)
@@ -653,10 +649,6 @@ int fat_fflush(tFile *F)
   int    Res;
 
   LOG_PRINTF(("FAT fflush...\n"));
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(F->V)) < 0) return Res;
-  #endif
-
   #ifdef FATSHARE
   if ((Res = fat_syncentry(F)) < 0) return Res;
   #else

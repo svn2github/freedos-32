@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "readdir.c" - Services to find a specified directory entry     *
  *                                                                        *
@@ -135,10 +135,6 @@ int fat_readdir(tFile *Dir, fd32_fs_lfnfind_t *Entry)
 {
   tFatFind F;
   int      Res;
-
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(Dir->V)) < 0) return Res;
-  #endif
 
   if (!Entry) return FD32_EINVAL;
   if ((Res = readdir(Dir, &F)) < 0) return Res;

@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "readwrit.c" - Read or write a block of data from/to a file    *
  *                                                                        *
@@ -383,10 +383,6 @@ int fat_read(tFile *F, void *Buffer, int Size)
   if (((F->Mode & FD32_OACCESS) != FD32_OREAD)
    && ((F->Mode & FD32_OACCESS) != FD32_ORDWR)) return FD32_EACCES;
 
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(F->V)) < 0) return Res;
-  #endif
-
   for (k = 0; k < Size; k++)
   {
     Res = move_to_targetpos(F, MOVE_ON_READ);
@@ -554,9 +550,6 @@ int fat_write(tFile *F, void *Buffer, int Size)
   int NumBuf;
 
   LOG_PRINTF(("FAT write: %i bytes\n", Size));
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(F->V)) < 0) return Res;
-  #endif
 
   /* Check if writing into the file is allowed */
   if (((F->Mode & FD32_OACCESS) != FD32_OWRITE)

@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "dir.c" - Remove and create directories                        *
  *                                                                        *
@@ -46,10 +46,6 @@ int fat_rmdir(tVolume *V, char *DirName)
   int        Res;
 
   LOG_PRINTF(("FAT rmdir: %s\n", DirName));
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(V)) < 0) return Res;
-  #endif
-
   /* First we open the directory to see if removing it is a valid operation */
   Res = fat_open(V, DirName, FD32_OREAD | FD32_ODIR | FD32_OEXIST,
                  FD32_ANONE, 0, &F);
@@ -98,10 +94,6 @@ int fat_mkdir(tVolume *V, char *DirName)
   int        Res;
 
   LOG_PRINTF(("FAT mkdir: %s\n", DirName));
-  #ifdef FATREMOVABLE
-  if ((Res = fat_mediachange(V)) < 0) return Res;
-  #endif
-
   Res = fat_open(V, DirName, FD32_ORDWR | FD32_ODIR | FD32_OCREAT,
                  FD32_ADIR, 0, &F);
   if (Res < 0) return Res;
