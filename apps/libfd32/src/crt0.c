@@ -1,6 +1,7 @@
 #include <ll/i386/hw-data.h>
 #include <kernel.h>
 #include <stubinfo.h>
+#include <stdlib.h>
 
 #define MAX_FILES 20
 static char **environ;
@@ -12,7 +13,7 @@ extern struct psp *current_psp;
 extern int main(int argc,char **argv,char **envp);
 static struct psp local_psp;
 
-int libc_init(struct process_info *pi)
+void libc_init(struct process_info *pi)
 {
   int argc;
   char *p, *args;
@@ -37,6 +38,6 @@ int libc_init(struct process_info *pi)
   local_psp.jft = fd32_init_jft(MAX_FILES);
   local_psp.link = current_psp;
   current_psp = &local_psp;
-  return main(argc, argv, environ);
+  exit(main(argc, argv, environ));
   /* FIXME: how do we restore the psp??? Simple: in exit.c!!! */
 }

@@ -51,8 +51,10 @@ int open(const char *name, int flags, int mode)
 {
   int res, action;
   DWORD dosflags;
+  WORD dosattr;
 
   dosflags = 0;
+  dosattr = 0;
   if (flags & O_WRONLY) {
     dosflags |= FD32_OWRITE;
   }
@@ -65,6 +67,9 @@ int open(const char *name, int flags, int mode)
   if (flags & O_TRUNC) {
     dosflags |= FD32_OTRUNC;
   }
+  if ((mode & S_IRUSR) && !(mode & S_IWUSR)) {
+    dosattr |= FD32_ARDONLY;
+  }
 #if 0	/* What about these ones? */
 #define	O_APPEND	_FAPPEND
 #define	O_EXCL		_FEXCL
@@ -75,7 +80,7 @@ int open(const char *name, int flags, int mode)
 #endif
 
   message("0x%x --> 0x%lx\n", flags, dosflags);
-  res = fd32_open(name, dosflags, /*attr*/mode, 0, &action);
+  res = fd32_open(name, dosflags, dosattr/*mode*/, 0, &action);
 
   return res;
 }
