@@ -172,17 +172,17 @@ void mem_release_module(DWORD mstart, int m, int mnum)
   for (i = 0; i < mnum; i++) {
     module_address(mstart, i, &ms1, &dummy);
     if (nms == 0) {
-      if (ms1 > me) {
+      if (ms1 >= me) {
         nms = ms1;
       }
     } else {
-      if ((ms1 > me) && (ms1 < nms)) {
+      if ((ms1 >= me) && (ms1 < nms)) {
         nms = ms1;
       }
     }
   }
   if (nms == 0) {
-    nms = me + 1;
+    nms = me;
   }
 #ifdef __MEM_DEBUG__
   fd32_log_printf("________\n");
