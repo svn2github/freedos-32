@@ -126,15 +126,14 @@ static int keyb_request(DWORD function, void *params)
 
 void keyb_init(void)
 {
-  /* Clear the queue */
-  keyb_queue_clear();
-  /* Clear the shift flags */
-  keyb_set_shift_flags(0);
   /* Handle the keyboard */
   fd32_message("Setting Keyboard handler\n");
   fd32_irq_bind(1, keyb_handler);
-  /* How to reset the leds, seems not work in some virtual machine */
-  /* set_leds(); */
+  /* Clear the queue */
+  keyb_queue_clear();
+  /* Clear the shift flags and reset the leds, otherwise it won't work fine in some circumstances */
+  keyb_set_shift_flags(0);
+
   fd32_message("Installing new call keyb_read...\n");
   if (add_call("keyb_read", (DWORD)read, ADD) == -1) {
     fd32_error("Failed to install a new kernel call!!!\n");

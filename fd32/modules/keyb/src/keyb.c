@@ -11,10 +11,11 @@
 #include "key.h"
 #include "queues.h"
 
+
 #define KEYB_CMD_SET_LEDS 0xED
 
-static int ack_expected = 0;
 
+static int ack_expected = 0;
 static DWORD ecode = 0;
 static volatile WORD *flags = (WORD *)BDA_KEYB_FLAG;
 
@@ -31,16 +32,6 @@ BYTE keyb_get_data(void)
   return fd32_inb(KEYB_DATA_PORT);
 }
 
-WORD keyb_get_shift_flags(void)
-{
-  return flags[0];
-}
-
-void keyb_set_shift_flags(WORD f)
-{
-  flags[0] = f;
-}
-
 /*
  * Function to write in the keyboard register; it waits for the port
  * to be free, then write the command
@@ -48,17 +39,18 @@ void keyb_set_shift_flags(WORD f)
 int kbd_write(BYTE cmd)
 {
   DWORD i = 0;
-  BYTE fl;
+  BYTE t, fl;
 
-  while (((fl = fd32_inb(0x64)) & 0x01) && (i < 0xffffff)) i++;
+  while (((fl = keyb_get_status()) & 0x03) && (i < 0xffffff)) { i++; if (fl&0x01) t = fd32_inb(0x60); }
   if (i < 0xffffff) {
     fd32_outb(KEYB_DATA_PORT, cmd);
     return 1;
+  } else {
+    return 0;
   }
-  else return 0;
 }
 
-void set_leds(void)
+static void set_leds(void)
 {
   if (ack_expected != 0) {
     /* Uhmm.... Why is this != 0? */
@@ -70,11 +62,23 @@ void set_leds(void)
   kbd_write(KEYB_CMD_SET_LEDS);
 }
 
-void handle_ack(void)
+
+WORD keyb_get_shift_flags(void)
+{
+  return flags[0];
+}
+
+void keyb_set_shift_flags(WORD f)
+{
+  flags[0] = f;
+  set_leds();
+}
+
+static void handle_ack(void)
 {
   if (ack_expected == 0) {
     /* What happened? An ack arrived but we are not waiting for it... */
-    fd32_error("Unexpected Ack!!!\n");
+    fd32_error("WARNING: Unexpected Ack!!!\n");
   } else if (ack_expected == 1) {
     /* We sent a 0xED command... After the ack, the led mask must be sent! */
     kbd_write((flags[0]&LEGS_MASK)>>4);
@@ -85,7 +89,7 @@ void handle_ack(void)
     ack_expected = 0;
   } else {
     /* This is impossible!!! */
-    fd32_message("ack_expected = %d\n", ack_expected);
+    fd32_message("[KEYB] CRITICAL: ack_expected = %d\n", ack_expected);
     fd32_error("Keyboard driver: inconsistent internal status!\n");
   }
 }
