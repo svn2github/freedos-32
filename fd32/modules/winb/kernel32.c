@@ -7,13 +7,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <windows.h>
 
 #include "winb.h"
 
 
-static LPCTSTR atomname = 0;
-static ATOM STDCALL fd32_imp__AddAtomA( LPCTSTR str )
+static LPCSTR atomname = 0;
+static ATOM STDCALL fd32_imp__AddAtomA( LPCSTR str )
 {
   printf("AddAtomA %s\n", str);
   atomname = str;
@@ -26,19 +27,19 @@ static VOID STDCALL fd32_imp__ExitProcess( UINT ecode )
   restore_sp(ecode);
 }
 
-static ATOM STDCALL fd32_imp__FindAtomA( LPCTSTR str )
+static ATOM STDCALL fd32_imp__FindAtomA( LPCSTR str )
 {
   printf("FindAtomA %s\n", str);
   return 1;
 }
 
-static UINT STDCALL fd32_imp__GetAtomNameA( DWORD atom, LPTSTR buffer, int nsize )
+static UINT STDCALL fd32_imp__GetAtomNameA( DWORD atom, LPSTR buffer, int nsize )
 {
   strcpy(buffer, atomname);
   return nsize;
 }
 
-static DWORD STDCALL fd32_imp__GetModuleHandleA( LPCTSTR module )
+static DWORD STDCALL fd32_imp__GetModuleHandleA( LPCSTR module )
 {
   printf("Module Name: %s\n", module);
   return 0;
@@ -105,7 +106,7 @@ static BOOL WINAPI fd32_imp__QueryPerformanceCounter( PLARGE_INTEGER lpcount )
 static PTOP_LEVEL_EXCEPTION_FILTER top_filter;
 static LPVOID STDCALL fd32_imp__SetUnhandledExceptionFilter( LPTOP_LEVEL_EXCEPTION_FILTER filter )
 {
-  fd32_log_printf("[WINB] SetUnhandledExceptionFilter: %lx\n", filter);
+  fd32_log_printf("[WINB] SetUnhandledExceptionFilter: %lx\n", (DWORD)filter);
   LPTOP_LEVEL_EXCEPTION_FILTER old = top_filter;
   top_filter = filter;
   return old;

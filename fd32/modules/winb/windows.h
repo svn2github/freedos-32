@@ -7,48 +7,21 @@
 /*#define STDCALL __stdcall*/
 #define CALLBACK __attribute__ ((stdcall))
 #define STDCALL __attribute__ ((stdcall))
+#define WINAPI  __attribute__ ((stdcall))
 #define VOID void
 
-typedef int BOOL, WINBOOL,*PWINBOOL,*LPWINBOOL;
+typedef int BOOL, WINBOOL, *PWINBOOL, *LPWINBOOL;
 typedef void *HANDLE;
-typedef void *PVOID,*LPVOID;
-typedef char CHAR;
+typedef void *PVOID, *LPVOID;
+typedef char CHAR, *LPSTR;
+typedef const char *LPCSTR;
 typedef unsigned long int ULONG;
 typedef long int LONG;
 typedef unsigned int UINT;
-typedef CHAR TCHAR;
-typedef TCHAR *LPTCH,*PTSTR,*LPTSTR,*LP,*PTCHAR;
-typedef const TCHAR *LPCTSTR;
+typedef long long LONGLONG;
 typedef WORD ATOM;
-
 typedef HANDLE HLOCAL;
-
-
-#undef CONTEXT
-typedef struct _CONTEXT {
-	ULONG ContextFlags;
-
-	ULONG R0;
-	ULONG R1;
-	ULONG R2;
-	ULONG R3;
-	ULONG R4;
-	ULONG R5;
-	ULONG R6;
-	ULONG R7;
-	ULONG R8;
-	ULONG R9;
-	ULONG R10;
-	ULONG R11;
-	ULONG R12;
-
-	ULONG Sp;
-	ULONG Lr;
-	ULONG Pc;
-	ULONG Psr;
-} CONTEXT;
-
-typedef CONTEXT *PCONTEXT,*LPCONTEXT;
+typedef CONTEXT *PCONTEXT, *LPCONTEXT;
 
 typedef struct _EXCEPTION_RECORD {
   DWORD ExceptionCode;
@@ -64,7 +37,18 @@ typedef struct _EXCEPTION_POINTERS {
   PCONTEXT ContextRecord;
 } EXCEPTION_POINTERS,*PEXCEPTION_POINTERS,*LPEXCEPTION_POINTERS;
 
+typedef struct _FILETIME {
+  DWORD dwLowDateTime;
+  DWORD dwHighDateTime;
+} FILETIME,*PFILETIME,*LPFILETIME;
 
+typedef union _LARGE_INTEGER {
+  struct {
+    DWORD LowPart;
+    LONG  HighPart;
+  } u;
+  LONGLONG QuadPart;
+} LARGE_INTEGER, *PLARGE_INTEGER;
 
 typedef LONG(CALLBACK *PTOP_LEVEL_EXCEPTION_FILTER)(LPEXCEPTION_POINTERS);
 typedef PTOP_LEVEL_EXCEPTION_FILTER LPTOP_LEVEL_EXCEPTION_FILTER;

@@ -7,15 +7,17 @@
  */
 
 
-#include <io.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "winb.h"
 
+typedef  int (* _onexit_t)(void);
 
 static _onexit_t fd32_imp__dllonexit(_onexit_t func, _onexit_t **start, _onexit_t **end)
 {
