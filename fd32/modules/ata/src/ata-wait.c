@@ -44,8 +44,7 @@ BYTE ata_cmd_irq(unsigned long max_wait, struct ide_interface *p)
     int tout_event;
     volatile int tout;
     extern int irq_signaled(int i);
-    extern int irq_reset(int i);
-    irq_reset(p->irq);
+
     tout = 0;
     tout_event = fd32_event_post(max_wait, private_timed_out, (void *)&tout);
     WFC(!tout && !irq_signaled(p->irq));

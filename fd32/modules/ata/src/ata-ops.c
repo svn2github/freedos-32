@@ -44,6 +44,7 @@ int dev_not_ready(const struct ata_device* dev)
 int device_select( unsigned long max_wait, const struct ata_device* dev )
 {
     int res;
+    extern int irq_reset(int i);
 
     if(dev_is_busy(dev))
     {
@@ -80,6 +81,8 @@ int device_select( unsigned long max_wait, const struct ata_device* dev )
             ;
     }
 #endif
+    irq_reset(dev->interface->irq);
+    
     return 0;
 }
 
