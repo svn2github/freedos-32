@@ -51,7 +51,7 @@ void fd32_int_handler(union regs r, DWORD intnum)
     }
     
     if ((intnum >= 0x50) && (intnum < 0x58)) {
-      rmint = intnum - 0x50;
+      rmint = intnum - 0x50 + 8;
     } else {
       if ((intnum < 0x70) || (intnum > 0x77)) {
 	/* Error!!! Should we panic? */
@@ -59,7 +59,6 @@ void fd32_int_handler(union regs r, DWORD intnum)
       }
       rmint = intnum;
     }
-    rmint += 8;
 
 #ifdef __VM86_REFLECT_DEBUG__
     fd32_log_printf("Entering ESP: %lx (= 0x%lx)\n",
