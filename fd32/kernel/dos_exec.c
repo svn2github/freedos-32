@@ -69,6 +69,7 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
   void *fs_device;
   char *pathname;
   fd32_openfile_t of;
+  fd32_close_t cr;
   DWORD base;
 
   /*
@@ -128,6 +129,9 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #endif
   if ((mod_type == 2) || (mod_type == 3)) {
     entry_point = load_process(&p, (int)(&f), &parser, &exec_base, &base, &size);
+    cr.Size = sizeof(fd32_close_t);
+    cr.DeviceId = f.file_id;
+    f.request(FD32_CLOSE, &cr);
     if (entry_point == -1) {
 #ifdef __DEBUG__
       fd32_log_printf("Error loading %s\n", filename);
@@ -170,6 +174,9 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 
   if (mod_type == 4) {
     process_dos_module(&p, (int)(&f), &parser, filename, args);
+    cr.Size = sizeof(fd32_close_t);
+    cr.DeviceId = f.file_id;
+    f.request(FD32_CLOSE, &cr);
   }
   return 1;
 }

@@ -207,6 +207,8 @@ int wrap_exec(char *filename, char *args)
   void *fs_device;
   char *pathname;
   fd32_openfile_t of;
+  fd32_close_t cr;
+int res;
 
   if (fd32_get_drive(filename, &f.request, &fs_device, &pathname) < 0) {
 #ifdef __DEBUG__
@@ -254,6 +256,12 @@ int wrap_exec(char *filename, char *args)
   if (mod_type == 4) {
     my_process_dos_module(&p, (int)(&f), &parser, args);
   }
+  
+  cr.Size = sizeof(fd32_close_t);
+  cr.DeviceId = f.file_id;
+  message("Closing %d\n", f.file_id);
+  res = f.request(FD32_CLOSE, &cr);
+  message("Returned %d\n", res);
   return 1;
 }
 
