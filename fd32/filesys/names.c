@@ -78,8 +78,8 @@ int fd32_gen_short_fname(char *Dest, char *Source, DWORD Flags)
     Res |= FD32_GENSFN_WAS_INVALID;
   if (DotPos) if (utf8_to_oemcp(DotPos + 1, -1, &ShortName[8], 3))
                 Res |= FD32_GENSFN_WAS_INVALID;
-  if (Dest[0] == ' ') return FD32_EFORMAT;
-  if (Dest[0] == (char) 0xE5) Dest[0] = 0x05;
+  if (ShortName[0] == ' ') return FD32_EFORMAT;
+  if (ShortName[0] == (char) 0xE5) Dest[0] = 0x05;
 
   /* Return the generated short name in the specified format */
   switch (Flags & FD32_GENSFN_FORMAT_MASK)
