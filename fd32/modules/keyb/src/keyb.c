@@ -149,7 +149,7 @@ int preprocess(BYTE code)
 /* Interrupts are enabled, here... */
 void postprocess(void)
 {
-  BYTE code;
+  BYTE code, decoded;
   BYTE decode(BYTE c, int f, int lock);
 
   code = rawqueue_get();
@@ -161,16 +161,16 @@ void postprocess(void)
 message("Scancode %d\n", code);
     */
     if (keyb_mode != KEYB_RAW) {
-      code = decode(code, flags, leds);
-      if (code == 0) {
-	fd32_error("Strange key\n");
+      decoded = decode(code, flags, leds);
+      if (decoded == 0) {
+	fd32_message("Strange key: %d (0x%x)\n", code, code);
       } else {
 	/*
 	message("  %c ", code);
 	*/
       }
     }
-    keyqueue_put(code);
+    keyqueue_put(decoded);
 #else
     fd32_message("Key code: %d\n", rawcode);
 #endif
