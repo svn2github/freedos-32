@@ -304,6 +304,7 @@ int ELF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
     }
 #endif
   }
+  tables->image_base = scndata[0].base;
 
   return bss;
 }

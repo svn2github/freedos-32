@@ -259,7 +259,8 @@ DWORD common_load_executable(struct kern_funcs *kf, int file,  struct table_info
   kf->log("Trying to get %lx - %lx to load the COFF\n", s[0].base, needed_mem);
 #endif
 
-  res = kf->mem_alloc_region(s[0].base, needed_mem);
+  exec_space = tables->image_base;
+  res = kf->mem_alloc_region(exec_space, needed_mem);
   if (res == -1) {
     kf->error("Error : Coff starts before Free memory top\n");
     kf->message("Coff starts at %lx\n", s[0].base);
@@ -268,7 +269,6 @@ DWORD common_load_executable(struct kern_funcs *kf, int file,  struct table_info
     load_offset = exec_space - s[0].base;
     kf->message("Load_offset: %lx\n", load_offset);
   } else {
-    exec_space = s[0].base;
     load_offset = 0;
   }    
 
@@ -291,12 +291,12 @@ DWORD common_load_executable(struct kern_funcs *kf, int file,  struct table_info
     kf->log("Placing at 0x%lx\n", where_to_place);
 #endif
     /*	    where_to_place = (DWORD)(sh[i]->s_vaddr);	*/
-    if (s[i].filesize == 0) {
+    if ((s[i].filesize == 0) || (s[i].fileptr == 0)) {
       memset((void *)where_to_place, 0, s[i].size);
     } else {
       if (s[i].fileptr != 0) {
-	kf->file_seek(file, kf->file_offset + s[i].fileptr, 0);
-	kf->file_read(file, (void *)where_to_place, s[i].size);
+	kf->file_seek(file, kf->file_offset + s[i].fileptr, kf->seek_set);
+	kf->file_read(file, (void *)where_to_place, s[i].filesize);
       }
     }
   }
@@ -308,7 +308,7 @@ DWORD common_load_executable(struct kern_funcs *kf, int file,  struct table_info
 DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *tables, int n, struct section_info *s, int *size)
 {
   int i;
-  DWORD needed_mem = 0, offset;
+  DWORD needed_mem = 0;
   DWORD local_offset = 0;
   BYTE *mem_space, *where_to_place;
 
@@ -325,7 +325,6 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *
     return 0;
   }
   memset(mem_space, 0, needed_mem + LOCAL_BSS);
-  offset = s[0].base;
 
   for (i = 0; i < n; i++) {
 #ifdef __ELF_DEBUG__

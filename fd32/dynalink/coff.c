@@ -97,6 +97,7 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 #endif
     } else {
       entry = optheader.entry;
+      tables->image_base = optheader.text_start;
     }
   }
 #if 0
@@ -126,6 +127,7 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
   int i, j;
   int pos;
   char name[9];
+  DWORD tmp;
   struct external_scnhdr h;
   struct coff_reloc_info rel;
 
@@ -138,13 +140,17 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
     if (strcmp(name, ".bss") == 0) {
       bss = i;
     }
-    
-    if (!(tables->flags & NEED_AR32WR_RELOCATION) && strcmp(name, ".bss") == 0) {
-      /* TODO: MingW COFF section size hack! */
-      scndata[i].size = h.s_paddr;
-    } else {
-      scndata[i].size = h.s_size;
+  
+    /* FIXME! */
+    /* If it's executable we get the section's size from calculate the
+     * space between two adjacent setions,
+     * The last section's virtual size should always be set to the default size
+     */
+    scndata[i].size = h.s_size;
+    if (((tables->flags & NO_ENTRY) == 0) && (i != 0)) {
+      scndata[i - 1].size = h.s_paddr - tmp;
     }
+    tmp = h.s_paddr;
     scndata[i].base = h.s_vaddr;
     scndata[i].fileptr = h.s_scnptr;
     scndata[i].filesize = h.s_size;

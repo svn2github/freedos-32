@@ -119,8 +119,7 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
     return -1;
   }
   /* Note: use the real entry */
-  #define ENTRY_CALL_OFFSET(entry) (entry-(exec_space-base))
-  retval = my_create_process(ENTRY_CALL_OFFSET(dyn_entry), exec_space, size + STACKSIZE,
+  retval = my_create_process(dyn_entry, exec_space, size + STACKSIZE,
 		  base + size + STACKSIZE, cmdline);
   #undef ENTRY_CALL_OFFSET
 #ifdef __WRAP_DEBUG__

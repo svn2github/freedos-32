@@ -156,17 +156,16 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
 
     return dyn_entry;
   } else {
-    offset = exec_space - sections[0].base;
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 1) Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
 	    dyn_entry + offset, dyn_entry, offset);
 #endif
     *s = size;
     *e_s = exec_space;
-    *image_base = sections[0].base;
+    *image_base = tables.image_base;
     parser->free_tables(p, &tables, symbols, sections);
     
-    return dyn_entry + offset;
+    return dyn_entry;
   }
 }
 
@@ -179,6 +178,7 @@ int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char
   DWORD dyn_entry;
   int run(DWORD address, WORD psp_sel, DWORD parm);
   DWORD base;
+  DWORD offset;
 
   dyn_entry = load_process(p, file, parser, &exec_space, &base, &size);
 
@@ -214,7 +214,8 @@ int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
 
-    retval = create_process(dyn_entry, exec_space, size, fname, args);
+    offset = exec_space - base;
+    retval = create_process(dyn_entry + offset, exec_space, size, fname, args);
 #ifdef __EXEC_DEBUG__
     message("Returned: %d!!!\n", retval);
 #endif

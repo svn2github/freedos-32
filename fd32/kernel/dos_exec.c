@@ -72,6 +72,7 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
   fd32_openfile_t of;
   fd32_close_t cr;
   DWORD base;
+  DWORD offset;
 
   /*
   TODO: filename must be canonicalized with fd32_truename, but fd32_truename
@@ -173,7 +174,8 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #endif
     }
     /* *return_val = exec_process(&p, (int)(&f), &parser, filename); */
-    *return_val = create_process(entry_point, exec_base, size, filename, args);
+    offset = exec_base - base;
+    *return_val = create_process(entry_point + offset, exec_base, size, filename, args);
     message("Returned: %d!!!\n", *return_val);
     mem_free(exec_base, size);
   }
