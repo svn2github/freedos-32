@@ -19,7 +19,7 @@ int videobios_int(union rmregs *r)
 {
   int x, y;
   switch (r->h.ah) {
-    case 0x200:
+    case 0x02:
       /* Set Cursor Position */
       x = r->h.dl;
       y = r->h.dh;
@@ -27,7 +27,7 @@ int videobios_int(union rmregs *r)
       RMREGS_CLEAR_CARRY;
       return 0;
 
-    case 0x300:
+    case 0x03:
       /* Get Cursor Position and Size...*/
       /* BH is the page number... For now, don't care about it! */
       /*
@@ -49,7 +49,7 @@ int videobios_int(union rmregs *r)
       RMREGS_CLEAR_CARRY;
       return 0;
 
-    case 0x800:
+    case 0x08:
       /* Read Character and Attribute */
       /* Let's just return a reasonable attribute... */
       r->h.ah = get_attr();
@@ -57,7 +57,8 @@ int videobios_int(union rmregs *r)
       RMREGS_CLEAR_CARRY;
       return 0;
 
-    case 0x1A00:
+    case 0x1A:
+      if (r->h.al != 0x00) break;
       /* Get display combination mode (???)
        * let's say that it is used for checking if the video card is a VGA...
        */
@@ -73,7 +74,7 @@ int videobios_int(union rmregs *r)
       r->x.bx = 0x0707;
       return 0;
 
-    case 0xFE00:
+    case 0xFE:
       /* Get Shadow Buffer (???)
        */
       /* For the moment, we don't have it... Return 0! */
@@ -81,16 +82,13 @@ int videobios_int(union rmregs *r)
       r->d.edi = 0;
       return 0;
 
-    case 0xFF00:
+    case 0xFF:
       /* Not clear what to do here... */
       RMREGS_SET_CARRY; /* So, fail... */
       return 0;
-
-    default:
-      error("Unimplemeted INT!!!\n");
-      message("INT 10, AX = 0x%x\n", r->x.ax);
-      fd32_abort();
   }
-  
+  error("Unimplemeted INT!!!\n");
+  message("INT 10, AX = 0x%x\n", r->x.ax);
+  fd32_abort();
   return 1;
 }
