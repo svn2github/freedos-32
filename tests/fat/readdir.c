@@ -5,7 +5,7 @@
 /*             Test it AT YOUR OWN RISK.                                    */
 /****************************************************************************/
 
-#include <ll/i386/error.h> /* For the message function                  */
+#include <dr-env.h>
 #include <devices.h>       /* For driver interfaces                     */
 #include <filesys.h>       /* For opening modes and finddata structure  */
 #include <errors.h>        /* For FD32_ENMFILE readdir termination code */

@@ -26,9 +26,11 @@ hello.out: hello.o main.o
 
 main.o: main.c
 	$(CC) -c $(C_OPT_1) main.c
+command.exe: command.c
+	$(CC) -Xlinker -Ttext -Xlinker 0x150000 command.c -o command.exe
 
 # Common rules
 %.32: %.c
 	$(CC) $(C_OPT) -I$(FD32)/include -I$(DRIVERS)/include/fd32 -I$(BASE)/ll -c $< -o $@
 %.out: %.c
-	$(CC) -Xlinker -Ttext -Xlinker 0x150000 $< -o $@
+	$(CC) -Xlinker -Ttext -Xlinker 0x400000 $< -o $@
