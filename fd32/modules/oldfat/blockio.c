@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "blockio.c" - Services to access the hosting block device      *
  *                                                                        *
@@ -141,6 +141,21 @@ int fat_writebuf(tVolume *V, int NumBuf)
   #endif
 }
 #endif
+
+
+/* Discards the content of all buffers of a volume.
+ * Returns 0 on success, or a negative value if there are dirty buffers.
+ */
+int fat_trashbuf(tVolume *V)
+{
+  int k;
+  for (k = 0; k < V->NumBuffers; k++)
+  {
+    if (V->Buffers[k].Flags & DIRTY) return -1;
+    V->Buffers[k].Flags = 0;
+  }
+  return 0;
+}
 
 
 /* Performs a buffered read from the hosting block device.       */

@@ -312,6 +312,7 @@ int fat_flushall   (tVolume *V);
 int fat_writebuf   (tVolume *V, int NumBuf);
 #endif
 int fat_readbuf    (tVolume *V, DWORD Sector);
+int fat_trashbuf   (tVolume *V);
 
 /* CREAT.C - File creation and deletion services */
 #ifdef FATWRITE

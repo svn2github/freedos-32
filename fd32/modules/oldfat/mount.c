@@ -210,29 +210,17 @@ static int check_bpb(BYTE *SecBuf, DWORD DskSz)
     return FD32_EMEDIA;
   }
 
-  /* Check volume size */
-  if (Bpb->BPB_TotSec16 == 0)
+  /* Check volume size. If both TotSec32 and TotSec16 are nonzero,
+   * only the latter is considered valid. */
+  TotSec = Bpb->BPB_TotSec16;
+  if (!TotSec)
   {
-    if (Bpb->BPB_TotSec32 == 0)
+    TotSec = Bpb->BPB_TotSec32;
+    if (!TotSec)
     {
       LOG_PRINTF(("Both BPB_TotSec16 and BPB_TotSec32 are zero\n"));
       return FD32_EMEDIA;
     }
-    TotSec = Bpb->BPB_TotSec32;
-  }
-  else
-  {
-    /* The FreeDOS format does not zero BPB_TotSec32 even if
-     * BPB_TotSec16 is nonzero. See the FreeDOS bug 1871.
-     * Temporarily disabling this check... */
-    #if 0
-    if (Bpb->BPB_TotSec32 != 0)
-    {
-      LOG_PRINTF(("Both BPB_TotSec16=%u and BPB_TotSec32=%lu are nonzero\n", Bpb->BPB_TotSec16, Bpb->BPB_TotSec32));
-      return FD32_EMEDIA;
-    }
-    #endif
-    TotSec = Bpb->BPB_TotSec16;
   }
   if (TotSec > DskSz)
   {
@@ -461,25 +449,26 @@ int fat_mediachange(tVolume *V)
   tFatType           FatType;
   tBpb               Bpb;
   fd32_mediachange_t Mc;
+  int                num_open;
 
   Mc.Size     = sizeof(fd32_mediachange_t);
   Mc.DeviceId = V->BlkDev;
   Res = V->blkreq(FD32_MEDIACHANGE, &Mc);
   if (Res == FD32_EINVAL) return 0; /* Device without removable media */
   if (Res <= 0) return Res;
-
+  num_open = fat_openfiles(V);
   Res = read_bpb(V, &Bpb, &FatType);
   LOG_PRINTF(("Read_bpb result: %08x\n", Res));
   if ((Res < 0) && (Res != FD32_EMEDIA)) return Res;
-  /* TODO: To increase security here, we may also want to compare non-dirty
-           buffers with disk sectors */
   if ((Res == FD32_EMEDIA) || (V->FatType != FatType) || memcmp(&V->Bpb, &Bpb, sizeof(tBpb)))
   {
-    if (fat_openfiles(V)) return FD32_ECHANGE;
+    if (num_open > 0) return FD32_ECHANGE;
     fat_unmount(V);
     return FD32_ENMOUNT;
   }
-  return 0;
+  Res = 0;
+  if (!num_open) if (fat_trashbuf(V) < 0) Res = FD32_ECHANGE;
+  return Res;
 }
 #endif
 
