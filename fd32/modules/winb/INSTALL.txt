@@ -1,0 +1,38 @@
+Compiling the winb module requires newlib and libfd32, and can be difficult,
+hence these short notes...
+
+I assume you have the apps, fd32, drivers, and oslib modules in /tmp
+and you already have compiled them
+
+
+
+cd /tmp
+
+tar xvzf newlib-1.13.0.tar.gz
+mkdir bin
+ln -s /usr/bin/ar /tmp/bin/i586-pc-elf-ar
+ln -s /usr/bin/as /tmp/bin/i586-pc-elf-as
+ln -s /usr/bin/gcc /tmp/bin/i586-pc-elf-gcc
+ln -s /usr/bin/ld /tmp/bin/i586-pc-elf-ld
+ln -s /usr/bin/nm /tmp/bin/i586-pc-elf-nm
+ln -s /usr/bin/objdump /tmp/bin/i586-pc-elf-objdump
+ln -s /usr/bin/ranlib /tmp/bin/i586-pc-elf-ranlib
+
+export PATH=$PATH:/tmp/bin
+
+mkdir Build
+cd Build
+../newlib-1.13.0/configure --target=i586-pc-elf --prefix=/tmp/libc
+make; make install
+
+cd ../apps/libfd32
+cp -r /usr/lib/gcc-lib/i386-linux/2.95.4/include include
+cp /tmp/fd32/drivers/winb/stdint.h include
+cp mk/elf.mk config.mk
+OSLIB=/tmp/oslib FD32=/tmp/fd32 NEWLIBC=/tmp/libc/i586-pc-elf make
+cp crt0.o /tmp/libc/i586-pc-elf/lib
+cp libfd32.a /tmp/libc/i586-pc-elf/lib
+
+cd /tmp/fd32/drivers/winb
+OSLIB=/tmp/oslib FD32=/tmp/fd32 NEWLIBC=/tmp/libc/i586-pc-elf make
+

@@ -29,7 +29,6 @@ static int isspecial(double d)
     unsigned long sign:1;
   } *ip = (struct IEEEdp *) &d;
 
-printf(" size: %x\n", sizeof(struct IEEEdp));
   if (ip->exp != 0x7ff)
     return (0);
   if (ip->manh || ip->manl) {
@@ -53,7 +52,7 @@ int isnan(double x)
 
 void winbase_init(void)
 {
-  message("Initing winbase dynalink lib ...\n");
-  add_kernel32();
-  add_msvcrt();
+  message("Initing WINB module ...\n");
+  install_kernel32();
+  install_msvcrt();
 }

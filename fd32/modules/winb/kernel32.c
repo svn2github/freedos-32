@@ -12,12 +12,11 @@
 #include "winb.h"
 
 
-static char *atomname = 0;
+static LPCTSTR atomname = 0;
 static ATOM STDCALL fd32_imp__AddAtomA( LPCTSTR str )
 {
   printf("AddAtomA %s\n", str);
-  atomname = malloc(strlen(str)+1);
-  strcpy(atomname, str);
+  atomname = str;
   return 1;
 }
 
@@ -30,9 +29,6 @@ static VOID STDCALL fd32_imp__ExitProcess( UINT ecode )
 static ATOM STDCALL fd32_imp__FindAtomA( LPCTSTR str )
 {
   printf("FindAtomA %s\n", str);
-  if(atomname == 0)
-  return 0;
-
   return 1;
 }
 
@@ -48,10 +44,68 @@ static DWORD STDCALL fd32_imp__GetModuleHandleA( LPCTSTR module )
   return 0;
 }
 
+/* The GetCurrentProcessId function returns the process identifier of the calling process.
+ *
+ * Return Values
+ * The return value is the process identifier of the calling process. 
+ */
+static DWORD WINAPI fd32_imp__GetCurrentProcessId( void )
+{
+  extern struct psp *current_psp;
+  return (DWORD)current_psp;
+}
+
+/* The GetCurrentThreadId function returns the thread identifier of the calling thread. 
+ *
+ * Return Values
+ * The return value is the thread identifier of the calling thread. 
+ */
+static DWORD WINAPI fd32_imp__GetCurrentThreadId( void )
+{
+  /* FD32 currently no multi-threading */
+  return 0;
+}
+
+/* The GetSystemTimeAsFileTime function obtains the current system date and time. The information is in Coordinated Universal Time (UTC) format.
+ *
+ * Parameters
+ * lpSystemTimeAsFileTime
+ *   Pointer to a FILETIME structure to receive the current system date and time in UTC format. 
+ */
+static void WINAPI fd32_imp__GetSystemTimeAsFileTime( LPFILETIME lpftime )
+{
+  
+}
+
+/* The GetTickCount function retrieves the number of milliseconds that have elapsed since Windows was started. 
+ *
+ * Return Values
+ * If the function succeeds, the return value is the number of milliseconds that have elapsed since Windows was started. 
+ */
+static DWORD WINAPI fd32_imp__GetTickCount( VOID )
+{
+  return 0;
+}
+
+/* The QueryPerformanceCounter function retrieves the current value of the high-resolution performance counter, if one exists. 
+ *
+ * Parameters
+ * lpPerformanceCount
+ *   Points to a variable that the function sets, in counts, to the current performance-counter value. If the installed hardware does not support a high-resolution performance counter, this parameter can be to zero. 
+ *
+ * Return Values
+ * If the installed hardware supports a high-resolution performance counter, the return value is nonzero.
+ * If the installed hardware does not support a high-resolution performance counter, the return value is zero. 
+ */
+static BOOL WINAPI fd32_imp__QueryPerformanceCounter( PLARGE_INTEGER lpcount )
+{
+  return FALSE;
+}
+
 static PTOP_LEVEL_EXCEPTION_FILTER top_filter;
 static LPVOID STDCALL fd32_imp__SetUnhandledExceptionFilter( LPTOP_LEVEL_EXCEPTION_FILTER filter )
 {
-  fd32_log_printf("[WINB] SetUnhandledExceptionFilter: %x\n", filter);
+  fd32_log_printf("[WINB] SetUnhandledExceptionFilter: %lx\n", filter);
   LPTOP_LEVEL_EXCEPTION_FILTER old = top_filter;
   top_filter = filter;
   return old;
@@ -117,15 +171,20 @@ static struct symbol kernel32_symarray[0x10] = {
   {"ExitProcess",      (uint32_t)fd32_imp__ExitProcess},
   {"FindAtomA",        (uint32_t)fd32_imp__FindAtomA},
   {"GetAtomNameA",     (uint32_t)fd32_imp__GetAtomNameA},
+  {"GetCurrentProcessId", (uint32_t)fd32_imp__GetCurrentProcessId},
+  {"GetCurrentThreadId",  (uint32_t)fd32_imp__GetCurrentThreadId},
   {"GetModuleHandleA", (uint32_t)fd32_imp__GetModuleHandleA},
-  {"SetUnhandledExceptionFilter", (uint32_t)fd32_imp__SetUnhandledExceptionFilter},
+  {"GetSystemTimeAsFileTime",     (uint32_t)fd32_imp__GetSystemTimeAsFileTime},
+  {"GetTickCount",     (uint32_t)fd32_imp__GetTickCount},
   {"LocalAlloc",       (uint32_t)fd32_imp__LocalAlloc},
   {"LocalFree",        (uint32_t)fd32_imp__LocalFree},
+  {"QueryPerformanceCounter",     (uint32_t)fd32_imp__QueryPerformanceCounter},
+  {"SetUnhandledExceptionFilter", (uint32_t)fd32_imp__SetUnhandledExceptionFilter},
   {"VirtualAlloc",     (uint32_t)fd32_imp__VirtualAlloc},
   {"VirtualFree",      (uint32_t)fd32_imp__VirtualFree}
 };
 
-void add_kernel32(void)
+void install_kernel32(void)
 {
   add_dll_table(kernel32_name, kernel32_handle, kernel32_symnum, kernel32_symarray);
 }

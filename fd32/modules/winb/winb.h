@@ -73,7 +73,7 @@ uint32_t mem_get_region(uint32_t base, uint32_t size);
 int mem_free(uint32_t base, uint32_t size);
 
 
-void add_kernel32(void);
-void add_msvcrt(void);
+void install_kernel32(void);
+void install_msvcrt(void);
 
 #endif
