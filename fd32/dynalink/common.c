@@ -89,6 +89,11 @@ int common_relocate_section(struct kern_funcs *kf,DWORD base, DWORD bssbase, str
 	address += /* ??? */ base;
 #else
 	address = import[j].address;
+
+
+/* Warn!!! Is this OK? */
+address += *((DWORD *)destination);
+
 #endif
       } else if (rel[i].type == REL_TYPE_RELATIVE) {
 	address = import[j].address - (rel[i].offset + base) - 4;
