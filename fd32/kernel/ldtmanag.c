@@ -78,9 +78,10 @@
  * This code is based on CWSDPMI 5.0, file exphdlr.c
  * by Salvo Isaja
  */
-int fd32_allocate_descriptors(WORD NumSelectors, WORD *BaseSelector)
+int fd32_allocate_descriptors(WORD NumSelectors)
 {
   WORD i, j;
+  WORD selector;
 
 #ifdef __DEBUG__
   fd32_log_printf("[FD32] Allocate Descriptors: 0x%x selector(s)\n", NumSelectors);
@@ -109,8 +110,8 @@ int fd32_allocate_descriptors(WORD NumSelectors, WORD *BaseSelector)
 #endif
     }
     /* Return the first selector allocated */
-    *BaseSelector = INDEX_TO_SELECTOR(i - NumSelectors);
-    return NO_ERROR;
+    selector = INDEX_TO_SELECTOR(i - NumSelectors);
+    return selector;
   }
   return ERROR_DESCRIPTOR_UNAVAILABLE;
 }
@@ -166,7 +167,7 @@ int fd32_free_descriptor(WORD Selector)
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
-  if (ErrorCode != NO_ERROR) return ErrorCode;
+  if (ErrorCode < 0) return ErrorCode;
 
   DESCRIPTOR_TABLE(i).access = 0;
 
@@ -204,9 +205,9 @@ int fd32_free_descriptor(WORD Selector)
  * This code is based on CWSDPMI 5.0, file exphdlr.c
  * by Salvo Isaja
  */
-int fd32_segment_to_descriptor(WORD RealModeSegment, WORD *Selector)
+int fd32_segment_to_descriptor(WORD RealModeSegment)
 {
-  WORD i;
+  WORD i, selector;
   int  ErrorCode;
   WORD base_lo  = RealModeSegment << 4;
   WORD base_med = RealModeSegment >> 12;
@@ -228,19 +229,19 @@ int fd32_segment_to_descriptor(WORD RealModeSegment, WORD *Selector)
         ( DESCRIPTOR_TABLE(i).base_lo  == base_lo ) &&
         ( DESCRIPTOR_TABLE(i).base_med == base_med))
     {
-      *Selector = INDEX_TO_SELECTOR(i);
-      return NO_ERROR;
+      selector = INDEX_TO_SELECTOR(i);
+      return selector;
     }
   }
 
   /* A selector for that real mode segment is not allocated.
    * Allocate one now.
    */
-  ErrorCode = fd32_allocate_descriptors(1, &i);
-  if (ErrorCode != NO_ERROR) return ErrorCode;
-
+  ErrorCode = fd32_allocate_descriptors(1);
+  if (ErrorCode < 0) return ErrorCode;
+  i = ErrorCode;
   /* Return the selector just allocated */
-  *Selector = i;
+  selector = i;
 
   /* Then convert that selector into a descriptor table index to
    * initialize our descriptor.
@@ -253,7 +254,7 @@ int fd32_segment_to_descriptor(WORD RealModeSegment, WORD *Selector)
   DESCRIPTOR_TABLE(i).base_med = base_med;
   DESCRIPTOR_TABLE(i).gran     = 0; /* 16-bit, not 32 */
 
-  return NO_ERROR;
+  return selector;
 }
 
 
@@ -295,7 +296,7 @@ int fd32_get_segment_base_address(WORD Selector, DWORD *BaseAddress)
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
-  if (ErrorCode != NO_ERROR) {
+  if (ErrorCode < 0) {
     return ErrorCode;
   }
 
@@ -335,7 +336,7 @@ int fd32_set_segment_base_address(WORD Selector, DWORD BaseAddress)
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector,&i);
-  if (ErrorCode != NO_ERROR) {
+  if (ErrorCode < 0) {
     return ErrorCode;
   }
 
@@ -378,7 +379,7 @@ int fd32_set_segment_limit(WORD Selector, DWORD Limit)
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
-  if (ErrorCode != NO_ERROR) {
+  if (ErrorCode < 0) {
     return ErrorCode;
   }
 
@@ -428,7 +429,7 @@ int fd32_set_descriptor_access_rights(WORD Selector, WORD Rights)
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector,&i);
-  if (ErrorCode != NO_ERROR) {
+  if (ErrorCode < 0) {
     return ErrorCode;
   }
 
@@ -445,9 +446,9 @@ int fd32_set_descriptor_access_rights(WORD Selector, WORD Rights)
  * This code is based on CWSDPMI 5.0, file exphdlr.c
  * by Salvo Isaja
  */
-int fd32_create_alias_descriptor(WORD Selector, WORD *NewSelector)
+int fd32_create_alias_descriptor(WORD Selector)
 {
-  WORD Source, Dest;
+  WORD Source, Dest, new_selector;
   int  ErrorCode;
 
 #ifdef __DEBUG__
@@ -455,20 +456,20 @@ int fd32_create_alias_descriptor(WORD Selector, WORD *NewSelector)
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &Source);
-  if (ErrorCode != NO_ERROR) return ErrorCode;
+  if (ErrorCode < 0) return ErrorCode;
 
-  ErrorCode = fd32_allocate_descriptors(1, &Dest);
-  if (ErrorCode != NO_ERROR) return ErrorCode;
-
+  ErrorCode = fd32_allocate_descriptors(1);
+  if (ErrorCode < 0) return ErrorCode;
+  Dest = ErrorCode;
   /* We can safely ignore the exit code of the following */
   sel_to_ldt_index(Dest,&Dest);
 
-  *NewSelector = INDEX_TO_SELECTOR(Dest);
+  new_selector = INDEX_TO_SELECTOR(Dest);
   DESCRIPTOR_TABLE(Dest) = DESCRIPTOR_TABLE(Source);
   /* Data, exp-up, wrt */
   DESCRIPTOR_TABLE(Dest).access = 2 | (DESCRIPTOR_TABLE(Dest).access & 0xF0);
 
-  return NO_ERROR;
+  return new_selector;
 }
 
 
@@ -496,7 +497,7 @@ int fd32_get_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset)
   /* TO DO: CHECK_POINTER(tss_ptr->tss_es, tss_ptr->tss_edi); */
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
-  if (ErrorCode != NO_ERROR) return ErrorCode;
+  if (ErrorCode < 0) return ErrorCode;
 
   /* The following assembly code copies the descriptor into */
   /* the buffer pointed by the specified 48-bit pointer.    */
@@ -559,7 +560,7 @@ int fd32_set_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset)
   /* TO DO: CHECK_POINTER(tss_ptr->tss_es, tss_ptr->tss_edi); */
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
-  if (ErrorCode != NO_ERROR) return ErrorCode;
+  if (ErrorCode < 0) return ErrorCode;
 
   /* The following assembly code copies the buffer pointed */
   /* by the specified 48-bit pointer into the descriptor.  */
@@ -612,7 +613,7 @@ int fd32_get_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
         : "D" (BufferOffset));
 
     ErrorCode = sel_to_ldt_index(Selector, &i);
-    if (ErrorCode != NO_ERROR) return ErrorCode; /* FIX ME: Should return Count */
+    if (ErrorCode < 0) return ErrorCode; /* FIX ME: Should return Count */
 
     asm("
          mov (%%ebx),%%eax
@@ -681,7 +682,7 @@ int fd32_set_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
         : "b" (BufferOffset));
 
     ErrorCode = sel_to_ldt_index(Selector, &i);
-    if (ErrorCode != NO_ERROR) return ErrorCode; /* FIX ME: Should return Count */
+    if (ErrorCode < 0) return ErrorCode; /* FIX ME: Should return Count */
 
     asm("
          mov %%fs:2(%%ebx),%%eax
