@@ -420,22 +420,190 @@ NoArgs:
   return;
   }
 
+/* ~Hanzac: Temporarily and Slightly FIX the keyboard problem */
+#define GET_ENHANCED_KEYSTROKE                0x10
+#define GET_EXTENDED_SHIFT_STATES             0x12
+#define KEYB_FLAG_INSERT    0x0080
+#define KEY_ASCII(k)    (k & 0x00FF)
+#define KEY_SCANCODE(k) (k >> 0x08 )
+#define KEY_EXTM(k)     (k & 0xFF1F)
+#define KEY_NORM(k)     (k)
+#define KEY_EXT          0x00E0
+#define KEY_ESC          KEY_NORM(0x011B)
+#define KEY_ENTER        KEY_NORM(0x1C0D)
+#define KEY_BACKSPACE    KEY_NORM(0x0E08)
+#define KEY_INSERT       KEY_EXTM(0x52E0)
+#define KEY_DELETE       KEY_EXTM(0x53E0)
+#define KEY_HOME         KEY_EXTM(0x47E0)
+#define KEY_LEFT         KEY_EXTM(0x4BE0)
+#define KEY_RIGHT        KEY_EXTM(0x4DE0)
+static unsigned short keyb_get_rawcode(void)
+{
+  __dpmi_regs r;
+  r.h.ah = GET_ENHANCED_KEYSTROKE;
+  __dpmi_int(0x16, &r);
+  return r.x.ax;
+}
+
+static unsigned short keyb_get_shift_states(void)
+{
+  __dpmi_regs r;
+  r.h.ah = GET_EXTENDED_SHIFT_STATES;
+  __dpmi_int(0x16, &r);
+  return r.x.ax;
+}
+
+#define LEFT  (0xFFFFFFFF)
+#define RIGHT (0x00000001)
+static unsigned int tail = 0;
+static unsigned int cur = 0;
+static void cmdbuf_move(char *cmd_buf, int direction)
+{
+  switch (direction)
+  {
+    case LEFT:
+      if (cur != 0) {
+        putch(KEY_ASCII(KEY_BACKSPACE));
+        cur--;
+      }
+      break;
+    case RIGHT:
+      if (cur < tail) {
+        putch(cmd_buf[cur]);
+        cur++;
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+static void cmdbuf_delch(char *cmd_buf)
+{
+  if (cur < tail) {
+    unsigned int i;
+    cmd_buf[cur] = 0;
+    cmd_buf[tail] = 0;
+
+    /* Move the left string to the current position */
+    for (i = cur; i < tail; i++)
+    {
+      putch(cmd_buf[i+1]);
+      cmd_buf[i] = cmd_buf[i+1];
+    }
+    
+    /* Put cursor back to the current position */
+    for (i = cur; i < tail; i++)
+      putch(KEY_ASCII(KEY_BACKSPACE));
+
+    /* Subtract the string 1 */
+    tail--;
+  }
+}
+
+
+static void cmdbuf_putch(char *cmd_buf, char ch, unsigned short flag)
+{
+  unsigned int i;
+  
+  /* Reflect the insert method */
+  if (flag&KEYB_FLAG_INSERT) {
+    for (i = tail; i > cur; i--)
+      cmd_buf[i] = cmd_buf[i-1];
+  }
+  /* Put into cmdline buffer */
+  cmd_buf[cur++] = ch;
+  if (flag&KEYB_FLAG_INSERT || cur > tail)
+    tail++;
+  /* Update the string on screen */
+  for (i = cur-1; i < tail; i++)
+    putch(cmd_buf[i]);
+  
+  /* Put cursor back to the current position */
+  for (i = cur; i < tail; i++)
+    putch(KEY_ASCII(KEY_BACKSPACE));
+}
+
+
+static char *cmdbuf_gets(char *cmd_buf)
+{
+  cmd_buf[tail] = 0;
+  /* Reset the cmdbuf */
+  cur = tail = 0;
+  return cmd_buf;
+}
+
+
 static void prompt_for_and_get_cmd(void)
   {
   char conbuf[MAX_CMD_BUFLEN+1];
-
+  int flag = 0, key = 0;
   output_prompt();
   conbuf[0] = MAX_CMD_BUFLEN-1;
-  //-Salvo: was while(kbhit()) getch();
-  while(kbhit())
+  /* -Salvo: was while(kbhit()) getch(); */
+  
+  /* while(kbhit())
   {
-    int c = getch();
+    unsigned short c = keyb_get_rawcode();
     printf("while(kbhit()) getch(): '%02x'\n", c);
   }
-  cgets(conbuf);
+  cgets(conbuf); */
+  /* Console initialize */
+  flag = keyb_get_shift_states();
+  if (flag&KEYB_FLAG_INSERT)
+    _setcursortype(_NORMALCURSOR);
+  else
+    _setcursortype(_SOLIDCURSOR);
 
-  strncpy(cmd_line,&(conbuf[2]),conbuf[1]);
-  cmd_line[(int)(conbuf[1])] = '\0';
+  do {
+    if (kbhit()) {
+      key = keyb_get_rawcode();
+      flag = keyb_get_shift_states();
+    } else {
+      key = 0; /* TODO: CPU Idle or multitasking time-slice release */
+    }
+    
+    if (KEY_ASCII(key) == KEY_EXT)
+      key = KEY_EXTM(key);
+    switch (key)
+    {
+      case 0:
+        break;
+      case KEY_ENTER:
+        break;
+      case KEY_BACKSPACE:
+        cmdbuf_move(conbuf+2, LEFT);
+        clreol();
+        /* Delete the character at the end of string */
+        cmdbuf_delch(conbuf+2);
+        break;
+      case KEY_DELETE:
+        cmdbuf_delch(conbuf+2);
+        break;
+      case KEY_INSERT:
+        if (flag&KEYB_FLAG_INSERT)
+          _setcursortype(_NORMALCURSOR);
+        else
+          _setcursortype(_SOLIDCURSOR);
+        break;
+      case KEY_LEFT:
+        cmdbuf_move(conbuf+2, LEFT);
+        break;
+      case KEY_RIGHT:
+        cmdbuf_move(conbuf+2, RIGHT);
+        break;
+      default:
+        if (KEY_ASCII(key) != 0x00 && KEY_ASCII(key) != 0xE0) {
+          cmdbuf_putch(conbuf+2, KEY_ASCII(key), flag);
+        }
+        break;
+    }
+  } while (key != KEY_ENTER);
+
+  conbuf[1] = tail; /* Get the size of typed string */
+  strncpy(cmd_line, cmdbuf_gets(conbuf+2), conbuf[1]);
+
+  cmd_line[conbuf[1]] = '\0';
   parse_cmd_line();
   cputs("\r\n");
   }
