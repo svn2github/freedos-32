@@ -28,6 +28,7 @@
  **************************************************************************/
 
 #include "fat.h"
+#include <unicode.h>
 
 /* Define the DEBUG symbol in order to activate driver's log output */
 #ifdef DEBUG
@@ -35,6 +36,12 @@
 #else
  #define LOG_PRINTF(s)
 #endif
+
+
+/* From NLS support */
+int oemcp_to_utf8(char *Source, UTF8 *Dest);
+int utf8_to_oemcp(UTF8 *Source, int SourceSize, char *Dest, int DestSize);
+int oemcp_skipchar(char *Dest);
 
 
 /* Calculate the 8-bit checksum for the long file name from its */
@@ -79,7 +86,103 @@ int lfn_is_valid(char *s)
 #endif
 
 
-int oemcp_skipchar(char *Dest);
+/* Generates a valid 8.3 file name from a valid long file name. */
+/* The generated short name has not a numeric tail.             */
+/* Returns 0 on success, or a negative error code on failure.   */
+/* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
+static int gen_short_fname1(char *Dest, char *Source, DWORD Flags)
+{
+  BYTE  ShortName[11] = "           ";
+  char  Purified[FD32_LFNPMAX]; /* A long name without invalid 8.3 characters */
+  char *DotPos = NULL; /* Position of the last embedded dot in Source */
+  char *s;
+  int   Res = 0;
+
+  /* Find the last embedded dot, if present */
+  if (!(*Source)) return FD32_EFORMAT;
+  for (s = Source + 1; *s; s++)
+    if ((*s == '.') && (*(s-1) != '.') && (*(s+1) != '.') && *(s+1))
+      DotPos = s;
+
+  /* Convert all characters of Source that are invalid for short names */
+  for (s = Purified; *Source;)
+    if (!(*Source & 0x80))
+    {
+      if ((*Source >= 'a') && (*Source <= 'z'))
+      {
+        *s++ = *Source + 'A' - 'a';
+        Res |= FD32_GENSFN_CASE_CHANGED;
+      }
+      else if (*Source < 0x20) return FD32_EFORMAT;
+      else switch (*Source)
+      {
+        /* Spaces and periods must be removed */
+        case ' ': break;
+        case '.': if (Source == DotPos) DotPos = s, *s++ = '.';
+                                   else Res |= FD32_GENSFN_WAS_INVALID;
+                  break;
+        /* + , ; = [ ] are valid for LFN but not for short names */
+        case '+': case ',': case ';': case '=': case '[': case ']':
+          *s++ = '_'; Res |= FD32_GENSFN_WAS_INVALID; break;
+        /* Check for invalid LFN characters */
+        case '"': case '*' : case '/': case ':': case '<': case '>':
+        case '?': case '\\': case '|':
+          return FD32_EFORMAT;
+        /* Return any other single-byte character unchanged */
+        default : *s++ = *Source;
+      }
+      Source++;
+    }
+    else /* Process extended characters */
+    {
+      UTF32 Ch, upCh;
+      int   Skip;
+
+      if ((Skip = fd32_utf8to32(Source, &Ch)) < 0) return FD32_EUTF8;
+      Source += Skip;
+      upCh = unicode_toupper(Ch);
+      if (upCh != Ch) Res |= FD32_GENSFN_CASE_CHANGED;
+      if (upCh < 0x80) Res |= FD32_GENSFN_WAS_INVALID;
+      s += fd32_utf32to8(upCh, s);
+    }
+  *s = 0;
+
+  /* Convert the Purified name to the OEM code page in FCB format */
+  /* TODO: Must report WAS_INVALID if an extended char maps to ASCII! */
+  if (utf8_to_oemcp(Purified, DotPos ? DotPos - Purified : -1, ShortName, 8))
+    Res |= FD32_GENSFN_WAS_INVALID;
+  if (DotPos) if (utf8_to_oemcp(DotPos + 1, -1, &ShortName[8], 3))
+                Res |= FD32_GENSFN_WAS_INVALID;
+  if (ShortName[0] == ' ') return FD32_EFORMAT;
+  if (ShortName[0] == 0xE5) Dest[0] = (char) 0x05;
+
+  /* Return the generated short name in the specified format */
+  switch (Flags & FD32_GENSFN_FORMAT_MASK)
+  {
+    case FD32_GENSFN_FORMAT_FCB    : memcpy(Dest, ShortName, 11);
+                                     return Res;
+    case FD32_GENSFN_FORMAT_NORMAL : fat_expand_fcb_name(Dest, ShortName); /* was from the FS layer */
+                                     return Res;
+    default                        : return FD32_EINVAL;
+  }
+}
+
+
+/* Compares two file names in FCB format. Name2 may contain '?' wildcards. */
+/* Returns zero if the names match, or nonzero if they don't match.        */
+/* TODO: Works only on single byte character sets!                       */
+/* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
+static int compare_fcb_names(BYTE *Name1, BYTE *Name2)
+{
+  int k;
+  for (k = 0; k < 11; k++)
+  {
+    if (Name2[k] == '?') continue;
+    if (Name1[k] != Name2[k]) return -1;
+  }
+  return 0;
+}
+
 
 /* Generate a valid 8.3 file name for a long file name, and makes sure */
 /* the generated name is unique in the specified directory appending a */
@@ -100,8 +203,8 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
   tDirEntry  E;
 
   LOG_PRINTF(("Generating unique short file name for \"%s\"\n", LongName));
-  Res = fd32_gen_short_fname(ShortName, LongName, FD32_GENSFN_FORMAT_FCB);
-  LOG_PRINTF(("fd32_gen_short_fname returned %08x\n", Res));
+  Res = gen_short_fname1(ShortName, LongName, FD32_GENSFN_FORMAT_FCB); /* was from FS layer */
+  LOG_PRINTF(("gen_short_fname1 returned %08x\n", Res));
   if (Res <= 0) return Res;
   /* TODO: Check case change! */
   if (!(Res & FD32_GENSFN_WAS_INVALID)) return 1;
@@ -131,9 +234,35 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
         memcpy(ShortName, Aux, 11);
         return 1;
       }
-      if (fd32_compare_fcb_names(E.Name, Aux) == 0) break;
+      if (compare_fcb_names(E.Name, Aux) == 0) break; /* was from the FS layer */
     }
   }
   return FD32_EACCES;
 }
 #endif /* #ifdef FATWRITE */
+
+
+/* Gets a UTF-8 short file name from an FCB file name. */
+/* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
+int fat_expand_fcb_name(char *Dest, BYTE *Source)
+{
+  BYTE *NameEnd;
+  BYTE *ExtEnd;
+  char  Aux[13];
+  BYTE *s = Source;
+  char *a = Aux;
+
+  /* Count padding spaces at the end of the name and the extension */
+  for (NameEnd = Source + 7;  *NameEnd == ' '; NameEnd--);
+  for (ExtEnd  = Source + 10; *ExtEnd  == ' '; ExtEnd--);
+
+  /* Put the name, a dot and the extension in Aux */
+  if (*s == 0x05) *a++ = (char) 0xE5, s++;
+  for (; s <= NameEnd; *a++ = (char) *s++);
+  if (Source + 8 <= ExtEnd) *a++ = '.';
+  for (s = Source + 8; s <= ExtEnd; *a++ = (char) *s++);
+  *a = 0;
+
+  /* And finally convert Aux from the OEM code page to UTF-8 */
+  return oemcp_to_utf8(Aux, Dest);
+}

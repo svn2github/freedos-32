@@ -359,6 +359,8 @@ BYTE lfn_checksum   (tDirEntry *D);
 #ifdef FATWRITE
 int  gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint);
 #endif
+int fat_expand_fcb_name(char *Dest, BYTE *Source); /* was from the FS layer */
+
 
 /* MOUNT.C - Mount a FAT volume initializing all its data */
 int fat_unmount  (tVolume *V);

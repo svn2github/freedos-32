@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "readdir.c" - Services to find a specified directory entry     *
  *                                                                        *
@@ -104,7 +104,7 @@ static int readdir(tFile *Dir, tFatFind *Ff)
       {
         Ff->SfnEntry    = Buffer[BufferPos];
         Ff->EntryOffset = Dir->TargetPos - NumRead;
-        fd32_expand_fcb_name(Ff->ShortName, Buffer[BufferPos].Name);
+        fat_expand_fcb_name(Ff->ShortName, Buffer[BufferPos].Name); /* was from the FS layer */
         #ifdef FATLFN
         Ff->LfnEntries = fetch_lfn(Buffer, BufferPos, LongNameUtf16);
         if (Ff->LfnEntries)
