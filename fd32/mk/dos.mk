@@ -1,5 +1,7 @@
-OSLIB=../oslib
+ifndef OSLIB_DIR
 OSLIB_DIR=..\oslib
+endif
+
 CC  = gcc
 AS  = gcc
 LD  = ld

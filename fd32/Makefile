@@ -1,9 +1,9 @@
+include ./config.mk
+
 ifndef OSLIB
 OSLIB = ../oslib
 OSLIB_DIR = ../oslib
 endif
-
-include ./config.mk
 
 INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
