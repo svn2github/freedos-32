@@ -74,7 +74,7 @@ static struct symbol syscall_table[] = {
   { "rm_irq_table", (DWORD)(&rm_irq_table) },
   { "exc_table", (DWORD)(&exc_table) },
   { "get_syscall_table", (DWORD)get_syscall_table },
-  { "X86_get_CPU", (DWORD)x86_get_cpu },
+  { "x86_get_cpu", (DWORD)x86_get_cpu },
   { "kern_CS", (DWORD)(&kern_CS) },
   { "kern_DS", (DWORD)(&kern_DS) },
   { "vm86_get_tss", (DWORD)vm86_get_tss },
@@ -88,10 +88,10 @@ static struct symbol syscall_table[] = {
   {"fd32_cpu_idle", (DWORD)fd32_cpu_idle},
   /* Symbols for GDT and IDT handling */
   { "IDT",       (DWORD) (&IDT)      },
-  { "IDT_place", (DWORD) idt_place   },
-  { "GDT_place", (DWORD) gdt_place   },
+  { "idt_place", (DWORD) idt_place   },
+  { "gdt_place", (DWORD) gdt_place   },
   { "GDT_base",  (DWORD) (&GDT_base) },
-  { "GDT_read",  (DWORD) gdt_read    },
+  { "gdt_read",  (DWORD) gdt_read    },
   /* Symbols for libc functions */
   { "strcpy",  (DWORD) strcpy  },
   { "strncpy", (DWORD) strncpy },

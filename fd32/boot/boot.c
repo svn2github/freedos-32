@@ -16,6 +16,8 @@
 #include <ll/sys/ll/time.h>
 #include <ll/sys/ll/event.h>
 
+#include <ll/string.h>
+
 /* #define STATIC_DPMI */
 /* #define STATIC_BIOSDISK */
 
@@ -34,6 +36,36 @@ extern void DPMI_init(void);
 extern void biosdisk_init(void);
 #endif
 
+static int timer_mode = LL_PERIODIC;
+static int timer_period = 1000;
+
+void args_parse(int argc, char *argv[])
+{
+  int i;
+
+  i = 1;
+  while (i < argc) {
+    if (strcmp(argv[i], "--tick") == 0) {
+      int p;
+      
+      i++;
+      if (i < argc) {
+        p = atoi(argv[i]);
+        if ((p > 0) && (p < 18000)) {
+	  message("Setting Tick = %d\n", p);
+	  timer_period = p;
+        } else {
+	  message("Wrong Tick value %d; ignoring it\n", p);
+        }
+      } else {
+	message("Error: otpion \"--tick\" needs an argument; ignoring it\n");
+      }
+    }
+
+    i++;
+  }
+}
+
 int main (int argc, char *argv[])
 {
 #ifdef __BOOT_DEBUG__
@@ -46,12 +78,14 @@ int main (int argc, char *argv[])
   extern WORD kern_CS, kern_DS;
   
 #ifdef __BOOT_DEBUG__
-  sp1 = get_SP();
+  sp1 = get_sp();
 #endif
 
   cli();
-  parms.mode = LL_PERIODIC;
-  parms.tick = 1000;
+  args_parse(argc, argv);
+  /*FIXME: Use a boot time parameter to decide if LL_FORCE_TIMER2 or not...*/
+  parms.mode = timer_mode | LL_FORCE_TIMER2;
+  parms.tick = timer_period;
   mbi = ll_init();
   event_init(&parms);
 
@@ -145,7 +179,7 @@ int main (int argc, char *argv[])
   cli();
   l1_end();
 #ifdef __BOOT_DEBUG__
-  sp2 = get_SP();
+  sp2 = get_sp();
   fd32_log_printf("[FD32] End reached!\n");
   fd32_log_printf("    Actual stack : %lx - ", sp2);
   fd32_log_printf("    Begin stack : %lx\n", sp1);

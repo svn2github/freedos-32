@@ -427,7 +427,7 @@ typedef struct MouseData
 {
     DWORD flags;   /* bits 0-7: number of axes, others 0      */
     DWORD buttons; /* buttons flags (1=pressed). LSB=button 0 */
-    LONG  axes[3]; /* Array (variable length) axis increments */
+    long int axes[3]; /* Array (variable length) axis increments */
 }
 MouseData;
 
