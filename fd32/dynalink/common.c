@@ -141,9 +141,10 @@ address += *((DWORD *)destination);
         address += syms[idx].offset + s[syms[idx].section].base + base;
         destination = rel[i].offset + base;
       } else if (rel[i].type == REL_TYPE_ELF_ABSOLUTE) {
-#ifndef __LUCA_IS_CRAZY__
+#if 1
         address = *(DWORD *)destination;
-#endif
+        address += base + s[syms[idx].section].base + syms[idx].offset;
+#else
 	/* WARNING!!!! This is clearly a hack... Check what really
 	 * must be done in this case...
 	 */
@@ -152,6 +153,7 @@ address += *((DWORD *)destination);
         } else {
           address += base + s[syms[idx].section].base + syms[idx].offset;
         }
+#endif
       } else {
         address = (s[syms[idx].section].base + syms[idx].offset) - (rel[i].offset /*+ base*/) - 4;
 #ifdef __COFF_DEBUG__
