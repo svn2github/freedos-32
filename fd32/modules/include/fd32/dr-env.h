@@ -62,6 +62,8 @@ extern inline Fd32Event fd32_event_post(unsigned milliseconds, Fd32EventCallback
 }
 #define fd32_event_delete event_delete
 
+#define WFC(c) while (c) fd32_cpu_idle()
+
 
 #endif /* #ifndef __FD32_FD32_DRENV_H */
 
