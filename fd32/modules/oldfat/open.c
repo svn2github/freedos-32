@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "open.c" - Open, create and close a file (or even a directory  *
  *                    as a file) in any directory, allocating and freeing *
@@ -418,7 +418,10 @@ static int descend_path(tVolume *V, char *Path, tFile **Fp)
   F->DirEntry.Attr = FD32_ADIR;
   /* Start to descend the path from the root directory */
   if (*Path == '\\') Path++;
-  if (V->FatType != FAT32) F->DirEntrySector = 0;
+  F->ParentFstClus = 0;
+  F->DirEntryOffset = 0xFFFFFFFF; /* impossible for a non-root directory */
+  F->DirEntrySector = 0;
+  F->DirEntrySecOff = 0;
   F->DirEntry.FstClusHI = (WORD) (V->Bpb.BPB_RootClus >> 16);
   F->DirEntry.FstClusLO = (WORD)  V->Bpb.BPB_RootClus;
   rewind_file(F);
@@ -640,13 +643,19 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
 int fat_reopendir(tVolume *V, tFindRes *Id, tFile **F)
 {
   int Res;
-  
+  LOG_PRINTF(("fat_reopendir: EntryCount=%u FirstDirCluster=%lu\n", Id->EntryCount, Id->FirstDirCluster));
   if ((*F = take_file()) == NULL) return FD32_EMFILE;
-
-  if (Id->FirstDirCluster == 0) (*F)->DirEntrySector = 0;
+  (*F)->V = V;
+  (*F)->ParentFstClus  = 0; /* Not available */
+  (*F)->DirEntryOffset = 0; /* Not available */
+  /* TODO: Setting DirEntrySector=0 causes FAT_ISROOT to be true, and This Is Bad */
+  (*F)->DirEntrySector = 0; /* Not available */
+  (*F)->DirEntrySecOff = 0; /* Not available */
+  memset(&(*F)->DirEntry, 0, sizeof(tDirEntry));  
   (*F)->DirEntry.Attr      = FD32_ADIR;
   (*F)->DirEntry.FstClusHI = (WORD) (Id->FirstDirCluster >> 16);
   (*F)->DirEntry.FstClusLO = (WORD)  Id->FirstDirCluster;
+  (*F)->DirEntryChanged = 0;
   (*F)->TargetPos       = Id->EntryCount << 5;
   (*F)->FilePos         = 0;
   (*F)->Cluster         = Id->FirstDirCluster;

@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "readwrit.c" - Read or write a block of data from/to a file    *
  *                                                                        *
@@ -149,6 +149,7 @@ static int allocate_and_link_new_cluster(tFile *F, DWORD *Cluster)
     }
     if (Res < 0) return Res;
   }
+  F->V->FSI_Free_Count--;
   *Cluster = NewCluster;
   return 0;
 }
@@ -184,6 +185,7 @@ static int allocate_first_cluster(tFile *F, DWORD *Cluster)
     }
     if (Res) return Res;
   }
+  F->V->FSI_Free_Count--;
   *Cluster = NewCluster;
   return 0;
 }

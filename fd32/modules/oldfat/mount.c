@@ -2,7 +2,7 @@
  * FreeDOS 32 FAT Driver                                                  *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "mount.c" - Mount a FAT volume initializing its data           *
  *                                                                        *
@@ -222,11 +222,16 @@ static int check_bpb(BYTE *SecBuf, DWORD DskSz)
   }
   else
   {
+    /* The FreeDOS format does not zero BPB_TotSec32 even if
+     * BPB_TotSec16 is nonzero. See the FreeDOS bug 1871.
+     * Temporarily disabling this check... */
+    #if 0
     if (Bpb->BPB_TotSec32 != 0)
     {
-      LOG_PRINTF(("Both BPB_TotSec16 and BPB_TotSec32 are nonzero\n"));
+      LOG_PRINTF(("Both BPB_TotSec16=%u and BPB_TotSec32=%lu are nonzero\n", Bpb->BPB_TotSec16, Bpb->BPB_TotSec32));
       return FD32_EMEDIA;
     }
+    #endif
     TotSec = Bpb->BPB_TotSec16;
   }
   if (TotSec > DskSz)
