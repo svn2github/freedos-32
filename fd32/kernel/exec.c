@@ -147,6 +147,14 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
       message("WARNING: Initialization function not found!\n");
       return -1;
     }
+  } else if (tables.flags & DLL_WITH_ENTRY) {
+    dyn_entry += exec_space;
+    *s = size;
+    *image_base = exec_space;
+    *e_s = -1; /* Note: Just to notify the exec_process it"s DLL */
+    parser->free_tables(p, &tables, symbols, sections);
+
+    return dyn_entry;
   } else {
     offset = exec_space - sections[0].base;
 #ifdef __EXEC_DEBUG__
@@ -194,6 +202,12 @@ int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char
     fd32_log_printf("       Returned\n");
 #endif
     
+    retval = 0;
+  } else if (exec_space == -1) {
+    create_dll(dyn_entry, base, size + LOCAL_BSS);
+#ifdef __EXEC_DEBUG__
+    fd32_log_printf("       Returned\n");
+#endif
     retval = 0;
   } else {
 #ifdef __EXEC_DEBUG__

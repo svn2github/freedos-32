@@ -28,6 +28,7 @@ static inline DWORD maxmem_get(struct process_info *p)
 int dos_exec(char *filename, DWORD env_segment, char * args,
 	DWORD fcb1, DWORD fcb2, WORD *return_value);
 
+void create_dll(DWORD entry, DWORD base, DWORD size);
 int create_process(DWORD entry, DWORD base, DWORD size, char *name, char *args);
 void fd32_abort(void);
 void fd32_reboot(void);

@@ -50,7 +50,7 @@ DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *table
   #endif
   tables->num_sections = header.f_nscns;
   if (header.f_flags&IMAGE_FILE_DLL)
-    tables->flags |= NO_ENTRY;
+    tables->flags |= DLL_WITH_ENTRY;
   else
     tables->flags = 0; /* Note: Do not set NEED_IMAGE_RELOCATION, only when the base_reloc_size != 0 */
   tables->image_base = 0;
@@ -264,7 +264,7 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   /* Save the essential info */
   *size = image_memory_size;
   /* Note: If the image is NORMAL executable not DLL, set its image_base += s[0].base (it means it has local stack space?) */
-  if (!(tables->flags&NO_ENTRY))
+  if (!(tables->flags&DLL_WITH_ENTRY))
     image_base += s[0].base;
   /* Return the exec space */
   return image_base;

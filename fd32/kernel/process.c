@@ -324,6 +324,26 @@ void restore_psp(void)
 #endif
 }
 
+void create_dll(DWORD entry, DWORD base, DWORD size)
+{
+  struct psp local_psp;
+  extern struct psp *current_psp;
+  int dll_run(DWORD);
+
+  /* DLL initialization */
+#ifdef __EXEC_DEBUG__
+  fd32_log_printf("       Entry point: 0x%lx\n", entry);
+  fd32_log_printf("       Going to run...\n");
+#endif
+  local_psp.memlimit = base + size;
+  local_psp.link = current_psp;
+  current_psp = &local_psp;
+  dll_run(entry);
+  
+  /* CHECKME: I added these two lines... Are they correct??? Luca. */
+  current_SP = current_psp->old_stack;
+  current_psp = current_psp->link;
+}
 
 /* TODO: It's probably better to separate create_process and run_process... */
 

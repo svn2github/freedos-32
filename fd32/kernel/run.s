@@ -5,6 +5,9 @@
  */
 #include <ll/i386/linkage.h>
 
+#define DLL_PROCESS_DETACH 0
+#define DLL_PROCESS_ATTACH 1
+
 .bss
 #if 0
 retval:
@@ -25,7 +28,21 @@ stubinfo_sel:
 
 .text	
 .globl SYMBOL_NAME(run)
+.globl SYMBOL_NAME(dll_run)
 .globl SYMBOL_NAME(restore_sp)
+
+SYMBOL_NAME_LABEL(dll_run)
+	movl 4(%esp), %eax
+	pusha
+	pushl $0
+	pushl $DLL_PROCESS_ATTACH
+	pushl $0
+	movl %esp, SYMBOL_NAME(current_SP)
+	call *%eax
+/* The DLL init function follows the pascal parameters passing
+   convenction: no need to pop the parameters from the stack!!! */
+	popa
+	ret
 
 SYMBOL_NAME_LABEL(run)
 	movl 12(%esp), %eax
