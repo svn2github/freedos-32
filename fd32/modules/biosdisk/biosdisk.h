@@ -80,8 +80,9 @@ int biosdisk_devclose   (Disk *d);
 int biosdisk_mediachange(const Disk *d);
 
 /* Initialization functions */
-int biosdisk_detect(int floppy, int hd);
-int biosdisk_scanpart(const Disk *d, const char *dev_name);
+int biosdisk_detect_fd(void);
+int biosdisk_detect_hd(void);
+int biosdisk_scanpart (const Disk *d, const char *dev_name);
 
 /* Driver request function */
 fd32_request_t biosdisk_request;
