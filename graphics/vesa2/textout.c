@@ -25,17 +25,70 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 #include "vesa2.h"
+#define CLIPPING
 
 
-/* TODO: Add clipping to vesa2_textout */
-void vesa2_textout(unsigned x, unsigned y, const char *s, const PcfFont *font,
+#ifdef CLIPPING
+void vesa2_textout(int x, int y, const char *s, const PcfFont *font,
+                   DWORD pixel, DWORD *lfb, const VesaModeInfo *info)
+{
+  DWORD       *row;
+  const DWORD *data;
+  DWORD        bit;
+  int          xx, yy;
+  int          xmax, ymax;
+  unsigned     c;
+  unsigned     glyph;
+  FontMetrics *met;
+
+  for (; *s; s++)
+  {
+    c     = (unsigned) *s;
+    glyph = font->default_char;
+    /* Get the glyph for the character from the glyph index */
+    if ((c >= font->min_encoding)
+     && (c <= font->max_encoding)
+     && (font->glyph_indeces[c] != 0xFFFF))
+      glyph = font->glyph_indeces[c - font->min_encoding];
+
+    /* Get font metrics and data and skip rows above clipping rectangle */
+    met  = &font->metrics[glyph];
+    data = &font->bitmap_data[font->bitmap_offsets[glyph] >> 2];
+    ymax = y + met->descent - 1;
+    if (ymax > vesa2_cliprect.bottom) ymax = vesa2_cliprect.bottom;
+    for (yy = y - met->ascent; yy < vesa2_cliprect.top; yy++) data++;
+
+    /* Draw rows into the clipping rectangle */
+    row = &lfb[yy * (info->bytes_per_scanline >> 2)];
+    for (; yy <= ymax; yy++)
+    {
+      bit  = 0x00000001;
+      /* Skip all columns on the left of the clipping rectangle */
+      xmax = x + met->right_side_bearing - 1;
+      if (xmax > vesa2_cliprect.right) xmax = vesa2_cliprect.right;
+      for (xx = x + met->left_side_bearing; xx < vesa2_cliprect.left; xx++)
+        bit <<= 1;
+      /* Draw columns into the clipping rectangle */
+      for (; xx <= xmax; xx++)
+      {
+        if (*data & bit) *(row + xx) = pixel;
+        bit <<= 1;
+      }
+      row += info->bytes_per_scanline >> 2;
+      data++;
+    }
+    x += met->character_width;
+  }
+}
+#else
+void vesa2_textout(int x, int y, const char *s, const PcfFont *font,
                    DWORD pixel, DWORD *lfb, const VesaModeInfo *info)
 {
   unsigned     width, height;
   DWORD       *column, *row;
   const DWORD *data;
   DWORD        bit;
-  
+
   for (; *s; s++)
   {
     unsigned     c     = (unsigned) *s;
@@ -67,3 +120,4 @@ void vesa2_textout(unsigned x, unsigned y, const char *s, const PcfFont *font,
     x += met->character_width;
   }
 }
+#endif
