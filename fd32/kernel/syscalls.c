@@ -23,6 +23,7 @@
 #include "devices.h"
 #include "logger.h"
 #include "filesys.h"
+#include "drives.h"
 
 extern DWORD ll_exc_table[16];
 extern struct handler exc_table[32];
@@ -130,6 +131,7 @@ static struct symbol syscall_table[] = {
   { "fd32_lfn_findclose",     (DWORD) fd32_lfn_findclose     },
   { "fd32_rename",            (DWORD) fd32_rename            },
   { "fd32_add_drive",         (DWORD) fd32_add_drive         },
+  { "dos_exec", (DWORD)dos_exec},
   EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,

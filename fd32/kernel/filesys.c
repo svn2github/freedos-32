@@ -45,22 +45,9 @@
 #include "devices.h"
 #include "dev/fs.h"
 #include "dev/char.h"
-
-
-typedef struct Cds
-{
-  struct Cds       *Next;
-  fd32_dev_fsvol_t *Ops;
-  char              Drive;
-  char              Device[FD32_MAX_LFN_LENGTH];
-  char              CurDir[FD32_MAX_LFN_PATH_LENGTH];
-}
-tCds;
-
+#include "drives.h"
 
 extern struct psp *current_psp;
-static char        DefaultDrive = 'C';
-static tCds       *CdsList = NULL;
 
 
 /* Given a handle, checks if valid and returns a pointer to the JFT entry */
@@ -70,62 +57,6 @@ static inline jft_t *validate_jft(int Handle)
   if (current_psp->Jft[Handle].Ops == NULL) return NULL;
   return &current_psp->Jft[Handle];
 }
-
-
-/* Returns the file system driver operations related to the drive letter */
-/* specified in the FileName, if present, or the default drive letter.   */
-/* Returns NULL if an invalid drive is specified.                        */
-static fd32_dev_fsvol_t *get_drive(char *FileName)
-{
-  char  DriveLetter = DefaultDrive;
-  tCds *D;
-
-  if (FileName[1] == ':')
-  {
-    /* FIX ME: LASTDRIVE should be read from Config.sys */
-    if ((toupper(FileName[0]) < 'A') || (toupper(FileName[0]) > 'Z'))
-      return NULL; /* Invalid drive specification */
-    DriveLetter = toupper(FileName[0]);
-  }
-
-  for (D = CdsList; D != NULL; D = D->Next)
-    if (DriveLetter == D->Drive) return D->Ops;
-  return NULL; /* Invalid drive specification */
-}
-
-
-/* Returns the file name without the drive specification part */
-static char *get_name_without_drive(char *FileName)
-{
-  if (FileName[1] == ':') return &FileName[2];
-                     else return FileName;
-}
-
-
-/* The SET DEFAULT DRIVE system call.                 */
-/* Returns the number of available drives on success, */
-/* or a negative error code on failure.               */
-int fd32_set_default_drive(char Drive)
-{
-  /* FIX ME: LASTDRIVE should be read frm Config.sys */
-  if ((toupper(Drive) < 'A') || (toupper(Drive) > 'Z'))
-    return FD32_ERROR_UNKNOWN_UNIT;
-  DefaultDrive = toupper(Drive);
-  /* FIX ME: From the RBIL (INT 21h, AH=0Eh)                          */
-  /*         under DOS 3.0+, the return value is the greatest of 5,   */
-  /*         the value of LASTDRIVE= in CONFIG.SYS, and the number of */
-  /*         drives actually present.                                 */
-  return 'Z' - 'A' + 1;
-}
-
-
-/* The GET DEFAULT DRIVE system call.               */
-/* Returns the letter of the current default drive. */
-char fd32_get_default_drive()
-{
-  return DefaultDrive;
-}
-
 
 /* The MKDIR system call.                                              */
 /* Calls the "mkdir" function of the file system driver related to the */
@@ -174,7 +105,10 @@ int fd32_open(char *FileName, DWORD Mode, WORD Attr,
 
   /* Call the open function of the file system device */
   Ops = get_drive(FileName);
-  if (Ops == NULL) return FD32_ERROR_UNKNOWN_UNIT;
+  if (Ops == NULL) {
+    return FD32_ERROR_UNKNOWN_UNIT;
+  }
+
   Fd  = Ops->open(Ops->P, get_name_without_drive(FileName),
                   Mode, Attr, AliasHint, Result, UseLfn);
   if (Fd < 0) return Fd;
@@ -547,25 +481,6 @@ int fd32_rename(char *OldName, char *NewName, int UseLfn)
   return OpsOld->rename(OpsOld->P, get_name_without_drive(OldName),
                         get_name_without_drive(NewName), UseLfn);
 }
-
-
-/* Adds a drive in the Current Directory Structure list.      */
-/* Returns 0 on success, or a negative error code on failure. */
-int fd32_add_drive(char Drive, char *Device)
-{
-  tCds *D;
-  fd32_dev_fsvol_t *Ops = fd32_dev_query(Device, FD32_DEV_FSVOL);
-  if (Ops == NULL) return -1; /* FIX ME: Error is "invalid device" */
-  D = mem_get(sizeof(tCds));
-  D->Ops   = Ops;
-  D->Drive = toupper(Drive);
-  strcpy(D->Device, Device);
-  strcpy(D->CurDir, "\\");
-  D->Next = CdsList;
-  CdsList = D;
-  return 0;
-}
-
 
 #if 0
 int fd32_chdir(char Drive, char *DirName)

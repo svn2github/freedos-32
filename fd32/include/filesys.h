@@ -227,8 +227,6 @@ __attribute__ ((packed)) fd32_fs_dosfind_t;
 /* * * * * * * * * * * */
 /* Function prototypes */
 /* * * * * * * * * * * */
-int  fd32_set_default_drive(char Drive);
-char fd32_get_default_drive();
 int  fd32_mkdir            (char *DirName, int UseLfn);
 int  fd32_rmdir            (char *DirName, int UseLfn);
 int  fd32_open             (char *FileName, DWORD Mode, WORD Attr, WORD AliasHint, int *Result, int UseLfn);

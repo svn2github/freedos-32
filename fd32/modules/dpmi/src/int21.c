@@ -6,15 +6,25 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/string.h>
 
+#include "kernel.h"
 #include "filesys.h"
 #include "dev/fs.h"
 #include "stubinfo.h"
+#include "drives.h"
 #include "logger.h"
 
 #include "rmint.h"
 
 extern struct psp *current_psp;
 
+struct par_block {
+  WORD env;
+  DWORD cmd_tail;
+  DWORD fcb1;
+  DWORD fcb2;
+  DWORD res_1;
+  DWORD res_2;
+};
 
 /* Given a FD32 return code, prepare the standard DOS return status. */
 /* - on error: carry flag set, error (positive) in AX.               */
@@ -731,6 +741,23 @@ void int21_handler(union rmregs *r)
       /* BX file handle */
       /* CX new handle  */
       Res = fd32_forcedup(r->x.bx, r->x.cx);
+      dos_return(Res, r);
+      return;
+
+    /* DOS 2+ - "EXEC" - Load and/or Execute program */
+    case 0x4B:
+      {
+	struct par_block *pb;
+
+	pb = (struct par_block *)((r->x.es << 4) + r->x.bx);
+        /* Only AH = 0x00 - Load and Execute - is currently supported */
+        if (r->h.al != 0) {
+	  dos_return(-1, r); /* function number invalid */
+	  return;
+        }
+        Res = dos_exec((char *)((r->x.ds << 4) + r->x.dx),
+	      pb->env, pb->cmd_tail, pb->fcb1, pb->fcb2);
+      }
       dos_return(Res, r);
       return;
 

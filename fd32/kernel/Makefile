@@ -15,7 +15,7 @@ ASM_OPT += -I$(INCL)
 LINK_OPT = -Bstatic
 
 OBJS = call.o pmm.o run.o exch.o abort.o process.o filesys.o exec.o \
-	 syscalls.o logger.o devices.o
+	 syscalls.o logger.o devices.o drives.o dos_exec.o
 
 all: kernel.o
 
