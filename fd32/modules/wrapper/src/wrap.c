@@ -169,14 +169,15 @@ static void my_process_dos_module(struct kern_funcs *p, int file,
   DWORD dj_header_start;
   int res;
 
-  p->file_seek(file, 0, 0);
+  p->file_seek(file, 0, p->seek_set);
   p->file_read(file, &hdr, sizeof(struct dos_header));
 
   dj_header_start = hdr.e_cp * 512L;
   if (hdr.e_cblp) {
     dj_header_start -= (512L - hdr.e_cblp);
   }
-  p->file_seek(file, dj_header_start, 0);
+  p->file_offset = dj_header_start;
+  p->file_seek(file, dj_header_start, p->seek_set);
 
   res = identify_module(p, file, parser);
   if (res == 2 /* MOD_COFF */) {
