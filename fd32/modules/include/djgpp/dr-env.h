@@ -51,6 +51,7 @@ extern inline void fd32_irq_bind(unsigned irq, Fd32IntHandler *handler)
     __dpmi_get_and_set_virtual_interrupt_state(irq_state);
 }
 
+#define WFC(c) while (c)
 
 /* Why do we need this? --Salvo */
 WORD app_ds;
