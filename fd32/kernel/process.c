@@ -89,7 +89,8 @@ void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD b
   npsp->jft_size = MAX_OPEN_FILES;
   npsp->jft      = fd32_init_jft(MAX_OPEN_FILES);
   #endif
-  npsp->dta = &npsp->command_line_len;
+  npsp->dta      = &npsp->command_line_len;
+  nnsp->cds_list = 0;
 
   /* And now... Set the arg list!!! */
   npsp->command_line_len = strlen(args);
