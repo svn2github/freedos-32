@@ -10,7 +10,17 @@
 #include <filesys.h>
 #include <errors.h>
 #include <stubinfo.h>
+#include <logger.h>
 #include "rmint.h"
+
+/* Define the DEBUG symbol in order to activate log output */
+//#define DEBUG
+#ifdef DEBUG
+ #define LOG_PRINTF(s) fd32_log_printf s
+#else
+ #define LOG_PRINTF(s)
+#endif
+
 
 /* The current PSP is needed for the pointer to the DTA */
 extern struct psp *current_psp;
@@ -214,6 +224,7 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
   {
     /* Get file attributes */
     case 0x00:
+      LOG_PRINTF(("INT 21h - Getting attributes of file \"%s\"\n", SfnPath));
       /* CX attributes        */
       /* AX = CX (DR-DOS 5.0) */
       Res = fd32_get_attributes(Handle, &A);
@@ -223,6 +234,7 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 
     /* Set file attributes */
     case 0x01:
+      LOG_PRINTF(("INT 21h - Setting attributes of file \"%s\" to %04x\n", SfnPath, r->x.cx));
       /* CX new attributes */
       Res = fd32_get_attributes(Handle, &A);
       /* FIX ME: Should close the file if currently open in sharing-compat */
@@ -617,6 +629,7 @@ void int21_handler(union rmregs *r)
 
     /* DOS 1+ - Get default drive */
     case 0x19:
+      LOG_PRINTF(("INT 21h - Getting default drive\n"));
       /* Return the default drive in AL (0='A', etc.) */
       r->h.al = fd32_get_default_drive() - 'A';
       RMREGS_CLEAR_CARRY;
@@ -692,16 +705,21 @@ void int21_handler(union rmregs *r)
       /*       (volume label and directory are not allowed) */
       Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
       dos_return(Res, r);
+      LOG_PRINTF(("INT 21h - Creat \"%s\" with attr %04x\n", SfnPath, r->x.cx));
       if (Res < 0) return;
       Res = fd32_open(SfnPath,
                       FD32_ORDWR | FD32_OCOMPAT | FD32_OTRUNC | FD32_OCREAT,
                       r->x.cx,
                       0,   /* alias hint, not used   */
                       NULL /* action taken, not used */);
-      dos_return(Res, r);
-      if (Res < 0) return;
-      Res = fd32_close(Res); /* CREAT does not keep the file open */
-      dos_return(Res, r);
+      if (Res < 0)
+      {
+        RMREGS_SET_CARRY;
+        r->x.ax = (WORD) Res;
+        return;
+      }
+      RMREGS_CLEAR_CARRY;
+      r->x.ax = (WORD) Res; /* The new handle */
       return;
 
     /* DOS 2+ - "OPEN" - Open existing file */
@@ -711,6 +729,7 @@ void int21_handler(union rmregs *r)
       /* CL    attribute mask for to look for (?server call?) */
       Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
       dos_return(Res, r);
+      LOG_PRINTF(("INT 21h - Open \"%s\" with mode %02x\n", SfnPath, r->h.al));
       if (Res < 0) return;
       Res = fd32_open(SfnPath, FD32_OEXIST | r->h.al, FD32_ANONE,
                       0,   /* alias hint, not used   */
@@ -728,6 +747,7 @@ void int21_handler(union rmregs *r)
     /* DOS 2+ - "CLOSE" - Close file */
     case 0x3E:
       /* BX file handle */
+      LOG_PRINTF(("INT 21h - Close handle %04x\n", r->x.bx));
       Res = fd32_close(r->x.bx);
       dos_return(Res, r); /* Recent DOSes preserve AH, that's OK for us */
       return;
@@ -862,6 +882,7 @@ void int21_handler(union rmregs *r)
       char  Cwd[FD32_LFNPMAX];
       char *Dest = (char *) (r->x.ds << 4) + r->x.si;
 
+      LOG_PRINTF(("INT 21h - Getting current dir of drive %02x\n", r->h.dl));
       Drive[0] = fd32_get_default_drive();
       if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A';
       fd32_getcwd(Drive, Cwd);
@@ -902,6 +923,7 @@ void int21_handler(union rmregs *r)
       /* AL    special flag for APPEND (ignored)                   */
       /* CX    allowable attributes (archive and readonly ignored) */
       /* DS:DX pointer to the ASCIZ file specification             */
+      LOG_PRINTF(("INT 21h - Findfirst \"%s\" with attr %04x\n", (char *) (r->x.ds << 4) + r->x.dx, r->x.cx));
       Res = fd32_dos_findfirst((char *) (r->x.ds << 4) + r->x.dx,
                                r->x.cx, current_psp->dta);
       dos_return(Res, r);

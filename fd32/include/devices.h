@@ -1,6 +1,10 @@
 #ifndef __FD32_DEV_H
 #define __FD32_DEV_H
 
+#ifndef __BASIC_DATA__
+#include <dr-env.h>
+#endif
+
 /* Driver request function prototype */
 typedef int fd32_request_t(DWORD Function, void *Params);
 

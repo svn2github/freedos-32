@@ -326,6 +326,7 @@ int fd32_get_attributes(int Handle, fd32_fs_attr_t *A)
   if ((J = validate_file_handle(Handle)) == NULL) return FD32_EBADF;
   Ga.Size   = sizeof(fd32_getattr_t);
   Ga.FileId = J->DeviceId;
+  Ga.Attr   = (void *) A;
   return J->request(FD32_GETATTR, &Ga);
 }
 

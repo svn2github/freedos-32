@@ -68,10 +68,12 @@ static int dos_find(fd32_request_t *request, void *DirId, fd32_fs_dosfind_t *Dta
   {
     /* According to the RBIL, if search attributes are not 08h (volume  */
     /* label) all files with at most the specified attributes should be */
-    /* returned, otherwise only the volume label should be returned.    */
+    /* returned (archive and readonly are always returned), otherwise   */
+    /* only the volume label should be returned.                        */
     if (Dta->SearchAttr != FD32_AVOLID)
     {
-      if ((Dta->SearchAttr | F.Attr) != Dta->SearchAttr) continue;
+      BYTE a = Dta->SearchAttr | FD32_AARCHIV | FD32_ARDONLY;
+      if ((a | F.Attr) != a) continue;
     }
     else
     {
