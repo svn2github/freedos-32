@@ -106,8 +106,9 @@ static BOOL WINAPI fd32_imp__QueryPerformanceCounter( PLARGE_INTEGER lpcount )
 static PTOP_LEVEL_EXCEPTION_FILTER top_filter;
 static LPVOID STDCALL fd32_imp__SetUnhandledExceptionFilter( LPTOP_LEVEL_EXCEPTION_FILTER filter )
 {
-  fd32_log_printf("[WINB] SetUnhandledExceptionFilter: %lx\n", (DWORD)filter);
   LPTOP_LEVEL_EXCEPTION_FILTER old = top_filter;
+  
+  fd32_log_printf("[WINB] SetUnhandledExceptionFilter: %lx\n", (DWORD)filter);
   top_filter = filter;
   return old;
 }
