@@ -36,7 +36,12 @@
 #define ECX(a)   regs_##a.d.ecx
 #define EDX(a)   regs_##a.d.edx
 
-#define fd32_int(n, r) vm86_callBIOS(n, &regs_##r, &regs_##r, &selectors_##r);
+#define fd32_int(n, r) do { \
+  DWORD f; \
+  f = ll_fsave(); \
+  vm86_callBIOS(n, &regs_##r, &regs_##r, &selectors_##r); \
+  ll_frestore(f); \
+} while (0)
 
 #endif /* #ifndef __FD32_DRENV_BIOS_H */
 

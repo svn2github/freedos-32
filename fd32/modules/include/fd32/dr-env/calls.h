@@ -21,7 +21,4 @@ int fd32_get_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset);
 int fd32_set_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset);
 DWORD GDT_read(WORD sel,DWORD *lim,BYTE *acc,BYTE *gran);
 int vm86_callBIOS(int service,X_REGS16 *in,X_REGS16 *out,X_SREGS16 *s);
-LIN_ADDR DOS_alloc(DWORD s);
-int DOS_free(LIN_ADDR p,DWORD s);
-
 #endif

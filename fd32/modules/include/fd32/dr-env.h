@@ -44,21 +44,20 @@ typedef void Fd32IntHandler(int);
 
 /* Timer-driven events */
 typedef void Fd32EventCallback(void *params);
-typedef int  Fd32Event;
-#define FD32_EVENT_NULL ((Fd32Event) -1)
-extern inline Fd32Event fd32_event_post(unsigned milliseconds, Fd32EventCallback *handler, void *params)
+extern inline int fd32_event_post(unsigned us, Fd32EventCallback *handler, void *params)
 {
-    struct timespec ts;
-    int res;
+  struct timespec ts;
+  int res;
+  DWORD f;
+  
+  f = ll_fsave();
+  ll_gettime(TIME_NEW, &ts);
+  ts.tv_sec  += us / 1000000;
+  ts.tv_nsec += (us % 1000000) * 1000;
+  res = event_post(ts, handler, params);
+  ll_frestore(f);
 
-    cli();
-    ll_gettime(TIME_NEW, &ts);
-    ts.tv_sec  += milliseconds / 1000;
-    ts.tv_nsec += (milliseconds % 1000) * 1E6;
-    res = event_post(ts, handler, params);
-    sti();
-
-    return res;
+  return res;
 }
 #define fd32_event_delete event_delete
 
