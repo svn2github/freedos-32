@@ -51,15 +51,31 @@ extern inline int fd32_event_post(unsigned us, Fd32EventCallback *handler, void 
   DWORD f;
   
   f = ll_fsave();
+#ifdef __TIME_NEW_IS_OK__
   ll_gettime(TIME_NEW, &ts);
-  ts.tv_sec  += us / 1000000;
+#else
+  ll_gettime(TIME_EXACT, &ts);
+#endif
+  ts.tv_sec += us / 1000000;
   ts.tv_nsec += (us % 1000000) * 1000;
+  ts.tv_sec += ts.tv_nsec / 1000000000;
+  ts.tv_nsec %= 1000000000;
   res = event_post(ts, handler, params);
   ll_frestore(f);
 
   return res;
 }
-#define fd32_event_delete event_delete
+extern inline int fd32_event_delete(int index)
+{
+  int res;
+  DWORD f;
+
+  f = ll_fsave();
+  res = event_delete(index);
+  ll_frestore(f);
+
+  return res;
+}
 
 #define WFC(c) while (c) fd32_cpu_idle()
 
