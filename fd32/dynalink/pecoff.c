@@ -16,7 +16,7 @@
 #include "coff.h"
 #include "pecoff.h"
 
-#define __PECOFF_DEBUG__
+/* #define __PECOFF_DEBUG__ */
 
 struct pecoff_extra_info {
   DWORD export_symbol;
@@ -27,7 +27,6 @@ struct pecoff_extra_info {
   DWORD base_reloc_size;
   DWORD base_reloc_offset;
   DWORD section_0_base;
-  DWORD flags; /* File header flags */
 };
 
 
@@ -59,16 +58,20 @@ DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *table
   {
     kf->file_read(f, &optheader, header.f_opthdr);
     if (optheader.magic != PE32MAGIC) {
-      kf->message("[PECOFF] Wrong Magic (0x%x)\n", optheader.magic);
+      kf->message("[PECOFF] ERROR: Wrong magic (0x%x)\n", optheader.magic);
     } else {
-      entry = optheader.entry;
-      if (header.f_flags&IMAGE_FILE_DLL && optheader.subsystem != IMAGE_SUBSYSTEM_NATIVE)
-        tables->flags |= DLL_WITH_STDCALL;
-      else
-        tables->flags |= NO_ENTRY;
+      /* Get the absolute entry */
+      entry = optheader.entry+optheader.image_base;
+      if (header.f_flags&IMAGE_FILE_DLL) {
+        if (optheader.subsystem != IMAGE_SUBSYSTEM_NATIVE) {
+          tables->flags |= DLL_WITH_STDCALL;
+          entry -= optheader.image_base;
+        } else {
+          tables->flags |= NO_ENTRY;
+        }
+      }
       /* Note: Otherwise the DLL could be a FD32 driver */
       tables->image_base = optheader.image_base;
-      pee_info->flags = header.f_flags;
       pee_info->export_symbol = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_EXPORT].vaddr;
       pee_info->export_symbol_size = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_EXPORT].size;
       pee_info->base_reloc = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_BASERELOC].vaddr;
@@ -133,7 +136,7 @@ int PECOFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info 
     tables->num_symbols = edir.func_num;
   }
   
-  /* Is the bss variable needed, I only set it equal to 1 */
+  /* PE BSS section no need to relocation */
   return -1;
 }
 
@@ -198,13 +201,13 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
     s[0].reloc = (struct reloc_info *)r;
   }
 
+  memset((void *)image_base, 0, image_memory_size);
   /* .text & .data section & other sections */
   for (i = 0; i < n; i++) {
     section_memory_start = image_base+s[i].base;
     #ifdef __PECOFF_DEBUG__
     kf->log("Loaded section %d at 0x%lx [file offset %x]\n", i, section_memory_start, s[i].fileptr);
     #endif
-    memset((void *)section_memory_start, 0, s[i].size);
     if (s[i].fileptr != 0) {
       kf->file_seek(f, s[i].fileptr, 0);
       kf->file_read(f, (void *)section_memory_start, s[i].filesize);
@@ -265,9 +268,6 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
 
   /* Save the essential info */
   *size = image_memory_size;
-  /* Note: If the image is NORMAL executable not DLL, set its image_base += s[0].base (it means it has local stack space?) */
-  if (!(pee_info->flags&IMAGE_FILE_DLL))
-    image_base += s[0].base;
   /* Return the exec space */
   return image_base;
 }
@@ -354,12 +354,10 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssba
     DWORD *mem;
     
     /* Prevent the duplicated reloc block */
-    if(flag == 0)
-    {
+    if(flag == 0) {
       reloc_memory_first_start = reloc_memory_start;
       flag = 1;
-    }
-    else if(reloc_memory_first_start == reloc_memory_start)
+    } else if(reloc_memory_first_start == reloc_memory_start)
       break;
     #ifdef __PECOFF_DEBUG__
     kf->log("[PECOFF] RELOC vaddr: %x, block size: %x\n", reloc->vaddr, reloc->block_size);
