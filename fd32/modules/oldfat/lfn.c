@@ -101,6 +101,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
 
   LOG_PRINTF(("Generating unique short file name for \"%s\"\n", LongName));
   Res = fd32_gen_short_fname(ShortName, LongName, FD32_GENSFN_FORMAT_FCB);
+  LOG_PRINTF(("fd32_gen_short_fname returned %08x\n", Res));
   if (Res <= 0) return Res;
   /* TODO: Check case change! */
   if (!(Res & FD32_GENSFN_WAS_INVALID)) return 1;
@@ -114,6 +115,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
     szCounterLen = strlen(szCounter);
     for (k = 0; k < 7 - szCounterLen; k += oemcp_skipchar(&Aux[k]));
     /* Append the "~Counter" to the name */
+    /* TODO: The "~Counter" shouldn't be right justified if name is shorter than 8! */
     Aux[k++] = '~';
     for (s = szCounter; *s; Aux[k++] = *s++);
 
@@ -131,6 +133,6 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
       if (fd32_compare_fcb_names(E.Name, Aux) == 0) break;
     }
   }
-  return FD32_EACCES; /* TODO: Why EACCES? */
+  return FD32_EACCES;
 }
 #endif /* #ifdef FATWRITE */

@@ -332,6 +332,17 @@ static int read_bpb(tVolume *V, tBpb *Bpb, tFatType *FatType)
     memcpy(&Bpb->BS_DrvNum, BootSector + 36, 26);
   }
   fd32_kmem_free(BootSector, Bi.BlockSize);
+  #if 0
+  /* This is to check the volume serial number and label */
+  fd32_message("Volume serial number: %08lx\n", Bpb->BS_VolID);
+  fd32_message("Volume label: %c%c%c%c%c%c%c%c%c%c%c\n",
+              Bpb->BS_VolLab[0], Bpb->BS_VolLab[1], Bpb->BS_VolLab[2], Bpb->BS_VolLab[3], Bpb->BS_VolLab[4],
+              Bpb->BS_VolLab[5], Bpb->BS_VolLab[6], Bpb->BS_VolLab[7], Bpb->BS_VolLab[8], Bpb->BS_VolLab[9],
+              Bpb->BS_VolLab[10]);
+  fd32_message("Volume FS type: %c%c%c%c%c%c%c%c\n",
+              Bpb->BS_FilSysType[0], Bpb->BS_FilSysType[1], Bpb->BS_FilSysType[2], Bpb->BS_FilSysType[3],
+              Bpb->BS_FilSysType[4], Bpb->BS_FilSysType[5], Bpb->BS_FilSysType[6], Bpb->BS_FilSysType[7]);
+  #endif
   return 0;
 }
 
@@ -452,10 +463,11 @@ int fat_mediachange(tVolume *V)
   if (Res == FD32_EINVAL) return 0; /* Device without removable media */
   if (Res <= 0) return Res;
 
-  #if 0
   Res = read_bpb(V, &Bpb, &FatType);
   LOG_PRINTF(("Read_bpb result: %08x\n", Res));
   if ((Res < 0) && (Res != FD32_EMEDIA)) return Res;
+  /* TODO: To increase security here, we may also want to compare non-dirty
+           buffers with disk sectors */
   if ((Res == FD32_EMEDIA) || (V->FatType != FatType) || memcmp(&V->Bpb, &Bpb, sizeof(tBpb)))
   {
     if (fat_openfiles(V)) return FD32_ECHANGE;
@@ -463,12 +475,6 @@ int fat_mediachange(tVolume *V)
     return FD32_ENMOUNT;
   }
   return 0;
-  #else
-  /* Always unmount and remount if changeline is not available */
-  if (fat_openfiles(V)) return FD32_ECHANGE;
-  fat_unmount(V);
-  return FD32_ENMOUNT;
-  #endif
 }
 #endif
 
