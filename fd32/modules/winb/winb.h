@@ -53,6 +53,7 @@ struct psp {
  * from oslib/ll/i386/error.h
  */
 int message(char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#define error(msg) message("Error! File:%s Line:%d %s", __FILE__, __LINE__, msg)
 
 /* Sends formatted output from the arguments (...) to the log buffer
  * from fd32/include/logger.h

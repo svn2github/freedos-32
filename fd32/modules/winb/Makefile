@@ -17,7 +17,7 @@ INCL   = -I$(FDOS)/include -I$(OSLIB) -Imingw-runtime-3.7/include -Iw32api-3.2/i
 LIB_PATH = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-WIN32 = -D__WIN32__ -DWIN32_LEAN_AND_MEAN
+WIN32 = -D__WIN32__ -DWIN32_LEAN_AND_MEAN -D__WINB_DEBUG__
 C_OPT = -Wall -fexpensive-optimizations -O3 -finline-functions -nostdinc -mno-stack-arg-probe -ffreestanding $(WIN32) $(INCL)
 ASM_OPT += $(INCL)
 LINK_OPT = -Bstatic -L$(LIBFD32) -L$(NEWLIBC)

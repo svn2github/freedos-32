@@ -1,16 +1,56 @@
 /* Mini MSVCRT
  * by Hanzac Chen
  *
+ * Ref: WINE's msvcrt.dll
+ *
  * This is free software; see GPL.txt
  */
 
-/* libfd32 and newlib */
+
+#include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 
 #include "winb.h"
+
+
+static _onexit_t fd32_imp__dllonexit(_onexit_t func, _onexit_t **start, _onexit_t **end)
+{
+  _onexit_t *tmp;
+  int len;
+
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] (%p,%p,%p)\n", func, start, end);
+#endif
+
+  if (!start || !*start || !end || !*end)
+  {
+    error("MSVCRT dllonexit got bad table!\n");
+    return NULL;
+  }
+
+  len = (*end - *start);
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] table start %p-%p, %d entries\n", *start, *end, len);
+#endif
+
+  if (++len <= 0)
+    return NULL;
+
+  tmp = (_onexit_t *)realloc(*start, len * sizeof(tmp));
+  if (!tmp)
+    return NULL;
+  *start = tmp;
+  *end = tmp + len;
+  tmp[len - 1] = func;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] new table start %p-%p, %d entries\n", *start, *end, len);
+#endif
+  return func;
+}
 
 
 static void fd32_imp__set_app_type(int a)
@@ -32,12 +72,6 @@ static char *** p___ddddenv(void)
 
 static unsigned int* p__fmode(void)
 {
-  return NULL;
-}
-
-static int* fd32_imp___errno(void)
-{
-  puts("_errno: not implemented!");
   return NULL;
 }
 
@@ -64,7 +98,7 @@ static uint32_t onexit(void * func)
   return 0;
 }
 
-static int setmode(int fd,int mode)
+static int fd32_imp_setmode(int fd, int mode)
 {
   return 0;
 }
@@ -127,47 +161,67 @@ static void setusermatherr(void * func)
   printf(":new matherr handler %p\n", func);
 }
 
-/* libfd32 and newlib */
-extern void _exit(int res);
+/* from Newlib */
+extern int *__errno(void);
 
 static char msvcrt_name[] = "msvcrt.dll";
 static char msvcr7_name[] = "msvcr70.dll";
 static uint32_t msvcrt_handle = 0x05;
-static uint32_t msvcrt_symnum = 0x20;
-static struct symbol msvcrt_symarray[0x20] = {
-  {"__set_app_type", (uint32_t)fd32_imp__set_app_type},
-  {"malloc",         (uint32_t)malloc},
-  {"free",           (uint32_t)free},
-  {"puts",           (uint32_t)puts},
-  {"printf",         (uint32_t)printf},
-  {"__p__environ",   (uint32_t)fd32_imp__p__environ},
-  {"__p___initenv",  (uint32_t)p___ddddenv},
+static struct symbol msvcrt_symarray[] = {
+  {"__dllonexit",    (uint32_t)fd32_imp__dllonexit},
   {"__getmainargs",  (uint32_t)fd32_imp__getmainargs},
+  {"__p___initenv",  (uint32_t)p___ddddenv},
+  {"__p__commode",   (uint32_t)p__commode},
+  {"__p__environ",   (uint32_t)fd32_imp__p__environ},
   {"__p__fmode",     (uint32_t)p__fmode},
-  {"exit",           (uint32_t)_exit},
-  {"_exit",          (uint32_t)_exit},
+  {"__set_app_type", (uint32_t)fd32_imp__set_app_type},
+  {"__setusermatherr", (uint32_t)setusermatherr},
+  {"_adjust_fdiv",   (uint32_t)adjust_fdiv},
+  {"_amsg_exit",     (uint32_t)amsg_exit},
+  {"_controlfp",     (uint32_t)controlfp},
   {"_cexit",         (uint32_t)cexit},
-  {"_c_exit",        (uint32_t)cexit},
+  {"_except_handler3", (uint32_t)except_handler3},
+
+  {"_initterm",      (uint32_t)initterm},
   {"_iob",           (uint32_t)iob},
   {"_onexit",        (uint32_t)onexit},
-  {"__dllonexit",    (uint32_t)onexit},
-  {"_amsg_exit",     (uint32_t)amsg_exit},
-  {"_setmode",       (uint32_t)setmode},
-  {"abort",          (uint32_t)abort},
-  {"_errno",         (uint32_t)fd32_imp___errno},
-  {"fflush",         (uint32_t)fflush},
-  {"atexit",         (uint32_t)atexit},
-  {"signal",         (uint32_t)signal},
+  {"_setmode",       (uint32_t)fd32_imp_setmode},
   {"_XcptFilter",    (uint32_t)XcptFilter},
-  {"_initterm",      (uint32_t)initterm},
-  {"_adjust_fdiv",   (uint32_t)adjust_fdiv},
-  {"__p__commode",   (uint32_t)p__commode},
-  {"_controlfp",     (uint32_t)controlfp},
-  {"_except_handler3", (uint32_t)except_handler3},
-  {"__setusermatherr", (uint32_t)setusermatherr},
+
+  /* from Newlib */
+  {"_errno",         (uint32_t)__errno},
+  {"_exit",          (uint32_t)exit},
+  {"_fdopen",        (uint32_t)fdopen},
+  {"_unlink",        (uint32_t)unlink},
+  {"_vsnprintf",     (uint32_t)vsnprintf},
+  {"abort",          (uint32_t)abort},
+  {"atexit",         (uint32_t)atexit},
+  {"clearerr",       (uint32_t)clearerr},
+  {"exit",           (uint32_t)exit},
+  {"fclose",         (uint32_t)fclose},
+  {"fflush",         (uint32_t)fflush},
+  {"fopen",          (uint32_t)fopen},
+  {"fprintf",        (uint32_t)fprintf},
+  {"fputc",          (uint32_t)fputc},
+  {"fread",          (uint32_t)fread},
+  {"free",           (uint32_t)free},
+  {"fseek",          (uint32_t)fseek},
+  {"ftell",          (uint32_t)ftell},
+  {"fwrite",         (uint32_t)fwrite},
+  {"malloc",         (uint32_t)malloc},
+  {"memcpy",         (uint32_t)memcpy},
+  {"memset",         (uint32_t)memset},
+  {"perror",         (uint32_t)perror},
+  {"puts",           (uint32_t)puts},
+  {"printf",         (uint32_t)printf},
+  {"signal",         (uint32_t)signal},
+  {"sprintf",        (uint32_t)sprintf},
+  {"strcat",         (uint32_t)strcat},
+  {"strcpy",         (uint32_t)strcpy},
+  {"strlen",         (uint32_t)strlen},
   {"system",         (uint32_t)system}
 };
-
+static uint32_t msvcrt_symnum = sizeof(msvcrt_symarray)/sizeof(struct symbol);
 
 void add_msvcrt(void)
 {

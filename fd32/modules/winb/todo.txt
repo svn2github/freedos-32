@@ -1,7 +1,7 @@
 2005-01-20
 zlib1.dll.MSVCRT:
 _fdopen
-__dlonexit
+__dllonexit
 _errno
 _vsnprintf
 abort
