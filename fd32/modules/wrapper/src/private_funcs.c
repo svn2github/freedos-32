@@ -95,7 +95,7 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
   dyn_entry = load_process(p, file, parser, &exec_space, &base, &size);
   my_close(file);
 
-  fd32_log_printf("Process Loaded");
+  fd32_log_printf("[Wrapper] Process Loaded\n");
   if (dyn_entry == -1) {
     /* We failed... */
     return -1;
@@ -118,8 +118,11 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
 
     return -1;
   }
-  retval = my_create_process(base, exec_space, size + STACKSIZE,
+  /* Note: use the real entry */
+  #define ENTRY_CALL_OFFSET(entry) (entry-(exec_space-base))
+  retval = my_create_process(ENTRY_CALL_OFFSET(dyn_entry), exec_space, size + STACKSIZE,
 		  base + size + STACKSIZE, cmdline);
+  #undef ENTRY_CALL_OFFSET
 #ifdef __WRAP_DEBUG__
   message("Returned: %d!!!\n", retval);
 #endif
