@@ -69,7 +69,6 @@ static int read(void *id, DWORD n, BYTE *buf)
         getcursorxy(&x, &y);
         if (x > 0) {
           cputc('\b');
-          place(--x, y);
         }
         cons_count--;
       }
@@ -116,6 +115,10 @@ static int console_request(DWORD function, void *params)
       fd32_read_t *r = (fd32_read_t *) params;
       if (r->Size < sizeof(fd32_read_t)) return FD32_EFORMAT;
       return read(r->DeviceId, r->BufferBytes, r->Buffer);
+    }
+    case FD32_GET_DEV_INFO:
+    {
+      return 0x83;
     }
     case FD32_CLOSE:
     {

@@ -103,6 +103,7 @@ int fat32_unlink(tVolume *V, DWORD Cluster)
     /* Update every FAT in the volume */
     for (k = 0; k < V->Bpb.BPB_NumFATs; k++)
       if ((Res = fat32_write_entry(V, Cluster, k, 0))) return Res;
+    V->FSI_Free_Count++;
     Cluster = Next;
   }
   while (!(FAT32_EOC(Next)));

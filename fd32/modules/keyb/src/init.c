@@ -1,22 +1,34 @@
+/* Keyborad Driver for FD32
+ * original by Luca Abeni
+ * extended by Hanzac Chen
+ *
+ * 2004 - 2005
+ * This is free software; see GPL.txt
+ */
+
 #include <dr-env.h>
-#include "devices.h"
-#include "errors.h"
+#include <errors.h>
+#include <devices.h>
 
 #include "queues.h"
+
 
 /* The name of the keyboard device. Using the Linux name. */
 #define KEYB_DEV_NAME "kbd"
 
+
 /* Uhmmm... This could go in a separate header file??? */
 int preprocess(BYTE code);
 void postprocess(void);
+void set_leds(void);
 BYTE keyb_get_data(void);
+DWORD keyb_get_shift_status(void);
 int fd32_register(int h, void *f, int type);
 
 
 void keyb_handler(int n)
 {
-  BYTE code;
+  static BYTE code;
 
   /* We are the int handler... If we are called, we assume that there is
      something to be read... (so, we do not read the status port...)
@@ -25,8 +37,7 @@ void keyb_handler(int n)
   /* Well, we do not check the error code, for now... */
   if (!preprocess(code)) { /* Do that leds stuff... */
     rawqueue_put(code);
-
-    fd32_sti();           /* Reenable interrupts... */
+    fd32_sti();            /* Reenable interrupts... */
     postprocess();
   }
   fd32_master_eoi();
@@ -34,12 +45,12 @@ void keyb_handler(int n)
 
 static int read(void *id, DWORD n, BYTE *buf)
 {
-  char b;
-  int count;
+  DWORD count;
+  BYTE b;
 
   /* Convention: n = 0 --> nonblock; n != 0 --> block */
   if (n == 0) {
-    if ((b = keyqueue_get()) == 0) {
+    if ((b = keyqueue_gethead()) == 0) {
       return 0;
     } else {
       *buf = b;
@@ -64,19 +75,30 @@ static int keyb_request(DWORD function, void *params)
 {
   fd32_read_t *r = (fd32_read_t *) params;
 
-  if (function != FD32_READ) {
-    return FD32_EINVAL;
+  switch (function) {
+    case FD32_GET_DEV_INFO:
+      return 0x80;
+    case FD32_GETATTR:
+      return keyb_get_shift_status();
+    case FD32_READ:
+      if (r->Size < sizeof(fd32_read_t)) {
+        return FD32_EFORMAT;
+      }
+      return read(r->DeviceId, r->BufferBytes, r->Buffer);
+    default:
+      return FD32_EINVAL;
   }
-  if (r->Size < sizeof(fd32_read_t)) return FD32_EFORMAT;
-  return read(r->DeviceId, r->BufferBytes, r->Buffer);
 }
 
 void keyb_init(void)
 {
+  /* Handle the keyboard */
   fd32_message("Setting Keyboard handler\n");
   fd32_irq_bind(1, keyb_handler);
+  /* How to reset the leds, seems not work in some virtual machine */
+  /* set_leds(); */
   fd32_message("Installing new call keyb_read...\n");
-  if (add_call("_keyb_read", (DWORD)read, ADD) == -1) {
+  if (add_call("keyb_read", (DWORD)read, ADD) == -1) {
     fd32_error("Failed to install a new kernel call!!!\n");
   }
   fd32_message("Registering...\n");

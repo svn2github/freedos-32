@@ -110,6 +110,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
   /* until the file name is unique in that Path                      */
   for (Counter = Hint; Counter < 65536; Counter++)
   {
+#if 0
     memcpy(Aux, ShortName, 11);
     itoa(Counter, szCounter, 10);
     szCounterLen = strlen(szCounter);
@@ -118,7 +119,9 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
     /* TODO: The "~Counter" shouldn't be right justified if name is shorter than 8! */
     Aux[k++] = '~';
     for (s = szCounter; *s; Aux[k++] = *s++);
-
+#else
+    ksprintf(Aux, "%s~%d", ShortName, Counter);
+#endif
     /* Search for the generated name */
     LOG_PRINTF(("Checking if ~%i makes the name unique\n", Counter));
     Dir->TargetPos = 0;

@@ -442,6 +442,7 @@ static int descend_path(tVolume *V, char *Path, tFile **Fp)
     if (Res < 0)
     {
       if (Res == FD32_ENMFILE) Res = FD32_ENOTDIR;
+      F->References = 0;
       return Res;
     }
     /* And open the path component overwriting of the file structure */

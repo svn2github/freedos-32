@@ -39,9 +39,9 @@
 extern void biosdisk_timer(void *p);
 extern void biosdisk_reflect(unsigned intnum, BYTE dummy);
 
-void biosdisk_init(char *cmdline)
+void biosdisk_init(struct process_info *p)
 {
-    char *c;
+    char *c, *cmdline;
     int done;
     int want_hd, want_fd;
     DWORD buffer;
@@ -49,6 +49,7 @@ void biosdisk_init(char *cmdline)
     message("Initing BIOSDisk...\n");
 
     /* Parse the command line */
+    cmdline = args_get(p);
     c = cmdline;
     done = 0;
     want_fd = 1; want_hd = 1;
@@ -63,7 +64,7 @@ void biosdisk_init(char *cmdline)
 	        }
                 if (strcmp(c + 2, "nohd") == 0) {
                     want_hd = 0;
-		    message("Floppy Disabled\n");
+		    message("HD Disabled\n");
 	        }
 	    }
 	    c++;

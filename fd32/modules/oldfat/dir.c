@@ -63,16 +63,16 @@ int fat_rmdir(tVolume *V, char *DirName)
   /* Check if the directory contains dot and dotdot as first two entries */
   Res = fat_read(F, &D, 32);
   if (Res < 0) { fat_close(F); return Res; }
-  if (memcmp(".          ", D.Name, 11)) return FD32_EACCES;
+  if (memcmp(".          ", D.Name, 11)) { fat_close(F); return FD32_EACCES; }
   Res = fat_read(F, &D, 32);
   if (Res < 0) { fat_close(F); return Res; }
-  if (memcmp("..         ", D.Name, 11)) return FD32_EACCES;
+  if (memcmp("..         ", D.Name, 11)) { fat_close(F); return FD32_EACCES; }
   /* And finally check that the following entries are free */
   do
   {
     Res = fat_read(F, &D, 32);
     if (Res < 0) { fat_close(F); return Res; }
-    if ((D.Name[0] != FREEENT) && (D.Name[0] != ENDOFDIR)) return FD32_EACCES;
+    if ((D.Name[0] != FREEENT) && (D.Name[0] != ENDOFDIR)) { fat_close(F); return FD32_EACCES; }
   }
   while (D.Name[0] != ENDOFDIR);
   /* If we arrive here, it's Ok, we can unlink the directory */

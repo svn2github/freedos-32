@@ -7,5 +7,6 @@
 void rawqueue_put(BYTE code);
 BYTE rawqueue_get(void);
 void keyqueue_put(BYTE code);
+BYTE keyqueue_gethead(void);
 BYTE keyqueue_get(void);
 #endif

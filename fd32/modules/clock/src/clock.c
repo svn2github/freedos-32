@@ -27,7 +27,7 @@ inline BYTE cmos_read(BYTE addr)
   return fd32_inb(0x71);
 }
 
-int time_read(struct Fd32Time *t)
+int time_read(struct fd32_time *t)
 {
   BYTE ctrl;
 
@@ -54,13 +54,14 @@ int time_read(struct Fd32Time *t)
   return 1;
 }
 
-int date_read(struct Fd32Date *d)
+int date_read(struct fd32_date *d)
 {
   BYTE ctrl;
 
   if (d == 0) {
     return -1;
   }
+  d->weekday = cmos_read(RTC_DAY_OF_WEEK);
   d->Day = cmos_read(RTC_DAY_OF_MONTH);
   d->Mon = cmos_read(RTC_MONTH);
   d->Year = cmos_read(RTC_YEAR);

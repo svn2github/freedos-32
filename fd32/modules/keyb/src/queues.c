@@ -1,3 +1,11 @@
+/* Keyborad Driver for FD32
+ * original by Luca Abeni
+ * extended by Hanzac Chen
+ *
+ * 2004 - 2005
+ * This is free software; see GPL.txt
+ */
+
 #include <dr-env.h>
 
 #include "queues.h"
@@ -9,8 +17,8 @@ static volatile int rawqueue_tail;
 
 static volatile BYTE keyqueue[KEYQUEUE_MAX_SIZE];
 static volatile int keyqueue_elements;
-static volatile int keyqueue_head;
-static volatile int keyqueue_tail;
+static volatile WORD *keyqueue_head = (WORD *)0x041a;
+static volatile WORD *keyqueue_tail = (WORD *)0x041c;
 
 void rawqueue_put(BYTE code)
 {
@@ -52,12 +60,23 @@ void keyqueue_put(BYTE code)
   }
   keyqueue_elements++;
   fd32_sti();
-  keyqueue_tail = (keyqueue_tail + 1) % RAWQUEUE_MAX_SIZE;
-  keyqueue[keyqueue_tail] = code;
+  keyqueue_tail[0] = (keyqueue_tail[0] + 1) % RAWQUEUE_MAX_SIZE;
+  keyqueue[keyqueue_tail[0]] = code;
   
   return;
 }
 
+BYTE keyqueue_gethead(void)
+{
+  fd32_cli();
+  if (keyqueue_elements == 0) {
+    //    fd32_error("??? No char in queue???\n");
+    fd32_sti();
+    return 0;
+  }
+  fd32_sti();
+  return keyqueue[(keyqueue_head[0] + 1) % KEYQUEUE_MAX_SIZE];
+}
 BYTE keyqueue_get(void)
 {
   fd32_cli();
@@ -68,7 +87,7 @@ BYTE keyqueue_get(void)
   }
   keyqueue_elements--;
   fd32_sti();
-  keyqueue_head = (keyqueue_head + 1) % KEYQUEUE_MAX_SIZE;
+  keyqueue_head[0] = (keyqueue_head[0] + 1) % KEYQUEUE_MAX_SIZE;
   
-  return keyqueue[keyqueue_head];
+  return keyqueue[keyqueue_head[0]];
 }

@@ -171,13 +171,13 @@ int fat_find(tFile *Dir, char *FileSpec, DWORD Flags, tFatFind *Ff)
       #ifdef FATLFN
       if (utf8_stricmp(TempFf.LongName, FileSpec) == 0)
       {
-        if (Ff) *Ff = TempFf;
+        if (Ff) memcpy(Ff, &TempFf, sizeof(tFatFind));
         return 0;
       }
       #endif
       if (utf8_stricmp(TempFf.ShortName, FileSpec) == 0)
       {
-        if (Ff) *Ff = TempFf;
+        if (Ff) memcpy(Ff, &TempFf, sizeof(tFatFind));
         return 0;
       }
     }
