@@ -9,7 +9,7 @@ LIB_DIR  = $(BASE)/lib
 
 C_OPT =  -Wall -O -finline-functions -fno-builtin -nostdinc -D__GNU__ -I$(INCL)
 ASM_OPT =  -x assembler-with-cpp -D__GNU__ -I$(INCL)
-LINK_OPT = -T $(OSLIB)/mk/os.x -Bstatic -Ttext 0x320000 -nostartfiles -nostdlib -L$(LIB_PATH)
+LINK_OPT = -T $(OSLIB)/mk/os.x -Bstatic -Ttext 0x120000 -nostartfiles -nostdlib -L$(LIB_PATH)
 
 MKDIR	= mkdir
 CP	= cp
