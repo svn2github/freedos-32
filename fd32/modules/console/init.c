@@ -75,15 +75,11 @@ static int read(void *id, DWORD n, BYTE *buf)
       }
       continue;
     }
-    if (c == '\n') {
+    if (c == 13) {
       done = 1;
     }
     if (cons_count < CONS_BUFF_SIZE - 2) {
-      if (c == '\n') {
-	cons_buff[cons_count++] = 13;
-      } else {
-	cons_buff[cons_count++] = c;
-      }
+      cons_buff[cons_count++] = c;
       cputc(c);
     }
   }
