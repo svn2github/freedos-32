@@ -84,12 +84,16 @@ static char kernel32_name[] = "kernel32.dll";
 static DWORD kernel32_handle = 0x01;
 static DWORD kernel32_symnum = 0x10;
 static struct symbol kernel32_symarray[0x10] = {
-	{"AddAtomA", (DWORD)_imp__AddAtomA},
-	{"ExitProcess", (DWORD)_imp__ExitProcess},
-	{"FindAtomA", (DWORD)_imp__FindAtomA},
-	{"GetAtomNameA", (DWORD)_imp__GetAtomNameA},
-	{"GetModuleHandleA", (DWORD)_imp__GetModuleHandleA},
-	{"SetUnhandledExceptionFilter", (DWORD)_imp__SetUnhandledExceptionFilter}
+	{"AddAtomA", (DWORD)fd32_imp__AddAtomA},
+	{"ExitProcess", (DWORD)fd32_imp__ExitProcess},
+	{"FindAtomA", (DWORD)fd32_imp__FindAtomA},
+	{"GetAtomNameA", (DWORD)fd32_imp__GetAtomNameA},
+	{"GetModuleHandleA", (DWORD)fd32_imp__GetModuleHandleA},
+	{"SetUnhandledExceptionFilter", (DWORD)fd32_imp__SetUnhandledExceptionFilter},
+	{"LocalAlloc", (DWORD)fd32_imp__LocalAlloc},
+	{"LocalFree", (DWORD)fd32_imp__LocalFree},
+	{"VirtualAlloc", (DWORD)fd32_imp__VirtualAlloc},
+	{"VirtualFree", (DWORD)fd32_imp__VirtualFree}
 };
 
 void add_kernel32(void)

@@ -68,7 +68,7 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
 
     case 0x2F:
       res = 0;
-      switch(r1->x.ax = 0x1680)
+      switch(r1->x.ax)
       {
         /* MS Windows - WINDOWS ENHANCED MODE INSTALLATION CHECK */
         case 0x1600:

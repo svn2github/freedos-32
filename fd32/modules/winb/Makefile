@@ -26,7 +26,7 @@ clean :
 	$(RM) *.o
 
 winb.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -lfd32 -r -s -o winb.o
+	$(LD) $(LINK_OPT) $(OBJS) -lfd32 -lc -r -s -o winb.o
 
 # Common rules
 %.o : %.c
