@@ -717,8 +717,7 @@ void int21_handler(union rmregs *r)
       Res = fd32_read(0, &Ch, 1);
 #endif
       if (Res >= 0) {
-        if (Ch == 0xE0) r->h.al = 0;
-        else r->h.al = Ch;
+        r->h.al = Ch;
       } /* Return the character in AL */
         /* TODO: from RBIL:
          if the interim console flag is set (see AX=6301h), partially-formed

@@ -83,16 +83,17 @@ int videobios_int(union rmregs *r)
       r->h.bh = 0;
       break;
 
-    /* BIOS Window Extension v1.1 - SET WINDOW COORDINATES */
+    /* VIDEO - RIGISTERS SETTING AND READING */
     case 0x10:
-      fd32_log_printf("INT 10h AH=10h VIDEO not implemented\n");
+      fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);
       break;
     
-    /* BIOS Window Extension v1.1 - GET BLANKING ATTRIBUTE */
+    /* VIDEO - ALTERNATE FUNCTIONS */
     case 0x12:
-      fd32_log_printf("Unimplemeted INT 0x10 AX=%x\n", r->x.ax);
+      fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);
       break;
 
+    /* VIDEO - SET/GET DISPLAY COMBINATION CODE */
     case 0x1A:
       if (r->h.al != 0x00)
         r->h.al = 0;
