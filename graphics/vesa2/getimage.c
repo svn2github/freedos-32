@@ -63,7 +63,7 @@ void vesa2_getimage(BmpImage *bmp, int x, int y,
     srccolumn  = srcrow  + x1;
     destcolumn = destrow + xdest;
     for (width = x2 - x1 + 1; width > 0; width--, srccolumn++, destcolumn++)
-      *data = *column | 0xFF000000; /* Full opaque */
+      *destcolumn = *srccolumn | 0xFF000000; /* Full opaque */
     destrow += bmp->width;
     srcrow  += info->bytes_per_scanline >> 2;
   }

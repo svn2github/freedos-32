@@ -186,7 +186,7 @@ void vesa2_putimage(const BmpImage *bmp, int x, int y,
                     DWORD *lfb, const VesaModeInfo *info);
 
 /* getimage.c - Capturing bitmap images from a linear frame buffer */
-void vesa2_getimage(BmpImage *bmp, unsigned x, unsigned y,
+void vesa2_getimage(BmpImage *bmp, int x, int y,
                     const DWORD *lfb, const VesaModeInfo *info);
 
 /* clipping.c - Clipping draw operations to a specified rectangle */
