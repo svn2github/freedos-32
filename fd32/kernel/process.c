@@ -320,7 +320,7 @@ int create_process(DWORD entry, DWORD base, DWORD size, char *name)
 {
   WORD stubinfo_sel;
   int res;
-  int run(DWORD, WORD);
+  int run(DWORD, WORD, DWORD);
 
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n",
@@ -335,7 +335,7 @@ int create_process(DWORD entry, DWORD base, DWORD size, char *name)
   fd32_log_printf("[PROCESS] Calling run 0x%lx 0x%lx\n", entry, size);
 #endif
 
-  res = run(entry, stubinfo_sel);
+  res = run(entry, stubinfo_sel, 0);
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Returned 0x%lx: now restoring PSP\n", res);
 #endif

@@ -26,6 +26,8 @@ struct par_block {
   DWORD res_2;
 };
 
+int use_lfn;
+
 /* Given a FD32 return code, prepare the standard DOS return status. */
 /* - on error: carry flag set, error (positive) in AX.               */
 /* - on success: carry flag clear, AX destroied.                     */
@@ -857,7 +859,12 @@ void int21_handler(union rmregs *r)
 
     /* Long File Name functions */
     case 0x71:
-      lfn_functions(r);
+      if (use_lfn) {
+        lfn_functions(r);
+      } else {
+	r->x.ax = 0x7100;
+	RMREGS_SET_CARRY;
+      }
       return;
 
     /* Windows 95 beta - "FindClose" - Terminate directory search */

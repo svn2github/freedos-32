@@ -167,7 +167,7 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
   int size;
   DWORD exec_space;
   DWORD dyn_entry;
-  int run(DWORD address, WORD psp_sel);
+  int run(DWORD address, WORD psp_sel, DWORD parm);
 
 
   dyn_entry = load_process(p, file, parser, &exec_space, &size);
@@ -183,7 +183,7 @@ void exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, cha
     fd32_log_printf("       Entry point: 0x%lx\n", dyn_entry);
     fd32_log_printf("       Going to run...\n");
 #endif
-    run(dyn_entry, 0);
+    run(dyn_entry, 0, (DWORD)cmdline);
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("       Returned\n");
 #endif

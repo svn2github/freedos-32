@@ -8,6 +8,8 @@
 .bss
 retval:
 	.long
+param:
+	.long
 .data
 .globl SYMBOL_NAME(current_SP)
 SYMBOL_NAME_LABEL(current_SP)
@@ -20,6 +22,8 @@ stubinfo_sel:
 .globl SYMBOL_NAME(restore_sp)
 
 SYMBOL_NAME_LABEL(run)
+	movl 12(%esp), %eax
+	movl %eax, param
 	movl 8(%esp), %eax
 	movw %ax, stubinfo_sel
 	movl 4(%esp), %eax
@@ -30,9 +34,12 @@ SYMBOL_NAME_LABEL(run)
 */
 	pusha
         pushl %fs
+	movl param, %ebx
+	pushl %ebx
 	movl %esp, SYMBOL_NAME(current_SP)
 	movw stubinfo_sel, %fs
 	call *%eax
+	popl %ebx
         popl %fs
 	popa
 	movl retval, %eax
