@@ -7,6 +7,7 @@
 #include <ll/i386/hw-func.h>
 #include <ll/i386/error.h>
 #include <ll/i386/mem.h>
+#include <ll/i386/x-bios.h>
 
 #include "handler.h"
 #include "kernel.h"
@@ -16,6 +17,14 @@ DWORD rm_irq_table[256];
 
 void exception_handler(int n, DWORD code, DWORD eip, DWORD cs, DWORD ef)
 {
+  WORD ctx;
+
+  ctx = context_save();
+  if (ctx == X_VM86_TSS) {
+    /* HACK!!! Makes bochs bios happier... */
+    return;
+  }
+
 #ifdef __EXC_DEBUG__
   fd32_log_printf("Exception %d occurred\n", n);
   fd32_log_printf("    Error Code: %ld\n", code);
@@ -25,7 +34,7 @@ void exception_handler(int n, DWORD code, DWORD eip, DWORD cs, DWORD ef)
 #endif
 
   if (exc_table[n].cs == 0) {
-    message("Unhandled exception...\n");
+    message("Unhandled exception... %d (%x)\n", n, n);
   } else {
 #ifdef __EXC_DEBUG
     fd32_log_printf("I have to call 0x%x:0x%lx\n", exc_table[n].cs, exc_table[n].eip);
