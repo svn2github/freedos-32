@@ -2,6 +2,7 @@
  * by Hanzac Chen
  *
  * Ref: http://www.nongnu.org/vgabios
+ * Copyright (C) 2001,2002 the LGPL VGABios developers Team
  *
  * This is free software; see GPL.txt
  */
