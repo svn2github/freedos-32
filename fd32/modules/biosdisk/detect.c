@@ -438,12 +438,28 @@ static int biosdisk_detect_hd(void)
 }
 
 
+int biosdisk_detect(int fd, int hd)
+{
+//    int res;
+//    if ((res = detect_floppies()) < 0) return res;
+//    if ((res = detect_harddisks()) < 0) return res;
+    if (fd) {
+message("Detecting FD\n");
+        biosdisk_detect_fd();
+    }
+    if (hd) {
+message("Detecting HD\n");
+        biosdisk_detect_hd();
+    }
+
+    return 0;
+}
+
+
 #if 0
 /* This is to test the driver when compiled as a stand-alone program */
 int main()
 {
-    biosdisk_detect_fd();
-    biosdisk_detect_hd();
-    return 0;
+    return biosdisk_detect();
 }
 #endif

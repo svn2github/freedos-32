@@ -9,43 +9,53 @@
 #include <ll/i386/x-bios.h>
 #include <ll/i386/pic.h>
 #include <ll/i386/error.h>
+#include <ll/i386/stdlib.h>
+#include <ll/sys/ll/event.h>
+
+#include <kernel.h>
 #include <logger.h>
+/* This include is a hack... Figure out how to fix this! */
 #include <../drivers/dpmi/include/dpmi.h>
 
 extern DWORD rm_irq_table[256];
 
-/* This is implemented in oslib\xlib\ctx.s */
-extern CONTEXT /*__cdecl*/ context_save(void);
+/* This is implemented in oslib/xlib/ctx.s */
+extern CONTEXT context_save(void);
 
-void biosdisk_reflect(unsigned intnum, union regs r)
+void biosdisk_reflect(unsigned intnum, BYTE dummy)
 {
   WORD ctx;
-  TSS *vm86_tss;
+  struct tss *vm86_tss;
   DWORD *bos;
   DWORD isr_cs, isr_eip;
   WORD *old_esp;
   unsigned rmint;
+#ifdef __REFLECT_DEBUG__
+  union regs *r;
+#endif
 
-  vm86_tss = (TSS *)vm86_get_tss();
+  if (intnum == 0x1c) {
+    return;
+  }
+  vm86_tss = (struct tss *)vm86_get_tss();
   bos = (DWORD *)vm86_tss->esp0;
 
-  #ifdef __REFLECT_DEBUG__
-  fd32_log_printf("[BIOSDISK] INT %xh (%u) catched...\n", intnum, intnum);
+#ifdef __REFLECT_DEBUG__
+  r = (union regs *)&dummy;
+  fd32_log_printf("[BIOSDISK] INT %xh (%u) catched...\n",
+		  intnum, intnum);
   fd32_log_printf("[BIOSDISK] AX=%04x BX=%04x CX=%04x DX=%04x SI=%04x DI=%04x DS=%04x ES=%04x\n",
-                  r.x.ax, r.x.bx, r.x.cx, r.x.dx, r.x.si, r.x.di, r.x.ds, r.x.es);
-  #endif
+		  r->x.ax, r->x.bx, r->x.cx, r->x.dx,
+		  r->x.si, r->x.di, r->x.ds, r->x.es);
+#endif
   ctx = context_save();
 
-  #if 0
   if (ctx == X_VM86_TSS) {
-    #ifdef __REFLECT_DEBUG__
+#ifdef __REFLECT_DEBUG__
     fd32_log_printf("[BIOSDISK] To be reflected in VM86 mode...\n");
-    #endif
-  #else	/* Does this fix the bochs problem ? */
-  {
-  #endif
+#endif
 
-    #if 0
+#if 0	/* Checkme: Why has this been disabled? */
     /* The default handler for INT 15h AH=90h or 91h seems to merely clear */
     /* AH and the carry flag. Let's do it faster without reflecting.       */
     if (intnum == 0x15)
@@ -59,7 +69,7 @@ void biosdisk_reflect(unsigned intnum, union regs r)
         *(bos - 7) = ef;
         return;
       }
-    #endif
+#endif
 
     if ((intnum >= PIC1_BASE) && (intnum < PIC1_BASE + 8)) {
       rmint = intnum - PIC1_BASE + 8;
@@ -70,10 +80,13 @@ void biosdisk_reflect(unsigned intnum, union regs r)
         if ((intnum == 0x40) || (intnum == 0x15)) {
           rmint = intnum;
         } else {
-          #ifdef __REFLECT_DEBUG__
+#ifdef __REFLECT_DEBUG__
           fd32_log_printf("[BIOSDISK] Strange interrupt %02xh to be reflected!!!\n", intnum);
-          #endif
+#endif
           /* Error!!! Should we panic? */
+	  message("[BIOSDISK] Strange interrupt %02xh to be reflected!!!\n",
+			  intnum);
+	  fd32_abort();
           return;
         }
       }
@@ -82,13 +95,17 @@ void biosdisk_reflect(unsigned intnum, union regs r)
 #ifdef __VM86_REFLECT_DEBUG__
     /* TODO: This debugging code is broken... No tos any longer. */
     fd32_log_printf("[BIOSDISK] Entering ESP: %lx (= 0x%lx)\n",
-	    (DWORD)(tos + 9), vm86_tss->esp0);
-    fd32_log_printf("[BIOSDISK] Old EIP: 0x%lx    0x%lx\n", *(tos + 9), *(bos - 9));
+		    (DWORD)(tos + 9), vm86_tss->esp0);
+    fd32_log_printf("[BIOSDISK] Old EIP: 0x%lx    0x%lx\n",
+		    *(tos + 9), *(bos - 9));
     fd32_log_printf("[BIOSDISK] Old CS: 0x%x\n", (WORD)(*(bos - 8)));
-    fd32_log_printf("[BIOSDISK] Old EFlags: 0x%lx    0x%lx\n", *(tos + 11), *(bos - 7));
-    fd32_log_printf("[BIOSDISK] Old ESP: 0x%lx    0x%lx\n", *(tos + 12), *(bos - 6));
+    fd32_log_printf("[BIOSDISK] Old EFlags: 0x%lx    0x%lx\n",
+		    *(tos + 11), *(bos - 7));
+    fd32_log_printf("[BIOSDISK] Old ESP: 0x%lx    0x%lx\n",
+		    *(tos + 12), *(bos - 6));
     fd32_log_printf("[BIOSDISK] Emulate, please!!!\n");
 #endif
+
     old_esp = (WORD *)(*(bos - 6) + (*(bos - 5) << 4));
 #ifdef __VM86_REFLECT_DEBUG__
     fd32_log_printf("[BIOSDISK] Old stack (Linear): 0x%lx\n", (DWORD)old_esp);
@@ -101,9 +118,37 @@ void biosdisk_reflect(unsigned intnum, union regs r)
     isr_cs= ((rm_irq_table[rmint]) & 0xFFFF0000) >> 16;
     isr_eip = ((rm_irq_table[rmint]) & 0x0000FFFF);
 #ifdef __VM86_REFLECT_DEBUG__
-    fd32_log_printf("[BIOSDISK] I have to call 0x%lx:0x%lx\n", isr_cs, isr_eip);
+    fd32_log_printf("[BIOSDISK] I have to call 0x%lx:0x%lx\n",
+		    isr_cs, isr_eip);
 #endif
     *(bos - 8) = isr_cs;
     *(bos - 9) = isr_eip;
+  } else {
+    /* message("Strange... INT %d outside VM86 mode!\n", intnum); */
+  }
+}
+
+void biosdisk_timer(void *p)
+{
+  static struct timespec ts;
+  int res;
+  WORD ctx;
+  
+  if ((ts.tv_sec == 0) && (ts.tv_nsec == 0)) {
+    ll_gettime(TIME_NEW, &ts);
+  }
+  ts.tv_nsec += 18200 * 1000;
+  if (ts.tv_nsec > 1000000000) {
+    ts.tv_sec  += 1;
+    ts.tv_nsec -= 1000000000;
+  }
+  res = event_post(ts, biosdisk_timer, NULL);
+ 
+  /* Here, we must trigger a vm86 interrupt... */
+  ctx = context_save();
+  if (ctx == X_VM86_TSS) {
+    biosdisk_reflect(PIC1_BASE, 0); /* Second parameter is unneeded, here... */
+  } else {
+    vm86_callBIOS(0x08, NULL, NULL, NULL);
   }
 }

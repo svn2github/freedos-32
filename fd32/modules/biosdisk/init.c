@@ -36,65 +36,65 @@
 
 #define VM86_STACK_SIZE 10000
 
-extern void biosdisk_reflect(unsigned intnum, union regs r);
+extern void biosdisk_timer(void *p);
+extern void biosdisk_reflect(unsigned intnum, BYTE dummy);
 
-void biosdisk_init(const char *cmdline)
+void biosdisk_init(char *cmdline)
 {
     char *c;
-    int   want_hd = 1, want_fd = 1;
+    int done;
+    int want_hd, want_fd;
     DWORD buffer;
     
     message("Initing BIOSDisk...\n");
 
-    /* Parse the command line.                 */
-    /* --nofloppy disables floppies detection. */
-    /* --nohd disables hard disks detection.   */
-    for (c = cmdline; c; c++)
-        if ((*c =='-') && (*(c + 1) == '-'))
-        {
-            if (strcmp(c + 2, "nofloppy") == 0)
-            {
-                want_fd = 0;
-                message("Floppies Disabled\n");
-            }
-            if (strcmp(c + 2, "nohd") == 0)
-            {
-                want_hd = 0;
-                message("Hard Disks Disabled\n");
-            }
-        }
-
-#if 1
+    /* Parse the command line */
+    c = cmdline;
+    done = 0;
+    want_fd = 1; want_hd = 1;
+    while (!done) {
+        if (*c == 0) {
+            done = 1;
+	} else {
+            if ((*c =='-') && (*(c + 1) == '-')) {
+                if (strcmp(c + 2, "nofloppy") == 0) {
+                    want_fd = 0;
+		    message("Floppy Disabled\n");
+	        }
+                if (strcmp(c + 2, "nohd") == 0) {
+                    want_hd = 0;
+		    message("Floppy Disabled\n");
+	        }
+	    }
+	    c++;
+	}
+    }
     buffer = dosmem_get(VM86_STACK_SIZE);
-#else
-    buffer = DOS_alloc(VM86_STACK_SIZE);
-    message("Dos Mem: 0x%lx\n", buffer);
-#endif
     vm86_init((LIN_ADDR)buffer, VM86_STACK_SIZE);
 
-    if (want_fd)
-    {
+    if (want_fd) {
         /* In some bioses, INT 0x13 calls INT 0x40 */
         l1_int_bind(0x40, biosdisk_reflect);
+
+	/* Set handler for the floppy interrupt, and enable it... */
         l1_irq_bind(6, biosdisk_reflect);
-        l1_irq_bind(8, biosdisk_reflect);
         irq_unmask(6);
-        irq_unmask(8);
     }
-    if (want_hd)
-    {
-        l1_irq_bind(14, biosdisk_reflect);
+    if (want_hd) {
+	/* Set handlers for the hd interrupts, and enable them... */
         l1_irq_bind(15, biosdisk_reflect);
+        l1_irq_bind(14, biosdisk_reflect);
         irq_unmask(14);
         irq_unmask(15);
     }
     /* Are these needed for both floppies and hard disks? */
     l1_int_bind(0x15, biosdisk_reflect);
-//    l1_int_bind(0x1C, biosdisk_reflect);
-//    l1_irq_bind(0, biosdisk_reflect);
-//    irq_unmask(0);
+    l1_int_bind(0x1C, biosdisk_reflect);
 
-    if (want_fd) biosdisk_detect_fd();
-    if (want_hd) biosdisk_detect_hd();
+    /* This emulates the RM PIT interrupt, for the BIOS */
+    fd32_event_post(18200, biosdisk_timer, NULL);
+
+    biosdisk_detect(want_fd, want_hd);
+    
     message("BIOSDisk initialized.\n");
 }
