@@ -1,0 +1,40 @@
+# Standard library for X/COFF applications
+# Makefile for GNU MAKE & GCC 2.8.0
+
+ifndef FD32
+FD32 = ../../fd32
+endif
+
+CC  = gcc
+AS  = gcc
+LD  = ld
+AR  = ar
+
+MKDIR	= md
+CP	= copy
+CAT	= @type
+RM	= -del
+
+#C_OPT = -Wall -O3 -I$(FD32)/include -I../include/djgpp
+C_OPT = -Wall -O3 -I../include/djgpp
+ASM_OPT +=  -I$(INCL)
+LINK_OPT = -Bstatic
+
+OBJS = common.o detect.o extdisk.o partscan.o request.o stddisk.o
+
+all: biosdisk.o
+
+clean:
+	$(RM) *.o
+
+biosdisk.o: $(OBJS)
+	$(LD) $(LINK_OPT) $(OBJS) -s -r -o biosdisk.o
+
+# Common rules
+%.o : %.c
+	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -c $<
+%.s : %.c
+	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -S $<
+%.o : %.s
+	$(CC) $(ASM_OPT) -c $<
+
