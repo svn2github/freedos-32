@@ -34,6 +34,8 @@
 #include <../drivers/dpmi/include/dpmi.h>
 #include "biosdisk.h"
 
+#define VM86_STACK_SIZE 10000
+
 extern void biosdisk_reflect(unsigned intnum, union regs r);
 
 void biosdisk_init(const char *cmdline)
@@ -61,7 +63,13 @@ void biosdisk_init(const char *cmdline)
             }
         }
 
-    vm86_init();
+#if 1
+    buffer = dosmem_get(VM86_STACK_SIZE);
+#else
+    buffer = DOS_alloc(VM86_STACK_SIZE);
+    message("Dos Mem: 0x%lx\n", buffer);
+#endif
+    vm86_init((LIN_ADDR)buffer, VM86_STACK_SIZE);
 
     if (want_fd)
     {

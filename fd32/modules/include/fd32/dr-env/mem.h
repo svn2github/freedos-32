@@ -2,8 +2,7 @@
 #define __FD32_DRENV_MEM_H
 
 #include<ll/i386/hw-data.h>
-#include<ll/i386/x-dosmem.h>
-#include<ll/i386/mem.h>
+#include<kmem.h>
 
 #define LOWMEM_ADDR  DWORD /* A physical buffer */
 #define DOS_SELECTOR 0     /* Ignore it in flat address space */
@@ -13,7 +12,7 @@ extern inline LOWMEM_ADDR fd32_dosmem_get(unsigned size, WORD *rm_segment, WORD 
 {
   LOWMEM_ADDR phys_addr;
 
-  phys_addr   = (LOWMEM_ADDR) DOS_alloc(size);
+  phys_addr   = (LOWMEM_ADDR) dosmem_get(size);
   *rm_segment = phys_addr >> 4;
   *rm_offset  = phys_addr & 0x0F;
   return phys_addr;
@@ -22,7 +21,7 @@ extern inline LOWMEM_ADDR fd32_dosmem_get(unsigned size, WORD *rm_segment, WORD 
 
 extern inline void fd32_dosmem_free(LOWMEM_ADDR phys_addr, unsigned size)
 {
-  DOS_free((void *) phys_addr, size);
+  dosmem_free(phys_addr, size);
 }
 
 
@@ -33,7 +32,7 @@ extern inline LOWMEM_ADDR fd32_dmamem_get(unsigned size, WORD *rm_segment, WORD 
 
   /* Allocate size*2 bytes, so that if we cross a 64 KiB boundary,  */
   /* we add size to the base in order to get a non-crossing buffer. */
-  phys_addr = (LOWMEM_ADDR) DOS_alloc(size * 2);
+  phys_addr = (LOWMEM_ADDR) dosmem_get(size * 2);
   if (phys_addr == 0) return 0; /* Failed to allocate DOS memory */
   begin = phys_addr;
   end   = begin + size;
@@ -47,7 +46,7 @@ extern inline LOWMEM_ADDR fd32_dmamem_get(unsigned size, WORD *rm_segment, WORD 
 extern inline void fd32_dmamem_free(LOWMEM_ADDR phys_addr, unsigned size)
 {
   /* We actually allocated a size*2 buffer */
-  DOS_free((void *) phys_addr, size * 2);
+  dosmem_free(phys_addr, size * 2);
 }
 
 
