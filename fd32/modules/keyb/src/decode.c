@@ -125,6 +125,11 @@ static int letterscancode(BYTE c)
   return ((keymap[c][0]&0x00ff) >= 'a' && (keymap[c][0]&0x00ff) <= 'z');
 }
 
+WORD decode_ex(WORD c)
+{
+  return keymap[c&0x00ff][0];
+}
+
 WORD decode(BYTE c, int flags, int lock)
 {
   /* Set the keymap index value according to the shift flags */
@@ -134,8 +139,10 @@ WORD decode(BYTE c, int flags, int lock)
     flags = 2;
   else if ((flags&(RSHIFT_FLAG|LSHIFT_FLAG)) != 0)
     flags = 1;
-  
-  /* Keypad keys have to be handled according to CAPSLOCK... */
+  else
+    flags = 0;
+
+  /* Letter keys have to be handled according to CAPSLOCK... */
   if (letterscancode(c))
     if (lock & LED_CAPS) {
       if (flags == 0)
@@ -146,12 +153,12 @@ WORD decode(BYTE c, int flags, int lock)
 
   /* Keypad keys have to be handled according to NUMLOCK... */
   if (keypadscancode(c))
-	  if (lock & LED_NUMLK) {
+    if (lock & LED_NUMLK) {
       if (flags == 0)
         flags = 1;
       else if (flags == 1)
         flags = 0;
-	  }
+    }
 
   /* return 0 if something like tab has been pressed... */
   return keymap[c][flags];

@@ -11,17 +11,14 @@
 #include "key.h"
 #include "queues.h"
 
-#define KEYB_STATUS_PORT  0x64
-#define KEYB_DATA_PORT    0x60
-
 #define KEYB_CMD_SET_LEDS 0xED
 
 static int ack_expected = 0;
 
 static DWORD ecode = 0;
-static DWORD leds = 0;
-static DWORD flags = 0;
+static volatile WORD *flags = (WORD *)BDA_KEYB_FLAG;
 
+WORD decode_ex(WORD c);
 WORD decode(BYTE c, int flags, int lock);
 
 BYTE keyb_get_status(void)
@@ -34,9 +31,14 @@ BYTE keyb_get_data(void)
   return fd32_inb(KEYB_DATA_PORT);
 }
 
-DWORD keyb_get_shift_status(void)
+WORD keyb_get_shift_flags(void)
 {
-  return leds|flags;
+  return flags[0];
+}
+
+void keyb_set_shift_flags(WORD f)
+{
+  flags[0] = f;
 }
 
 /*
@@ -73,143 +75,105 @@ void handle_ack(void)
   if (ack_expected == 0) {
     /* What happened? An ack arrived but we are not waiting for it... */
     fd32_error("Unexpected Ack!!!\n");
-    return;
-  }
-  if (ack_expected == 1) {
+  } else if (ack_expected == 1) {
     /* We sent a 0xED command... After the ack, the led mask must be sent! */
-    kbd_write(leds);
+    kbd_write((flags[0]&LEGS_MASK)>>4);
     ack_expected = 2;
-    return;
-  }
-  if (ack_expected == 2) {
-#if 0   /* Uhmmm... We don't need this! */
-    kbd_write(KBD_CMD_ENABLE);
-#endif
+  } else if (ack_expected == 2) {
+    /* Uhmmm... We don't need this!
+    kbd_write(KBD_CMD_ENABLE); */
     ack_expected = 0;
-    return;
+  } else {
+    /* This is impossible!!! */
+    fd32_message("ack_expected = %d\n", ack_expected);
+    fd32_error("Keyboard driver: inconsistent internal status!\n");
   }
-  /* This is impossible!!! */
-  fd32_message("ack_expected = %d\n", ack_expected);
-  fd32_error("Keyboard driver: inconsistent internal status!\n");
 }
 
 int preprocess(BYTE code)
 {
-  if (ecode == 0xE000) {
-    ecode |= code;
-    switch(ecode) {
-      /* FUNCTION KEY pressed ... */
-      case MK_RCTRL:
-        flags |= RCTRL_FLAG|CTRL_FLAG;
-        break;
-      case MK_RALT:
-        flags |= RALT_FLAG|ALT_FLAG;
-        break;
-      /* FUNCTION KEY released ... */
-      case BREAK|MK_RCTRL:
-        flags &= ~(RCTRL_FLAG|CTRL_FLAG);
-        break;
-      case BREAK|MK_RALT:
-        flags &= ~(RALT_FLAG|ALT_FLAG);
-        break;
+  switch(code) {
+  	case 0xE0:
+      return 0;
+    case 0xFA:
+      handle_ack();
+      break;
+    /* FUNCTION KEY pressed ... */
+    case MK_LCTRL:
+      flags[0] |= LCTRL_FLAG|CTRL_FLAG;
+      break;
+    case MK_LSHIFT:
+      flags[0] |= LSHIFT_FLAG;
+      break;
+    case MK_RSHIFT:
+      flags[0] |= RSHIFT_FLAG;
+      break;
+    case MK_LALT:
+      flags[0] |= LALT_FLAG|ALT_FLAG;
+      break;
+    case MK_CAPS:
+      flags[0] |= CAPS_FLAG;
+      if (flags[0] & LED_CAPS) {
+        flags[0] &= ~LED_CAPS;
+      } else {
+        flags[0] |= LED_CAPS;
+      }
+      set_leds();
+      break;
+    case MK_NUMLK:
+      flags[0] |= NUMLK_FLAG;
+      if (flags[0] & LED_NUMLK) {
+        flags[0] &= ~LED_NUMLK;
+      } else {
+        flags[0] |= LED_NUMLK;
+      }
+      set_leds();
+      break;
+    case MK_SCRLK:
+      flags[0] |= SCRLK_FLAG;
+      if (flags[0] & LED_SCRLK) {
+        flags[0] &= ~LED_SCRLK;
+      } else {
+        flags[0] |= LED_SCRLK;
+      }
+      set_leds();
+      break;
+    case MK_SYSRQ:
+      flags[0] |= SYSRQ_FLAG;
+      fd32_message("SYSRQ pressed ...\n");
+      break;
 
-      /* Extended KEY */
-      case BREAK|MK_INSERT:
-        flags &= ~INSERT_FLAG;
-        break;
-      case MK_INSERT:
-        flags |= INSERT_FLAG;
-      default:
-        if (BREAK&ecode) break;
-        ecode = 0;
-        return 0;
-    }
-    ecode = 0;
-  } else {
-    switch(code) {
-      case 0xFA:
-        handle_ack();
-        break;
-      case 0xE0:
-        ecode = 0xE000;
-        break;
-      /* FUNCTION KEY pressed ... */
-      case MK_LCTRL:
-        flags |= LCTRL_FLAG|CTRL_FLAG;
-        break;
-      case MK_LSHIFT:
-        flags |= LSHIFT_FLAG;
-        break;
-      case MK_RSHIFT:
-        flags |= RSHIFT_FLAG;
-        break;
-      case MK_LALT:
-        flags |= LALT_FLAG|ALT_FLAG;
-        break;
-      case MK_CAPS:
-        flags |= CAPS_FLAG;
-        if (leds & LED_CAPS) {
-          leds &= ~LED_CAPS;
-        } else {
-          leds |= LED_CAPS;
-        }
-        set_leds();
-        break;
-      case MK_NUMLK:
-        flags |= NUMLK_FLAG;
-        if (leds & LED_NUMLK) {
-          leds &= ~LED_NUMLK;
-        } else {
-          leds |= LED_NUMLK;
-        }
-        set_leds();
-        break;
-      case MK_SCRLK:
-        flags |= SCRLK_FLAG;
-        if (leds & LED_SCRLK) {
-          leds &= ~LED_SCRLK;
-        } else {
-          leds |= LED_SCRLK;
-        }
-        set_leds();
-        break;
-      case MK_SYSRQ:
-        flags |= SYSRQ_FLAG;
-        fd32_message("SYSRQ pressed ...\n");
-        break;
+    /* FUNCTION KEY released ... */
+    case BREAK|MK_LCTRL:
+      flags[0] &= ~(LCTRL_FLAG|CTRL_FLAG);
+      break;
+    case BREAK|MK_LSHIFT:
+      flags[0] &= ~LSHIFT_FLAG;
+      break;
+    case BREAK|MK_RSHIFT:
+      flags[0] &= ~RSHIFT_FLAG;
+      break;
+    case BREAK|MK_LALT:
+      flags[0] &= ~(LALT_FLAG|ALT_FLAG);
+      break;
+    case BREAK|MK_CAPS:
+      flags[0] &= ~CAPS_FLAG;
+      break;
+    case BREAK|MK_NUMLK:
+      flags[0] &= ~NUMLK_FLAG;
+      break;
+    case BREAK|MK_SCRLK:
+      flags[0] &= ~SCRLK_FLAG;
+      break;
+    case BREAK|MK_SYSRQ:
+      flags[0] &= ~SYSRQ_FLAG;
+      fd32_message("SYSRQ released ...\n");
+      break;
 
-      /* FUNCTION KEY released ... */
-      case BREAK|MK_LCTRL:
-        flags &= ~(LCTRL_FLAG|CTRL_FLAG);
-        break;
-      case BREAK|MK_LSHIFT:
-        flags &= ~LSHIFT_FLAG;
-        break;
-      case BREAK|MK_RSHIFT:
-        flags &= ~RSHIFT_FLAG;
-        break;
-      case BREAK|MK_LALT:
-        flags &= ~(LALT_FLAG|ALT_FLAG);
-        break;
-      case BREAK|MK_CAPS:
-        flags &= ~CAPS_FLAG;
-        break;
-      case BREAK|MK_NUMLK:
-        flags &= ~NUMLK_FLAG;
-        break;
-      case BREAK|MK_SCRLK:
-        flags &= ~SCRLK_FLAG;
-        break;
-      case BREAK|MK_SYSRQ:
-        flags &= ~SYSRQ_FLAG;
-        fd32_message("SYSRQ released ...\n");
-        break;
-
-      default:
-        if (BREAK&code) break;
-        return 0;
-    }
+    default:
+      return 0;
   }
+
   return 1;
 }
 
@@ -220,21 +184,66 @@ void postprocess(void)
   BYTE code = rawqueue_get();
 
   while (code != 0) {
-    /* Decode it... And put it in the keyboard queue */
-    if (flags&CTRL_FLAG && flags&ALT_FLAG && code == 0x53)
-      fd32_reboot();
-    else if (flags&CTRL_FLAG && code == 0x32)
-      mem_dump();
-    else
-      decoded = decode(code, flags, leds);
-    if (decoded == 0) {
-      fd32_log_printf("Strange key: %d (0x%x)\n", code, code);
-    } else {
-      if ((decoded & 0x00ff) == 0)
-        keyqueue_put(0xE0), keyqueue_put(decoded>>0x08);
-      else
-        keyqueue_put(decoded & 0x00ff);
+    if (ecode == 0xE000) {
+      /* Handle the extended key */
+      int done = 1;
+      ecode |= code;
+      switch(ecode) {
+        /* FUNCTION KEY pressed ... */
+        case MK_RCTRL:
+          flags[0] |= RCTRL_FLAG|CTRL_FLAG;
+          break;
+        case MK_RALT:
+          flags[0] |= RALT_FLAG|ALT_FLAG;
+          break;
+        /* FUNCTION KEY released ... */
+        case BREAK|MK_RCTRL:
+          flags[0] &= ~(RCTRL_FLAG|CTRL_FLAG);
+          break;
+        case BREAK|MK_RALT:
+          flags[0] &= ~(RALT_FLAG|ALT_FLAG);
+          break;
+    
+        /* Extended KEY */
+        case BREAK|MK_INSERT:
+          flags[0] &= ~INSERT_FLAG;
+          break;
+        case MK_INSERT:
+          flags[0] |= INSERT_FLAG;
+          done = 0;
+          break;
+        default:
+          if (!(BREAK&ecode))
+            done = 0;
+          break;
+      }
+      /* Determine if need the extended key */
+      if (!done) {
+        keyqueue_put(0xE0);
+        keyqueue_put(decode_ex(ecode)>>0x08);
+      }
+      ecode = 0;
+    } else if (code == 0xE0) {
+      /* Prepare the extended key */
+      ecode = 0xE000;
+    } else if (!(BREAK&code)) {
+      /* Handle the basic key */
+      if (flags[0]&CTRL_FLAG && flags[0]&ALT_FLAG && code == 0x53) /* Ctrl+Alt+Del reboot PC */
+        fd32_reboot();
+      else if (flags[0]&CTRL_FLAG && code == 0x32) /* Ctrl+M print memory dump */
+        mem_dump();
+      else /* Decode it... And put it in the keyboard queue */
+        decoded = decode(code, flags[0], flags[0]&LEGS_MASK);
+      if (decoded == 0) {
+        fd32_log_printf("Strange key: %d (0x%x)\n", code, code);
+      } else {
+        if ((decoded & 0x00ff) == 0)
+          keyqueue_put(0xE0), keyqueue_put(decoded>>0x08);
+        else
+          keyqueue_put(decoded & 0x00ff);
+      }
     }
+    /* Retrieve raw code again */
     code = rawqueue_get();
   }
 }

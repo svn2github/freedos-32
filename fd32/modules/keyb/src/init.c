@@ -10,6 +10,7 @@
 #include <errors.h>
 #include <devices.h>
 
+#include "key.h"
 #include "queues.h"
 
 
@@ -17,13 +18,14 @@
 #define KEYB_DEV_NAME "kbd"
 
 
-/* Uhmmm... This could go in a separate header file??? */
+/* TODO: This could go in a separate header file??? */
 int preprocess(BYTE code);
 void postprocess(void);
 void set_leds(void);
 BYTE keyb_get_data(void);
-DWORD keyb_get_shift_status(void);
-int fd32_register(int h, void *f, int type);
+void keyb_queue_clear(void);
+DWORD keyb_get_shift_flags(void);
+void keyb_set_shift_flags(WORD f);
 
 
 void keyb_handler(int n)
@@ -34,64 +36,79 @@ void keyb_handler(int n)
      something to be read... (so, we do not read the status port...)
   */
   code = keyb_get_data(); /* Input datum */
+
   /* Well, we do not check the error code, for now... */
-  if (!preprocess(code)) { /* Do that leds stuff... */
+  if(!preprocess(code)) /* Do that leds stuff... */
     rawqueue_put(code);
-    fd32_sti();            /* Reenable interrupts... */
-    postprocess();
-  }
+  /* Reenable interrupts... */
+  fd32_sti();
+
   fd32_master_eoi();
 }
 
 static int read(void *id, DWORD n, BYTE *buf)
 {
+  int res = FD32_EREAD;
   DWORD count;
   BYTE b;
 
   /* Convention: n = 0 --> nonblock; n != 0 --> block */
   if (n == 0) {
+    postprocess();
     if ((b = keyqueue_gethead()) == 0) {
-      return 0;
+      res = 0;
     } else {
       *buf = b;
-      return 1;
+      res = 1;
     }
   } else {
     count = n;
     while (count > 0) {
-      WFC((b = keyqueue_get()) == 0);
+      WFC((postprocess(), b = keyqueue_get()) == 0);
       *buf++ = b;
       count--;
     }
 
-    return n;
+    res = n;
   }
 
-  return -1;
+  return res;
 }
 
 static fd32_request_t keyb_request;
 static int keyb_request(DWORD function, void *params)
 {
+  int res;
   fd32_read_t *r = (fd32_read_t *) params;
 
   switch (function) {
     case FD32_GET_DEV_INFO:
-      return 0x80;
+      res = KEYB_DEV_INFO;
+      break;
     case FD32_GETATTR:
-      return keyb_get_shift_status();
+      res = keyb_get_shift_flags();
+      break;
     case FD32_READ:
       if (r->Size < sizeof(fd32_read_t)) {
-        return FD32_EFORMAT;
+        res = FD32_EFORMAT;
+      } else {
+        res = read(r->DeviceId, r->BufferBytes, r->Buffer);
       }
-      return read(r->DeviceId, r->BufferBytes, r->Buffer);
+      break;
     default:
-      return FD32_EINVAL;
+      res = FD32_EINVAL;
+      break;
   }
+  
+  return res;
 }
 
 void keyb_init(void)
 {
+  /* Clear the queue */
+  keyb_queue_clear();
+  /* Clear the shift flags */
+  keyb_set_shift_flags(0);
   /* Handle the keyboard */
   fd32_message("Setting Keyboard handler\n");
   fd32_irq_bind(1, keyb_handler);

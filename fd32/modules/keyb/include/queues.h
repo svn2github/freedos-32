@@ -1,7 +1,7 @@
 #ifndef __QUEUES_H__
 #define __QUEUES_H__
 
-#define RAWQUEUE_MAX_SIZE 128
+#define RAWQUEUE_MAX_SIZE 32 /* BIOS Data Area limit to 32 bytes */
 #define KEYQUEUE_MAX_SIZE 128
 
 void rawqueue_put(BYTE code);

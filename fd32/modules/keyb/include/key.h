@@ -7,6 +7,21 @@
  */
 
 
+#define KEYB_DEV_INFO     0x80
+
+/* BIOS Data Area: keyboard */
+#define BDA_OFFSET(addr) (addr&0x00FF)
+#define BDA_KEYB_FLAG     0x0417
+#define BDA_KEYB_BUFHEAD  0x041A
+#define BDA_KEYB_BUFTAIL  0x041C
+#define BDA_KEYB_BUF      0x041E
+#define BDA_KEYB_BUFSTART 0x0480
+#define BDA_KEYB_BUFEND   0x0482
+
+/* keyboard I/O ports */
+#define KEYB_STATUS_PORT  0x64
+#define KEYB_DATA_PORT    0x60
+
 /* scan code */
 #define VK_ESCAPE     0x1B
 
@@ -26,9 +41,10 @@
 #define BREAK         0x0080
 
 /* led */
-#define LED_SCRLK     0x0040
+#define LEGS_MASK     0x0070
+#define LED_SCRLK     0x0010
 #define LED_NUMLK     0x0020
-#define LED_CAPS      0x0010
+#define LED_CAPS      0x0040
 
 /* flag */
 #define RSHIFT_FLAG   0x0001

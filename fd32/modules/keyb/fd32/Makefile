@@ -29,7 +29,7 @@ clean :
 	$(RM) *.o
 
 keybdrv.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -o keybdrv.o
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o keybdrv.o
 
 # Common rules
 %.o : %.c
