@@ -237,7 +237,15 @@ void chandler(DWORD intnum, union regs r)
       } else {
         /* TODO: Check if correct to call RM interrupts' handler? */
         extern void int21_handler(union rmregs *r);
-        union rmregs r1 = { {r.d.edi, r.d.esi, r.d.ebp, 0, r.d.ebx, r.d.edx, r.d.ecx, r.d.eax} };
+        union rmregs r1;
+        r1.d.edi = r.d.edi;
+        r1.d.esi = r.d.esi;
+        r1.d.ebp = r.d.ebp;
+        r1.d.Res = 0;
+        r1.d.ebx = r.d.ebx;
+        r1.d.edx = r.d.edx;
+        r1.d.ecx = r.d.ecx;
+        r1.d.eax = r.d.eax;
         int21_handler(&r1);
         return;
       }
