@@ -5,6 +5,8 @@
  */
 
 #include<ll/i386/hw-data.h>
+#include<ll/i386/hw-func.h>
+#include<ll/i386/mem.h>
 #include<ll/i386/error.h>
 
 #include "dpmi.h"
@@ -18,6 +20,7 @@ void int31_0501(union regs *r)
   DWORD blocksize;
   DWORD handle;
   DWORD base;
+  DWORD user_base;
 
   blocksize = ((r->d.ebx & 0xFFFF) << 16) | (r->d.ecx & 0xFFFF);
 #ifdef __DEBUG__
@@ -40,6 +43,17 @@ void int31_0501(union regs *r)
   fd32_log_printf("       Allocated 0x%lx-0x%lx\n", base, base + blocksize);
   fd32_log_printf("       Handle: 0x%lx\n", handle);
 #endif
+
+  /* The allocated address is referred to the kernel DS (base = 0)
+   * It must be translated to the user data segment (remember: we
+   * have the user DS in the stack)
+   */
+  user_base = gdt_read(r->x.ds, NULL, NULL, NULL);
+#ifdef __DPMIMEM_DEBUG__
+  fd32_log_printf("User Base[0x%x] = 0x%lx\n", r->x.ds, user_base);
+#endif
+  base -= user_base;
+  
   CLEAR_CARRY;
   r->x.ax = 0;
   r->x.bx = (base >> 16) & 0x0000FFFF;

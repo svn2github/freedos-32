@@ -51,7 +51,7 @@ void args_parse(int argc, char *argv[])
       i++;
       if (i < argc) {
         p = atoi(argv[i]);
-        if ((p > 0) && (p < 50000)) {
+        if ((p > 0) && (p <= 50000)) {
 	  message("Setting Tick = %d\n", p);
 	  timer_period = p;
         } else {
@@ -92,6 +92,8 @@ int main (int argc, char *argv[])
   /* Set the kern_CS and kern_DS for DPMI... */
   kern_CS = get_cs();
   kern_DS = get_ds();
+
+  message("Kernel DS: 0x%x   Kernel CS: 0x%x\n", kern_CS, kern_DS);
 
   if (mbi == NULL) {
 	message("Error in LowLevel initialization code...\n");

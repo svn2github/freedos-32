@@ -26,7 +26,10 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/stdlib.h>
+#include <ll/i386/error.h>
+#include <ll/ctype.h>
 
 #include <unicode.h>
 #include <devices.h>
@@ -86,7 +89,7 @@ static int dynamic_assign(DWORD Type, int d)
     /* Assign the next available drive number (0 is 'A') to the device */
     while (Drives[d] != FD32_ENODEV) if (d++ == 'Z' - 'A') return FD32_ENODRV;
     Drives[d] = hDev;
-    fd32_message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', DevName);
+    message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', DevName);
     /* Set the default drive to this drive if boot device is known, */
     /* otherwise set the default drive to the first drive detected. */
     if (DefaultDrive == 0)
@@ -116,7 +119,7 @@ static int assign_drive_letters(void)
     if (FixedLetters[k])
     {
       if ((hDev = fd32_dev_search(FixedLetters[k])) < 0)
-        fd32_message("Warning: drive %c can not be %s, device not found",
+        message("Warning: drive %c can not be %s, device not found",
                      k + 'A', FixedLetters[k]);
        else
         /* TODO: Should check if hDev is a valid block device! */

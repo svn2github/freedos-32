@@ -34,8 +34,8 @@ enum
   FD32_BLOCKINFO,
   FD32_MEDIACHANGE,
   FD32_ISMOUNTED,
-  /* Mouse functions */
-  FD32_MOUSE_SETCB = 0x300 /* in: params = MouseCallback *callback */
+
+  FD32_GET_DEV_INFO
 };
 
 
@@ -405,37 +405,6 @@ typedef struct fd32_ismounted
   void           *FSDevId;  /* OUT: Device identifier of the FS device */
 }
 fd32_ismounted_t;
-
-
-/* Flags for struct MouseData */
-enum
-{
-    MOUSE_AXES = 0xFF,   /* MouseData.flags:   bit mask for number of axes   */
-    MOUSE_LBUT = 1 << 0, /* MouseData.buttons: left button flag              */
-    MOUSE_RBUT = 1 << 1, /* MouseData.buttons: right button flag             */
-    MOUSE_MBUT = 1 << 2, /* MouseData.buttons: middle button flag            */
-    MOUSE_X    = 0,      /* MouseData.axes:    index for X (horizontal) axis */
-    MOUSE_Y    = 1,      /* MouseData.axes:    index for Y (vertical) axis   */
-    MOUSE_Z    = 2,      /* MouseData.axes:    index for Z (wheel) axis      */
-};
-
-
-/* This structure is passed by the serial port interrupt handler */
-/* to the user-defined callback function, and contains all data  */
-/* sent by the mouse on last mouse event.                        */
-typedef struct MouseData
-{
-    DWORD flags;   /* bits 0-7: number of axes, others 0      */
-    DWORD buttons; /* buttons flags (1=pressed). LSB=button 0 */
-    long int axes[3]; /* Array (variable length) axis increments */
-}
-MouseData;
-
-
-/* This is the prototype for the user-defined callback function */
-/* called by the serial port interrupt handler.                 */
-typedef void MouseCallback(const MouseData *data);
-
 
 
 /***************************/

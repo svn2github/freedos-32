@@ -30,7 +30,7 @@
 /* TODO: Character device detection is completely broken */
 //#define CHARDEVS
 
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
 
 #include <devices.h>
 #include <filesys.h>
@@ -59,7 +59,24 @@ static inline tJft *validate_file_handle(int Handle)
   return &Jft[Handle];
 }
 
+int fd32_get_dev_info(int fd)
+{
+  struct jft *j;
+  int res;
 
+  j = validate_file_handle(fd);
+  if (j == NULL) {
+    return FD32_EBADF;
+  }
+
+  res = j->request(FD32_GET_DEV_INFO, NULL);
+
+  if (res > 0) {
+    return res;
+  }
+
+  return 0;
+}
 #ifdef CHARDEVS
 /* TODO: Character devs ABSOLUTELY WRONG! */
 static fd32_dev_file_t *is_char_device(char *FileName)

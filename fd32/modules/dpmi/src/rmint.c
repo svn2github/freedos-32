@@ -15,9 +15,12 @@
 #include <kernel.h>
 #include "rmint.h"
 
-extern int videobios_int(union rmregs *r);
-extern void int21_handler(union rmregs *r);
+extern int dosidle_int(union rmregs *r);
 extern int keybbios_int(union rmregs *r);
+extern int videobios_int(union rmregs *r);
+extern int mousebios_int(union rmregs *r);
+extern int fastconsole_int(union rmregs *r);
+extern void int21_handler(union rmregs *r);
 
 //#define __RM_INT_DEBUG__
 
@@ -31,7 +34,7 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
     case 0x10:
       res = videobios_int(r1);
       return res;
-#if 0	/* This is not needed, for now... */
+#if 1	/* This is not needed, for now... */
     case 0x16:
       res = keybbios_int(r1);
       return res;
@@ -55,9 +58,20 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
 #endif
       return 0;
 
+    case 0x28:
+      res = dosidle_int(r1);
+      return res;
+
+    case 0x29:
+      res = fastconsole_int(r1);
+      return res;
+
     case 0x2F:
       /* Warning: Don't know what this is... */
-    return 0;
+      return 0;
+
+    case 0x33:
+      return mousebios_int(r1);
 
   }
 

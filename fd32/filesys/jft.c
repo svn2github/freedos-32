@@ -27,9 +27,13 @@
  * if not, write to the Free Software Foundation, Inc.,                   *
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/stdlib.h>
+#include <ll/i386/mem.h>
+#include <ll/i386/error.h>
 
-#include <dr-env.h>
+#include <kmem.h>
+#include <kernel.h>
 #include <errors.h>
 #include <devices.h>
 #include "fspriv.h"
@@ -58,7 +62,7 @@ int fake_console_write(void *Buffer, int Size)
     if (n > Count) n = Count;
     memcpy(String, Buffer, n);
     String[n] = 0;
-    fd32_message(String);
+    message(String);
     Count -= n;
     Buffer += n;
   }
@@ -132,7 +136,7 @@ void *fd32_init_jft(int JftSize)
 
   LOG_PRINTF(("Initializing JFT...\n"));
   if (JftSize < 5) return NULL;
-  if ((Jft = fd32_kmem_get(sizeof(tJft) * JftSize)) == NULL) return NULL;
+  if ((Jft = (struct jft *)mem_get(sizeof(tJft) * JftSize)) == NULL) return NULL;
   memset(Jft, 0, sizeof(tJft) * JftSize);
 
   /* Prepare JFT entries 0, 1 and 2 with the "con" device */
@@ -181,4 +185,15 @@ void *fd32_init_jft(int JftSize)
 
   LOG_PRINTF(("JFT initialized.\n"));
   return Jft;
+}
+
+void fd32_free_jft(void *p, int jft_size)
+{
+  int res;
+
+  res = mem_free((DWORD)p, sizeof(struct jft) * jft_size);
+  if (res != 1) {
+    error("Restore PSP panicing while freeing the JFT\n");
+    fd32_abort();
+  }
 }

@@ -1,4 +1,5 @@
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/stdlib.h>
 
 #include <errors.h>
 #include <nls.h>

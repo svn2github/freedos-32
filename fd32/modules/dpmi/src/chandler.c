@@ -19,6 +19,7 @@
 #include "int31_04.h"
 #include "int31_05.h"
 #include "int31_06.h"
+#include "int31_09.h"
 #include "int31_0e.h"
 
 #define LETSSTOP 10
@@ -44,7 +45,7 @@ void return_to_dos(union regs *r)
 
 #ifdef __DPMI_DEBUG__
   fd32_log_printf("[DPMI] Return to DOS: return code 0x%x\n", (BYTE)(r->d.eax & 0xFF));
-  fd32_log_printf("Current stack: 0x%lx\n", get_SP());
+  fd32_log_printf("Current stack: 0x%lx\n", get_sp());
 #endif
   restore_sp(r->d.eax & 0xFF);
 }
@@ -183,6 +184,10 @@ void chandler(DWORD intnum, union regs r)
 	int31_0400(&r);
 	return;
 	
+      case 0x0401:
+	int31_0401(&r);
+	return;
+	
       case 0x0501:
 	int31_0501(&r);
 	return;
@@ -193,6 +198,14 @@ void chandler(DWORD intnum, union regs r)
       case 0x0600:
 	int31_0600(&r);
 	return;
+
+      case 0x0900:
+        int31_0900(&r);
+        return;
+
+      case 0x0901:
+        int31_0901(&r);
+        return;
 
       case 0x0E01:
 	int31_0E01(&r);

@@ -22,7 +22,8 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/ctype.h>
 
 #include <unicode.h>
 #include <errors.h>

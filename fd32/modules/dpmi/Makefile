@@ -15,7 +15,8 @@ LINK_OPT = -Bstatic
 
 OBJS = chandler.o dpmimem.o dpmiexc.o rmint.o ldtmanag.o init.o \
 	int31_00.o int31_02.o int31_03.o int31_04.o int31_05.o \
-	int31_06.o int31_0e.o int10.o int21.o
+	int31_06.o int31_0e.o int10.o int16.o int21.o int28.o int29.o \
+	int33.o int31_09.o
 
 VPATH = src
 

@@ -230,6 +230,7 @@ char fd32_get_default_drive();
 void fd32_set_boot_device  (DWORD MultiBootId);
 
 /* FS.C - File system functions */
+int fd32_get_dev_info(int fd);
 int  fd32_open             (char *FileName, DWORD Mode, WORD Attr, WORD AliasHint, int *Result);
 int  fd32_close            (int Handle);
 int  fd32_fflush           (int Handle);

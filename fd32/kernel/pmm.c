@@ -81,7 +81,7 @@ int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
 
 DWORD pmm_alloc(struct mempool *mp, DWORD size)
 {
-  struct memheader *p, *p1;
+  struct memheader *p, *p1, *p2;
   DWORD size2, b;
 
 #ifdef __DEBUG__
@@ -109,8 +109,20 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
 	}
 	return b;
       } else {
+#ifdef __ALLOC_FROM_END__
 	p->size -= size;
 	return (b + p->size);
+#else
+	p2 = (struct memheader *)(b + size);
+	p2->next = p->next;
+	p2->size = p->size - size;
+	if (p1 == 0) {
+	  mp->first = p2;
+	} else {
+	  p1->next = p2;
+	}
+	return b;
+#endif
       }
     }
 #ifdef __DEBUG__
@@ -119,6 +131,8 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
 
   }
   error("[PMM] alloc: not enough memory\n");
+  pmm_dump(mp);
+  message("(Want %lu 0x%lx)\n", size, size);
   return 0;
 }
 
@@ -213,4 +227,20 @@ int pmm_free(struct mempool *mp, DWORD base, DWORD size)
   mp->free += size;
   p1->next = h;
   return 1;
+}
+
+void pmm_dump(struct mempool *mp)
+{
+  struct memheader *p;
+
+  for (p = mp->first; p!= 0; p = p->next) {
+#ifdef __DEBUG__
+    fd32_log_printf("Memory Chunk: %lx ---> %lx (%ld ---> %ld)\n",
+		    (DWORD)p, (DWORD)p + p->size,
+		    (DWORD)p, (DWORD)p + p->size);
+#endif
+    message("Memory Chunk: %lx ---> %lx (%ld ---> %ld)\n",
+		    (DWORD)p, (DWORD)p + p->size,
+		    (DWORD)p, (DWORD)p + p->size);
+  }
 }

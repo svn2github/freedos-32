@@ -26,7 +26,10 @@
  * if not, write to the Free Software Foundation, Inc.,                   *
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/stdlib.h>
+#include <ll/i386/string.h>
+#include <ll/i386/mem.h>
 
 #include <filesys.h>
 #include <unicode.h>

@@ -6,10 +6,16 @@
 #include <ll/i386/linkage.h>
 
 .bss
+#if 0
 retval:
 	.long
 param:
 	.long
+#else
+.lcomm retval, 4
+.lcomm param, 4
+#endif
+
 .data
 .globl SYMBOL_NAME(current_SP)
 SYMBOL_NAME_LABEL(current_SP)

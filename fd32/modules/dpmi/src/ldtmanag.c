@@ -103,7 +103,7 @@ int fd32_allocate_descriptors(WORD NumSelectors)
       gdt_place(INDEX_TO_SELECTOR(i), 0, 0, 0x92 | (RUN_RING << 5), 0x40);
 #else
       /* FIX ME: This is not defined at all! */
-      ldt_place(INDEX_TO_SELECTOR(i), 0, 0, 0x92 | (RUN_RING << 5), 0x40);
+      LDT_place(INDEX_TO_SELECTOR(i), 0, 0, 0x92 | (RUN_RING << 5), 0x40);
 #endif
     }
     /* Return the first selector allocated */

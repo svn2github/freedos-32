@@ -4,6 +4,7 @@
 #include "devices.h"
 #include "filesys.h"
 #include "format.h"
+#include "kernel.h"
 #include "kmem.h"
 #include "logger.h"
 #include "exec.h"
@@ -11,7 +12,6 @@
 /* from fd32/boot/modules.c */
 int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
 /* from fd32/kernel/exec.c */
-DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, int *s);
 
 //#define __DEBUG__
 
@@ -19,16 +19,6 @@ struct funky_file {
   fd32_request_t *request;
   void *file_id;
 };
-static int funky_offset = 0;
-
-static int my_offset(int id, int offs)
-{
-  my_seek(id, offs, FD32_SEEKCUR);
-
-  funky_offset = offs;
-  
-  return 1;
-}
 
 static int my_read(int id, void *b, int len)
 {
@@ -57,19 +47,16 @@ static int my_seek(int id, int pos, int w)
   struct funky_file *f;
   fd32_lseek_t ls;
  
-  if (w != FD32_SEEKCUR) {
-    pos += funky_offset;
-  }
   f = (struct funky_file *)id;
   ls.Size = sizeof(fd32_lseek_t);
   ls.DeviceId = f->file_id;
   ls.Offset = (long long int) pos;
   ls.Origin = (DWORD) w;
   error = f->request(FD32_LSEEK, &ls);
-  return (int) ls.Offset - funky_offset;
+  return (int) ls.Offset;
 }
 
-int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
+int dos_exec(char *filename, DWORD env_segment, char *args,
              DWORD fcb1, DWORD fcb2, WORD *return_val)
 {
   struct kern_funcs p;
@@ -82,6 +69,7 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
   void *fs_device;
   char *pathname;
   fd32_openfile_t of;
+  DWORD base;
 
   /*
   TODO: filename must be canonicalized with fd32_truename, but fd32_truename
@@ -118,17 +106,18 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
   f.file_id = of.FileId;
 
 #ifdef __DEBUG__
-  fd32_log_printf("FileId = 0x%lx (0x%lx)\n", (DWORD) f.file_id, &f);
+  fd32_log_printf("FileId = 0x%lx (0x%lx)\n", (DWORD)f.file_id, (DWORD)&f);
 #endif
   p.file_read = my_read;
   p.file_seek = my_seek;
-  p.offset = my_offset;
   p.mem_alloc = mem_get;
   p.mem_alloc_region = mem_get_region;
   p.mem_free = mem_free;
   p.message = message;
   p.log = fd32_log_printf;
   p.error = message;
+  p.get_dll_table = get_dll_table;
+  p.add_dll_table = add_dll_table;
   p.seek_set = FD32_SEEKSET;
   p.seek_cur = FD32_SEEKCUR;
 
@@ -136,8 +125,8 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
 #ifdef __DEBUG__
   fd32_log_printf("Module type: %d\n", mod_type);
 #endif
-  if (mod_type == 2) {
-    entry_point = load_process(&p, (int)(&f), &parser, &exec_base, &size);
+  if ((mod_type == 2) || (mod_type == 3)) {
+    entry_point = load_process(&p, (int)(&f), &parser, &exec_base, &base, &size);
     if (entry_point == -1) {
 #ifdef __DEBUG__
       fd32_log_printf("Error loading %s\n", filename);
@@ -146,8 +135,20 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
     }
     
     if (exec_base == 0) {
+      struct process_info pi;
 #ifdef __DEBUG__
-      fd32_log_printf("What the heck!?\n");
+      fd32_log_printf("Seems to be a native application?\n");
+#endif
+      pi.args = &args[1];
+      pi.memlimit = base + size + LOCAL_BSS;
+#ifdef __DEBUG__
+      message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", pi.memlimit, base, size);
+#endif
+      /* FIXME: args has a space at the beginning... Fix it in the caller! */
+#if 0
+      run(entry_point, 0, (DWORD)/*filename*/&args[1]);
+#else
+      run(entry_point, 0, (DWORD)&pi);
 #endif
       return 0;
     } else {
@@ -156,13 +157,13 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
 #endif
     }
     /* *return_val = exec_process(&p, (int)(&f), &parser, filename); */
-    *return_val = create_process(entry_point, exec_base, size, filename);
+    *return_val = create_process(entry_point, exec_base, size, filename, args);
     message("Returned: %d!!!\n", *return_val);
     mem_free(exec_base, size);
   }
 
   if (mod_type == 4) {
-    process_dos_module(&p, (int)(&f), &parser, filename);
+    process_dos_module(&p, (int)(&f), &parser, filename, args);
   }
   return 1;
 }

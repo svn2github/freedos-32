@@ -11,7 +11,6 @@
 
 #include "format.h"
 #include "common.h"
-#define LOCAL_BSS 1024
 
 int common_relocate_section(struct kern_funcs *kf,DWORD base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
@@ -32,7 +31,7 @@ int common_relocate_section(struct kern_funcs *kf,DWORD base, DWORD bssbase, str
     idx = rel[i].symbol;
 
 #ifdef __COFF_DEBUG__
-    kk->log("%s --> 0x%lx (section %d)\n", syms[idx].name,
+    kf->log("%s --> 0x%lx (section %d)\n", syms[idx].name,
 	  syms[idx].offset, syms[idx].section);
 #endif
 
@@ -83,7 +82,7 @@ int common_relocate_section(struct kern_funcs *kf,DWORD base, DWORD bssbase, str
         kf->message("Symbol %s not found\n", syms[idx].name);
         return -1;
       }
-      if ((rel[i].type == REL_TYPE_COFF_ABSOLUTE) || (rel[i].type == REL_TYPE_ELF_ABSOLUTE)) {
+      if ((rel[i].type == REL_TYPE_COFF32_ABSOLUTE) || (rel[i].type == REL_TYPE_COFF_ABSOLUTE) || (rel[i].type == REL_TYPE_ELF_ABSOLUTE)) {
 	/* Do something here!!! */
 #if 0
 	address += /* ??? */ base;
@@ -96,10 +95,10 @@ address += *((DWORD *)destination);
 
 #endif
       } else if (rel[i].type == REL_TYPE_RELATIVE) {
-	address = import[j].address - (rel[i].offset + base) - 4;
+        address = import[j].address - (rel[i].offset + base) - 4;
       } else {
-	kf->error("Unsupported relocation\n");
-	kf->message("Relocation Type: %d\n", rel[i].type);
+        kf->error("Unsupported relocation\n");
+        kf->message("Relocation Type: %d\n", rel[i].type);
         return -1;
       }
       /*
@@ -110,12 +109,12 @@ address += *((DWORD *)destination);
 #if 0 /*this check has to be reworked...*/
       if (syms[idx].section > n + 1) {
         drenv_kf->error("Unsupported relocation section\n");
-	drenv_printf("Section %d > %d\n", syms[idx].section, n);
+        drenv_printf("Section %d > %d\n", syms[idx].section, n);
 
         drenv_printf("Value 0x%lx\n", syms[idx].offset);
         drenv_printf("SectNum %d\n", syms[idx].section);
 /*
-        printf("Type %u\n", syms[idx].type);
+      printf("Type %u\n", syms[idx].type);
       printf("Class %u\n", s[idx].e_sclass);
       printf("NumAux %u\n", s[idx].e_numaux);
 */
@@ -124,38 +123,42 @@ address += *((DWORD *)destination);
       }
 #endif
       /* Non-extermal symbols: only REL32 is supported */
-      if ((rel[i].type != REL_TYPE_COFF_ABSOLUTE) &&
+      if ((rel[i].type != REL_TYPE_COFF32_ABSOLUTE) &&
+          (rel[i].type != REL_TYPE_COFF_ABSOLUTE) &&
 		      (rel[i].type != REL_TYPE_ELF_ABSOLUTE) &&
 		      (rel[i].type != REL_TYPE_RELATIVE)) {
-	kf->error("Unsupported relocation\n");
-	kf->message("Relocation Type: %d\n", rel[i].type);
+        kf->error("Unsupported relocation\n");
+        kf->message("Relocation Type: %d\n", rel[i].type);
         return -1;
       }
 #ifdef __COFF_DEBUG__
       kf->log("%p ---> 0x%lx\n", (DWORD *)(rel[i].offset + base), address);
 #endif
-      if (rel[i].type == REL_TYPE_COFF_ABSOLUTE) {
-	address += /* s[idx].e_value +  sec[s[idx].e_scnum].base + */ base;
-	destination = rel[i].offset + base;
+      if (rel[i].type == REL_TYPE_COFF32_ABSOLUTE) {
+        address += base;
+        destination = rel[i].offset + base;
+      } else if (rel[i].type == REL_TYPE_COFF_ABSOLUTE) {
+        address += syms[idx].offset + s[syms[idx].section].base + base;
+        destination = rel[i].offset + base;
       } else if (rel[i].type == REL_TYPE_ELF_ABSOLUTE) {
 #ifndef __LUCA_IS_CRAZY__
-	address = *(DWORD *)destination;
+        address = *(DWORD *)destination;
 #endif
 	/* WARNING!!!! This is clearly a hack... Check what really
 	 * must be done in this case...
 	 */
-	if (address > 0x1000000) {
+        if (address > 0x1000000) {
           address = base + s[syms[idx].section].base + syms[idx].offset;
-	} else {
+        } else {
           address += base + s[syms[idx].section].base + syms[idx].offset;
-	}
+        }
       } else {
-	address = (s[syms[idx].section].base + syms[idx].offset) - (rel[i].offset /*+ base*/) - 4;
+        address = (s[syms[idx].section].base + syms[idx].offset) - (rel[i].offset /*+ base*/) - 4;
 #ifdef __COFF_DEBUG__
-	kf->log("Reloc: 0x%lx + 0x%lx - 0x%lx = 0x%lx   ",
-		     syms[idx].offset,
-		     s[syms[idx].section].base,
-		     rel[i].offset /*+ base*/, address);
+        kf->log("Reloc: 0x%lx + 0x%lx - 0x%lx = 0x%lx   ",
+		      syms[idx].offset,
+		      s[syms[idx].section].base,
+		      rel[i].offset /*+ base*/, address);
 #endif
       } 
     }
@@ -188,20 +191,42 @@ DWORD common_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *sym
 {
   int i;
   int done;
+  char *p;
  
   i = 0; done = 0;
   while ((i < n) && !done) {
+#ifdef __COFF_DEBUG__
+    kf->log("Checking symbol %d [%d] --- Sect %d\n", i, n, syms[i].section);
+#endif
     if ((syms[i].section != EXTERN_SYMBOL) && (syms[i].section != COMMON_SYMBOL)) {
-      if (strstr(syms[i].name, name) != 0) {
+#ifdef __COFF_DEBUG__
+      kf->log(" : %s\n", syms[i].name);
+      kf->log("strstr(%s, %s)\n", syms[i].name, name);
+#endif
+      p = strstr(syms[i].name, name);
+#ifdef __COFF_DEBUG__
+      if (p == NULL) {
+        kf->log("Done: NULL\n");
+      } else {
+        kf->log("Done: %s\n", p);
+      }
+#endif
+      if ((p != NULL) && (*(p - 1) != '_')) {
 #ifdef __COFF_DEBUG__
 	kf->log("Found: %s --- 0x%x : 0x%lx\n",
 		     syms[i].name, syms[i].section, syms[i].offset);
 #endif
 	done = 1;
       } else {
+#ifdef __COFF_DEBUG__
+        kf->log("Cmp failed --- Going to %d\n", i);
+#endif
 	i++;
       }
     } else {
+#ifdef __COFF_DEBUG__
+      kf->log("Skipped symbol --- Going to %d\n", i);
+#endif
       i++;
     }
   }
@@ -218,7 +243,7 @@ DWORD common_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *sym
 }
 
 
-DWORD common_load_executable(struct kern_funcs *kf, int file, int n, struct section_info *s, int *size)
+DWORD common_load_executable(struct kern_funcs *kf, int file,  struct table_info *tables, int n, struct section_info *s, int *size)
 {
   int i;
   DWORD where_to_place;
@@ -255,9 +280,9 @@ DWORD common_load_executable(struct kern_funcs *kf, int file, int n, struct sect
   /* .text & .data section 			*/
   for (i = 0; i < n; i++) {
 #ifdef __COFF_DEBUG__
-    kf->log("Loading section %d at 0x%lx [offset %x; p1 %x]\n",
+    kf->log("Loading section %d at 0x%lx [offset %x]\n",
 	    i, s[i].base,
-	    s[i].fileptr, (char *)p + s[i].fileptr);
+	    s[i].fileptr);
 #endif
     where_to_place = load_offset + (DWORD)(s[i].base);
 #ifdef __COFF_DEBUG__
@@ -268,7 +293,7 @@ DWORD common_load_executable(struct kern_funcs *kf, int file, int n, struct sect
       memset((void *)where_to_place, 0, s[i].size);
     } else {
       if (s[i].fileptr != 0) {
-	kf->file_seek(file, s[i].fileptr, 0);
+	kf->file_seek(file, kf->file_offset + s[i].fileptr, 0);
 	kf->file_read(file, (void *)where_to_place, s[i].size);
       }
     }
@@ -278,7 +303,7 @@ DWORD common_load_executable(struct kern_funcs *kf, int file, int n, struct sect
   return exec_space;
 }
 
-DWORD common_load_relocatable(struct kern_funcs *kf, int f, int n, struct section_info *s, int *size)
+DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *tables, int n, struct section_info *s, int *size)
 {
   int i;
   DWORD needed_mem = 0, offset;
@@ -313,7 +338,7 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f, int n, struct sectio
       where_to_place = mem_space + local_offset;
       s[i].base = local_offset;
       local_offset += s[i].size;
-      kf->file_seek(f, s[i].fileptr, kf->seek_set);
+      kf->file_seek(f, kf->file_offset + s[i].fileptr, kf->seek_set);
       if (s[i].filesize > 0) {
         kf->file_read(f, where_to_place, s[i].filesize);
       }

@@ -50,7 +50,7 @@ static void mem_init2(DWORD ks, DWORD ke, DWORD mstart, int mnum)
 #ifdef __MEM_DEBUG__
   message("Removing %lx - %lx:\n", start, end);
 #endif
-  pmm_remove_region(&high_mem_pool, start, end - start);
+  pmm_remove_region(&high_mem_pool, start, end - start + 1);
 }
 
 static void mem_init_from_mmap(DWORD mmap_addr, WORD mmap_size)
@@ -161,6 +161,41 @@ void mem_init(void *p)
 
   mem_init2((DWORD)(&_start), (DWORD)(&end), mstart, mnum);
 }
+    
+void mem_release_module(DWORD mstart, int m, int mnum)
+{
+  DWORD ms, nms, me, ms1, dummy;
+  int i;
+
+  module_address(mstart, m, &ms, &me);
+  nms = 0;
+  for (i = 0; i < mnum; i++) {
+    module_address(mstart, i, &ms1, &dummy);
+    if (nms == 0) {
+      if (ms1 > me) {
+        nms = ms1;
+      }
+    } else {
+      if ((ms1 > me) && (ms1 < nms)) {
+        nms = ms1;
+      }
+    }
+  }
+  if (nms == 0) {
+    nms = me + 1;
+  }
+#ifdef __MEM_DEBUG__
+  fd32_log_printf("________\n");
+  pmm_dump(&high_mem_pool);
+  fd32_log_printf("\n");
+  fd32_log_printf("releasing %lx - %lx\n", ms, nms);
+#endif
+  pmm_add_region(&high_mem_pool, ms, nms - ms);
+#ifdef __MEM_DEBUG__
+  pmm_dump(&high_mem_pool);
+  fd32_log_printf("________\n");
+#endif
+}
 
 void dosmem_init(DWORD base, DWORD size)
 {
@@ -201,4 +236,10 @@ int mem_free(DWORD base, DWORD size)
 DWORD mem_get(DWORD amount)
 {
   return pmm_alloc(&high_mem_pool, amount);
+}
+
+void mem_dump(void)
+{
+  pmm_dump(&high_mem_pool);
+  pmm_dump(&dos_mem_pool);
 }

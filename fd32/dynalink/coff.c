@@ -14,16 +14,13 @@
 #include "coff.h"
 #include "symbol.h"
 
-#define LOCAL_BSS 100
-
-
 DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 {
   DWORD entry;
   struct external_filehdr header;
   struct aout_hdr optheader;
 
-  kf->file_seek(f, 0, kf->seek_set);
+  kf->file_seek(f, kf->file_offset + 0, kf->seek_set);
   kf->file_read(f, &header, sizeof(struct external_filehdr));
 
   if (header.f_magic != 0x014c) {
@@ -34,10 +31,13 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
     return 0;
   }
 
+  tables->flags = 0;
+
 #ifdef __COFF_DEBUG__
   kf->log("Number of sections: %d\n", header.f_nscns);
 #endif
   tables->num_sections = header.f_nscns;
+  tables->string_size = 0;
   if ((header.f_symptr != 0) && (header.f_nsyms != 0)) {
 #ifdef __COFF_DEBUG__
     kf->log("Symbol table at offset %ld\n", header.f_symptr);
@@ -55,7 +55,7 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
   if (header.f_opthdr != 0) {
     kf->log("Optional Header Size: %d\n", header.f_opthdr);
   } else {
-    ptintf("No Optional Header\n");
+    kf->log("No Optional Header\n");
   }
 
   if (header.f_flags & F_RELFLG) {
@@ -77,7 +77,7 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
   if (header.f_flags & F_AR32WR) {
     kf->log("32-bit little endian!\n");
   } else {
-    kf->log("File type?\n");
+    kf->log("MingW COFF?\n");
   }
 #endif
 
@@ -104,6 +104,15 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 #else
   tables->section_header = kf->file_seek(f, 0, kf->seek_cur);
 #endif
+  if (entry == 0) {
+    tables->flags |= NO_ENTRY;
+    tables->flags |= NEED_LOAD_RELOCATABLE;
+    tables->flags |= NEED_SECTION_RELOCATION;
+  }
+  /* Fix the MingW COFF modules loading problem */
+  if (header.f_flags & F_AR32WR) {
+    tables->flags |= NEED_AR32WR_RELOCATION;
+  }
   
   return entry;
 }
@@ -123,39 +132,49 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
   kf->file_seek(f, tables->section_header, kf->seek_set);
   for (i = 0; i < tables->num_sections; i++) {
     kf->file_read(f, &h, sizeof(struct external_scnhdr));
-
     memcpy(name, h.s_name, 8);
     name[8] = 0;
-#ifdef __COFF_DEBUG__
-    kf->log("[%s]: <0x%lx:0x%lx> (0x%lx)\n", name,
-	  h.s_paddr,
-	  h.s_paddr + h.s_size,
-	  h.s_scnptr);
-#endif
+    
     if (strcmp(name, ".bss") == 0) {
       bss = i;
     }
-    scndata[i].base = h.s_paddr;
-    scndata[i].size = h.s_size;
+    
+    if (!(tables->flags & NEED_AR32WR_RELOCATION) && strcmp(name, ".bss") == 0) {
+      /* TODO: MingW COFF section size hack! */
+      scndata[i].size = h.s_paddr;
+    } else {
+      scndata[i].size = h.s_size;
+    }
+    scndata[i].base = h.s_vaddr;
     scndata[i].fileptr = h.s_scnptr;
     scndata[i].filesize = h.s_size;
+    
+#ifdef __COFF_DEBUG__
+    kf->log("[%s]: <0x%lx:0x%lx> (0x%lx)\n", name,
+	  scndata[i].base,
+	  scndata[i].base + scndata[i].size,
+	  scndata[i].fileptr);
+#endif
     if (h.s_nreloc !=0) {
 #ifdef __COFF_DEBUG__
       kf->log("Relocation info @ %ld (%d entries)\n",
-	  h.s_relptr, h.s_nreloc);
+        h.s_relptr, h.s_nreloc);
 #endif
       scndata[i].num_reloc = h.s_nreloc;
       scndata[i].reloc = (void *)kf->mem_alloc(sizeof(struct reloc_info) * h.s_nreloc);
       pos = kf->file_seek(f, 0, kf->seek_cur);
-      kf->file_seek(f, h.s_relptr, kf->seek_set);
+      kf->file_seek(f, kf->file_offset + h.s_relptr, kf->seek_set);
       for(j = 0; j < h.s_nreloc; j++) {
         kf->file_read(f, &rel, sizeof(struct coff_reloc_info));
-	scndata[i].reloc[j].offset = rel.r_vaddr;
-	scndata[i].reloc[j].symbol = rel.r_symndx;
-/* HACKME!!! Unify the relocation types... */
-	scndata[i].reloc[j].type = rel.r_type;
-	if (rel.r_type == 6){
-          scndata[i].reloc[j].type = REL_TYPE_COFF_ABSOLUTE;
+        scndata[i].reloc[j].offset = rel.r_vaddr;
+        scndata[i].reloc[j].symbol = rel.r_symndx;
+        /* HACKME!!! Unify the relocation types... */
+        scndata[i].reloc[j].type = rel.r_type;
+        if (rel.r_type == 6){
+          if (tables->flags & NEED_AR32WR_RELOCATION)
+            scndata[i].reloc[j].type = REL_TYPE_COFF32_ABSOLUTE;
+          else
+            scndata[i].reloc[j].type = REL_TYPE_COFF_ABSOLUTE;
         } else if (rel.r_type == 20) {
           scndata[i].reloc[j].type = REL_TYPE_RELATIVE;
         }
@@ -169,8 +188,7 @@ scndata[i].reloc[j].type);
       kf->file_seek(f, pos, kf->seek_set);
     } else {
 #ifdef __COFF_DEBUG__
-      kf->log("No relocation info: %u:0x%lx\n",
-	h.s_nreloc, h.s_relptr);
+      kf->log("No relocation info: %u:0x%lx\n", h.s_nreloc, h.s_relptr);
 #endif
       scndata[i].num_reloc = 0;
     }
@@ -200,7 +218,6 @@ scndata[i].reloc[j].type);
   return bss;
 }
 
-
 /*
 int COFF_read_symbols(FILE *f, int n, int p, struct symbol_info *sym, char **s)
 */
@@ -220,7 +237,7 @@ int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
 kf->log("Reading %ld symbols\n", tables->num_symbols);
 #endif
   symbol = (void *)kf->mem_alloc(tables->num_symbols * sizeof(struct coff_symbol_info));
-  kf->file_seek(f, tables->symbol, kf->seek_set);
+  kf->file_seek(f, kf->file_offset + tables->symbol, kf->seek_set);
   for (i = 0; i < tables->num_symbols; i++) {
     kf->file_read(f, &symbol[i], sizeof(struct coff_symbol_info));
     if ((BYTE)symbol[i].e.e.e_zeroes != 0) {
@@ -240,7 +257,13 @@ kf->log("Reading %ld symbols\n", tables->num_symbols);
   inlined = s + size;
 
   for (i = 0; i < tables->num_symbols; i++) {
+#ifdef __COFF_DEBUG__
+    kf->log("Symbol %d:\n", i);
+#endif
     if ((BYTE)symbol[i].e.e.e_zeroes != 0) {
+#ifdef __COFF_DEBUG__
+      kf->log("Inlined: %s\n", symbol[i].e.e_name);
+#endif
       /* Inlined symbol */
       memcpy(inlined, symbol[i].e.e_name, 8);
       inlined[8] = 0;
@@ -250,7 +273,14 @@ kf->log("Reading %ld symbols\n", tables->num_symbols);
 #ifdef __COFF_DEBUG__
       kf->log("In strings... Offset 0x%lx\n", symbol[i].e.e.e_offset);
 #endif
-      syms[i].name = s + symbol[i].e.e.e_offset + 1;
+      if (symbol[i].e.e.e_offset > size) {
+        syms[i].name = 0;
+      } else {
+        syms[i].name = s + symbol[i].e.e.e_offset + 1;
+      }
+#ifdef __COFF_DEBUG__
+      kf->log("Name: %s\n", syms[i].name);
+#endif
     }
     syms[i].offset = symbol[i].e_value;
     syms[i].section = symbol[i].e_scnum;
@@ -262,13 +292,16 @@ kf->log("Symbol %d: %s @ %d:0x%lx\n", i, syms[i].name, syms[i].section, syms[i].
         /* extern symbol */
         syms[i].section = EXTERN_SYMBOL;
       } else {
-      /* common symbol */
+        /* common symbol */
         syms[i].section = COMMON_SYMBOL;
       }
     } else {
       syms[i].section--;
     }
   }
+  /* needed info to clear the memory */
+  tables->string_buffer = (DWORD)s;
+  tables->string_size = size + numinlined * 9;
   kf->mem_free((DWORD)symbol, tables->num_symbols * sizeof(struct coff_symbol_info));
 
   return 1;
@@ -276,15 +309,31 @@ kf->log("Symbol %d: %s @ %d:0x%lx\n", i, syms[i].name, syms[i].section, syms[i].
 
 void COFF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
 {
-  /* TODO: Free 'em all, please!!! */
+  int i;
+
+  for(i = 0; i < tables->num_sections; i++) {
+    if(scndata[i].num_reloc != 0) {
+      kf->mem_free((DWORD)scndata[i].reloc,
+        sizeof(struct reloc_info)*scndata[i].num_reloc);
+    }
+  }
+  kf->mem_free((DWORD)scndata,
+    sizeof(struct section_info)*tables->num_sections);
+  if(syms != NULL) {
+    kf->mem_free((DWORD)syms, sizeof(struct symbol_info)*tables->num_symbols);
+  }
+  if(tables->string_size != 0) {
+    kf->mem_free(tables->string_buffer, tables->string_size);
+  }
 }
 
 int isCOFF(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
   WORD magic;
 
-  kf->file_seek(f, 0, kf->seek_set);
+  kf->file_offset = kf->file_seek(f, 0, kf->seek_cur);
   kf->file_read(f, &magic, 2);
+  kf->file_seek(f, kf->file_offset + 0, kf->seek_set);
 
   if (magic != 0x014c) {
     return 0;

@@ -28,8 +28,11 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/stdlib.h>
+#include <ll/i386/string.h>
 
+#include <kmem.h>
 #include <filesys.h>
 #include <unicode.h>
 #include <errors.h>
@@ -113,7 +116,7 @@ int fd32_create_subst(char *DriveAlias, char *Target)
     C.DeviceId = Of.FileId;
     if ((Res = request(FD32_CLOSE, &C)) < 0) return Res;
     /* Initialize a new tSubst structure and make it the SubstList head */
-    if ((S = fd32_kmem_get(sizeof(tSubst))) == NULL) return FD32_ENOMEM;
+    if ((S = (void *)mem_get(sizeof(tSubst))) == NULL) return FD32_ENOMEM;
     S->Next = SubstList;
     strcpy(S->DriveAlias, DriveAlias);
     strcpy(S->Target, Target);
@@ -134,7 +137,7 @@ int fd32_terminate_subst(char *DriveAlias)
     {
       if (PrevS) PrevS->Next = S->Next;
             else SubstList   = S->Next;
-      fd32_kmem_free(S, sizeof(tSubst));
+      mem_free((DWORD)S, sizeof(tSubst));
       return 0;
     }
   return FD32_ENODRV;
@@ -209,7 +212,7 @@ int fd32_chdir(/*const */char *DirName)
     }
 
   /* If no CDS is present for the specified drive, add the entry */
-  if ((D = fd32_kmem_get(sizeof(tCds))) == NULL) return FD32_ENOMEM;
+  if ((D = (void *)mem_get(sizeof(tCds))) == NULL) return FD32_ENOMEM;
   D->Next = *CdsList;
   strcpy(D->Drive, Drive);
   strcpy(D->CurDir, &Aux[Res + 1]);

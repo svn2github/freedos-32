@@ -5,7 +5,7 @@
 
 /* FD32 format of the Job File Table                                  */
 /* A JFT entry is free (closed handle) if the request member is NULL. */
-typedef struct
+typedef struct jft
 {
   fd32_request_t *request;     /* File system driver request function        */
   void           *DeviceId;    /* Identifier for the open file               */

@@ -13,7 +13,7 @@ LIB_DIR  = $(OSLIB)\lib
 C_OPT += -I../include $(DEBUG)
 LINK_OPT = -Bstatic
 
-OBJS = coff.o elf.o common.o
+OBJS = coff.o elf.o pecoff.o common.o
 
 all: dynalink.o
 

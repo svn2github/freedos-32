@@ -25,17 +25,20 @@ struct external_filehdr {
  *	F_LNNO		line numbers stripped from file
  *	F_LSYMS		local symbols stripped from file
  *	F_AR32WR	file has byte ordering of an AR32WR machine (e.g. vax)
+ *			Indicates that the file is 32-bit little endian
+ *			Seems that the DJGPP's COFF-GO32 format uses it
  */
 
 #define F_RELFLG	(0x0001)
 #define F_EXEC		(0x0002)
 #define F_LNNO		(0x0004)
 #define F_LSYMS		(0x0008)
+#define F_AR32WR	(0x0100)
 
 
 #define	I386MAGIC	0x14c
 #define I386AIXMAGIC	0x175
-#define I386BADMAG(x) (((x).f_magic!=I386MAGIC) && (x).f_magic!=I386AIXMAGIC)
+#define I386BADMAG(x)	(((x).f_magic!=I386MAGIC) && (x).f_magic!=I386AIXMAGIC)
 
 struct aout_hdr 
 {
@@ -81,11 +84,11 @@ struct external_scnhdr {
 /*
  * names of "special" sections
  */
-#define _TEXT	".text"
-#define _DATA	".data"
-#define _BSS	".bss"
-#define _COMMENT ".comment"
-#define _LIB ".lib"
+#define _TEXT		".text"
+#define _DATA		".data"
+#define _BSS		".bss"
+#define _COMMENT	".comment"
+#define _LIB		".lib"
 
 /*
  * s_flags "type"

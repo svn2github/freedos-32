@@ -15,6 +15,7 @@
 #include "kmem.h"
 #include "mods.h"
 #include "format.h"
+#include "kernel.h"
 #include "modfs.h"
 #include "doshdr.h"
 #include "format.h"
@@ -108,7 +109,7 @@ void process_ascii_module(struct kern_funcs *p, int file)
 }
 
 void process_dos_module(struct kern_funcs *p, int file,
-	struct read_funcs *parser, char *cmdline)
+	struct read_funcs *parser, char *cmdline, char *args)
 {
   struct dos_header hdr;
   DWORD nt_sgn;
@@ -125,25 +126,28 @@ void process_dos_module(struct kern_funcs *p, int file,
   if (hdr.e_cblp) {
     dj_header_start -= (512L - hdr.e_cblp);
   }
-  p->offset(file, dj_header_start);
-
+  p->file_seek(file, dj_header_start, 0);
+  
   if (identify_module(p, file, parser) == MOD_COFF) {
 #ifdef __MOD_DEBUG__
     fd32_log_printf("    DJGPP COFF File\n");
 #endif
-    exec_process(p, file, parser, cmdline);
+    exec_process(p, file, parser, cmdline, args);
     return;
   }
-  return;
   p->file_seek(file, hdr.e_lfanew, 0);
   p->file_read(file, &nt_sgn, 4);
-    
+  
+  message("The magic : %lx\n", nt_sgn);
   if (nt_sgn == 0x00004550) {
-    message("It seems to be an NT PE\n");
+    if (isPECOFF(p, file, parser)) {
+#ifdef __MOD_DEBUG__
+      fd32_log_printf("It seems to be an NT PE\n");
+#endif
+      exec_process(p, file, parser, cmdline, args);
+    }
   }
-  /* WRONG: should use modfs_offset() */
-  p->file_seek(file, hdr.e_lfanew + 4, 0);
-  exec_process(p, file, parser, cmdline);
+
   return;
 }
 
@@ -152,6 +156,8 @@ void process_modules(int mods_count, DWORD mods_addr)
   int i, mod_type;
   struct read_funcs parser;
   char *command_line;
+  void mem_release_module(DWORD mstart, int m, int mnum);	/* FIXME! */
+  char *args;
 
   /* Initialize the Modules Pseudo-FS... */
   modfs_init(&kf, mods_addr, mods_count);
@@ -167,16 +173,30 @@ void process_modules(int mods_count, DWORD mods_addr)
   kf.message = message;
   kf.log = fd32_log_printf;
   kf.error = message;
+  kf.get_dll_table = get_dll_table;
+  kf.add_dll_table = add_dll_table;
   kf.seek_set = 0;
   kf.seek_cur = 1;
   for (i = 0; i < mods_count; i++) {
 #ifdef __MOD_DEBUG__
     fd32_log_printf("[BOOT] Processing module #%d\n", i);
 #endif
-    message("Processing module #%d\n", i);
+    message("Processing module #%d ", i);
     command_line = module_cl(mods_addr, i);
 
     mod_type = identify_module(&kf, i, &parser);
+
+    args = command_line;
+    while ((*args != 0) && (*args != ' ')) {
+      args++;
+    }
+    if (*args != 0) {
+      *args = 0;
+      args++;
+    } else {
+      args = NULL;
+    }
+
     switch(mod_type) {
     case MOD_ASCII:
       
@@ -187,21 +207,22 @@ void process_modules(int mods_count, DWORD mods_addr)
       fd32_log_printf("    ELF Module\n");
 #endif
       message("going to exec ELF...\n");
-      exec_process(&kf, i, &parser, command_line);
+      exec_process(&kf, i, &parser, command_line, args);
       break;
     case MOD_COFF:
 #ifdef __MOD_DEBUG__
       fd32_log_printf("    COFF Module\n");
 #endif
       message("going to exec COFF...\n");
-      exec_process(&kf, i, &parser, command_line);
+      exec_process(&kf, i, &parser, command_line, args);
       break;
     case MOD_MZ:
-      process_dos_module(&kf, i, &parser, command_line);
+      process_dos_module(&kf, i, &parser, command_line, args);
       break;
     default:
       message("Unknown module type\n");
     }
+    mem_release_module(mods_addr, i, mods_count);
   }
 }
 

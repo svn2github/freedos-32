@@ -38,6 +38,7 @@
 #include <errors.h>
 #include <stubinfo.h>
 #include <logger.h>
+#include <time.h>
 #include "rmint.h"
 
 /* Define the __DEBUG__ symbol in order to activate log output */
@@ -57,6 +58,7 @@ int use_lfn;
 
 /* For direct character input INT 21h service */
 /* TODO: This is only a temporary patch, replace with the correct solution */
+void *kbddev_id = NULL;
 fd32_request_t *kbdreq = NULL;
 
 
@@ -64,13 +66,14 @@ fd32_request_t *kbdreq = NULL;
 typedef struct
 {
   WORD  Env;
-  DWORD CmdTail;
+  WORD arg_offs;
+  WORD arg_seg;
   DWORD Fcb1;
   DWORD Fcb2;
   DWORD Res1;
   DWORD Res2;
 }
-tExecParams;
+__attribute__ ((packed)) tExecParams;
 /* DOS return code of the last executed program */
 static WORD DosReturnCode;
 
@@ -141,6 +144,18 @@ static int make_sfn_path(char *Dest, const char *Source)
   *Dest = 0;
   LOG_PRINTF(("INT 21h - Name shortened to '%s'\n", Save));
   return 0;
+}
+
+
+/* Fix '/' in the long file name into '\\' */
+static char *fix_lfn_path(char *Dest)
+{
+  DWORD i;
+  
+  for(i = 0; Dest[i] != 0; i++)
+    if(Dest[i] == '/')
+      Dest[i] = '\\';
+  return Dest;
 }
 
 
@@ -546,9 +561,9 @@ static inline void lfn_functions(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file specification           */
       /* ES:DI pointer to the find data record                   */
       /* FIX ME: Parameter in SI is not yet used!                */
-      Res = fd32_lfn_findfirst((char *) (r->x.ds << 4) + r->x.dx,
+      Res = fd32_lfn_findfirst(fix_lfn_path((char *) (r->x.ds << 4) + r->x.dx),
                                (DWORD) (r->h.ch << 8) + r->h.cl,
-                               (fd32_fs_lfnfind_t *) (r->x.es << 4) + r->x.di);
+                               (fd32_fs_lfnfind_t *) ((r->x.es << 4) + r->x.di));
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
@@ -571,7 +586,7 @@ static inline void lfn_functions(union rmregs *r)
       /* ES:DI pointer to the find data record                      */
       /* FIX ME: Parameter in SI should be mixed with old search flags! */
       Res = fd32_lfn_findnext(r->x.bx, 0,
-                              (fd32_fs_lfnfind_t *) (r->x.es << 4) + r->x.di);
+                              (fd32_fs_lfnfind_t *) ((r->x.es << 4) + r->x.di));
       dos_return(Res, r);
       if (Res == 0) r->x.cx = 0;
                    /* FIX ME: Not yet implemented: Unicode conversion flag */
@@ -678,7 +693,7 @@ void int21_handler(union rmregs *r)
     {
       /* Perform 1-byte read from the stdin, file handle 0. */
       /* This call doesn't check for Ctrl-C or Ctrl-Break.  */
-      char Ch;
+      BYTE Ch;
 
 #if 1
       fd32_read_t R;
@@ -691,17 +706,21 @@ void int21_handler(union rmregs *r)
           LOG_PRINTF(("Unable to find the keyboard device. Direct character input disabled\n"));
           return;
         }
-        fd32_dev_get(Res, &kbdreq, &R.DeviceId, NULL, 0);
+        fd32_dev_get(Res, &kbdreq, &kbddev_id, NULL, 0);
       }
       R.Size        = sizeof(fd32_read_t);
+      R.DeviceId    = kbddev_id;
       R.Buffer      = &Ch;
       R.BufferBytes = 1;
       Res = kbdreq(FD32_READ, &R);
 #else
       Res = fd32_read(0, &Ch, 1);
 #endif
-      if (Res >= 0) r->h.al = Ch; /* Return the character in AL */
-      /* TODO: from RBIL:
+      if (Res >= 0) {
+        if (Ch == 0xE0) r->h.al = 0;
+        else r->h.al = Ch;
+      } /* Return the character in AL */
+        /* TODO: from RBIL:
          if the interim console flag is set (see AX=6301h), partially-formed
          double-byte characters may be returned */
       return;
@@ -731,6 +750,32 @@ void int21_handler(union rmregs *r)
       LOG_PRINTF(("INT 21h - Set Disk Transfer Area Address: %04x:%04x\n", r->x.ds, r->x.dx));
       /* DS:DX pointer to the new DTA */
       current_psp->dta = (void *) (r->x.ds << 4) + r->x.dx;
+      return;
+
+    /* DOS 1+ - GET SYSTEM DATE */
+    case 0x2A:
+      {
+      fd32_date_t D;
+      fd32_get_date(&D);
+      r->x.cx = D.Year;
+      r->h.dh = D.Mon;
+      r->h.dl = D.Day;
+      r->h.al = D.weekday;
+      }
+      RMREGS_CLEAR_CARRY;
+      return;
+
+    /* DOS 1+ - GET SYSTEM TIME */
+    case 0x2C:
+      {
+      fd32_time_t T;
+      fd32_get_time(&T);
+      r->h.ch = T.Hour;
+      r->h.cl = T.Min;
+      r->h.dh = T.Sec;
+      r->h.dl = T.Hund;
+      }
+      RMREGS_CLEAR_CARRY;
       return;
 
     /* DOS 2+ - Get Disk Transfer Area address */
@@ -967,6 +1012,17 @@ void int21_handler(union rmregs *r)
 
     /* IOCTL functions - FIX ME: THIS MUST BE COMPLETELY DONE! */
     case 0x44:
+      Res = fd32_get_dev_info(r->x.bx);
+      if (Res < 0) {
+        r->x.ax = (WORD)FD32_EBADF;
+        RMREGS_SET_CARRY;
+      } else {
+	r->x.ax = Res;
+	r->x.dx = r->x.ax;
+        RMREGS_CLEAR_CARRY;
+      }
+
+      return;
 /*
  * Warning!!!
  * This is clearly an hack!!!
@@ -979,7 +1035,7 @@ void int21_handler(union rmregs *r)
  */
       /* This should be GET DEVICE INFORMATION... */
       /* Hrm... We should look at al... See the FD DosDevIO (ioctl.c) */
-      if ((r->x.bx == 1) || (r->x.bx == 2)) {
+      if ((r->x.bx == 0) || (r->x.bx == 1) || (r->x.bx == 2)) {
         /* Stdout & Stderr are TTY devices... Hope this is the
          * right way to say it... 
          */
@@ -1047,6 +1103,9 @@ void int21_handler(union rmregs *r)
     case 0x4B:
     {
       tExecParams *pb;
+      char *args, *p, c[128];
+      int cnt, i;
+      
       pb = (tExecParams *) ((r->x.es << 4) + r->x.bx);
       /* Only AH = 0x00 - Load and Execute - is currently supported */
       if (r->h.al != 0)
@@ -1054,9 +1113,19 @@ void int21_handler(union rmregs *r)
         dos_return(FD32_EINVAL, r);
         return;
       }
+      p = (char *)((DWORD)(pb->arg_seg << 4) + (DWORD)pb->arg_offs);
+      cnt = *p++;
+      if (cnt == 0) {
+	args = NULL;
+      } else {
+	for (i = 0; i < cnt; i++) {
+          c[i] = *p++;
+	}
+	c[i] = 0;
+	args = c;
+      }
       Res = dos_exec((char *) ((r->x.ds << 4) + r->x.dx),
-                     pb->Env, pb->CmdTail, pb->Fcb1, pb->Fcb2,
-                     &DosReturnCode);
+                     pb->Env, args, pb->Fcb1, pb->Fcb2, &DosReturnCode);
     }
     dos_return(Res, r);
     return;
@@ -1130,6 +1199,11 @@ void int21_handler(union rmregs *r)
       RMREGS_CLEAR_CARRY;
       r->x.ax = (WORD) Res; /* The new handle */
       return;
+
+    case 0x62:
+      LOG_PRINTF(("INT 21h - Get current PSP address\n"));
+      r->x.bx = (DWORD) current_psp>>4;
+	  return;
 
     /* DOS 3.3+ - "FFLUSH" - Commit file   */
     /* DOS 4.0+ Undocumented - Commit file */

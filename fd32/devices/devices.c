@@ -4,7 +4,11 @@
 //#define DEV_CASE    /* Define this to use case sensitive device names    */
 #define DEV_NODUP   /* Define this to forbit devices with same name      */
 
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/stdlib.h>
+#include <ll/i386/string.h>
+
+#include <kmem.h>
 
 #include <devices.h>
 #ifdef DEV_UNICODE
@@ -134,11 +138,11 @@ int fd32_dev_register(fd32_request_t *request, void *DeviceId, const char *Name)
     /* Reallocate the array growing it of DEVSIZESTEP entries */
     DWORD    OldSize  = DevSize * sizeof(tDevice);
     DWORD    NewSize  = (DevSize + DEVSIZESTEP) * sizeof(tDevice);
-    tDevice *NewArray = (tDevice *) fd32_kmem_get(NewSize);
+    tDevice *NewArray = (tDevice *) mem_get(NewSize);
     if (NewArray == NULL) return FD32_ENOMEM;
     memset(NewArray, 0, NewSize);
     memcpy(NewArray, Devices, OldSize);
-    if (Devices) fd32_kmem_free(Devices, OldSize);
+    if (Devices) mem_free((DWORD)Devices, OldSize);
     Devices  = NewArray;
     DevSize += DEVSIZESTEP;
   }

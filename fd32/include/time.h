@@ -1,22 +1,20 @@
-#ifndef __FD32_DRENV_DATETIME_H
-#define __FD32_DRENV_DATETIME_H
+#ifndef __FD32_TIME_H
+#define __FD32_TIME_H
 
-/* FIX ME: According to the DOS call "get system date", fd32_get_date     */
-/*         should also return the day of week. Moreover fd32_set_date     */
-/*         and fd32_get_time may fail if an invalid date or time is       */
-/*         specified.                                                     */
+/* FIX ME: fd32_set_date and fd32_get_time may fail if an invalid date or */
+/*         time is specified.                                             */
 /*         I've defined them in this way for compatibility with the libc. */
 
-typedef struct Fd32Date
+typedef struct fd32_date 
 {
   WORD Year;
   BYTE Day;
   BYTE Mon;
+  BYTE weekday;
 }
 fd32_date_t;
 
-
-typedef struct Fd32Time
+typedef struct fd32_time 
 {
   BYTE Min;
   BYTE Hour;
@@ -32,5 +30,4 @@ int fd32_get_time(fd32_time_t *);
 int fd32_set_time(fd32_time_t *);
 
 
-#endif /* #ifndef __FD32_DRENV_DATETIME_H */
-
+#endif /* #ifndef __FD32_TIME_H */

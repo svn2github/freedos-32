@@ -26,7 +26,12 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 
-#include <dr-env.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/stdlib.h>
+#include <ll/i386/string.h>
+#include <ll/i386/mem.h>
+
+#include <kmem.h>
 #include <filesys.h>
 #include <errors.h>
 #include <unicode.h>
@@ -227,7 +232,7 @@ int fd32_lfn_findfirst(char *FileSpec, DWORD Flags, fd32_fs_lfnfind_t *FindData)
        || (utf8_fnameicmp(FindData->ShortName, Name) == 0))
       {
         J->SearchFlags = Flags;
-        J->SearchName  = (char *) fd32_kmem_get(FD32_LFNPMAX);
+        J->SearchName  = (char *) mem_get(FD32_LFNPMAX);
         if (J->SearchName == NULL)
         {
           fd32_close(Handle);
@@ -278,7 +283,7 @@ int fd32_lfn_findclose(int Handle)
 {
   tJft *J;
   if ((J = validate_search_handle(Handle)) == NULL) return FD32_EBADF;
-  fd32_kmem_free(J->SearchName, FD32_LFNPMAX);
+  mem_free((DWORD)J->SearchName, FD32_LFNPMAX);
   J->SearchName = NULL;
   return fd32_close(Handle);
 }

@@ -15,10 +15,19 @@
 #include <kernel.h>
 #include "rmint.h"
 
+#define CURSOR_START    0x0A
+#define CURSOR_END      0x0B
+#define CGA_INDEX_REG   0x3D4
+#define CGA_DATA_REG    0x3D5
+
 int videobios_int(union rmregs *r)
 {
   int x, y;
   switch (r->h.ah) {
+    case 0x01:
+	  cursor(r->h.ch&0x0f, r->h.cl&0x0f);
+      return 0;
+
     case 0x02:
       /* Set Cursor Position */
       x = r->h.dl;
@@ -64,6 +73,36 @@ int videobios_int(union rmregs *r)
       /* BL = Foreground color   */
       /* TODO: page, colors and special BEL character (07h) are ignored */
       if (r->h.al != 0x07) cputc(r->h.al);
+      return 0;
+
+    case 0x0F:
+      r->h.al = 0x03;
+      r->h.ah = 80;
+      r->h.bh = 0;
+      return 0;
+
+    case 0x10:
+      fd32_log_printf("INT 10h AH=10h VIDEO not implemented\n");
+      return 0;
+    
+    case 0x12:
+/*
+      AH = 12h
+      AL = number of rows or columns to scroll
+      BH = buffer flag
+      00h data in user buffer
+      ES:SI -> buffer containing character/attribute pairs
+      01h no buffer, fill emptied rows/columns with blanks
+      BL = direction in which to scroll
+      00h up
+      01h down
+      02h left
+      03h right
+      CH,CL = row,column of upper left corner of scroll area
+      DH,DL = row,column of lower right corner
+      _scroll(char attr,int x1,int y1,int x2,int y2)
+*/
+      fd32_log_printf("scroll cols %u dir %d top %u left %u bottom %u right %u \n", r->h.al, r->h.bl, r->h.ch, r->h.cl, r->h.dh, r->h.dl);
       return 0;
 
     case 0x1A:

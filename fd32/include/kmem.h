@@ -17,4 +17,5 @@ int dosmem_free(DWORD base, DWORD size);
 int mem_get_region(DWORD base, DWORD size);
 DWORD mem_get(DWORD amount);
 int mem_free(DWORD base, DWORD size);
+void mem_dump(void);
 #endif

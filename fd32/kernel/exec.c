@@ -16,18 +16,18 @@
 #include <ll/ctype.h>
 
 #include "kmem.h"
-#include "kernel.h"
 #include "format.h"
+#include "kernel.h"
 #include "exec.h"
 #include "logger.h"
 
-DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, int *s)
+DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, DWORD *image_base, int *s)
 {
   void (*fun)(void);
   DWORD offset;
   int size;
   DWORD exec_space;
-  int bss_sect, relocate, i;
+  int bss_sect, i;
   DWORD dyn_entry;
   int symsize;
   struct section_info *sections;
@@ -51,7 +51,7 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
     symbols = (struct symbol_info *)mem_get(symsize);
     if (symbols == 0) {
       error("Error allocating symbols table\n");
-      mem_free((DWORD)sections, sizeof(struct section_info));
+      parser->free_tables(p, &tables, symbols, sections);
 
       /* Should provide some error code... */
       return -1;
@@ -59,63 +59,75 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
     parser->read_symbols(p, file, &tables, symbols);
   }
 
-  relocate = 0;
-  for (i = 0 ; i < tables.num_sections; i++) {
-    if (sections[i].num_reloc != 0) {
-      relocate = 1;
-    }
+  if (tables.flags & NEED_LOAD_RELOCATABLE) {
+    exec_space = parser->load_relocatable(p, file, &tables,
+	    tables.num_sections, sections, &size);
+  } else {
+    exec_space = parser->load_executable(p, file, &tables,
+	    tables.num_sections, sections, &size);
   }
-  
-  if (dyn_entry == 0) {
-    /* No entry point... We assume that we need dynamic linking */
-    int init_sect;
+  if (exec_space == 0) {
+#ifdef __EXEC_DEBUG__
+    message("Error decoding the Executable data\n");
+#endif
+    parser->free_tables(p, &tables, symbols, sections);
+    
+    return -1;
+  }
+    
+
+  if ((tables.flags & NEED_SECTION_RELOCATION) || (tables.flags & NEED_IMAGE_RELOCATION)) { 
     DWORD uninitspace;
     int res;
     void *kernel_symbols;
+    int reloc_sections;
 
-    exec_space = parser->load_relocatable(p, file,
-	    tables.num_sections, sections, &size);
-    if (relocate == 0) {
-      error("Warning: file is not an executable, but it has not any reloc info!!!\n");
-      /* But we try to go on anyway... */
-    }
-    if ((bss_sect < 0) || (bss_sect > tables.num_sections)) {
-      error("Error: strange file --- no BSS section\n");
-      /* TODO: Return code... */
-      mem_free((DWORD)sections, sizeof(struct section_info));
-      if (symbols != NULL) {
-        mem_free((DWORD)symbols, symsize);
+    if (tables.flags & NEED_SECTION_RELOCATION) {
+      if ((bss_sect < 0) || (bss_sect > tables.num_sections)) {
+        error("Error: strange file --- no BSS section\n");
+        /* TODO: Return code... */
+        parser->free_tables(p, &tables, symbols, sections);
+        mem_free(exec_space, size + LOCAL_BSS);
+      
+	return -1;
       }
-      return -1;
     }
     uninitspace = size;
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] Start of local BSS: 0x%lx\n", uninitspace);
 #endif
     kernel_symbols = get_syscall_table();
-    for (i = 0 ; i < tables.num_sections; i++) {
+    if (tables.flags & NEED_SECTION_RELOCATION) {
+      reloc_sections = tables.num_sections;
+    } else {
+      reloc_sections = 1;
+    }
+
+    for (i = 0 ; i < reloc_sections; i++) {
       res = parser->relocate_section(p, exec_space,
 	      uninitspace, sections, i, symbols, kernel_symbols);
       if (res < 0) {
 	error("Error: relocation failed!!!\n");
 	/* TODO: Return code... */
-        mem_free((DWORD)sections, sizeof(struct section_info));
-        if (symbols != NULL) {
-          mem_free((DWORD)symbols, symsize);
-        }
+        parser->free_tables(p, &tables, symbols, sections);
+        mem_free(exec_space, size);
 	return -1;
       }
     }
+  }
+
+
+  if (tables.flags & NO_ENTRY) {
+    int init_sect;
+
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] Searcing for the initialization function...");
 #endif
     if (symbols == 0) {
       error("Error: no symbols!!!\n");
       /* TODO: Return code... */
-      mem_free((DWORD)sections, sizeof(struct section_info));
-      if (symbols != NULL) {
-        mem_free((DWORD)symbols, symsize);
-      }
+      parser->free_tables(p, &tables, symbols, sections);
+      mem_free(exec_space, size);
       return -1;
     }
     dyn_entry = (DWORD)parser->import_symbol(p, tables.num_symbols,
@@ -128,27 +140,18 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
 	      sections[init_sect].base, exec_space);
 #endif
       dyn_entry += sections[init_sect].base + exec_space;
-      *s = 0;
+      *s = size;
+      *image_base = exec_space;
       *e_s = 0;
+      parser->free_tables(p, &tables, symbols, sections);
       return dyn_entry;
     } else {
       message("Not found\n");
       return -1;
     }
   } else {
-    exec_space = parser->load_executable(p, file,
-	    tables.num_sections, sections, &size);
-    if (exec_space == 0) {
-#ifdef __EXEC_DEBUG__
-      message("Error decoding the Executable data\n");
-#endif
-      mem_free((DWORD)sections, sizeof(struct section_info));
-      if (symbols != NULL) {
-        mem_free((DWORD)symbols, symsize);
-      }
-      return -1;
-    }
     offset = exec_space - sections[0].base;
+
     fun = (void *)(dyn_entry + offset);
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 1) Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
@@ -156,54 +159,57 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
 #endif
     *s = size;
     *e_s = exec_space;
+    *image_base = sections[0].base;
+    parser->free_tables(p, &tables, symbols, sections);
+    
     return dyn_entry + offset;
   }
 }
 
 /* Read an executable in memory, and execute it... */
-int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline)
+int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *fname, char *args)
 {
   int retval;
   int size;
   DWORD exec_space;
   DWORD dyn_entry;
   int run(DWORD address, WORD psp_sel, DWORD parm);
+  DWORD base;
 
 
-  dyn_entry = load_process(p, file, parser, &exec_space, &size);
+  dyn_entry = load_process(p, file, parser, &exec_space, &base, &size);
 
   if (dyn_entry == -1) {
     /* We failed... */
-    return;
+    return -1;
   }
   if (exec_space == 0) {
-    /* No entry point... We assume that we need dynamic linking */
+    struct process_info pi;
     
+    /* No entry point... We assume that we need dynamic linking */
+    pi.args = args;
+    pi.memlimit = base + size + LOCAL_BSS;
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("       Entry point: 0x%lx\n", dyn_entry);
     fd32_log_printf("       Going to run...\n");
+    message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", pi.memlimit, base, size);
 #endif
-    run(dyn_entry, 0, (DWORD)cmdline);
+    run(dyn_entry, 0, (DWORD)/*args*/&pi);
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("       Returned\n");
+#endif
     
     retval = 0;
-#endif
   } else {
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
-    retval = create_process(dyn_entry, exec_space, size, cmdline);
+
+    retval = create_process(dyn_entry, exec_space, size, fname, args);
 #ifdef __EXEC_DEBUG__
     message("Returned: %d!!!\n", retval);
 #endif
     mem_free(exec_space, size);
-    /* Well... And this???
-    mem_free((DWORD)sections, sizeof(struct section_info));
-    if (symbols != NULL) {
-      mem_free((DWORD)symbols, symsize);
-    }
-    */
   }
   return retval;
 }

@@ -16,3 +16,8 @@ void fd32_abort(void)
   sti();
   l1_exit(1);
 }
+
+void fd32_reboot(void)
+{
+  cold_reboot();
+}

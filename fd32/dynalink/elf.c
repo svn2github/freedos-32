@@ -13,8 +13,6 @@
 #include "common.h"
 #include "elf.h"
 
-#define LOCAL_BSS 100
-
 char elf_signature[] = "\177ELF";
 
 DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
@@ -25,7 +23,7 @@ DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
   struct elf_header header;
   struct elf_section_header h;
 
-  kf->file_seek(f, 0, kf->seek_set);
+  kf->file_seek(f, kf->file_offset + 0, kf->seek_set);
   kf->file_read(f, &header, sizeof(struct elf_header));
   
   if (memcmp(header.e_ident, elf_signature, 4)) {
@@ -35,6 +33,7 @@ DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
     return 0;
   }
 
+  tables->flags = 0;
   if (header.e_ident[4] != ELFCLASS32) {
     kf->error("Wrong ELF class\n");
     kf->message("Class: 0x%x!!!\n", header.e_ident[4]);
@@ -109,8 +108,9 @@ DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 
     return 0;
   }
-  res = kf->file_seek(f, tables->section_header + header.e_shstrndx *
-  		tables->section_header_size, kf->seek_set);
+  res = kf->file_seek(f, kf->file_offset + tables->section_header +
+		  header.e_shstrndx * tables->section_header_size,
+		  kf->seek_set);
   if (res < 0) {
     kf->error("Cannot seek");
     return 0;
@@ -133,7 +133,7 @@ DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
       return 0;
     }
 
-    res = kf->file_seek(f, h.sh_offset, kf->seek_set);
+    res = kf->file_seek(f, kf->file_offset + h.sh_offset, kf->seek_set);
     if (res < 0) {
       kf->error("Cannot seek");
       return 0;
@@ -143,11 +143,18 @@ DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
       kf->error("Cannot read");
       return 0;
     }
+    tables->section_names_size = h.sh_size;
   } else {
     kf->message("0 size?\n");
+    tables->section_names_size = 0;
   }
 
   entry = header.e_entry;
+  if (entry == 0) {
+    tables->flags |= NO_ENTRY;
+    tables->flags |= NEED_LOAD_RELOCATABLE;
+    tables->flags |= NEED_SECTION_RELOCATION;
+  }
 
   return entry;
 }
@@ -168,13 +175,24 @@ int ELF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
     header_size = sizeof(struct elf_section_header);
   }
   for (i = 0; i < tables->num_sections; i++) {
-    kf->file_seek(f, tables->section_header + i * tables->section_header_size,
-    			kf->seek_set);
+    kf->file_seek(f, kf->file_offset + tables->section_header +
+		    i * tables->section_header_size, kf->seek_set);
     kf->file_read(f, &h, sizeof(struct elf_section_header));
 
 #ifdef __ELF_DEBUG__
     kf->log("Section %d: ", i);
+    kf->log("Flags 0x%x: ", h.sh_flags);
 #endif
+    /*
+       Set this stuff to 0...
+       If size == 0 the section must not be loaded
+     */
+    scndata[i].num_reloc = 0;
+    scndata[i].base = 0;
+    scndata[i].size = 0;
+    scndata[i].fileptr = 0;
+    scndata[i].filesize = 0;
+
     /* If this is a NULL section, skip it!!! */
     if (h.sh_type != SHT_NULL) {
       if (tables->section_names != 0) {
@@ -192,16 +210,6 @@ int ELF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
 	  h.sh_offset);
 #endif
 
-      /*
-         Set this stuff to 0...
-         If size == 0 the section must not be loaded
-       */
-      scndata[i].num_reloc = 0;
-      scndata[i].base = 0;
-      scndata[i].size = 0;
-      scndata[i].fileptr = 0;
-      scndata[i].filesize = 0;
-      
       if (h.sh_type == SHT_REL) {
 #ifdef __ELF_DEBUG__
         kf->log("\t\tSection %d: relocation info!!!\n", i);
@@ -223,7 +231,8 @@ int ELF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
           return 0;
         }
 	for (j = 0; j < h.sh_size / h.sh_entsize; j++) {
-          kf->file_seek(f, h.sh_offset + j * h.sh_entsize, kf->seek_set);
+          kf->file_seek(f, kf->file_offset + h.sh_offset + j * h.sh_entsize,
+			  kf->seek_set);
           kf->file_read(f, &r, sizeof(struct elf_rel_info));
 	  scndata[h.sh_info].reloc[j].offset = r.r_offset;
 	  scndata[h.sh_info].reloc[j].symbol = r.r_info >> 8;
@@ -313,13 +322,15 @@ int ELF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
     kf->error("Failed to allocate space for string table...\n");
     return 0;
   }
-  kf->file_seek(f, tables->string, kf->seek_set);
+  tables->string_buffer = (DWORD)s;
+  kf->file_seek(f, kf->file_offset + tables->string, kf->seek_set);
   kf->file_read(f, s, tables->string_size);
    
   entsize = tables->symbol_size / tables->num_symbols;
 
   for (i = 0; i < tables->num_symbols; i++) {
-    kf->file_seek(f, tables->symbol + i * entsize, kf->seek_set);
+    kf->file_seek(f, kf->file_offset + tables->symbol + i * entsize,
+		    kf->seek_set);
     kf->file_read(f, &symbol, sizeof(struct elf_symbol_info));
     syms[i].name = s + symbol.st_name;
     syms[i].section = symbol.st_shndx;
@@ -340,15 +351,34 @@ int ELF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
 
 void ELF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
 {
-  /* TODO: Free 'em all, please!!! */
+  int i;
+
+  for (i = 0; i < tables->num_sections; i++) {
+    if (scndata[i].num_reloc != 0) {
+      kf->mem_free((DWORD)scndata[i].reloc,
+		      scndata[i].num_reloc * sizeof(struct reloc_info));
+    }
+  }
+  kf->mem_free((DWORD)scndata,
+		  sizeof(struct section_info)*tables->num_sections);
+  if(syms != NULL) {
+    kf->mem_free((DWORD)syms, sizeof(struct symbol_info)*tables->num_symbols);
+  }
+  if (tables->string_size != 0) {
+    kf->mem_free(tables->string_buffer, tables->string_size);
+  }
+  if (tables->section_names_size != 0) {
+    kf->mem_free((DWORD)tables->section_names, tables->section_names_size);
+  }
 }
 
 int isELF(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
   char signature[4];
 
-  kf->file_seek(f, 0, kf->seek_set);
+  kf->file_offset = kf->file_seek(f, 0, kf->seek_cur);
   kf->file_read(f, signature, 4);
+  kf->file_seek(f, kf->file_offset + 0, kf->seek_set);
 
   if (memcmp(signature, elf_signature, 4)) {
     return 0;

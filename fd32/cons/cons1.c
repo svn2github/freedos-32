@@ -176,8 +176,9 @@ void cputc(char c)
 		    break;
 	case '\b' : x--;
 		    lmempokeb((LIN_ADDR)(v + 2*(x + y*80)),' ');
-		    x++;
+		    /* x++; */
 		    break;
+	case 7 : 	/* FIXME: Implement the "beep" */
 	case '\r' : 
 		    break;
 	default   : lmempokeb((LIN_ADDR)(v + 2*(x + y*80)),c);

@@ -33,3 +33,11 @@ void int31_0400(union regs *r)
   /* Master & Slave base interrupts... */
   r->d.edx = ((r->d.edx & 0xFFFF0000) | 0x70 << 8 | 0x40); /* I hope... */
 }
+
+void int31_0401(union regs *r)
+{
+#ifdef __DEBUG__
+  fd32_log_printf("[DPMI] Get DPMI Capabilities (Failing... DPMI 1.0 not supported)\n");
+#endif
+  SET_CARRY;
+}

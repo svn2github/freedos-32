@@ -36,13 +36,13 @@ void dos_init(void *p)
     message("DOS Mem Size: %lx %lu\n", memsize, memsize);
 #endif
 	  /* Randomly chosen safe value :) */
-    membase = 16 * 1024;
+    membase = 0x10000;
     if (mbp->flags & MB_INFO_BOOT_LOADER_NAME) {
       if (*((char *)(mbp->boot_loader_name)) == 'X') {
         membase = mbp->mem_lowbase;
       }
     }
-    memsize = 256 * 1024; /* Hack! */
+    memsize = 640 * 1024 - membase; /* Hack! */
     dosmem_init(membase, memsize);
   } else {
     message("Cannot initialize the DOS Memory Pool\n");

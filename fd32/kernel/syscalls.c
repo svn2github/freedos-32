@@ -1,5 +1,5 @@
 /* FD32 Kernel exported symbols table & management functions
- * by Luca Abeni
+ * by Luca Abeni & Hanzac Chen
  * 
  * This is free software; see GPL.txt
  */
@@ -9,6 +9,7 @@
 #include <ll/i386/hw-arch.h>
 #include <ll/i386/pic.h>
 #include <ll/i386/x-bios.h>
+/* #include <ll/i386/x-dosmem.h> */
 #include <ll/i386/cons.h>
 #include <ll/i386/error.h>
 #include <ll/stdlib.h>
@@ -43,6 +44,14 @@ extern struct psp *current_psp;
 
 #define EMPTY_SLOT {0, (DWORD)0xFFFFFFFF}
 
+extern void restore_psp(void);
+
+extern int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
+extern void process_dos_module(struct kern_funcs *p, int file,
+	struct read_funcs *parser, char *cmdline);
+int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num,
+		struct symbol *symbol_array);
+
 static void fake_get_date(fd32_date_t *D)
 {
   D->Year = 1980;
@@ -58,11 +67,13 @@ static void fake_get_time(fd32_time_t *T)
 static struct symbol syscall_table[] = {
   { "cputc", (DWORD)cputc },
   { "place", (DWORD)place },
+  { "cursor", (DWORD)cursor },
   { "getcursorxy", (DWORD)getcursorxy },
   { "get_attr", (DWORD)get_attr },
   { "message", (DWORD)message },
   { "ksprintf", (DWORD)ksprintf },
   { "fd32_abort", (DWORD)fd32_abort },
+  { "fd32_reboot", (DWORD)fd32_reboot},
   { "restore_sp", (DWORD)restore_sp },
   { "dosmem_get", (DWORD)dosmem_get },
   { "dosmem_get_region", (DWORD)dosmem_get_region },
@@ -81,6 +92,10 @@ static struct symbol syscall_table[] = {
   { "vm86_callBIOS", (DWORD)vm86_callBIOS },
   { "vm86_init", (DWORD)vm86_init },
   { "context_save", (DWORD)context_save },
+/*
+ * { "DOS_alloc", (DWORD)DOS_alloc },
+ * { "DOS_free", (DWORD)DOS_free },
+ */
   { "irq_unmask", (DWORD)irq_unmask },
   { "add_call", (DWORD)add_call },
   { "l1_int_bind", (DWORD)l1_int_bind },
@@ -98,7 +113,7 @@ static struct symbol syscall_table[] = {
   { "strlen",  (DWORD) strlen  },
   { "strcmp",  (DWORD) strcmp  },
   { "toupper", (DWORD) toupper },
-  { "dcvt",    (DWORD) dcvt    },
+  { "strtoi",    (DWORD) strtoi},
   /* Symbols for date and time functions (from time.h) */
   { "fd32_get_date", (DWORD) fake_get_date },
   { "fd32_get_time", (DWORD) fake_get_time },
@@ -136,6 +151,7 @@ static struct symbol syscall_table[] = {
   { "fd32_set_default_drive", (DWORD) fd32_set_default_drive },
   { "fd32_get_default_drive", (DWORD) fd32_get_default_drive },
   { "fd32_open",              (DWORD) fd32_open              },
+  { "fd32_get_dev_info", (DWORD)fd32_get_dev_info},
   { "fd32_close",             (DWORD) fd32_close             },
   { "fd32_fflush",            (DWORD) fd32_fflush            },
   { "fd32_read",              (DWORD) fd32_read              },
@@ -181,10 +197,20 @@ static struct symbol syscall_table[] = {
   { "utf8_to_oemcp",  (DWORD) utf8_to_oemcp  },
   { "oemcp_skipchar", (DWORD) oemcp_skipchar },
   
-  { "event_post", (DWORD) (&event_post)},
+  { "event_post", (DWORD) (&event_post) },
   { "event_delete", (DWORD) (&event_delete) },
   { "ll_gettime", (DWORD) ll_gettime },
   
+  { "identify_module", (DWORD) identify_module },
+  { "load_process", (DWORD) load_process },
+  { "stubinfo_init", (DWORD) stubinfo_init },
+  { "restore_psp", (DWORD) restore_psp },
+  { "mem_dump", (DWORD) mem_dump },
+  
+  { "add_dll_table", (DWORD) add_dll_table },
+  {"fd32_init_jft", (DWORD)fd32_init_jft},
+  {"fd32_free_jft", (DWORD)fd32_free_jft},
+  EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,
@@ -243,4 +269,115 @@ int add_call(char *name, DWORD address, int mode)
   }
   
   return res;
+}
+
+
+/* DLL Table management... By Hanzac Chen */
+
+#define DLL_TABLE_NUMBER         (0x100)
+
+struct dll_internal_table
+{
+  DWORD ref_num;               /* number of application used it */
+  DWORD handle;                /* use to release */
+};
+
+static struct dll_internal_table dylt_int_array[DLL_TABLE_NUMBER];
+static struct dll_table dylt_array[DLL_TABLE_NUMBER];
+static DWORD empty_table_num = DLL_TABLE_NUMBER;
+
+/* there should be a exit_dll_process function */
+void destroy_process(DWORD dll_handle) {}
+/* void create_process(DWORD dll_handle) {} */
+
+/* if succeed, return the index of the table */
+int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol *symbol_array)
+{
+  int i;
+
+  if(empty_table_num == 0)
+  {
+    for(i = 0; i < DLL_TABLE_NUMBER; i++)
+      if(dylt_int_array[i].ref_num == 0)
+      {
+        struct symbol *s = dylt_array[i].symbol_array;
+        
+        /* Because every symbol name's memory is in the image memory
+        
+        for(j = 0; j < dylt_array[i].symbol_num; j++)
+        mem_free((DWORD)s[i].name, strlen(s[i].name)+1);
+        mem_free((DWORD)dylt_array[i].name, strlen(dylt_array[i].name)+1);
+        
+         * So when we free the image we free all the memory */
+        
+        mem_free((DWORD)s, sizeof(struct symbol));
+        destroy_process(dylt_int_array[i].handle);
+        dylt_int_array[i].handle = 0;
+  
+        empty_table_num++;
+        goto SUFFICIENT_TABLE;
+      }
+    return -1;
+  }
+  else
+  {
+    for(i = 0; i < DLL_TABLE_NUMBER; i++)
+      if(dylt_int_array[i].handle == 0)
+      {
+        dylt_int_array[i].ref_num = 0;
+        break;
+      }
+  }
+
+  SUFFICIENT_TABLE:
+  dylt_array[i].name = strlwr(dll_name);
+  dylt_int_array[i].handle = handle;
+  dylt_int_array[i].ref_num++;
+  dylt_array[i].symbol_num = symbol_num;
+  dylt_array[i].symbol_array = symbol_array;
+  empty_table_num--;
+  
+  message("add dynalink table: %s at %d\n", dll_name, i);
+  
+  return i;
+}
+
+struct dll_table *get_dll_table(char *dll_name)
+{
+  int i;
+  WORD retval;
+  strlwr(dll_name);
+  
+  /* message("dynalink name : %s\n", dynalink_name); */
+  
+  for(i = 0; i < DLL_TABLE_NUMBER; i++)
+  {
+    if(dylt_int_array[i].handle != 0 && strcmp(dylt_array[i].name, dll_name) == 0)
+    {
+      /* already load the dynalink library */
+      dylt_int_array[i].ref_num++;
+      return &dylt_array[i];
+    }
+  }
+  
+  /* find the dynalink library */
+  message("Find %s\n", dll_name);
+  dos_exec("C:\\fd32lib\\kernel32.dll", 0, 0, 0, 0, &retval);
+  /* load the dynalink library */
+  
+  /* create the process */
+  
+  /* add the dynalink table */
+  for(i = 0; i < DLL_TABLE_NUMBER; i++)
+  {
+    if(dylt_int_array[i].handle != 0 && strcmp(dylt_array[i].name, dll_name) == 0)
+    {
+      /* already load the dynalink library */
+      dylt_int_array[i].ref_num++;
+      return &dylt_array[i];
+    }
+  }  
+  /* return the dynalink table */
+  
+  return NULL;
 }

@@ -7,6 +7,7 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/hw-instr.h>
 #include <ll/i386/hw-func.h>
+/* #include <ll/i386/x-dosmem.h> */
 #include <ll/i386/stdlib.h>
 #include <ll/i386/string.h>
 #include <ll/i386/mem.h>
@@ -18,8 +19,6 @@
 #include "kernel.h"
 
 //#define __PROCESS_DEBUG__
-
-extern void *fd32_init_jft(int JftSize); /* Implemented in filesys\jft.c */
 
 WORD kern_CS, kern_DS;
 
@@ -37,7 +36,7 @@ WORD kern_CS, kern_DS;
 #define RUN_RING   0
 #define ENV_SIZE 256
 
-#define MAX_OPEN_FILES 20
+#define MAX_OPEN_FILES 40
 
 extern DWORD current_SP;
 struct psp *current_psp = 0;
@@ -65,7 +64,7 @@ void fd32_set_jft(void *Jft, int JftSize)
   current_psp->jft_size = (WORD) JftSize;
 }
 
-void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD base, DWORD end, DWORD m)
+void set_psp(struct psp *npsp, WORD env_sel, char *args, WORD info_sel, DWORD base, DWORD end, DWORD m)
 {
   /* Set the PSP */
   npsp->environment_selector = env_sel;
@@ -79,25 +78,29 @@ void set_psp(struct psp *npsp, WORD env_sel, char * args, WORD info_sel, DWORD b
   npsp->memlimit = base + end;
 
   /* Create the Job File Table */
-  #if 0
+#if 0
   /* TODO: Why!?!? Help me Luca!
            For the moment I always create a new JFT */
   if (npsp->link == NULL) /* Create new JFT */;
                      else /* Copy JFT from npsp->link->Jft */
-  #else
+#else
   npsp->jft_size = MAX_OPEN_FILES;
   npsp->jft      = fd32_init_jft(MAX_OPEN_FILES);
-  #endif
+#endif
   npsp->dta      = &npsp->command_line_len;
   npsp->cds_list = 0;
 
   /* And now... Set the arg list!!! */
-  npsp->command_line_len = strlen(args);
-  strcpy(npsp->command_line, args);
+  if (args != NULL) {
+    npsp->command_line_len = strlen(args);
+    strcpy(npsp->command_line, args);
+  } else {
+    npsp->command_line_len = 0;
+  }
   npsp->DOS_mem_buff = m;
 }
 
-WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename)
+WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *prgname, char *args)
 {
   struct stubinfo *info;
   struct psp *newpsp;
@@ -108,10 +111,13 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
   DWORD m;
   BYTE *allocated;
   int size;
+#if 0
   char *c, *argname; int i;
   char prgname[128];
+#endif
   int env_size;
 
+#if 0
   c = filename; done = 0; i = 0;
   while ((*c != 0) && (*c != ' ')) {
     prgname[i] = *c;
@@ -119,9 +125,10 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     c++;
   }
   prgname[i] = 0;
+#endif
 
   /*Environment lenght + 2 zeros + 1 word + program name... */
-  env_size = 2 + 2 + strlen(prgname);
+  env_size = 2 + 2 + strlen(prgname) + 1;
   size = sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE;
   /* Always allocate a fixed amount of memory...
    * Keep some space for adding environment variables
@@ -223,6 +230,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
   /* TODO: There should be some error down here... */
   info->env_size = env_size;
 
+#if 0
   argname = filename; c = filename; done = 0; i = 0;
   while (*c != 0) {
     if ((*c == ' ') && (argname == filename)) {
@@ -241,6 +249,7 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
     c++;
   }
   prgname[15] = 0;
+#endif
 #if 0
   /* TODO: Seems that this is not used... */
   ksprintf(info->basename, filename);
@@ -250,8 +259,13 @@ WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename
   info->argv0[0] = 0;
 #endif
   ksprintf(info->dpmi_server, "Freedos/32");
+#if 0
+  if (argname == filename) {
+    argname = NULL;
+  }
+#endif
 
-  set_psp(newpsp, env_selector, argname, sel, base, image_end, m);
+  set_psp(newpsp, env_selector, args, sel, base, image_end, m);
   
   return sel;
 }
@@ -288,6 +302,8 @@ void restore_psp(void)
     fd32_abort();
   }
 
+  fd32_free_jft(current_psp->jft, current_psp->jft_size);
+  
   ok = mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp)
 	  + ENV_SIZE);
   if (ok != 1) {
@@ -311,7 +327,7 @@ void restore_psp(void)
 
 /* TODO: It's probably better to separate create_process and run_process... */
 
-int create_process(DWORD entry, DWORD base, DWORD size, char *name)
+int create_process(DWORD entry, DWORD base, DWORD size, char *name, char *args)
 {
   WORD stubinfo_sel;
   int res;
@@ -321,7 +337,7 @@ int create_process(DWORD entry, DWORD base, DWORD size, char *name)
   fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n",
 	  entry, size);
 #endif
-  stubinfo_sel = stubinfo_init(base, size, 0, name);
+  stubinfo_sel = stubinfo_init(base, size, 0, name, args);
   if (stubinfo_sel == 0) {
     error("Error! No stubinfo!!!\n");
     return -1;
