@@ -49,9 +49,16 @@ typedef int  Fd32Event;
 extern inline Fd32Event fd32_event_post(unsigned milliseconds, Fd32EventCallback *handler, void *params)
 {
     struct timespec ts;
-    ts.tv_sec  = milliseconds / 1000;
-    ts.tv_nsec = (milliseconds % 1000) * 1E6;
-    return (Fd32Event) event_post(ts, handler, params);
+    int res;
+
+    cli();
+    ll_gettime(TIME_NEW, &ts);
+    ts.tv_sec  += milliseconds / 1000;
+    ts.tv_nsec += (milliseconds % 1000) * 1E6;
+    res = event_post(ts, handler, params);
+    sti();
+
+    return res;
 }
 #define fd32_event_delete event_delete
 
