@@ -75,7 +75,9 @@ static int make_sfn_path(char *Dest, const char *Source)
   char       *c;
   BYTE        FcbName[11];
   int         Res;
+  #ifdef DEBUG
   char       *Save = Dest;
+  #endif
 
   /* Copy drive specification if present */
   for (s = Source, c = Dest; *s && (*s != ':'); *(c++) = *(s++));
@@ -635,6 +637,7 @@ void int21_handler(union rmregs *r)
     {
       /* Perform 1-byte read from the stdin, file handle 0. */
       /* This call doesn't check for Ctrl-C or Ctrl-Break.  */
+      /* TODO: When fd32_read will read \r\n this shall return \r only! */
       char Ch;
       Res = fd32_read(0, &Ch, 1);
       if (Res >= 0) r->h.al = Ch; /* Return the character in AL */
@@ -816,6 +819,17 @@ void int21_handler(union rmregs *r)
         r->x.ax = (WORD) Res;
         return;
       }
+      #if 1
+      /* This is a quick'n'dirty hack to return \n after \r from stdin.  */
+      /* It works only if console input is on handle 0 and if the number */
+      /* of bytes to read is greater than the first carriage return.     */
+      /* TODO: Make this \r\n stuff functional according to the console. */
+      if (r->x.bx == 0)
+      {
+        BYTE *Buf = (BYTE *) (r->x.ds << 4) + r->x.dx;
+        if (Res < r->x.cx) Buf[Res++] = '\n';
+      }
+      #endif
       RMREGS_CLEAR_CARRY;
       r->x.ax = (WORD) Res; /* Return the number of bytes read in AX */
       return;
