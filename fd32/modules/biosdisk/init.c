@@ -3,7 +3,7 @@
  * Disk drive support via BIOS                                            *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "init.c" - Initialization code for the FreeDOS32 kernel        *
  *                    by Luca Abeni                                       *
@@ -34,28 +34,37 @@
 #include <../drivers/dpmi/include/dpmi.h>
 #include "biosdisk.h"
 
-extern void biosdisk_reflect(DWORD intnum, union regs r);
+extern void biosdisk_reflect(unsigned intnum, union regs r);
 
 void biosdisk_init(void)
 {
-  message("Initing BIOSDisk...\n");
+    message("Initing BIOSDisk...\n");
+    /* TODO: Add command line switches for floppy and hard disk operation */
 
-  irq_unmask(14);
-  irq_unmask(15);
-  irq_unmask(6);
+    vm86_init();
 
-  vm86_init();
+//    if (want_fd)
+    {
+        /* In some bioses, INT 0x13 calls INT 0x40 */
+        l1_int_bind(0x40, biosdisk_reflect);
+        l1_irq_bind(6, biosdisk_reflect);
+        irq_unmask(6);
+//        biosdisk_detect_fd();
+    }
+//  if (want_hd)
+    {
+        l1_irq_bind(15, biosdisk_reflect);
+        l1_irq_bind(14, biosdisk_reflect);
+        irq_unmask(14);
+        irq_unmask(15);
+//        biosdisk_detect_hd();
+    }
+    /* Are these needed for both floppies and hard disks? */
+    l1_int_bind(0x15, biosdisk_reflect);
+//    l1_int_bind(0x1C, biosdisk_reflect);
+//    l1_irq_bind(0, biosdisk_reflect);
+//    irq_unmask(0);
 
-  /* In some bioses, INT 0x13 calls INT 0x40 */
-  l1_int_bind(0x40, biosdisk_reflect);
-  l1_irq_bind(6, biosdisk_reflect);
-  l1_int_bind(0x15, biosdisk_reflect);
-  l1_irq_bind(15, biosdisk_reflect);
-  l1_irq_bind(14, biosdisk_reflect);
-//  l1_irq_bind(0, biosdisk_reflect);
-//  irq_unmask(0);
-
-  biosdisk_detect();
-  message("BIOSDisk initialized.\n");
-//  asm("hlt");
+    biosdisk_detect();
+    message("BIOSDisk initialized.\n");
 }

@@ -3,7 +3,7 @@
  * Disk drive support via BIOS                                            *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "request.c" - BIOSDisk driver request function                 *
  *                                                                        *
@@ -29,48 +29,48 @@
 #include <errors.h>
 #include "biosdisk.h"
 
-int biosdisk_request(DWORD Function, void *Params)
+int biosdisk_request(DWORD function, void *params)
 {
-  tDisk *D;
-  switch (Function)
-  {
-    case FD32_MEDIACHANGE:
+    Disk *d;
+    switch (function)
     {
-      fd32_mediachange_t *X = (fd32_mediachange_t *) Params;
-      if (X->Size < sizeof(fd32_mediachange_t)) return FD32_EFORMAT;
-      D = (tDisk *) X->DeviceId;
-      if (!(D->PrivFlags & REMOVABLE)) return FD32_EINVAL;
-      if (D->PrivFlags & CHANGELINE) return biosdisk_mediachange(D);
-      /* If disk does not support change line, always report a disk change */
-      return 1;
+        case FD32_MEDIACHANGE:
+        {
+            fd32_mediachange_t *x = (fd32_mediachange_t *) params;
+            if (x->Size < sizeof(fd32_mediachange_t)) return FD32_EFORMAT;
+            d = (Disk *) x->DeviceId;
+            if (!(d->priv_flags & REMOVABLE)) return FD32_EINVAL;
+            if (d->priv_flags & CHANGELINE) return biosdisk_mediachange(d);
+            /* If disk does not support change line, always report a disk change */
+            return 1;
+        }
+        case FD32_BLOCKREAD:
+        {
+            fd32_blockread_t *x = (fd32_blockread_t *) params;
+            if (x->Size < sizeof(fd32_blockread_t)) return FD32_EFORMAT;
+            d = (Disk *) x->DeviceId;
+            return biosdisk_read(d, x->Start, x->NumBlocks, x->Buffer);
+        }
+        #ifdef BIOSDISK_WRITE
+        case FD32_BLOCKWRITE:
+        {
+            fd32_blockwrite_t *x = (fd32_blockwrite_t *) params;
+            if (x->Size < sizeof(fd32_blockwrite_t)) return FD32_EFORMAT;
+            d = (Disk *) x->DeviceId;
+            return biosdisk_write(d, x->Start, x->NumBlocks, x->Buffer);
+        }
+        #endif
+        case FD32_BLOCKINFO:
+        {
+            fd32_blockinfo_t *x = (fd32_blockinfo_t *) params;
+            if (x->Size < sizeof(fd32_blockinfo_t)) return FD32_EFORMAT;
+            d = (Disk *) x->DeviceId;
+            x->BlockSize   = d->block_size;
+            x->TotalBlocks = d->total_blocks;
+            x->Type        = d->type;
+            x->MultiBootId = d->multiboot_id;
+            return 0;
+        }
     }
-    case FD32_BLOCKREAD:
-    {
-      fd32_blockread_t *X = (fd32_blockread_t *) Params;
-      if (X->Size < sizeof(fd32_blockread_t)) return FD32_EFORMAT;
-      D = (tDisk *) X->DeviceId;
-      return biosdisk_read(D, X->Start, X->NumBlocks, X->Buffer);
-    }
-    #ifdef BIOSDISK_WRITE
-    case FD32_BLOCKWRITE:
-    {
-      fd32_blockwrite_t *X = (fd32_blockwrite_t *) Params;
-      if (X->Size < sizeof(fd32_blockwrite_t)) return FD32_EFORMAT;
-      D = (tDisk *) X->DeviceId;
-      return biosdisk_write(D, X->Start, X->NumBlocks, X->Buffer);
-    }
-    #endif
-    case FD32_BLOCKINFO:
-    {
-      fd32_blockinfo_t *X = (fd32_blockinfo_t *) Params;
-      if (X->Size < sizeof(fd32_blockinfo_t)) return FD32_EFORMAT;
-      D = (tDisk *) X->DeviceId;
-      X->BlockSize   = D->BlockSize;
-      X->TotalBlocks = D->TotalBlocks;
-      X->Type        = D->Type;
-      X->MultiBootId = D->MultiBootId;
-      return 0;
-    }
-  }
-  return FD32_EINVAL;
+    return FD32_EINVAL;
 }

@@ -3,7 +3,7 @@
  * Disk drive support via BIOS                                            *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "biosdisk.h" - Defines and declarations                        *
  *                                                                        *
@@ -37,51 +37,51 @@
 #define BIOSDISK_FD32DEV /* Define this to register FD32 devices          */
 #define BIOSDISK_SHOWMSG /* Define this to show messages during detection */
 
-/* Mnemonics for the private flags of the tDisk structure */
+/* Mnemonics for the private flags of the Disk structure */
 enum
 {
-  EXTAVAIL   = 1 << 0, /* BIOS extensions are available  */
-  KNOWSPORTS = 1 << 1, /* The BIOS knows drive ports     */
-  SECONDARY  = 1 << 2, /* Device is on secondary channel */
-  SLAVE      = 1 << 3, /* Device is slave                */
-  REMOVABLE  = 1 << 4, /* Device has removable media     */
-  CHANGELINE = 1 << 5  /* Change line is supported       */
+    EXTAVAIL   = 1 << 0, /* BIOS extensions are available  */
+    KNOWSPORTS = 1 << 1, /* The BIOS knows drive ports     */
+    SECONDARY  = 1 << 2, /* Device is on secondary channel */
+    SLAVE      = 1 << 3, /* Device is slave                */
+    REMOVABLE  = 1 << 4, /* Device has removable media     */
+    CHANGELINE = 1 << 5  /* Change line is supported       */
 };
 
 /* BIOSDisk device structure */
 typedef struct
 {
-  int   OpenCount;
-  DWORD FirstSector;
-  DWORD BiosNumber;
-  DWORD PrivFlags;
-  DWORD BiosC, BiosH, BiosS;
-  DWORD PhysC, PhysH, PhysS;
-  DWORD BlockSize;   /* As defined in FD32_BLOCKINFO */
-  DWORD TotalBlocks; /* As defined in FD32_BLOCKINFO */
-  DWORD Type;        /* As defined in FD32_BLOCKINFO */
-  DWORD MultiBootId; /* As defined in FD32_BLOCKINFO */
+    unsigned open_count;
+    DWORD    first_sector;
+    unsigned bios_number;
+    unsigned priv_flags;
+    DWORD    bios_c, bios_h, bios_s;
+    DWORD    phys_c, phys_h, phys_s;
+    DWORD    block_size;   /* As defined in FD32_BLOCKINFO */
+    DWORD    total_blocks; /* As defined in FD32_BLOCKINFO */
+    DWORD    type;         /* As defined in FD32_BLOCKINFO */
+    DWORD    multiboot_id; /* As defined in FD32_BLOCKINFO */
 }
-tDisk;
+Disk;
 
 /* Standard BIOS disk functions */
-int biosdisk_stdread (tDisk *D, DWORD Start, DWORD Size, void *Buffer);
-int biosdisk_stdwrite(tDisk *D, DWORD Start, DWORD Size, void *Buffer);
+int biosdisk_stdread (const Disk *d, DWORD start, DWORD count, void *buffer);
+int biosdisk_stdwrite(const Disk *d, DWORD start, DWORD count, const void *buffer);
 
 /* IBM/MS Extended BIOS disk functions */
-int biosdisk_extread (tDisk *D, DWORD Start, DWORD Size, void *Buffer);
-int biosdisk_extwrite(tDisk *D, DWORD Start, DWORD Size, void *Buffer);
+int biosdisk_extread (const Disk *d, DWORD start, DWORD count, void *buffer);
+int biosdisk_extwrite(const Disk *d, DWORD start, DWORD count, const void *buffer);
 
 /* Operations common to Standard and IBM/MS Extended BIOSes */
-int biosdisk_read       (tDisk *D, DWORD Start, DWORD Size, void *Buffer);
-int biosdisk_write      (tDisk *D, DWORD Start, DWORD Size, void *Buffer);
-int biosdisk_devopen    (tDisk *D);
-int biosdisk_devclose   (tDisk *D);
-int biosdisk_mediachange(tDisk *D);
+int biosdisk_read       (const Disk *d, DWORD start, DWORD count, void *buffer);
+int biosdisk_write      (const Disk *d, DWORD start, DWORD count, const void *buffer);
+int biosdisk_devopen    (Disk *d);
+int biosdisk_devclose   (Disk *d);
+int biosdisk_mediachange(const Disk *d);
 
 /* Initialization functions */
 int biosdisk_detect  (void);
-int biosdisk_scanpart(tDisk *d, const char *dev_name);
+int biosdisk_scanpart(const Disk *d, const char *dev_name);
 
 /* Driver request function */
 fd32_request_t biosdisk_request;

@@ -29,7 +29,6 @@
 #include <errors.h>
 #include "biosdisk.h"
 
-#define __DEBUG__
 
 typedef struct
 {
@@ -52,7 +51,7 @@ __attribute__ ((packed)) PartTabl;
 #define PART_EXT_WIN   0x0F
 #define PART_EXT_LINUX 0x85
 
-#ifdef __DEBUG__
+#ifdef BIOSDISK_SHOWMSG
 static const struct { BYTE id; char *name; } partition_types[] =
 {
     { 0x00, "Empty"             },
@@ -89,17 +88,16 @@ static DWORD chs_to_lba(unsigned c, unsigned h, unsigned s, unsigned num_h, unsi
 }
 
 
-static void check_lba(PartTabl *p, const tDisk *d)
+static void check_lba(PartTabl *p, const Disk *d)
 {
-    DWORD lba_start;
-    DWORD lba_size;
+    DWORD lba_start, lba_size;
 
-    if (d->TotalBlocks / (d->BiosH * d->BiosS) > 1024) return; /* ...since we trust them */
+    if (d->total_blocks / (d->bios_h * d->bios_s) > 1024) return; /* ...since we trust them */
     lba_start = chs_to_lba(p->start_c + ((WORD) (p->start_s & 0xC0) << 2),
-                                 p->start_h, p->start_s & 0x3F, d->BiosH, d->BiosS);
-    lba_size = chs_to_lba(p->end_c + ((WORD) (p->end_s & 0xC0) << 2),
-                                 p->end_h, p->end_s & 0x3F, d->BiosH, d->BiosS)
-                    - lba_start + 1;
+                           p->start_h, p->start_s & 0x3F, d->bios_h, d->bios_s);
+    lba_size  = chs_to_lba(p->end_c + ((WORD) (p->end_s & 0xC0) << 2),
+                           p->end_h, p->end_s & 0x3F, d->bios_h, d->bios_s)
+              - lba_start + 1;
     if ((lba_start != p->lba_start) || (lba_size != p->lba_size))
         fd32_message("LBA values for the partition are not consistent with CHS values!\n");
     p->lba_start = lba_start;
@@ -107,7 +105,7 @@ static void check_lba(PartTabl *p, const tDisk *d)
 }
 
 
-static int add_partition(const tDisk *d, const char *name, unsigned part, PartTabl *p)
+static int add_partition(const Disk *d, const char *name, unsigned part, PartTabl *p)
 {
     #ifdef BIOSDISK_FD32DEV
     int    res;
@@ -117,7 +115,7 @@ static int add_partition(const tDisk *d, const char *name, unsigned part, PartTa
     DWORD  lba_end   = p->lba_start + p->lba_size - 1;
     DWORD  type;
     char   new_name[256];
-    tDisk *new_d;
+    Disk  *new_d;
     
     if ((p->type != PART_EMPTY)
      && (p->type != PART_EXT_DOS)
@@ -132,23 +130,23 @@ static int add_partition(const tDisk *d, const char *name, unsigned part, PartTa
                     else type = FD32_BIPRI;
         }
         type |= (DWORD) p->type << 4;
-        #ifdef __DEBUG__
+        #ifdef BIOSDISK_SHOWMSG
         fd32_message("%s is %s (%02xh), Start: %lu, Size: %lu (%lu MiB)\n",
                      new_name, partname(p->type), (unsigned) p->type, lba_start,
                      lba_end - lba_start + 1,
-                     (DWORD) (((long long) (lba_end - lba_start + 1) * d->BlockSize) >> 20));
+                     (DWORD) (((long long) (lba_end - lba_start + 1) * d->block_size) >> 20));
         #endif
         check_lba(p, d);
 
         /* Allocate and initialize the private data structure */
-        if ((new_d = (tDisk *) fd32_kmem_get(sizeof(tDisk))) == NULL)
+        if ((new_d = (Disk *) fd32_kmem_get(sizeof(Disk))) == NULL)
             return FD32_ENOMEM;
         *new_d = *d;
-        new_d->OpenCount = 0;
-        new_d->FirstSector = lba_start;
-        new_d->TotalBlocks = lba_end - lba_start + 1;
-        new_d->Type        = type;
-        new_d->MultiBootId = (d->MultiBootId & 0xFF00FFFF) | ((part - 1) << 24);
+        new_d->open_count = 0;
+        new_d->first_sector = lba_start;
+        new_d->total_blocks = lba_end - lba_start + 1;
+        new_d->type         = type;
+        new_d->multiboot_id = (d->multiboot_id & 0xFF00FFFF) | ((part - 1) << 24);
 
         #ifdef BIOSDISK_FD32DEV
         /* Register the new device to the FD32 kernel */
@@ -163,15 +161,15 @@ static int add_partition(const tDisk *d, const char *name, unsigned part, PartTa
 }
 
 
-int biosdisk_scanpart(tDisk *d, const char *dev_name)
+int biosdisk_scanpart(const Disk *d, const char *dev_name)
 {
     PartTabl  tbl[4];
-    unsigned  k;
-    int       res, part_num = 0;
-    BYTE      buffer[d->BlockSize];
+    unsigned  k, part_num = 0;
+    int       res;
+    BYTE      buffer[d->block_size];
     DWORD     ext_start = 0, ext_start1 = 0;
     
-    if (d->TotalBlocks / (d->BiosH * d->BiosS) > 1024)
+    if (d->total_blocks / (d->bios_h * d->bios_s) > 1024)
     {
         fd32_message("Media is too big to be addressed using CHS (has more than 1024 cylinders).\n");
         fd32_message("LBA values in the partition tables will be trusted.\n");
@@ -208,7 +206,7 @@ int biosdisk_scanpart(tDisk *d, const char *dev_name)
          || (tbl[k].type == PART_EXT_WIN)
          || (tbl[k].type == PART_EXT_LINUX))
         {
-            #ifdef __DEBUG__
+            #ifdef BIOSDISK_SHOWMSG
             fd32_message("%s%u is a %s partition\n", dev_name, k + 1,
                          partname(tbl[k].type));
             check_lba(&tbl[k], d);

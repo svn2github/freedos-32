@@ -1,4 +1,4 @@
-BIOSDISK DISK DRIVER
+BIOSDISK DISK DRIVER version 0.2
 by Salvo Isaja
 
 BIOSDisk is a simple but effective driver for disk devices.
@@ -9,28 +9,44 @@ waiting for 32-bit disk drivers. If supported by the ROM BIOS
 (most BIOSes do), BIOSDisk can use the IBM/MS Extension to access
 media greater than 8.4 GB, with Large Block Addressing (LBA).
 
-HOW TO COMPILE FOR FREEDOS 32
+--------------------------------------------------------------
+  HOW TO COMPILE FOR FREEDOS 32
+--------------------------------------------------------------
 Use the makefile "Makefile".
 From the command line, use "make" to generate the "biosdisk.o"
 object file to be used as FD32 driver.
 At present, it has to be loaded before any file system driver.
 
-HOW TO COMPILE FOR THE DOS TARGET
+--------------------------------------------------------------
+  HOW TO COMPILE FOR THE DOS TARGET
+--------------------------------------------------------------
 Use the makefile "Makefile.dj".
 Use "make -f Makefile.dj" to generate the "biosdisk.o" object
 file targetted for the DJGPP libraries. This version lacks of
 the FD32 initialization code which installs reflection code
 for VM86 mode. In order to use the DJGPP version of BIOSDisk,
 call the "biosdisk_detect" function manually to initialize the
-disk support.
+disk support (see detect.c).
 
-DEPENDENCES
+--------------------------------------------------------------
+  DEPENDENCIES
+--------------------------------------------------------------
 - devices.o
 If the symbol BIOSDISK_FD32DEV is defined in "biosdisk.h", the
-Devices Engine "fd32\devices\devices.o" is needed to register disk
-devices to the FD32 kernel.
+Devices Engine "fd32\devices\devices.o" is needed to register
+disk devices to the FD32 kernel.
 
-LICENSE AND DISCLAIMER
+--------------------------------------------------------------
+  CHANGES
+--------------------------------------------------------------
+0.2 - More BIOSes supported thanks to INT 40h and INT 15h
+      reflection to Virtual-8086 mode.
+      More debugging output in the detection routine.
+      Code clean-up.
+
+--------------------------------------------------------------
+  LICENSE AND DISCLAIMER
+--------------------------------------------------------------
 FreeDOS 32 BIOSDisk Driver
 Copyright (C) 2001-2003, Salvatore Isaja
 

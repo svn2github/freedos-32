@@ -3,7 +3,7 @@
  * Disk drive support via BIOS                                            *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2002, Salvatore Isaja                               *
+ * Copyright (C) 2001-2003, Salvatore Isaja                               *
  *                                                                        *
  * This is "common.c" - Operations common to Standard and IBM/MS Extended *
  *                      BIOSes and to floppy and hard disk devices        *
@@ -33,78 +33,81 @@
 
 
 /* Resets the disk system, as required between access retries */
-int biosdisk_reset(tDisk *D)
+static int biosdisk_reset(const Disk *d)
 {
-  FD32_DECLARE_REGS(Regs);
+    FD32_DECLARE_REGS(regs);
 
-  AH(Regs) = 0x00; /* Reset disk system */
-  DL(Regs) = D->BiosNumber;
-  fd32_int(0x13, Regs);
-  if (FLAGS(Regs) & 0x1) return -1; /* Error code in AH */
-  return 0;
-
+    AH(regs) = 0x00; /* Reset disk system */
+    DL(regs) = d->bios_number;
+    fd32_int(0x13, regs);
+    if (FLAGS(regs) & 0x1) return -1; /* Error code in AH */
+    return 0;
 }
 
 
 /* Reads sectors from the disk using the appropriate read function */
-int biosdisk_read(tDisk *D, DWORD Start, DWORD Size, void *Buffer)
+int biosdisk_read(const Disk *d, DWORD start, DWORD count, void *buffer)
 {
-  int      Res;
-  unsigned k;
-  for (k = 0; k < NUMRETRIES; k++)
-  {
-    if (D->PrivFlags & EXTAVAIL) Res = biosdisk_extread(D, Start, Size, Buffer);
-                            else Res = biosdisk_stdread(D, Start, Size, Buffer);
-    if (Res == 0) return 0;
-    biosdisk_reset(D);
-  }
-  return Res;
+    int      res;
+    unsigned k;
+    for (k = 0; k < NUMRETRIES; k++)
+    {
+        if (d->priv_flags & EXTAVAIL)
+            res = biosdisk_extread(d, start, count, buffer);
+          else
+            res = biosdisk_stdread(d, start, count, buffer);
+        if (res == 0) return 0;
+        biosdisk_reset(d);
+    }
+    return res;
 }
 
 
 #ifdef BIOSDISK_WRITE
 /* Writes sectors to the disk using the appropriate write function */
-int biosdisk_write(tDisk *D, DWORD Start, DWORD Size, void *Buffer)
+int biosdisk_write(const Disk *d, DWORD start, DWORD count, const void *buffer)
 {
-  int      Res;
-  unsigned k;
-  for (k = 0; k < NUMRETRIES; k++)
-  {
-    if (D->PrivFlags & EXTAVAIL) Res = biosdisk_extwrite(D, Start, Size, Buffer);
-                            else Res = biosdisk_stdwrite(D, Start, Size, Buffer);
-    if (Res == 0) return 0;
-    biosdisk_reset(D);
-  }
-  return Res;
+    int      res;
+    unsigned k;
+    for (k = 0; k < NUMRETRIES; k++)
+    {
+        if (d->priv_flags & EXTAVAIL)
+            res = biosdisk_extwrite(d, start, count, buffer);
+          else
+            res = biosdisk_stdwrite(d, start, count, buffer);
+        if (res == 0) return 0;
+        biosdisk_reset(d);
+    }
+    return res;
 }
 #endif
 
 
-int biosdisk_devopen(tDisk *D)
+int biosdisk_devopen(Disk *d)
 {
-  return ++D->OpenCount;
+    return ++d->open_count;
 }
 
 
-int biosdisk_devclose(tDisk *D)
+int biosdisk_devclose(Disk *d)
 {
-  if (--D->OpenCount == 0) /* Flush buffered data */;
-  return D->OpenCount;
+    if (--d->open_count == 0) /* Flush buffered data */;
+    return d->open_count;
 }
 
 
 /* Wrapper function for standard INT 13h 'detect disk change' service. */
 /* Returns 0 if disk has not been changed, a positive number if disk   */
 /* has been changed or a negative number on error.                     */
-int biosdisk_mediachange(tDisk *D)
+int biosdisk_mediachange(const Disk *d)
 {
-  FD32_DECLARE_REGS(Regs);
+    FD32_DECLARE_REGS(regs);
 
-  AH(Regs) = 0x16;   /* Floppy disk - Detect disk change */
-  DL(Regs) = D->BiosNumber;
-  SI(Regs) = 0x0000; /* to avoid crash on AT&T 6300 */
-  fd32_int(0x13, Regs);
-  if (!(FLAGS(Regs) & 0x1)) return 0; /* Carry clear is disk not changed */
-  if (AH(Regs) == 0x06) return 1; /* Disk changed */
-  return -1; /* If AH is not 06h an error occurred */
+    AH(regs) = 0x16;   /* Floppy disk - Detect disk change */
+    DL(regs) = d->bios_number;
+    SI(regs) = 0x0000; /* to avoid crash on AT&T 6300 */
+    fd32_int(0x13, regs);
+    if (!(FLAGS(regs) & 0x1)) return 0; /* Carry clear is disk not changed */
+    if (AH(regs) == 0x06) return 1; /* Disk changed */
+    return -1; /* If AH is not 06h an error occurred */
 }
