@@ -123,6 +123,7 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
   message("Returned: %d!!!\n", retval);
 #endif
   mem_free(exec_space, size);
+  mem_free(exec_space + size, STACKSIZE);
   /* Well... And this???
   mem_free((DWORD)sections, sizeof(struct section_info));
   if (symbols != NULL) {
