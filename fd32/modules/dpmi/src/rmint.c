@@ -31,13 +31,13 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       res = videobios_int(r1);
       return res;
     case 0x21:
-#ifdef __DEBUG__
+#ifdef __RM_INT_DEBUG__
       fd32_log_printf("INT 21h - AX=%04x BX=%04x CX=%04x DX=%04x SI=%04x DI=%04x DS=%04x ES=%04x...\n",
                       r1->x.ax, r1->x.bx, r1->x.cx, r1->x.dx,
                       r1->x.si, r1->x.di, r1->x.ds, r1->x.es);
 #endif
       int21_handler(r1);
-#ifdef __DEBUG__
+#ifdef __RM_INT_DEBUG__
       if (r1->x.flags & 0x0001) {
         fd32_log_printf("Failed  - ");
       } else {

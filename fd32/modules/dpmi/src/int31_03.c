@@ -18,10 +18,6 @@
 #include "rmint.h"
 #include "int31_03.h"
 
-/*
-#define __DEBUG__
-*/
-
 void int31_0300(union regs *r)
 {
   BYTE f;
@@ -31,17 +27,17 @@ void int31_0300(union regs *r)
   f = (BYTE)(r->d.ebx >> 8);
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32]: Simulate RM interrupt (INT 0x%x\n)", intnum);
-  fd32_log_printf("Real Mode Call Structure @ 0x%x:0x%lx\n",
-                  (WORD)r->d.ees, r->d.edi);
+  fd32_log_printf("[DPMI]: Simulate RM interrupt (INT 0x%x)\n",
+	  r->h.bl);
+  fd32_log_printf("    Real Mode Call Structure @ 0x%x:0x%lx\n",
+	  r->x.es, r->d.edi);
 #endif
   base = GDT_read((WORD)r->d.ees, &limit, NULL, NULL);
 #ifdef __DEBUG__
-  fd32_log_printf("ES: base=0x%lx, limit=0x%lx\n", base, limit);
+  fd32_log_printf("    ES: base=0x%lx, limit=0x%lx\n", base, limit);
 #endif
 
   res = fd32_real_mode_int(r->h.bl, base + r->d.edi);
-  
   if (res != 0) {
       r->x.ax = res;
       SET_CARRY;
@@ -53,10 +49,10 @@ void int31_0300(union regs *r)
 void int31_0303(union regs *r)
 {
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32]: Allocate Real Mode CallBack Address\n");
-  fd32_log_printf("Real Mode Call Structure @ 0x%x:0x%lx\n",
+  fd32_log_printf("[DPMI]: Allocate Real Mode CallBack Address\n");
+  fd32_log_printf("    Real Mode Call Structure @ 0x%x:0x%lx\n",
                   (WORD)r->d.ees, r->d.edi);
-  fd32_log_printf("Procedure to Call @ 0x%x:0x%lx\n", (WORD)r->d.eds, r->d.esi);
+  fd32_log_printf("    Procedure to Call @ 0x%x:0x%lx\n", (WORD)r->d.eds, r->d.esi);
 #endif
 
   /* TODO: This must be completely implemented */
@@ -70,8 +66,8 @@ void int31_0303(union regs *r)
 void int31_0304(union regs *r)
 {
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32]: Free Real Mode CallBack Address\n");
-  fd32_log_printf("Real Mode CallBack Address: 0x%x:0x%lx\n",
+  fd32_log_printf("[DPMI]: Free Real Mode CallBack Address\n");
+  fd32_log_printf("    Real Mode CallBack Address: 0x%x:0x%lx\n",
                   r->d.ecx, r->d.edx);
 #endif
 

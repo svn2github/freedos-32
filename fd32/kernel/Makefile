@@ -14,7 +14,7 @@ C_OPT += -I$(INCL) -I../include $(DEBUG)
 ASM_OPT += -I$(INCL)
 LINK_OPT = -Bstatic
 
-OBJS = call.o pmm.o run.o exch.o abort.o process.o ldtmanag.o filesys.o exec.o \
+OBJS = call.o pmm.o run.o exch.o abort.o process.o filesys.o exec.o \
 	 syscalls.o logger.o devices.o
 
 all: kernel.o

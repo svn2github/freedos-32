@@ -15,7 +15,7 @@
 void int31_0E01(union regs *r)
 {
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set FPU Emulation: mode 0x%lx\n", *ebx);
+  fd32_log_printf("[DPMI] Set FPU Emulation: mode 0x%lx\n", r->d.ebx);
 #endif
 
   /* This is DPMI 1.0: we don't support it... */

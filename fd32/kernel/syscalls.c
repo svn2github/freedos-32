@@ -18,7 +18,6 @@
 
 #include "kernel.h"
 #include "kmem.h"
-#include "ldtmanag.h"
 #include "format.h"
 #include "devices.h"
 #include "logger.h"
@@ -30,6 +29,7 @@ extern GATE IDT[256];
 extern DWORD rm_irq_table[256];
 extern WORD kern_CS, kern_DS;
 extern CONTEXT context_save(void);
+extern union gdt_entry *GDT_base;
 
 
 //int fd32_write(int handle, char *buffer, int len); /* To be put in kernel.h */
@@ -66,6 +66,9 @@ static struct symbol syscall_table[] = {
   {"mem_free", (DWORD)mem_free},
   {"current_psp", (DWORD)(&current_psp)},
   {"IDT_place", (DWORD)IDT_place},
+  {"GDT_place", (DWORD)GDT_place},
+  {"GDT_base", (DWORD)(&GDT_base)},
+  /*
   {"fd32_allocate_descriptors", (DWORD)fd32_allocate_descriptors},
   {"fd32_free_descriptor", (DWORD)fd32_free_descriptor},
   {"fd32_segment_to_descriptor", (DWORD)fd32_segment_to_descriptor},
@@ -77,6 +80,7 @@ static struct symbol syscall_table[] = {
   {"fd32_create_alias_descriptor", (DWORD)fd32_create_alias_descriptor},
   {"fd32_get_descriptor", (DWORD)fd32_get_descriptor},
   {"fd32_set_descriptor", (DWORD)fd32_set_descriptor},
+  */
   {"rm_irq_table", (DWORD)(&rm_irq_table)},
   {"exc_table", (DWORD)(&exc_table)},
   {"IDT", (DWORD)(&IDT)},

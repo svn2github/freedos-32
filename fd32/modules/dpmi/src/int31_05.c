@@ -21,7 +21,7 @@ void int31_0501(union regs *r)
 
   blocksize = ((r->d.ebx & 0xFFFF) << 16) | (r->d.ecx & 0xFFFF);
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Allocate Memory Block\n");
+  fd32_log_printf("[DPMI] Allocate Memory Block\n");
   fd32_log_printf("       Block size: 0x%lx (%ld)\n", blocksize, blocksize);
 #endif
   handle = dpmi_alloc(blocksize, &base);
@@ -60,7 +60,7 @@ void int31_0502(union regs *r)
   
   handle = ((r->d.esi & 0xFFFF) << 16) | (r->d.edi & 0xFFFF);
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Free Memory Block\n");
+  fd32_log_printf("[DPMI] Free Memory Block\n");
   fd32_log_printf("       Handle: 0x%lx:0x%lx = 0x%lx\n", r->d.esi, r->d.edi, handle);
 #endif
   if (handle == 0) {
@@ -82,7 +82,7 @@ void int31_0502(union regs *r)
 void int31_0507(union regs *r)
 {
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Modify Page Attributes: handle 0x%lx, offset 0x%lx, n. 0x%lx attr:0x%lx\n",
+  fd32_log_printf("[DPMI] Modify Page Attributes: handle 0x%lx, offset 0x%lx, n. 0x%lx attr:0x%lx\n",
                   r->d.esi, r->d.ebx, r->d.ecx, *((DWORD *)r->d.edx));
 #endif
   /*Error: set CF... */

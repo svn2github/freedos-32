@@ -20,7 +20,7 @@ void int31_0400(union regs *r)
   struct ll_cpuInfo cpu;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get DPMI Information\n");
+  fd32_log_printf("[DPMI] Get DPMI Information\n");
 #endif
   CLEAR_CARRY;
   /* DPMI Version: 0.9 */

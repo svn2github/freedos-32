@@ -81,7 +81,7 @@ int fd32_allocate_descriptors(WORD NumSelectors)
   WORD selector;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Allocate Descriptors: 0x%x selector(s)\n", NumSelectors);
+  fd32_log_printf("[DPMI] Allocate Descriptors: 0x%x selector(s)\n", NumSelectors);
 #endif
 
   for (i = DESCRIPTOR_TABLE_INF; (i + NumSelectors) < DESCRIPTOR_TABLE_SUP; i++)
@@ -160,7 +160,7 @@ int fd32_free_descriptor(WORD Selector)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Free Descriptor: Selector 0x%x\n", Selector);
+  fd32_log_printf("[DPMI] Free Descriptor: Selector 0x%x\n", Selector);
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
@@ -210,7 +210,7 @@ int fd32_segment_to_descriptor(WORD RealModeSegment)
   WORD base_med = RealModeSegment >> 12;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Segment to Descriptor: RealModeSegment 0x%x\n", RealModeSegment);
+  fd32_log_printf("[DPMI] Segment to Descriptor: RealModeSegment 0x%x\n", RealModeSegment);
 #endif
 
   /* The DPMI Specifications says that:
@@ -270,7 +270,7 @@ WORD fd32_get_selector_increment_value()
    * "The increment value is always a power of two"
    */
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get Selector Increment Value Rights\n");
+  fd32_log_printf("[DPMI] Get Selector Increment Value Rights\n");
 #endif
 
   return 8;
@@ -289,7 +289,7 @@ int fd32_get_segment_base_address(WORD Selector, DWORD *BaseAddress)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get Segment Base Address: Selector 0x%x\n", Selector);
+  fd32_log_printf("[DPMI] Get Segment Base Address: Selector 0x%x\n", Selector);
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
@@ -329,7 +329,7 @@ int fd32_set_segment_base_address(WORD Selector, DWORD BaseAddress)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Segment Base Address: Selector 0x%x  Base Address 0x%lx\n",Selector,BaseAddress);
+  fd32_log_printf("[DPMI] Set Segment Base Address: Selector 0x%x  Base Address 0x%lx\n",Selector,BaseAddress);
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector,&i);
@@ -372,7 +372,7 @@ int fd32_set_segment_limit(WORD Selector, DWORD Limit)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Segment Limit: Selector 0x%x  Limit 0x%lx\n",Selector,Limit);
+  fd32_log_printf("[DPMI] Set Segment Limit: Selector 0x%x  Limit 0x%lx\n",Selector,Limit);
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &i);
@@ -422,7 +422,7 @@ int fd32_set_descriptor_access_rights(WORD Selector, WORD Rights)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Descriptor Access Rights: Selector 0x%x   Rights 0x%x\n", Selector, Rights);
+  fd32_log_printf("[DPMI] Set Descriptor Access Rights: Selector 0x%x   Rights 0x%x\n", Selector, Rights);
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector,&i);
@@ -449,7 +449,7 @@ int fd32_create_alias_descriptor(WORD Selector)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Create Alias Descriptor: Selector 0x%x\n", Selector);
+  fd32_log_printf("[DPMI] Create Alias Descriptor: Selector 0x%x\n", Selector);
 #endif
 
   ErrorCode = sel_to_ldt_index(Selector, &Source);
@@ -487,7 +487,7 @@ int fd32_get_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get Descriptor: Selector 0x%x   Buffer: 0x%x:0x%lx\n",
+  fd32_log_printf("[DPMI] Get Descriptor: Selector 0x%x   Buffer: 0x%x:0x%lx\n",
                   Selector, BufferSelector, BufferOffset);
 #endif
 
@@ -550,7 +550,7 @@ int fd32_set_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset)
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Descriptor: Selector 0x%x   Buffer: 0x%x:0x%lx\n",
+  fd32_log_printf("[DPMI] Set Descriptor: Selector 0x%x   Buffer: 0x%x:0x%lx\n",
                   Selector, BufferSelector, BufferOffset);
 #endif
 
@@ -590,7 +590,7 @@ int fd32_get_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get Multiple Descriptor: Descriptors: 0x%x   Buffer: 0x%x:0x%lx\n",
+  fd32_log_printf("[DPMI] Get Multiple Descriptor: Descriptors: 0x%x   Buffer: 0x%x:0x%lx\n",
                   Descriptors, BufferSelector, BufferOffset);
 #endif
 
@@ -659,7 +659,7 @@ int fd32_set_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
   int  ErrorCode;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Multiple Descriptor: Descriptors: 0x%x   Buffer: 0x%x:0x%lx\n",
+  fd32_log_printf("[DPMI] Set Multiple Descriptor: Descriptors: 0x%x   Buffer: 0x%x:0x%lx\n",
                   Descriptors, BufferSelector, BufferOffset);
 #endif
 

@@ -43,6 +43,10 @@ int fd32_log_printf(char *fmt, ...)
 
   /* First we check if this function is called before initing the logger */
   if (!LogBufPos) return 0;
+  if (LogBufPos > LogBufStart + LOGBUFSIZE) {
+      error("Out of log buff...\n");
+      return 0;
+  }
   /* Then we format the string appending it to the log buffer */
   va_start(parms,fmt);
   NumWritten = vksprintf(LogBufPos,fmt,parms);

@@ -291,10 +291,12 @@ int fd32_write(int Handle, void *Buffer, DWORD Size, DWORD *Result)
   J = &current_psp->Jft[Handle];
   if (J->Ops == NULL)
   {
-    if ((Handle == 1) || (Handle == 2))
-      return fake_console_output((char *) Buffer, Size);
-     else
+    if ((Handle == 1) || (Handle == 2)) {
+      *Result = fake_console_output((char *) Buffer, Size);
+      return 0;
+    } else {
       return FD32_ERROR_INVALID_HANDLE;
+    }
   }
   switch (J->Ops->Type)
   {

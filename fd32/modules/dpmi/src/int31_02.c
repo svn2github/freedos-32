@@ -26,7 +26,7 @@ void int31_0200(union regs *r)
 
   intnum = (BYTE)r->d.ebx;
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get Real Mode Interrupt Vector: interrupt number %d\n",
+  fd32_log_printf("[DPMI] Get Real Mode Interrupt Vector: interrupt number %d\n",
                   intnum);
 #endif
 
@@ -42,7 +42,7 @@ void int31_0201(union regs *r)
 
   intnum = (BYTE)r->d.ebx;
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Real Mode Interrupt Vector: interrupt number %d\n",
+  fd32_log_printf("[DPMI] Set Real Mode Interrupt Vector: interrupt number %d\n",
                   intnum);
 #endif
   fd32_set_real_mode_int(intnum, r->x.cx, r->x.dx);
@@ -57,7 +57,7 @@ void int31_0202(union regs *r)
   int res;
   
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get Exception Handler: exception number %d\n", excnum);
+  fd32_log_printf("[DPMI] Get Exception Handler: exception number %d\n", r->h.bl);
 #endif
 
   res = fd32_get_exception_handler(r->h.bl, &(r->x.cx), &(r->d.edx));
@@ -70,7 +70,7 @@ void int31_0203(union regs *r)
   int res;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Exception Handler: exception number %d\n", excnum);
+  fd32_log_printf("[DPMI] Set Exception Handler: exception number %d\n", r->h.bl);
   fd32_log_printf("            Handler: 0x%lx:0x%lx\n", r->d.ecx, r->d.edx);
 #endif
 
@@ -84,8 +84,8 @@ void int31_0204(union regs *r)
   int res;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Get Protect Mode Interrupt Vector: interrupt number %d\n",
-                  intnum);
+  fd32_log_printf("[DPMI] Get Protect Mode Interrupt Vector: interrupt number %d\n",
+                  r->h.bl);
 #endif
 
   res = fd32_get_protect_mode_int(r->h.bl, &(r->x.cx), &(r->d.edx));
@@ -98,8 +98,8 @@ void int31_0205(union regs *r)
   int res;
 
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Set Protect Mode Interrupt Vector: interrupt number %d\n",
-                  intnum);
+  fd32_log_printf("[DPMI] Set Protect Mode Interrupt Vector: interrupt number %d\n",
+                  r->h.bl);
   fd32_log_printf("            Handler: 0x%lx:0x%lx\n", r->d.ecx, r->d.edx);
 #endif
 

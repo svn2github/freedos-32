@@ -8,11 +8,13 @@ INCL   = $(BASE)
 LIB_PATH    = $(BASE)/lib/
 LIB_DIR  = $(BASE)\lib
 
-C_OPT += -I$(INCL) -I../../include -I ./include
+#DEBUG = -D__DEBUG__
+
+C_OPT += -I$(INCL) -I../../include -I ./include $(DEBUG)
 ASM_OPT +=-I$(INCL)
 LINK_OPT = -Bstatic
 
-OBJS = handlers.o chandler.o dpmimem.o dpmiexc.o rmint.o init.o \
+OBJS = handlers.o chandler.o dpmimem.o dpmiexc.o rmint.o ldtmanag.o init.o \
 	int31_00.o int31_02.o int31_03.o int31_04.o int31_05.o \
 	int31_06.o int31_0e.o int10.o int21.o
 

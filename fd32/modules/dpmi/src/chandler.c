@@ -31,7 +31,7 @@ int stop = -1;
 
 void chandler1(DWORD eax, DWORD ebx, DWORD ecx, DWORD edx, DWORD intnum)
 {
-  message("[FD32] INT 0x%lx called\n", intnum);
+  message("[DPMI] INT 0x%lx called\n", intnum);
   message("eax = 0x%lx    ", eax);
   message("ebx = 0x%lx    ", ebx);
   message("ecx = 0x%lx    ", ecx);
@@ -43,7 +43,7 @@ void return_to_dos(union regs *r)
   void restore_sp(int res);
 
 #ifdef __DPMI_DEBUG__
-  fd32_log_printf("[FD32] Return to DOS: return code 0x%x\n", (BYTE)(r->d.eax & 0xFF));
+  fd32_log_printf("[DPMI] Return to DOS: return code 0x%x\n", (BYTE)(r->d.eax & 0xFF));
   fd32_log_printf("Current stack: 0x%lx\n", get_SP());
 #endif
   restore_sp(r->d.eax & 0xFF);
@@ -58,7 +58,7 @@ void chandler(union regs r, DWORD intnum)
     stop++;
   }
   if (stop == LETSSTOP) {
-    fd32_log_printf("[FD32 Debug]: stop @ INT 0x%lx Service 0x%lx\n",
+    fd32_log_printf("[DPMI Debug]: stop @ INT 0x%lx Service 0x%lx\n",
                     intnum, r.d.eax & 0xFFFF);
     fd32_log_printf("eax = 0x%lx    ", r.d.eax);
     fd32_log_printf("ebx = 0x%lx    ", r.d.ebx);

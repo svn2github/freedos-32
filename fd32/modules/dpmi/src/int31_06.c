@@ -15,7 +15,7 @@
 void int31_0600(union regs *r)
 {
 #ifdef __DEBUG__
-  fd32_log_printf("[FD32] Lock Linear Region\n");
+  fd32_log_printf("[DPMI] Lock Linear Region\n");
 #endif
 
   /* We don't support paging now... Always succeeds */

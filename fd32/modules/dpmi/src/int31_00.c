@@ -18,10 +18,6 @@
 #include "int31_00.h"
 #include "ldtmanag.h"
 
-/*
-#define __DEBUG__
-*/
-
 /* Descriptors Management Routines
  *
  * Implemented routines:
@@ -63,13 +59,12 @@ extern WORD kern_CS, kern_DS;
 void int31_0000(union regs *r)
 {
   int  newsel;
-  WORD BaseSelector;
 	
   newsel = fd32_allocate_descriptors((WORD) r->d.ecx);
 
 #ifdef __DEBUG__
-  fd32_log_printf("   Base selector: 0x%x   Exit code: 0x%x\n",
-                  BaseSelector, ErrorCode);
+  fd32_log_printf("   Base selector: 0x%hx   Exit code: %d\n",
+                  (WORD)newsel, newsel);
 #endif
 
   /* Return the result in AX */
@@ -95,13 +90,12 @@ void int31_0001(union regs *r)
 void int31_0002(union regs *r)
 {
   int  newsel;
-  WORD RealModeSelector;
 
   newsel = fd32_segment_to_descriptor(r->x.bx);
 
 #ifdef __DEBUG__
-  fd32_log_printf("   Real Mode selector: 0x%x   Exit code: 0x%x\n",
-                  RealModeSelector, ErrorCode);
+  fd32_log_printf("   Real Mode selector: 0x%hx   Exit code: %d\n",
+                  (WORD)newsel, newsel);
 #endif
 
   dpmi_return(newsel, r);
@@ -190,13 +184,12 @@ void int31_0009(union regs *r)
 void int31_000A(union regs *r)
 {
   int  aliasel;
-  WORD NewSelector;
 
   aliasel = fd32_create_alias_descriptor((WORD) r->d.ebx);
 
 #ifdef __DEBUG__
-  fd32_log_printf("   New selector: 0x%x   Exit code: 0x%x\n",
-                  NewSelector, ErrorCode);
+  fd32_log_printf("   New selector: 0x%hx   Exit code: %d\n",
+                  (WORD)aliasel, aliasel);
 #endif
 
   dpmi_return(aliasel, r);
