@@ -12,7 +12,6 @@
 #include <ll/i386/mem.h>
 #include <ll/ctype.h>
 
-#include "dev/char.h"
 #include "kmem.h"
 #include "mods.h"
 #include "format.h"
@@ -31,7 +30,6 @@
 
 DWORD global_SP;
 
-struct fd32_dev_char pseudofs;
 struct kern_funcs kf;
 
 struct mods_struct {
@@ -132,7 +130,7 @@ void process_dos_module(struct kern_funcs *p, int file,
     exec_process(p, file, parser, cmdline);
     return;
   }
-  return -1;
+  return;
   p->file_seek(file, hdr.e_lfanew, 0);
   p->file_read(file, &nt_sgn, 4);
     
@@ -145,16 +143,6 @@ void process_dos_module(struct kern_funcs *p, int file,
   return;
 }
 
-static int mod_read(int id, void *b, int len)
-{
-  return pseudofs.read((void *)id, len, b);
-}
-
-static int mod_seek(int id, int pos, int w)
-{
-  return pseudofs.seek((void *)id, pos, w);
-}
-
 void process_modules(int mods_count, DWORD mods_addr)
 {
   int i, mod_type;
@@ -162,11 +150,13 @@ void process_modules(int mods_count, DWORD mods_addr)
   char *command_line;
 
   /* Initialize the Modules Pseudo-FS... */
-  modfs_init(&pseudofs, mods_addr, mods_count);
+  modfs_init(&kf, mods_addr, mods_count);
   /* Now module #n is accesible as file n... */
-  
+ 
+/*
   kf.file_read = mod_read;
   kf.file_seek = mod_seek;
+  */
   kf.mem_alloc = mem_get;
   kf.mem_alloc_region = mem_get_region;
   kf.mem_free = mem_free;

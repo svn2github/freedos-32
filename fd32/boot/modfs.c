@@ -8,7 +8,7 @@
 #include <ll/i386/mem.h>
 #include <ll/i386/error.h>
 
-#include "dev/char.h"
+#include "format.h"
 #include "mods.h"
 
 DWORD start[10];
@@ -16,14 +16,8 @@ DWORD end[10];
 DWORD pointer[10];
 int n = 0;
 
-void driver_dummy(void)
+static int modfs_read(int file, void *buff, int size)
 {
-  error("FD/32 Panic: an unimplemented function has been called!!\n");
-}
-
-static int modfs_read(void *f, DWORD size, BYTE *buff)
-{
-  int file = (int)f;
   int len;
 
   if (file > n) {
@@ -42,9 +36,8 @@ static int modfs_read(void *f, DWORD size, BYTE *buff)
   return len;
 }
 
-static int modfs_seek(void *f, int pos, int wence)
+static int modfs_seek(int file, int pos, int wence)
 {
-  int file = (int)f;
   int res;
 
   if (file > n) {
@@ -96,7 +89,7 @@ int modfs_offset(int file, int offset)
   return 1;
 }
 
-void modfs_init(struct fd32_dev_char *pseudodev, DWORD addr, int count)
+void modfs_init(struct kern_funcs *kf, DWORD addr, int count)
 {
   int i;
   DWORD modstart, modend;
@@ -110,10 +103,6 @@ void modfs_init(struct fd32_dev_char *pseudodev, DWORD addr, int count)
     pointer[i] = modstart;
   }
 
-  pseudodev->open  = (void *)driver_dummy;
-  pseudodev->close = (void *)driver_dummy;
-  pseudodev->seek = modfs_seek;
-  pseudodev->read = modfs_read;
-  pseudodev->write = (void *)driver_dummy;
-  pseudodev->ioctl = (void *)driver_dummy;
+  kf->file_seek = modfs_seek;
+  kf->file_read = modfs_read;
 }
