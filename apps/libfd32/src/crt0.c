@@ -1,12 +1,16 @@
 #include <ll/i386/hw-data.h>
 #include <kernel.h>
+#include <stubinfo.h>
 
-char **environ;
-char *__env[1] = {0};
-char *argv[255];
+#define MAX_FILES 20
+static char **environ;
+static char *__env[1] = {0};
+static char *argv[255];
 DWORD mem_limit;
+extern struct psp *current_psp;
 
 extern int main(int argc,char **argv,char **envp);
+static struct psp local_psp;
 
 int libc_init(struct process_info *pi)
 {
@@ -28,6 +32,11 @@ int libc_init(struct process_info *pi)
       p++;
     } while ((*p != 0) || (*p == ' '));
   }
-
+  /* Set up the JFT */
+  local_psp.jft_size = MAX_FILES;
+  local_psp.jft = fd32_init_jft(MAX_FILES);
+  local_psp.link = current_psp;
+  current_psp = &local_psp;
   return main(argc, argv, environ);
+  /* FIXME: how do we restore the psp??? Simple: in exit.c!!! */
 }
