@@ -31,7 +31,6 @@
 #include <ll/i386/pic.h>
 #include <ll/i386/x-bios.h>
 #include <ll/i386/error.h>
-#include <../drivers/dpmi/include/dpmi.h>
 #include "biosdisk.h"
 
 #define VM86_STACK_SIZE 10000

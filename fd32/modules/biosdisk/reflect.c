@@ -8,16 +8,8 @@
 #include <ll/i386/hw-func.h>
 #include <ll/i386/x-bios.h>
 #include <ll/i386/pic.h>
-#include <ll/i386/error.h>
-#include <ll/i386/stdlib.h>
-#include <ll/sys/ll/event.h>
+#include "biosdisk.h"
 
-#include <kernel.h>
-#include <logger.h>
-/* This include is a hack... Figure out how to fix this! */
-#include <../drivers/dpmi/include/dpmi.h>
-
-extern DWORD rm_irq_table[256];
 
 /* This is implemented in oslib/xlib/ctx.s */
 extern CONTEXT context_save(void);

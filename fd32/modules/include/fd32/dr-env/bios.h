@@ -43,5 +43,7 @@
   ll_frestore(f); \
 } while (0)
 
+extern DWORD rm_irq_table[256];
+
 #endif /* #ifndef __FD32_DRENV_BIOS_H */
 
