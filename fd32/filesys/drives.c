@@ -38,10 +38,10 @@ static int dynamic_assign(DWORD Type, int d)
     /* Check if this device is already assigned (even with fixed letters) */
     for (Res = 0; Res < 26; Res++) if (Drives[Res] == hDev) continue;
     /* Get block device informations */
-    if ((Res = fd32_dev_get(hDev, &request, &DeviceId, DevName, 50)) < 0) return Res;
+    fd32_dev_get(hDev, &request, &DeviceId, DevName, 50);
     Bi.Size     = sizeof(fd32_blockinfo_t);
     Bi.DeviceId = DeviceId;
-    if ((Res = request(FD32_BLOCKINFO, &Bi)) < 0) return Res;
+    if (request(FD32_BLOCKINFO, &Bi) < 0) continue;
     /* If the block device type is not what we are searching we skip it */
     if (FD32_BITYP(Bi.Type) != Type) continue;
     /* If no file system driver can handle such a partition we skip it */

@@ -36,10 +36,10 @@
 
 void biosdisk_init(void)
 {
-  extern void int0x15(void);
-  extern void int0x56(void);
-  extern void int0x76(void);
-  extern void int0x77(void);
+  extern void int0x15(void); /* Cassette... why? */
+  extern void int0x56(void); /* IRQ6 relocated by software - Floppy */
+  extern void int0x76(void); /* IRQ14 - Primary IDE controller      */
+  extern void int0x77(void); /* IRQ15 - Secondary IDE controller    */
 
   message("Initing BIOSDisk...\n");
 

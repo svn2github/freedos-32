@@ -29,12 +29,36 @@
 
 #include "biosdisk.h"
 
+#define NUMRETRIES 5 /* Number of times to retry on error */
+
+
+/* Resets the disk system, as required between access retries */
+int biosdisk_reset(tDisk *D)
+{
+  FD32_DECLARE_REGS(Regs);
+
+  AH(Regs) = 0x00; /* Reset disk system */
+  DL(Regs) = D->BiosNumber;
+  fd32_int(0x13, Regs);
+  if (FLAGS(Regs) & 0x1) return -1; /* Error code in AH */
+  return 0;
+
+}
+
 
 /* Reads sectors from the disk using the appropriate read function */
 int biosdisk_read(tDisk *D, DWORD Start, DWORD Size, void *Buffer)
 {
-  if (D->PrivFlags & EXTAVAIL) return biosdisk_extread(D, Start, Size, Buffer);
-                          else return biosdisk_stdread(D, Start, Size, Buffer);
+  int      Res;
+  unsigned k;
+  for (k = 0; k < NUMRETRIES; k++)
+  {
+    if (D->PrivFlags & EXTAVAIL) Res = biosdisk_extread(D, Start, Size, Buffer);
+                            else Res = biosdisk_stdread(D, Start, Size, Buffer);
+    if (Res == 0) return 0;
+    biosdisk_reset(D);
+  }
+  return Res;
 }
 
 
@@ -42,8 +66,16 @@ int biosdisk_read(tDisk *D, DWORD Start, DWORD Size, void *Buffer)
 /* Writes sectors to the disk using the appropriate write function */
 int biosdisk_write(tDisk *D, DWORD Start, DWORD Size, void *Buffer)
 {
-  if (D->PrivFlags & EXTAVAIL) return biosdisk_extwrite(D, Start, Size, Buffer);
-                          else return biosdisk_stdwrite(D, Start, Size, Buffer);
+  int      Res;
+  unsigned k;
+  for (k = 0; k < NUMRETRIES; k++)
+  {
+    if (D->PrivFlags & EXTAVAIL) Res = biosdisk_extwrite(D, Start, Size, Buffer);
+                            else Res = biosdisk_stdwrite(D, Start, Size, Buffer);
+    if (Res == 0) return 0;
+    biosdisk_reset(D);
+  }
+  return Res;
 }
 #endif
 

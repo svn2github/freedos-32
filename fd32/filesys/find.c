@@ -1,11 +1,8 @@
 #include <dr-env.h>
-
 #include <filesys.h>
 #include <errors.h>
 #include <unicode.h>
 #include "fspriv.h"
-
-/* TODO: Re-enable DOS search functions */
 
 
 /* Given a handle, checks if it's valid for directory searches (in    */

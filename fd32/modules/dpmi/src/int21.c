@@ -72,32 +72,38 @@ static int make_sfn_path(char *Dest, const char *Source)
 {
   const char *s;
   char        Comp[FD32_LFNMAX];
-  char       *pComp;
+  char       *c;
   BYTE        FcbName[11];
   int         Res;
+  char       *Save = Dest;
 
-  /* Skip drive specification */
-  for (s = Source; *s; s++) if (*s == ':') Source = s + 1;
+  /* Copy drive specification if present */
+  for (s = Source, c = Dest; *s && (*s != ':'); *(c++) = *(s++));
+  if (*s)
+  {
+    Source = s + 1;
+    *c     = ':';
+    Dest   = c + 1;
+  }
   /* Truncate each path component to 8.3 */
   while (*Source)
   {
     /* Extract the next partial from the path (before '\' or '/' or NULL) */
-    pComp = Comp;
-    while ((*Source != '\\') && (*Source != '/') && (*Source))
-      *(pComp++) = *(Source++);
+    for (c = Comp; (*Source != '\\') && (*Source != '/') && *Source; *(c++) = *(Source++));
     if (*Source) Source++;
-    *pComp = 0;
+    *c = 0;
     /* Skip consecutive slashes */
-    if (pComp == Comp) continue;
+    if (c == Comp) continue;
     /* Convert the path component to a valid 8.3 name */
     if ((Res = fd32_build_fcb_name(FcbName, Comp)) < 0) return Res;
     if ((Res = fd32_expand_fcb_name(Comp, FcbName)) < 0) return Res;
-    /* And append it to the Dest string, with trailing backslash */
-    for (pComp = Comp; *pComp;) *(Dest++) = *(pComp++);
+    /* And append it to the Dest string, with trailing backslash if needed */
+    for (c = Comp; *c; *(Dest++) = *(c++));
     if (*Source) *(Dest++) = '\\';
   }
   /* Finally add the null terminator */
   *Dest = 0;
+  LOG_PRINTF(("Name shortened to '%s'\n", Save));
   return 0;
 }
 
@@ -977,6 +983,7 @@ void int21_handler(union rmregs *r)
 
     /* DOS 2+ - "FINDNEXT" - Find next matching file */
     case 0x4F:
+      LOG_PRINTF(("INT 21h - Findnext\n"));
       Res = fd32_dos_findnext(current_psp->dta);
       dos_return(Res, r);
       return;

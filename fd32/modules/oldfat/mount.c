@@ -452,7 +452,9 @@ int fat_mediachange(tVolume *V)
   if (Res == FD32_EINVAL) return 0; /* Device without removable media */
   if (Res <= 0) return Res;
 
+  #if 0
   Res = read_bpb(V, &Bpb, &FatType);
+  LOG_PRINTF(("Read_bpb result: %08x\n", Res));
   if ((Res < 0) && (Res != FD32_EMEDIA)) return Res;
   if ((Res == FD32_EMEDIA) || (V->FatType != FatType) || memcmp(&V->Bpb, &Bpb, sizeof(tBpb)))
   {
@@ -461,6 +463,12 @@ int fat_mediachange(tVolume *V)
     return FD32_ENMOUNT;
   }
   return 0;
+  #else
+  /* Always unmount and remount if changeline is not available */
+  if (fat_openfiles(V)) return FD32_ECHANGE;
+  fat_unmount(V);
+  return FD32_ENMOUNT;
+  #endif
 }
 #endif
 
