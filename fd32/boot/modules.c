@@ -203,6 +203,7 @@ void process_modules(int mods_count, DWORD mods_addr)
     message("Processing module #%d ", i);
     command_line = module_cl(mods_addr, i);
 
+    kf.file_offset = 0;
     mod_type = identify_module(&kf, i, &parser);
 
     args = command_line;
