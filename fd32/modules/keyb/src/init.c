@@ -14,7 +14,7 @@ BYTE keyb_get_data(void);
 int fd32_register(int h, void *f, int type);
 
 
-FD32_INT_HANDLER(keyb_handler, n)
+void keyb_handler(int n)
 {
   BYTE code;
 
@@ -48,13 +48,7 @@ static int read(void *id, DWORD n, BYTE *buf)
   } else {
     count = n;
     while (count > 0) {
-      while ((b = keyqueue_get()) == 0) {
-	/* Uhmmm.... Here, the idea is to block, until some data arrives...
-	   We need to define a good kernel semantic for this; for the moment,
-	   I simply try halting the system...
-	*/
-	__asm__ __volatile__ ("hlt");
-      }
+      WFC((b = keyqueue_get()) == 0);
       *buf++ = b;
       count--;
     }
