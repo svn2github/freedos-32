@@ -219,6 +219,8 @@ void postprocess(void)
       }
       /* Determine if need the extended key */
       if (!done) {
+        if (flags[0]&CTRL_FLAG && flags[0]&ALT_FLAG && code == 0x53) /* Ctrl+Alt+Del reboot PC */
+          fd32_reboot();
       	decoded = decode_ex(ecode);
         keyqueue_put(decoded);
       }
@@ -228,9 +230,7 @@ void postprocess(void)
       ecode = 0xE000;
     } else if (!(BREAK&code)) {
       /* Handle the basic key */
-      if (flags[0]&CTRL_FLAG && flags[0]&ALT_FLAG && code == 0x53) /* Ctrl+Alt+Del reboot PC */
-        fd32_reboot();
-      else if (flags[0]&CTRL_FLAG && code == 0x32) /* Ctrl+M print memory dump */
+      if (flags[0]&CTRL_FLAG && code == 0x32) /* Ctrl+M print memory dump */
         mem_dump();
       else
         decoded = decode(code, flags[0], flags[0]&LEGS_MASK);
