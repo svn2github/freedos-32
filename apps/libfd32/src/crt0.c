@@ -20,19 +20,27 @@ void libc_init(struct process_info *pi)
 
   environ = __env;
 
+  /* Set up args... */
   args = args_get(pi);
   mem_limit = maxmem_get(pi);
-  argc = 0;
+  argc = 1;
+  argv[0] = name_get(pi);
   p = args;
-  while (*p != 0) {
-    argv[argc++] = p;
-    while ((*p != 0) && (*p != ' ')) {
-      p++;
+  if (p != NULL) {
+    while (*p != 0) {
+      argv[argc++] = p;
+      while ((*p != 0) && (*p != ' ')) {
+        p++;
+      }
+      if (*p != 0) {
+        *p++ = 0;
+      }
+      while(*p == ' ') {
+        p++;
+      };
     }
-    do {
-      p++;
-    } while ((*p != 0) || (*p == ' '));
   }
+  
   /* Set up the JFT */
   local_psp.jft_size = MAX_FILES;
   local_psp.jft = fd32_init_jft(MAX_FILES);
