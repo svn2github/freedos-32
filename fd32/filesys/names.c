@@ -70,6 +70,7 @@ int fd32_gen_short_fname(char *Dest, char *Source, DWORD Flags)
       if (upCh < 0x80) Res |= FD32_GENSFN_WAS_INVALID;
       s += fd32_utf32to8(upCh, s);
     }
+  *s = 0;
 
   /* Convert the Purified name to the OEM code page in FCB format */
   /* TODO: Must report WAS_INVALID if an extended char maps to ASCII! */
