@@ -66,6 +66,7 @@ static void fake_get_time(fd32_time_t *T)
 
 static struct symbol syscall_table[] = {
   { "cputc", (DWORD)cputc },
+  { "cputs", (DWORD)cputs },
   { "place", (DWORD)place },
   { "cursor", (DWORD)cursor },
   { "getcursorxy", (DWORD)getcursorxy },

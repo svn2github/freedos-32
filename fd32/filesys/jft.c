@@ -62,7 +62,7 @@ int fake_console_write(void *Buffer, int Size)
     if (n > Count) n = Count;
     memcpy(String, Buffer, n);
     String[n] = 0;
-    message(String);
+    cputs(String);
     Count -= n;
     Buffer += n;
   }
