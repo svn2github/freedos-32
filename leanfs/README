@@ -1,0 +1,86 @@
+-----------------------------------------------------------------------------
+LEAN ("Lean yet Effective Allocation and Naming") file system by Salvo Isaja
+Copyright (C) 2004  Salvatore ISAJA
+-----------------------------------------------------------------------------
+
+LEAN (Lean yet Effective Allocation and Naming) is a free, simple,
+portable, personal, full featured file system for embedded tasks
+designed by Salvatore Isaja, and somewhat inspired from the EXT2 fs.
+
+This is the README file of the LEAN File System Driver version 0.1,
+a driver that provides read and writes access to media formatted with LEAN.
+
+
+COPYRIGHT NOTICE AND LICENSING TERMS
+-----------------------------------------------------------------------------
+The LEAN File System Driver version 0.1
+Copyright (C) 2004  Salvatore ISAJA
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+ 
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+ 
+You should have received a copy of the GNU General Public License
+along with this program; see the file COPYING; if not, write to
+the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+CONTACT INFORMATIONS
+-----------------------------------------------------------------------------
+To contact the author send e-mail to: salvois <at> users.sourceforge.net
+Please send bug reports or suggestions either to the above e-mail address,
+or to the FreeDOS-32 developers' mailing list, the mailing list info page is:
+   http://lists.sourceforge.net/mailman/listinfo/freedos-32-dev
+or using the bug tracker in the FreeDOS-32 SourceForge.net project page at:
+   http://sourceforge.net/projects/freedos-32
+   
+   
+HOW TO COMPILE THE DRIVER
+-----------------------------------------------------------------------------
+A Makefile for GNU tools is provided.
+The driver has been developed and tested under GNU/Linux.
+Typing "make" two targets will be created:
+- "leanfs" is the driver together with some test routines (see test.c),
+  use it to test the driver functionality on a disk image;
+- "mkleanfs" is a simple utility to create a LEAN file system on a disk image.
+Please *have* a look at the sources before trying these executables, as most
+things are still hard-coded.
+
+
+SUPPORTED OPERATIONS
+-----------------------------------------------------------------------------
+int open(void *parent, void **file, const char *name, int flags[, mode_t mode]);
+	Supported flags: O_RDONLY, O_WRONLY, O_RDWR, O_DIRECTORY, O_CREAT,
+	                 O_EXCL, O_APPEND, O_FSYNC, O_NOATIME
+	Not supported flags: O_NONBLOCK, O_NOCTTY, O_IGNORE_CTTY, O_NOLINK,
+	                     O_NOTRANS, O_TRUNC, O_SHLOCK, O_EXLOCK, O_ASYNC
+int close(void *file);
+ssize_t read (void *file, void *buffer, size_t size);
+ssize_t write(void *file, const void *buffer, size_t size);
+off_t   lseek(void *file, off_t offset, int whence);
+int sync(void *volume);
+int mount(struct Device *dev, void **volume);
+int readdir(void *dir, void *dirent, readdir_callback_t cb);
+int link(void *old_file, void *new_dir, const char *new_name);
+int unlink(void *parent, const char *name);
+int rmdir (void *parent, const char *name);
+int mkdir(void *parent, const char *name, mode_t mode);
+TBD: int rename(const char *old_name, const char *new_name);
+int fstat(void *file, struct stat *buf);
+TBD: int fsetattr(void *file, const struct stat *buf);
+ftruncate(void *file, off_t length);
+
+
+OPERATIONS NOT SUPPORTED
+-----------------------------------------------------------------------------
+pread/pwrite, readv/writev, mmap, select, fsync, fdatasync, aio_read/aio_write
+
+
+--EOF--
