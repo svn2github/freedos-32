@@ -5,12 +5,13 @@
 #include <errors.h>
 #include <filesys.h>
 
+#define NULBOOTDEV 0xFFFFFFFF
 
 //#define DRIVES_FIXED /* Define this to enable fixed letter assignment */
 
-
-static char  DefaultDrive = 'C';
-static int   Drives[26];
+static DWORD BootDevice   = NULBOOTDEV; /* From MultiBoot info */
+static char  DefaultDrive = 0; /* Drive letter, or 0 if not defined */
+static int   Drives[26]; /* Bind drive letters to FD32 device handles */
 #ifdef DRIVES_FIXED
 static char *FixedLetters[26];
 #endif
@@ -58,6 +59,11 @@ static int dynamic_assign(DWORD Type, int d)
     while (Drives[d] != FD32_ENODEV) if (d++ == 'Z' - 'A') return FD32_ENODRV;
     Drives[d] = hDev;
     fd32_message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', DevName);
+    /* Set the default drive to this drive if boot device is known, */
+    /* otherwise set the default drive to the first drive detected. */
+    if (DefaultDrive == 0)
+      if ((BootDevice == NULBOOTDEV) || (BootDevice == Bi.MultiBootId))
+        DefaultDrive = d + 'A';
   }
   return 0;
 }
@@ -242,4 +248,10 @@ int fd32_add_fs(fd32_request_t *request)
       return assign_drive_letters();
     }
   return FD32_ENOMEM;
+}
+
+
+void fd32_set_boot_device(DWORD MultiBootId)
+{
+  BootDevice = MultiBootId;
 }

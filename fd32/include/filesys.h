@@ -227,6 +227,7 @@ int  fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId,
                     char **Path);
 int  fd32_set_default_drive(char Drive);
 char fd32_get_default_drive();
+void fd32_set_boot_device  (DWORD MultiBootId);
 
 /* FS.C - File system functions */
 int  fd32_open             (char *FileName, DWORD Mode, WORD Attr, WORD AliasHint, int *Result);

@@ -353,11 +353,12 @@ fd32_blockread_t;
 /****************************************************************************/
 typedef struct fd32_blockinfo
 {
-  DWORD  Size;        /* Size in bytes of this structure      */
-  void  *DeviceId;    /* Identifier of the device             */
-  DWORD  BlockSize;   /* OUT: Size in bytes of a block        */
-  DWORD  TotalBlocks; /* OUT: Number of blocks in the device  */
-  DWORD  Type;        /* OUT: Block device type               */
+  DWORD  Size;        /* Size in bytes of this structure       */
+  void  *DeviceId;    /* Identifier of the device              */
+  DWORD  BlockSize;   /* OUT: Size in bytes of a block         */
+  DWORD  TotalBlocks; /* OUT: Number of blocks in the device   */
+  DWORD  Type;        /* OUT: Block device type                */
+  DWORD  MultiBootId; /* OUT: The MultiBoot boot device number */
 }
 fd32_blockinfo_t;
 /* Type is defined as the following bit mask:                  */

@@ -136,6 +136,7 @@ static int add_partition(tDisk *D, char *Name, int Part, tPartTabl *P)
     NewD->FirstSector = LbaStart;
     NewD->TotalBlocks = LbaEnd - LbaStart + 1;
     NewD->Type        = Type;
+    NewD->MultiBootId = (D->MultiBootId & 0xFF00FFFF) | ((Part - 1) << 24);
 
     #ifdef BIOSDISK_FD32DEV
     /* Register the new device to the FD32 kernel */

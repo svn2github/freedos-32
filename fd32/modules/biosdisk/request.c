@@ -68,6 +68,7 @@ int biosdisk_request(DWORD Function, void *Params)
       X->BlockSize   = D->BlockSize;
       X->TotalBlocks = D->TotalBlocks;
       X->Type        = D->Type;
+      X->MultiBootId = D->MultiBootId;
       return 0;
     }
   }

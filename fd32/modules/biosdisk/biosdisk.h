@@ -60,6 +60,7 @@ typedef struct
   DWORD BlockSize;   /* As defined in FD32_BLOCKINFO */
   DWORD TotalBlocks; /* As defined in FD32_BLOCKINFO */
   DWORD Type;        /* As defined in FD32_BLOCKINFO */
+  DWORD MultiBootId; /* As defined in FD32_BLOCKINFO */
 }
 tDisk;
 

@@ -286,6 +286,7 @@ static int detect_floppies()
     D->BlockSize   = 512;
     D->TotalBlocks = Std.Cylinders * Std.Heads * Std.Sectors;
     D->Type        = FD32_BIFLO;
+    D->MultiBootId = 0x00FFFFFF | (Disk << 24);
 
     /* Initialize and add removable block operations */
     switch (get_disk_type(Std.BiosNumber))
@@ -346,6 +347,7 @@ static int detect_harddisks()
     D->BiosH       = Std.Heads;
     D->BiosS       = Std.Sectors;
     D->Type        = FD32_BIGEN;
+    D->MultiBootId = 0x00FFFFFF | (Disk << 24);
     if (ext_driveinfo(Disk, D))
     {
       /* If extensions are not available, use standard BIOS values */
