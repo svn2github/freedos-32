@@ -62,6 +62,7 @@ struct symbol {
 struct kern_funcs {
     int (*file_read)(int file, void *buffer, int len);
     int (*file_seek)(int file, int position, int wence);
+    int (*offset)(int file, int offset);
     DWORD (*mem_alloc)(int size);
     DWORD (*mem_alloc_region)(DWORD address, int size);
     void (*mem_free)(DWORD address, int size);

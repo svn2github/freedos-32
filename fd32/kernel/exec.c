@@ -21,8 +21,6 @@
 #include "exec.h"
 #include "logger.h"
 
-//#define __EXEC_DEBUG__
-
 DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, int *s)
 {
   void (*fun)(void);
@@ -153,7 +151,7 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
     offset = exec_space - sections[0].base;
     fun = (void *)(dyn_entry + offset);
 #ifdef __EXEC_DEBUG__
-    fd32_log_printf("[EXEC] Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
+    fd32_log_printf("[EXEC] 1) Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
 	    (DWORD)fun, dyn_entry, offset);
 #endif
     *s = size;
@@ -193,7 +191,7 @@ int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char
 #endif
   } else {
 #ifdef __EXEC_DEBUG__
-    fd32_log_printf("[EXEC] Before calling 0x%lx...\n", dyn_entry);
+    fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
     retval = create_process(dyn_entry, exec_space, size, cmdline);
     message("Returned: %d!!!\n", retval);

@@ -19,18 +19,34 @@ struct funky_file {
   fd32_request_t *request;
   void *file_id;
 };
+static int funky_offset = 0;
+
+static int my_offset(int id, int offs)
+{
+  my_seek(id, offs, FD32_SEEKCUR);
+
+  funky_offset = offs;
+  
+  return 1;
+}
 
 static int my_read(int id, void *b, int len)
 {
   struct funky_file *f;
   fd32_read_t r;
+  int res;
 
   f = (struct funky_file *)id;
   r.Size = sizeof(fd32_read_t);
   r.DeviceId = f->file_id;
   r.Buffer = b;
   r.BufferBytes = len;
-  return f->request(FD32_READ, &r);
+  res = f->request(FD32_READ, &r);
+  if (res < 0) {
+    fd32_log_printf("WTF!!!\n");
+  }
+
+  return res;
 }
 
 static int my_seek(int id, int pos, int w)
@@ -38,14 +54,17 @@ static int my_seek(int id, int pos, int w)
   int error;
   struct funky_file *f;
   fd32_lseek_t ls;
-  
+ 
+  if (w != FD32_SEEKCUR) {
+    pos += funky_offset;
+  }
   f = (struct funky_file *)id;
   ls.Size = sizeof(fd32_lseek_t);
   ls.DeviceId = f->file_id;
   ls.Offset = (LONGLONG) pos;
   ls.Origin = (DWORD) w;
   error = f->request(FD32_LSEEK, &ls);
-  return (int) ls.Offset;
+  return (int) ls.Offset - funky_offset;
 }
 
 int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
@@ -97,10 +116,11 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
   f.file_id = of.FileId;
 
 #ifdef __DEBUG__
-  fd32_log_printf("FileId = %08lx\n", (DWORD) f.file_id);
+  fd32_log_printf("FileId = 0x%lx (0x%lx)\n", (DWORD) f.file_id, &f);
 #endif
   p.file_read = my_read;
   p.file_seek = my_seek;
+  p.offset = my_offset;
   p.mem_alloc = mem_get;
   p.mem_alloc_region = mem_get_region;
   p.mem_free = mem_free;
@@ -133,7 +153,14 @@ int dos_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
       fd32_log_printf("Executable: entry point = 0x%lx\n", entry_point);
 #endif
     }
-    *return_val = exec_process(&p, (int)(&f), &parser, filename);
+    /* *return_val = exec_process(&p, (int)(&f), &parser, filename); */
+    *return_val = create_process(entry_point, exec_base, size, filename);
+    message("Returned: %d!!!\n", *return_val);
+    mem_free(exec_base, size);
+  }
+
+  if (mod_type == 4) {
+    process_dos_module(&p, (int)(&f), &parser, filename);
   }
   return 1;
 }

@@ -49,6 +49,7 @@ int istext(struct kern_funcs *kf, int file)
   while ((!done) && (res == 256)) {
     res = kf->file_read(file, p, 256);
 #ifdef __MOD_DEBUG__
+    fd32_log_printf("%d bytes read...", res);
     fd32_log_printf("%c %u|", *p, (unsigned int)*p);
 #endif
     for (i = 0; i < res; i++) {
@@ -124,9 +125,12 @@ void process_dos_module(struct kern_funcs *p, int file,
   if (hdr.e_cblp) {
     dj_header_start -= (512L - hdr.e_cblp);
   }
-  modfs_offset(file, dj_header_start);
+  p->offset(file, dj_header_start);
 
   if (identify_module(p, file, parser) == MOD_COFF) {
+#ifdef __MOD_DEBUG__
+    fd32_log_printf("    DJGPP COFF File\n");
+#endif
     exec_process(p, file, parser, cmdline);
     return;
   }

@@ -78,7 +78,7 @@ static int modfs_size(int file)
   return res;
 }
 
-int modfs_offset(int file, int offset)
+static int modfs_offset(int file, int offset)
 {
   if (file > n) {
     return -1;
@@ -105,4 +105,5 @@ void modfs_init(struct kern_funcs *kf, DWORD addr, int count)
 
   kf->file_seek = modfs_seek;
   kf->file_read = modfs_read;
+  kf->offset = modfs_offset;
 }
