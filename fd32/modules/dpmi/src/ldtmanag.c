@@ -1,4 +1,4 @@
-        /* FD32 LDT Management Services
+/* FD32 LDT Management Services
  * by Salvo Isaja & Luca Abeni
  *
  * This file contains parts based on CWSDPMI
@@ -498,15 +498,13 @@ int fd32_get_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset)
 
   /* The following assembly code copies the descriptor into */
   /* the buffer pointed by the specified 48-bit pointer.    */
-  asm("
-      push   %%es
-      mov    %%ax,%%es
-      mov    (%%ebx),%%edx
-      mov    %%edx,%%es:(%%edi)
-      mov    4(%%ebx),%%edx
-      mov    %%edx,%%es:4(%%edi)
-      pop    %%es
-      "
+  asm("push   %%es               \n"
+      "mov    %%ax,%%es          \n"
+      "mov    (%%ebx),%%edx      \n"
+      "mov    %%edx,%%es:(%%edi) \n"
+      "mov    4(%%ebx),%%edx     \n"
+      "mov    %%edx,%%es:4(%%edi)\n"
+      "pop    %%es               \n"
       :
       : "b" (&DESCRIPTOR_TABLE(i)), "a" (BufferSelector), "D" (BufferOffset)
       : "edx");
@@ -561,15 +559,13 @@ int fd32_set_descriptor(WORD Selector, WORD BufferSelector, DWORD BufferOffset)
 
   /* The following assembly code copies the buffer pointed */
   /* by the specified 48-bit pointer into the descriptor.  */
-  asm("
-      push   %%es
-      mov    %%ax,%%es
-      mov    %%es:(%%ebx),%%edx
-      mov    %%edx,(%%edi)
-      mov    %%es:4(%%ebx),%%edx
-      mov    %%edx,4(%%edi)
-      pop    %%es
-      "
+  asm("push   %%es               \n"
+      "mov    %%ax,%%es          \n"
+      "mov    %%es:(%%ebx),%%edx \n"
+      "mov    %%edx,(%%edi)      \n"
+      "mov    %%es:4(%%ebx),%%edx\n"
+      "mov    %%edx,4(%%edi)     \n"
+      "pop    %%es               \n"
       :
       : "D" (&DESCRIPTOR_TABLE(i)), "a" (BufferSelector), "b" (BufferOffset)
       : "edx");
@@ -596,10 +592,8 @@ int fd32_get_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
 
   /* TO DO: CHECK_POINTER(tss_ptr->tss_es, tss_ptr->tss_edi); */
 
-  asm("
-       push %%fs
-       mov  %%ax,%%fs
-      "
+  asm("push %%fs     \n"
+      "mov  %%ax,%%fs\n"
       :
       : "a" (BufferSelector));
 
@@ -612,12 +606,10 @@ int fd32_get_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
     ErrorCode = sel_to_ldt_index(Selector, &i);
     if (ErrorCode < 0) return ErrorCode; /* FIX ME: Should return Count */
 
-    asm("
-         mov (%%ebx),%%eax
-         mov %%eax,%%fs:2(%%edi)
-         mov 4(%%ebx),%%eax
-         mov %%eax,%%fs:6(%%edi)
-        "
+    asm("mov (%%ebx),%%eax      \n"
+        "mov %%eax,%%fs:2(%%edi)\n"
+        "mov 4(%%ebx),%%eax     \n"
+        "mov %%eax,%%fs:6(%%edi)\n"
         :
         : "b" (&DESCRIPTOR_TABLE(i)), "D" (BufferOffset)
         : "eax");
@@ -665,10 +657,8 @@ int fd32_set_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
 
   /* TO DO: CHECK_POINTER(tss_ptr->tss_es, tss_ptr->tss_edi); */
 
-  asm("
-       push %%fs
-       mov  %%ax,%%fs
-      "
+  asm("push %%fs     \n"
+      "mov  %%ax,%%fs\n"
       :
       : "a" (BufferSelector));
 
@@ -681,12 +671,10 @@ int fd32_set_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
     ErrorCode = sel_to_ldt_index(Selector, &i);
     if (ErrorCode < 0) return ErrorCode; /* FIX ME: Should return Count */
 
-    asm("
-         mov %%fs:2(%%ebx),%%eax
-         mov %%eax,(%%edi)
-         mov %%fs:6(%%ebx),%%eax
-         mov %%eax,4(%%edi)
-        "
+    asm("mov %%fs:2(%%ebx),%%eax\n"
+        "mov %%eax,(%%edi)      \n"
+        "mov %%fs:6(%%ebx),%%eax\n"
+        "mov %%eax,4(%%edi)     \n"
         :
         : "b" (BufferOffset), "D" (&DESCRIPTOR_TABLE(i))
         : "eax");
