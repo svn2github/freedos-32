@@ -1,5 +1,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
+#define open fake_open
+#include <sys/fcntl.h>
+#undef open
 
 #include <ll/i386/hw-data.h>
 /*
@@ -47,8 +50,32 @@ int close(int fd)
 int open(const char *name, int flags, int mode)
 {
   int res, action;
+  DWORD dosflags;
 
-  res = fd32_open(name, flags, /*attr*/mode, 0, &action);
+  dosflags = 0;
+  if (flags & O_WRONLY) {
+    dosflags |= FD32_OWRITE;
+  }
+  if (flags & O_RDWR) {
+    dosflags |= FD32_ORDWR;
+  }
+  if (flags & O_CREAT) {
+    dosflags |= FD32_OCREAT;
+  }
+  if (flags & O_TRUNC) {
+    dosflags |= FD32_OTRUNC;
+  }
+#if 0	/* What about these ones? */
+#define	O_APPEND	_FAPPEND
+#define	O_EXCL		_FEXCL
+#define FD32_OEXIST   (1 << 16) /* Open existing file             */
+#define FD32_ODIR     (1 << 24) /* Open a directory as a file     */
+#define FD32_OFILEID  (1 << 25) /* Interpret *FileName as a fileid */
+#define FD32_OACCESS  0x0007    /* Bit mask for access type       */
+#endif
+
+  message("0x%x --> 0x%lx\n", flags, dosflags);
+  res = fd32_open(name, dosflags, /*attr*/mode, 0, &action);
 
   return res;
 }
