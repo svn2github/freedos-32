@@ -32,7 +32,7 @@ void int31_0300(union regs *r)
   fd32_log_printf("    Real Mode Call Structure @ 0x%x:0x%lx\n",
 	  r->x.es, r->d.edi);
 #endif
-  base = GDT_read((WORD)r->d.ees, &limit, NULL, NULL);
+  base = gdt_read((WORD)r->d.ees, &limit, NULL, NULL);
 #ifdef __DEBUG__
   fd32_log_printf("    ES: base=0x%lx, limit=0x%lx\n", base, limit);
 #endif

@@ -9,7 +9,7 @@
 extern DWORD ll_exc_table[16];
 extern struct handler exc_table[32];
 
-extern GATE IDT[256];
+extern struct gate IDT[256];
 
 extern DWORD rm_irq_table[256];
 

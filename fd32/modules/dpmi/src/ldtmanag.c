@@ -100,10 +100,10 @@ int fd32_allocate_descriptors(WORD NumSelectors)
        * Granularity: 32-bit, byte granularity, used
        */
 #ifdef USE_GDT
-      GDT_place(INDEX_TO_SELECTOR(i), 0, 0, 0x92 | (RUN_RING << 5), 0x40);
+      gdt_place(INDEX_TO_SELECTOR(i), 0, 0, 0x92 | (RUN_RING << 5), 0x40);
 #else
       /* FIX ME: This is not defined at all! */
-      LDT_place(INDEX_TO_SELECTOR(i), 0, 0, 0x92 | (RUN_RING << 5), 0x40);
+      ldt_place(INDEX_TO_SELECTOR(i), 0, 0, 0x92 | (RUN_RING << 5), 0x40);
 #endif
     }
     /* Return the first selector allocated */
