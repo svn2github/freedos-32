@@ -135,9 +135,13 @@ void biosdisk_timer(void *p)
   WORD ctx;
   
   if ((ts.tv_sec == 0) && (ts.tv_nsec == 0)) {
+#ifdef __TIME_NEW_IS_OK__
     ll_gettime(TIME_NEW, &ts);
+#else
+    ll_gettime(TIME_EXACT, &ts);
+#endif
   }
-  ts.tv_nsec += 18200 * 1000;
+  ts.tv_nsec += 55000 * 1000;
   if (ts.tv_nsec > 1000000000) {
     ts.tv_sec  += 1;
     ts.tv_nsec -= 1000000000;
