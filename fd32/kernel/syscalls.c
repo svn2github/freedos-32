@@ -68,6 +68,7 @@ static struct symbol syscall_table[] = {
   {"IDT_place", (DWORD)IDT_place},
   {"fd32_allocate_descriptors", (DWORD)fd32_allocate_descriptors},
   {"fd32_free_descriptor", (DWORD)fd32_free_descriptor},
+  {"fd32_segment_to_descriptor", (DWORD)fd32_segment_to_descriptor},
   {"fd32_get_selector_increment_value", (DWORD)fd32_get_selector_increment_value},
   {"fd32_get_segment_base_address", (DWORD)fd32_get_segment_base_address},
   {"fd32_set_segment_base_address", (DWORD)fd32_set_segment_base_address},
