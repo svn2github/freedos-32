@@ -85,6 +85,17 @@ static int modfs_size(int file)
   return res;
 }
 
+int modfs_offset(int file, int offset)
+{
+  if (file > n) {
+    return -1;
+  }
+
+  start[file] += offset;
+  
+  return 1;
+}
+
 void modfs_init(struct fd32_dev_char *pseudodev, DWORD addr, int count)
 {
   int i;

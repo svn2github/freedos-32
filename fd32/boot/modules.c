@@ -108,10 +108,12 @@ void process_ascii_module(struct kern_funcs *p, int file)
   }
 }
 
-void process_dos_module(struct kern_funcs *p, int file)
+void process_dos_module(struct kern_funcs *p, int file,
+	struct read_funcs *parser, char *cmdline)
 {
   struct dos_header hdr;
   DWORD nt_sgn;
+  DWORD dj_header_start;
 
 #ifdef __MOD_DEBUG__
   fd32_log_printf("    Seems to be a DOS file...\n");
@@ -120,15 +122,26 @@ void process_dos_module(struct kern_funcs *p, int file)
 
   p->file_read(file, &hdr, sizeof(struct dos_header));
 
+  dj_header_start = hdr.e_cp * 512L;
+  if (hdr.e_cblp) {
+    dj_header_start -= (512L - hdr.e_cblp);
+  }
+  modfs_offset(file, dj_header_start);
+
+  if (identify_module(p, file, parser) == MOD_COFF) {
+    exec_process(p, file, parser, cmdline);
+    return;
+  }
+  return -1;
   p->file_seek(file, hdr.e_lfanew, 0);
   p->file_read(file, &nt_sgn, 4);
     
   if (nt_sgn == 0x00004550) {
     message("It seems to be an NT PE\n");
   }
+  /* WRONG: should use modfs_offset() */
   p->file_seek(file, hdr.e_lfanew + 4, 0);
-  /* ULTRAWARN!!!! THIS HAS TO BE FIXED!!!*/
-  exec_process(p, file, NULL, NULL);
+  exec_process(p, file, parser, cmdline);
   return;
 }
 
@@ -190,7 +203,7 @@ void process_modules(int mods_count, DWORD mods_addr)
       exec_process(&kf, i, &parser, command_line);
       break;
     case MOD_MZ:
-      process_dos_module(&kf, i);
+      process_dos_module(&kf, i, &parser, command_line);
       break;
     default:
       message("Unknown module type\n");
