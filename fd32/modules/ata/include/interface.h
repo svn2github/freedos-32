@@ -5,6 +5,9 @@
  */
 
 
+#ifndef __INTERFACE_H__
+#define __INTERFACE_H__
+
 #define FD32_ATA_STANBY_IMM 12345
 
 
@@ -14,3 +17,5 @@ typedef struct ata_stanby_imm
     void *DeviceId;
 }
 ata_stanby_imm_t;
+
+#endif

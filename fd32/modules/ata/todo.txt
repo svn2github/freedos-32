@@ -1,0 +1,33 @@
+o The time stuff and the power stuff is unfinished, especially the "delay"
+  function, witch should probably be more like the Linux delay function
+  and placed in the kernel.
+  
+o What about interface.h. Have I done it right.
+  Does it matter what number are used? Does it matter what names are used.
+  Should it be placed there at all?
+
+o What syntax would be best for device specific options? "--hda-block-mode
+  16"? And what about options specific to an interface. "--interface-2-irq
+  12"? Doesn't seem right. How does the user know what "interface 2" is? A
+  table in the documentation? And what device names should be used for
+  CD-ROM drives?
+
+o There is still some ATA2 commands not implemented:
+	READ/WRITE LONG				obsolete
+	FORMAT TRACK				obsolete
+	SEEK					obsolete
+	RECALIBRATE				obsolete
+	DOOR LOCK/UNLOCK			todo?
+	ACKN. MEDIA CHANGE			todo?
+	MEDIA EJECT				todo?
+	BOOT					???
+	EXECUTE DEV. DIAGNOSTIC			todo
+	INIT. DEV. PARAM.			obsolete?
+	READ/WRITE DMA				don't bother with
+						multiword etc, go for UDMA
+	READ/WRITE VERIFY			???
+	READ/WRITE BUFFER			???
+	SLEEP					todo
+	WRITE SAME				useful for formatting?
+	NOP					probably not
+	DOWNLOAD MICROCODE			todo :-)
