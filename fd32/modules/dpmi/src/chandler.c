@@ -13,6 +13,7 @@
 #include "kernel.h"
 
 #include "dpmi.h"
+#include "rmint.h"
 #include "int31_00.h"
 #include "int31_02.h"
 #include "int31_03.h"
@@ -33,9 +34,9 @@ int stop = -1;
 void chandler1(DWORD eax, DWORD ebx, DWORD ecx, DWORD edx, DWORD intnum)
 {
   message("[DPMI] INT 0x%lx called\n", intnum);
-  message("eax = 0x%lx    ", eax);
-  message("ebx = 0x%lx    ", ebx);
-  message("ecx = 0x%lx    ", ecx);
+  message("eax = 0x%lx\t", eax);
+  message("ebx = 0x%lx\t", ebx);
+  message("ecx = 0x%lx\t", ecx);
   message("edx = 0x%lx\n", edx);
 }
 
@@ -63,12 +64,12 @@ void chandler(DWORD intnum, union regs r)
   if (stop == LETSSTOP) {
     fd32_log_printf("[DPMI Debug]: stop @ INT 0x%lx Service 0x%lx\n",
                     intnum, r.d.eax & 0xFFFF);
-    fd32_log_printf("eax = 0x%lx    ", r.d.eax);
-    fd32_log_printf("ebx = 0x%lx    ", r.d.ebx);
-    fd32_log_printf("ecx = 0x%lx    ", r.d.ecx);
+    fd32_log_printf("eax = 0x%lx\t", r.d.eax);
+    fd32_log_printf("ebx = 0x%lx\t", r.d.ebx);
+    fd32_log_printf("ecx = 0x%lx\t", r.d.ecx);
     fd32_log_printf("edx = 0x%lx\n", r.d.edx);
-    fd32_log_printf("esi = 0x%lx    ", r.d.esi);
-    fd32_log_printf("edi = 0x%lx    ", r.d.edi);
+    fd32_log_printf("esi = 0x%lx\t", r.d.esi);
+    fd32_log_printf("edi = 0x%lx\t", r.d.edi);
     fd32_log_printf("ees = 0x%lx\n", r.d.ees);
 
     fd32_abort();
@@ -217,29 +218,34 @@ void chandler(DWORD intnum, union regs r)
 	message("Service number: 0x%lx\n", r.d.eax & 0xFFFF);
 	fd32_log_printf("INT 31, Service 0x%lx not implemented\n",
 			r.d.eax & 0xFFFF);
-	fd32_log_printf("eax = 0x%lx    ", r.d.eax);
-	fd32_log_printf("ebx = 0x%lx    ", r.d.ebx);
-	fd32_log_printf("ecx = 0x%lx    ", r.d.ecx);
+	fd32_log_printf("eax = 0x%lx\t", r.d.eax);
+	fd32_log_printf("ebx = 0x%lx\t", r.d.ebx);
+	fd32_log_printf("ecx = 0x%lx\t", r.d.ecx);
 	fd32_log_printf("edx = 0x%lx\n", r.d.edx);
-	fd32_log_printf("esi = 0x%lx    ", r.d.esi);
-	fd32_log_printf("edi = 0x%lx    ", r.d.edi);
+	fd32_log_printf("esi = 0x%lx\t", r.d.esi);
+	fd32_log_printf("edi = 0x%lx\t", r.d.edi);
 	fd32_log_printf("ees = 0x%lx\n", r.d.ees);
-	if ((r.d.eax & 0xFFFF) != 0x507) {
-	  fd32_abort();
-	}
-	return;
+      if ((r.d.eax & 0xFFFF) != 0x507) {
+        fd32_abort();
+      }
+      return;
     }
     case 0x21:
       if ((r.d.eax & 0xFF00) == 0x4C00) {
         return_to_dos(&r);
         /* Should not arrive here... */
+      } else {
+        /* TODO: Check if correct to call RM interrupts' handler? */
+        extern void int21_handler(union rmregs *r);
+        union rmregs r1 = { {r.d.edi, r.d.esi, r.d.ebp, 0, r.d.ebx, r.d.edx, r.d.ecx, r.d.eax} };
+        int21_handler(&r1);
+        return;
       }
-
   }
   chandler1(r.d.eax, r.d.ebx, r.d.ecx, r.d.edx, intnum);
   r.d.flags |= 0x01;
-  message("esi = 0x%lx    ", r.d.esi);
-  message("edi = 0x%lx    ", r.d.edi);
+  message("esi = 0x%lx\t", r.d.esi);
+  message("edi = 0x%lx\t", r.d.edi);
   message("ees = 0x%lx\n", r.d.ees);
   fd32_abort();
 }

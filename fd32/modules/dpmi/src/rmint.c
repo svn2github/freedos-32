@@ -34,11 +34,11 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
     case 0x10:
       res = videobios_int(r1);
       return res;
-#if 1	/* This is not needed, for now... */
+
     case 0x16:
       res = keybbios_int(r1);
       return res;
-#endif
+
     case 0x21:
 #ifdef __RM_INT_DEBUG__
       fd32_log_printf("INT 21h - AX=%04x BX=%04x CX=%04x DX=%04x SI=%04x DI=%04x DS=%04x ES=%04x...\n",
@@ -67,9 +67,28 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       return res;
 
     case 0x2F:
-      /* WARNING: PRINT/SHARE/DOS internal to be implemented... */
-      message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
-      return 0;
+      res = 0;
+      switch(r1->x.ax = 0x1680)
+      {
+        /* MS Windows - WINDOWS ENHANCED MODE INSTALLATION CHECK */
+        case 0x1600:
+          r1->h.al = 0;
+          break;
+        /* MS Windows, DPMI, various - RELEASE CURRENT VIRTUAL MACHINE TIME-SLICE */
+        case 0x1680:
+          res = dosidle_int(r1); /* TODO: support multitasking here? */
+          break;
+        /* OS/2 v2.0+ - INSTALLATION CHECK / GET VERSION */
+        case 0x4010:
+          message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
+          /* TODO: should res = -1; */
+          break;
+        default:
+          /* WARNING: PRINT/SHARE/DOS internal to be implemented... */
+          message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
+          res = -1;
+      }
+      return res;
 
     case 0x33:
       return mousebios_int(r1);
@@ -77,19 +96,23 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
     case 0x4B:
       /* WARNING: Virtual DMA Specification not supported */
       message("Unsupported INT 0x%x EAX: 0x%lx (VDM)\n", intnum, r1->d.eax);
-      return 0;
+      if (r1->x.ax == 0x8102)
+        res = 0x0F; /* Function not supported */
+      else
+        res = 0x0F;
+      return res;
   }
 
   message("Unsupported INT 0x%x\n\n", intnum);
   /* Warning!!! Perform a check on ES!!! */
-  message("EDI: 0x%lx    ESI: 0x%lx    EBP: 0x%lx\n",
-	  r1->d.edi, r1->d.esi, r1->d.ebp);
-  message("EBX: 0x%lx    EDX: 0x%lx    ECX: 0x%lx    EAX: 0x%lx\n",
-	  r1->d.ebx, r1->d.edx, r1->d.ecx, r1->d.eax);
-  message("ES: 0x%x    DS: 0x%x    FS: 0x%x    GS: 0x%x\n",
-	  r1->x.es, r1->x.ds, r1->x.fs, r1->x.gs);
-  message("IP: 0x%x    CS: 0x%x    SP: 0x%x    SS: 0x%x\n",
-	  r1->x.ip, r1->x.cs, r1->x.sp, r1->x.ss);
+  message("EDI: 0x%lx\tESI: 0x%lx\tEBP: 0x%lx\n",
+    r1->d.edi, r1->d.esi, r1->d.ebp);
+  message("EBX: 0x%lx\tEDX: 0x%lx\tECX: 0x%lx\tEAX: 0x%lx\n",
+    r1->d.ebx, r1->d.edx, r1->d.ecx, r1->d.eax);
+  message("ES: 0x%x\tDS: 0x%x\tFS: 0x%x\tGS: 0x%x\n",
+    r1->x.es, r1->x.ds, r1->x.fs, r1->x.gs);
+  message("IP: 0x%x  CS: 0x%x  SP: 0x%x  SS: 0x%x\n",
+    r1->x.ip, r1->x.cs, r1->x.sp, r1->x.ss);
 
   fd32_abort();
 

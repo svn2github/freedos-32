@@ -22,7 +22,8 @@
 #ifdef __INT33_DEBUG__
 #define LOG_PRINTF(s) fd32_log_printf("[MOUSE BIOS] "s)
 #else
-#define LOG_PRINTF(s) asm("")
+static int log;
+#define LOG_PRINTF(s) do {log = 0;} while(0)
 #endif
 
 
@@ -30,102 +31,139 @@
 #define FD32_MOUSE_SHOW		0x01
 #define FD32_MOUSE_SHAPE	0x02
 #define FD32_MOUSE_GETXY	0x03
-#define FD32_MOUSE_GETBTN	0x04	/* The low 3 bits of retrieved data is the button status */
+#define FD32_MOUSE_GETBTN	0x04  /* The low 3 bits of retrieved data is the button status */
 
 
 static fd32_request_t *request;
 static int hdev;
-static int res;
 
 
 int mousedev_get(void)
 {
-	if(hdev == 0)
-		if((hdev = fd32_dev_search("mouse")) < 0)
-			{ LOG_PRINTF("no mouse driver\n"); return 1; }
-	if(request == 0)
-		if((res = fd32_dev_get(hdev, &request, NULL, NULL, 0)) < 0)
-			{ LOG_PRINTF("no mouse request calls\n"); return 1; }
-	
-	return 0;
+  int got = 1;
+
+  if (hdev == 0)
+    if ((hdev = fd32_dev_search("mouse")) < 0)
+    {
+      LOG_PRINTF("no mouse driver\n");
+      got = 0;
+    }
+
+  if (request == 0)
+    if (fd32_dev_get(hdev, &request, NULL, NULL, 0) < 0)
+    {
+      LOG_PRINTF("no mouse request calls\n");
+      got = 0;
+    }
+
+  return got;
 }
 
 
 int mousebios_int(union rmregs *r)
 {
-	if(r->h.ah == 0x00)
-	{
-		switch(r->h.al)
-		{
-			case 0x00:
+  int res = 0;
+
+  if(r->h.ah == 0x00)
+  {
+    switch(r->h.al)
+    {
+      case 0x00:
 #ifdef __INT33_DEBUG__
-				LOG_PRINTF("Reset mouse driver\n");
+        LOG_PRINTF("Reset mouse driver\n");
 #endif
-				r->x.ax = 0xffff;
-				r->x.bx = 0x0002;
-				break;
-			case 0x01:
+        r->x.ax = 0xffff;
+        r->x.bx = 0x0002;
+        break;
+      case 0x01:
 #ifdef __INT33_DEBUG__
-				LOG_PRINTF("Show Mouse cursor\n");
+        LOG_PRINTF("Show Mouse cursor\n");
 #endif
-				if(mousedev_get() == 0)
-				{
-					res = request(FD32_MOUSE_SHOW, 0);
-					if(res < 0) { LOG_PRINTF("no FD32_MOUSE_SHOW request call\n"); return 1; }
-				}
-				break;
-			case 0x02:
+        if(mousedev_get())
+        {
+          res = request(FD32_MOUSE_SHOW, 0);
+          if(res < 0)
+            LOG_PRINTF("no FD32_MOUSE_SHOW request call\n");
+          else
+            res = 0;
+        }
+        break;
+      case 0x02:
 #ifdef __INT33_DEBUG__
-				LOG_PRINTF("Hide mouse cursor\n");
+        LOG_PRINTF("Hide mouse cursor\n");
 #endif
-				if(mousedev_get() == 0)
-				{
-					res = request(FD32_MOUSE_HIDE, 0);
-					if(res < 0) { LOG_PRINTF("no FD32_MOUSE_HIDE request call\n"); return 1; }
-				}
-				break;
-			case 0x03:
-				if(mousedev_get() == 0)
-				{
-					DWORD raw, pos[2];
-					res = request(FD32_MOUSE_GETBTN, (void *)&raw);
-					if(res < 0) { LOG_PRINTF("no FD32_MOUSE_GETBTN request call\n"); return 1; }
-					res = request(FD32_MOUSE_GETXY, (void *)pos);
-					if(res < 0) { LOG_PRINTF("no FD32_MOUSE_GETXY request call\n"); return 1; }
-					r->x.bx = raw&0x00000007;
-					r->x.cx = pos[0];
-					r->x.dx = pos[1];
-					if(r->x.bx != 0)
-						fd32_log_printf("cx: %d, dx: %d bx: %x\n", r->x.cx, r->x.dx, r->x.bx);
-				}
-				break;
-			case 0x0a:
-				fd32_log_printf("Unimplemeted INT 33H AH=0x00 AL=0x%x\n", r->h.al);
-				if(mousedev_get() == 0)
-				{
-					if(r->x.bx == 0)
-					{
-						WORD mask[2] = {r->x.cx, r->x.dx};
-						res = request(FD32_MOUSE_SHAPE, (void *)mask);
-					}
-					else
-						res = request(FD32_MOUSE_SHAPE, 0);
-					if(res < 0) { LOG_PRINTF("no FD32_MOUSE_SHAPE request call\n"); return 1; }
-				}
-				break;
-			case 0x21:
+        if(mousedev_get())
+        {
+          res = request(FD32_MOUSE_HIDE, 0);
+          if(res < 0)
+            LOG_PRINTF("no FD32_MOUSE_HIDE request call\n");
+          else
+            res = 0;
+        }
+        break;
+      /* MS MOUSE v1.0+ - RETURN POSITION AND BUTTON STATUS */
+      case 0x03:
+        if(mousedev_get())
+        {
+          DWORD raw, pos[2];
+          res = request(FD32_MOUSE_GETBTN, (void *)&raw);
+          if(res < 0) { LOG_PRINTF("no FD32_MOUSE_GETBTN request call\n"); break; }
+          res = request(FD32_MOUSE_GETXY, (void *)pos);
+          if(res < 0) { LOG_PRINTF("no FD32_MOUSE_GETXY request call\n"); break; }
+          r->x.bx = raw&0x00000007;
+          r->x.cx = pos[0];
+          r->x.dx = pos[1];
+          res = 0;
+          #ifdef __INT33_DEBUG__
+          if(r->x.bx != 0)
+            fd32_log_printf("[MOUSE BIOS] Button clicked, cx: %x\tdx: %x\tbx: %x\n", r->x.cx, r->x.dx, r->x.bx);
+          #endif
+        }
+        break;
+      /* MS MOUSE v1.0+ - DEFINE HORIZONTAL CURSOR RANGE */
+      case 0x07:
+        /* r->x.cx = 0; minimum column */
+        /* r->x.dx = 639; maximum column */
+        res = 1; /* TODO: malfunction */
+        break;
+      /* MS MOUSE v1.0+ - DEFINE VERTICAL CURSOR RANGE */
+      case 0x08:
+        /* r->x.cx = 0; minimum row */
+        /* r->x.dx = 479; maximum row */
+        res = 1; /* TODO: malfunction */
+        break;
+      /* MS MOUSE v3.0+ - DEFINE TEXT CURSOR */
+      case 0x0a:
+        if(mousedev_get())
+        {
+          if (r->x.bx == 0)
+          {
+            WORD mask[2] = {r->x.cx, r->x.dx};
+            res = request(FD32_MOUSE_SHAPE, (void *)mask);
+          } else {
+            res = request(FD32_MOUSE_SHAPE, 0);
+          }
+          if (res < 0)
+            LOG_PRINTF("no FD32_MOUSE_SHAPE request call\n");
+          else
+            res = 0;
+        }
+        break;
+      case 0x21:
 #ifdef __INT33_DEBUG__
-				LOG_PRINTF("Software reset mouse driver\n");
+        LOG_PRINTF("Software reset mouse driver\n");
 #endif
-				r->x.ax = 0xffff;
-				r->x.bx = 0x0002;	
-				break;
-			default:
-				fd32_log_printf("Unimplemeted INT 33H AL=0x%x!!!\n", r->h.al);
-				break;
-		}
-		return 0;
-	}
-	else
-		return 1;
+        r->x.ax = 0xffff;
+        r->x.bx = 0x0002;
+        break;
+      default:
+        message("[MOUSE BIOS] Unimplemeted INT 33H AL=0x%x!!!\n", r->h.al);
+        res = 1;
+        break;
+    }
+  } else {
+    res = 1;
+  }
+  
+  return res;
 }
