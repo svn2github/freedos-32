@@ -27,6 +27,12 @@ extern struct psp *current_psp;
 
 int use_lfn;
 
+
+/* For direct character input INT 21h service */
+/* TODO: This is only a temporary patch, replace with the correct solution */
+fd32_request_t *kbdreq = NULL;
+
+
 /* Parameter block for the dos_exec call, see INT 21h AH=4Bh */
 typedef struct
 {
@@ -637,9 +643,27 @@ void int21_handler(union rmregs *r)
     {
       /* Perform 1-byte read from the stdin, file handle 0. */
       /* This call doesn't check for Ctrl-C or Ctrl-Break.  */
-      /* TODO: When fd32_read will read \r\n this shall return \r only! */
       char Ch;
+      #if 1
+      fd32_read_t R;
+      /* TODO: Console input is not redirectable with the current approach */
+      /* Set up support for direct character input via keyboard */
+      if (kbdreq == NULL)
+      {
+        if ((Res = fd32_dev_search("kbd")) < 0)
+        {
+          LOG_PRINTF(("Unable to find the keyboard device. Direct character input disabled\n"));
+          return;
+        }
+        fd32_dev_get(Res, &kbdreq, &R.DeviceId, NULL, 0);
+      }
+      R.Size        = sizeof(fd32_read_t);
+      R.Buffer      = &Ch;
+      R.BufferBytes = 1;
+      Res = kbdreq(FD32_READ, &R);
+      #else
       Res = fd32_read(0, &Ch, 1);
+      #endif
       if (Res >= 0) r->h.al = Ch; /* Return the character in AL */
       /* TODO: from RBIL:
          if the interim console flag is set (see AX=6301h), partially-formed
@@ -819,7 +843,7 @@ void int21_handler(union rmregs *r)
         r->x.ax = (WORD) Res;
         return;
       }
-      #if 1
+      #if 0
       /* This is a quick'n'dirty hack to return \n after \r from stdin.  */
       /* It works only if console input is on handle 0 and if the number */
       /* of bytes to read is greater than the first carriage return.     */

@@ -10,7 +10,7 @@
 #include "devices.h"
 #include "errors.h"
 
-#define CONS_BUFF_SIZE 129  //512 DOS allows max 127 character per console input
+#define CONS_BUFF_SIZE 129   /* DOS allows max 127 chrs per console input */
 #define CONS_DEV_NAME  "con"
 #define KEYB_DEV_NAME  "kbd"
 
@@ -77,8 +77,12 @@ static int read(void *id, DWORD n, BYTE *buf)
     }
     if (c == 13) {
       done = 1;
+      /* When doing a file read from console must return a \r\n newline */
+      cons_buff[cons_count++] = '\r';
+      cons_buff[cons_count++] = '\n';
+      cputc('\n');
     }
-    if (cons_count < CONS_BUFF_SIZE - 2) {
+    else if (cons_count < CONS_BUFF_SIZE - 2) {
       cons_buff[cons_count++] = c;
       cputc(c);
     }
