@@ -14,8 +14,7 @@
 #include "rmint.h"
 
 /* Define the DEBUG symbol in order to activate log output */
-//#define DEBUG
-#ifdef DEBUG
+#ifdef __DEBUG__
  #define LOG_PRINTF(s) fd32_log_printf s
 #else
  #define LOG_PRINTF(s)
@@ -633,8 +632,10 @@ static inline void lfn_functions(union rmregs *r)
 void int21_handler(union rmregs *r)
 {
   int      Res;
-  LONGLONG llRes;
+  long long int llRes;
   char     SfnPath[FD32_LFNPMAX];
+  static fd32_request_t *request = NULL;
+  static void *dev_id;
 
   switch (r->h.ah)
   {
@@ -644,7 +645,8 @@ void int21_handler(union rmregs *r)
       /* Perform 1-byte read from the stdin, file handle 0. */
       /* This call doesn't check for Ctrl-C or Ctrl-Break.  */
       char Ch;
-      #if 1
+
+#if 1
       fd32_read_t R;
       /* TODO: Console input is not redirectable with the current approach */
       /* Set up support for direct character input via keyboard */
@@ -661,9 +663,9 @@ void int21_handler(union rmregs *r)
       R.Buffer      = &Ch;
       R.BufferBytes = 1;
       Res = kbdreq(FD32_READ, &R);
-      #else
+#else
       Res = fd32_read(0, &Ch, 1);
-      #endif
+#endif
       if (Res >= 0) r->h.al = Ch; /* Return the character in AL */
       /* TODO: from RBIL:
          if the interim console flag is set (see AX=6301h), partially-formed
@@ -891,7 +893,7 @@ void int21_handler(union rmregs *r)
       /* BX    file handle */
       /* CX:DX offset      */
       /* AL    origin      */
-      Res = fd32_lseek(r->x.bx, (LONGLONG) (r->x.cx << 8) + r->x.dx,
+      Res = fd32_lseek(r->x.bx, (long long int) (r->x.cx << 8) + r->x.dx,
                        r->h.al, &llRes);
       if (Res < 0)
       {

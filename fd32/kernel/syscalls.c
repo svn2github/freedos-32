@@ -80,8 +80,9 @@ static struct symbol syscall_table[] = {
   { "DOS_free", (DWORD)DOS_free },
   { "irq_unmask", (DWORD)irq_unmask },
   { "add_call", (DWORD)add_call },
-  { "x_irq_bind", (DWORD)x_irq_bind },
+  { "l1_int_bind", (DWORD)l1_int_bind },
   { "dos_exec", (DWORD)dos_exec },
+  {"fd32_cpu_idle", (DWORD)fd32_cpu_idle},
   /* Symbols for GDT and IDT handling */
   { "IDT",       (DWORD) (&IDT)      },
   { "IDT_place", (DWORD) IDT_place   },

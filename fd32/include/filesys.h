@@ -236,7 +236,7 @@ int  fd32_fflush           (int Handle);
 int  fd32_read             (int Handle, void *Buffer, int Size);
 int  fd32_write            (int Handle, void *Buffer, int Size);
 int  fd32_unlink           (char *FileName, DWORD Flags);
-int  fd32_lseek            (int Handle, LONGLONG Offset, int Origin, LONGLONG *Result);
+int  fd32_lseek            (int Handle, long long int Offset, int Origin, long long int *Result);
 int  fd32_dup              (int Handle);
 int  fd32_forcedup         (int Handle, int NewHandle);
 int  fd32_get_attributes   (int Handle, fd32_fs_attr_t *A);

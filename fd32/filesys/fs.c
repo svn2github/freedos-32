@@ -238,7 +238,7 @@ int fd32_unlink(char *FileName, DWORD Flags)
 /* The LSEEK system call.                                     */
 /* Calls the "lseek" function of the device hosting the file. */
 /* Returns 0 on success, or a negative error code on failure. */
-int fd32_lseek(int Handle, LONGLONG Offset, int Origin, LONGLONG *Result)
+int fd32_lseek(int Handle, long long int Offset, int Origin, long long int *Result)
 {
   fd32_lseek_t  S;
   tJft         *J;

@@ -72,7 +72,7 @@ typedef struct fd32_lseek
 {
   DWORD     Size;     /* Size in bytes of this structure      */
   void     *DeviceId; /* Identifier of the device or file     */
-  LONGLONG  Offset;   /* IN: Byte offset to seek to           */
+  long long int Offset;   /* IN: Byte offset to seek to           */
                       /* OUT: New byte offset from file start */
   DWORD     Origin;   /* Position from which to seek          */
 }

@@ -127,17 +127,20 @@ void mem_init(void *p)
       message("Mem Lower: %lx %lu\n", lsize, lsize);
       message("Mem Upper: %lx %lu\n", hsize, hsize);
 #endif
-      if (mbp->flags & MB_INFO_USEGDT) {
-	lbase = mbp->mem_lowbase;
-#if 0
-	hbase = mbp->mem_upbase;
-#else
-	hbase = 0x100000;
+      hbase = 0x100000;
+      if (mbp->flags & MB_INFO_BOOT_LOADER_NAME) {
+#ifdef __MEM_DEBUG__
+        message("Loader Name provided: %s\n", (char *)mbp->boot_loader_name);
 #endif
-      } else {
-	lbase = 0x0;
-	hbase = 0x100000;
+        if (*((char *)(mbp->boot_loader_name)) == 'X') {
+#if 0
+          hbase = mbp->mem_upbase; /* Weirdness with X? */
+#else
+          hbase = 0x100000;
+#endif
+	}
       }
+
 #ifdef __MEM_DEBUG__
       message("\t\tLow Memory: %ld - %ld (%lx - %lx) \n", 
 	      lbase, lbase + lsize,

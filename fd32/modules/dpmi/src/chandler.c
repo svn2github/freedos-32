@@ -50,7 +50,7 @@ void return_to_dos(union regs *r)
 }
 
 
-void chandler(union regs r, DWORD intnum)
+void chandler(DWORD intnum, union regs r)
 {
   /* DWORD eax, ebx, ecx, edx, esi, edi, ees; */
 

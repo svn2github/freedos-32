@@ -1,12 +1,12 @@
-# Standard library for X/COFF applications
-# Makefile for GNU MAKE & GCC 2.8.0
+ifndef OSLIB
+OSLIB = ../../oslib
+endif
 
-BASE = ../oslib
-include $(BASE)/config.mk
+include $(OSLIB)/config.mk
 
-INCL   = $(BASE)
-LIB_PATH    = $(BASE)/lib/
-LIB_DIR  = $(BASE)\lib
+INCL   = $(OSLIB)
+LIB_PATH    = $(OSLIB)/lib/
+LIB_DIR  = $(OSLIB)\lib
 
 #DEBUG = -D__DEBUG__ -D__EXC_DEBUG__ -D__EXEC_DEBUG__ -D__PROCESS_DEBUG__
 

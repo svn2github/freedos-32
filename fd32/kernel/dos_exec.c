@@ -61,7 +61,7 @@ static int my_seek(int id, int pos, int w)
   f = (struct funky_file *)id;
   ls.Size = sizeof(fd32_lseek_t);
   ls.DeviceId = f->file_id;
-  ls.Offset = (LONGLONG) pos;
+  ls.Offset = (long long int) pos;
   ls.Origin = (DWORD) w;
   error = f->request(FD32_LSEEK, &ls);
   return (int) ls.Offset - funky_offset;

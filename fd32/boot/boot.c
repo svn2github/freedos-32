@@ -45,7 +45,7 @@ int main (int argc, char *argv[])
 #endif
 
   cli();
-  mbi = x_init();
+  mbi = l1_init();
 
   /* Set the kern_CS and kern_DS for DPMI... */
   kern_CS = get_CS();
@@ -54,7 +54,7 @@ int main (int argc, char *argv[])
   if (mbi == NULL) {
 	message("Error in LowLevel initialization code...\n");
 	sti();
-	exit(-1);
+	l1_exit(-1);
   }
   sti();
 
@@ -72,12 +72,16 @@ int main (int argc, char *argv[])
     message("    Mem Lower: %lx %lu\n", lsize, lsize);
     message("    Mem Upper: %lx %lu\n", hsize, hsize);
 #endif
-    if (mbi->flags & MB_INFO_USEGDT) {
-	  lbase = mbi->mem_lowbase;
-	  hbase = mbi->mem_upbase;
-    } else {
-      lbase = 0x0;
-      hbase = 0x100000;
+    lbase = 0x0;
+    hbase = 0x100000;
+    if (mbi->flags & MB_INFO_BOOT_LOADER_NAME) {
+#ifdef __BOOT_DEBUG__
+      message("Loader Name provided: %s\n", (char *)mbi->boot_loader_name);
+#endif
+      if (*((char *)(mbi->boot_loader_name)) == 'X') {
+        lbase = mbi->mem_lowbase;
+        hbase = mbi->mem_upbase;
+      }
     }
 #ifdef __BOOT_DEBUG__
     message("        Low Memory: %ld - %ld (%lx - %lx) \n", 
@@ -98,7 +102,7 @@ int main (int argc, char *argv[])
 #endif
   }
   
-  dos_init(lbase, lsize);
+  dos_init(mbi);
 
   fd32_log_init();
 #ifdef STATIC_BIOSDISK
@@ -131,7 +135,7 @@ int main (int argc, char *argv[])
 #endif
 #endif
   cli();
-  x_end();
+  l1_end();
 #ifdef __BOOT_DEBUG__
   sp2 = get_SP();
   fd32_log_printf("[FD32] End reached!\n");

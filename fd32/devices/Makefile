@@ -1,23 +1,18 @@
-# Standard library for X/COFF applications
-# Makefile for GNU MAKE & GCC 2.8.0
-
-ifndef FD32
-FD32 = ..
+ifndef OSLIB
+OSLIB = ../../oslib
 endif
 ifndef DRIVERS
 DRIVERS = ../../drivers
 endif
 
-BASE = $(FD32)/oslib
+include $(OSLIB)/config.mk
 
-include $(BASE)/config.mk
+INCL   = $(OSLIB)
+LIB_PATH    = $(OSLIB)/lib/
+LIB_DIR  = $(OSLIB)\lib
 
-INCL   = $(BASE)
-LIB_PATH    = $(BASE)/lib/
-LIB_DIR  = $(BASE)\lib
-
-C_OPT += -I$(FD32)/include -I$(DRIVERS)/include/fd32
-ASM_OPT +=  -I$(INCL)
+C_OPT +=  -I$(INCL) -I../include $(DEBUG) -I$(DRIVERS)/include/fd32
+ASM_OPT += -I$(INCL)
 LINK_OPT = -Bstatic
 
 all: devices.o

@@ -1,24 +1,21 @@
-# Standard library for X/COFF applications
-# Makefile for GNU MAKE & GCC 2.8.0
+ifndef OSLIB
+OSLIB = ../oslib
+endif
 
-BASE = oslib
+include ./config.mk
 
-include $(BASE)/config.mk
-
-INCL   = $(BASE)
-LIB_PATH    = $(BASE)/lib/
-LIB_DIR  = $(BASE)\lib
-
-#LINK_OPT = -T oslib/os.x -Bstatic -Ttext 0x320000 -nostartfiles -nostdlib -L$(LIB_PATH)
+INCL   = $(OSLIB)
+LIB_PATH    = $(OSLIB)/lib/
+LIB_DIR  = $(OSLIB)\lib
 
 OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
 	kernel/kernel.o nls/cp437.o unicode/unicode.o
 
-KERNEL_DIRS = boot devices dynalink filesys kernel nls oslib unicode
+KERNEL_DIRS = $(OSLIB) boot devices dynalink filesys kernel nls unicode
 
 all: fd32.bin drv_subdir
 
-clean :
+clean : $(OSLIB)/config.mk
 	$(RM) fd32.bin
 	make -C boot clean
 	make -C devices clean
@@ -30,20 +27,23 @@ clean :
 	make -C drivers/dpmi clean
 
 allclean: clean
-	make -C oslib clean
+	make -C $(OSLIB) clean
+
+$(OSLIB)/config.mk: config.mk
+	cp config.mk $(OSLIB)
 
 kern_subdirs: $(patsubst %, _dir_%, $(KERNEL_DIRS))
 
-$(patsubst %, _dir_%, $(KERNEL_DIRS)):
+$(patsubst %, _dir_%, $(KERNEL_DIRS)): $(OSLIB)/config.mk
 	$(MAKE) -C $(patsubst _dir_%, %, $@)
-drv_subdir:
+drv_subdir: $(OSLIB)/config.mk
 	$(MAKE) -C drivers
 
-$(LIB_PATH)/%.a:
-	make install -C oslib
+$(LIB_PATH)/%.a: $(OSLIB)/config.mk
+	make install -C $(OSLIB)
 
-fd32.bin : kern_subdirs
-	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o $(OBJS) --start-group -lhc -lhx --end-group -o $@
+fd32.bin : kern_subdirs $(LIB_PATH)/libhc.a $(LIB_PATH)/libhx.a
+	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o $(OBJS) --start-group -lhc -lhx -lcons --end-group -o $@
 
 kernel.src: fd32.bin
 	$(OBJDUMP) --disassemble fd32.bin > kernel.src

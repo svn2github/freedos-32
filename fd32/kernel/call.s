@@ -7,7 +7,8 @@
 #include <ll/i386/linkage.h>
 
 .globl SYMBOL_NAME(farcall)
-	
+
+.data
 CallZone:
 CallOffset:	
 .word	0
@@ -15,6 +16,7 @@ CallOffset:
 CallSel:	
 .word	0
 
+.text
 SYMBOL_NAME_LABEL(farcall)
 	/* Standard C prologue */
 	pushl %ebp

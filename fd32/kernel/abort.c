@@ -12,7 +12,7 @@
 
 void fd32_abort(void)
 {
-  x_end();
+  l1_end();
   sti();
-  exit(1);
+  l1_exit(1);
 }

@@ -138,6 +138,9 @@ address += *((DWORD *)destination);
 	address += /* s[idx].e_value +  sec[s[idx].e_scnum].base + */ base;
 	destination = rel[i].offset + base;
       } else if (rel[i].type == REL_TYPE_ELF_ABSOLUTE) {
+#ifndef __LUCA_IS_CRAZY__
+	address = *(DWORD *)destination;
+#endif
 	/* WARNING!!!! This is clearly a hack... Check what really
 	 * must be done in this case...
 	 */
@@ -288,7 +291,7 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f, int n, struct sectio
   mem_space = (BYTE *)kf->mem_alloc(needed_mem + LOCAL_BSS);
 
 #ifdef __ELF_DEBUG__
-  printg("Loading relocatable @%p; size 0x%lx\n", mem_space, needed_mem);
+  kf->log("Loading relocatable @%p; size 0x%lx\n", mem_space, needed_mem);
 #endif
   if (mem_space == NULL) {
     kf->error("Unable to allocate memory for the program image\n");

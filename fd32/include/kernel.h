@@ -18,4 +18,5 @@ void kernel_init();
 #define ADD 0
 void *get_syscall_table(void);
 int add_call(char *name, DWORD address, int mode);
+void fd32_cpu_idle(void);
 #endif

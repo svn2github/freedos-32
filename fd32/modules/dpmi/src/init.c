@@ -8,8 +8,7 @@
 #include <ll/i386/string.h>
 #include <ll/i386/error.h>
 
-extern void int0x21(void);
-extern void int0x31(void);
+extern void chandler(DWORD intnum, struct registers r);
 extern int use_lfn;
 
 void DPMI_init(char *cmdline)
@@ -35,7 +34,7 @@ void DPMI_init(char *cmdline)
       c++;
     }
   }
-  IDT_place(0x21, int0x21);
-  IDT_place(0x31, int0x31);
+  l1_int_bind(0x21, chandler);
+  l1_int_bind(0x31, chandler);
   message("DPMI installed.\n");
 }
