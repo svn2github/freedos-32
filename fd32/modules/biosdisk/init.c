@@ -36,28 +36,52 @@
 
 extern void biosdisk_reflect(unsigned intnum, union regs r);
 
-void biosdisk_init(void)
+void biosdisk_init(char *cmdline)
 {
+    char *c;
+    int done;
+    int want_hd, want_fd;
+    
     message("Initing BIOSDisk...\n");
     /* TODO: Add command line switches for floppy and hard disk operation */
+  
+    /* Parse the command line */
+    c = cmdline;
+    done = 0;
+    want_fd = 1; want_hd = 1;
+    while (!done) {
+        if (*c == 0) {
+            done = 1;
+	} else {
+            if ((*c =='-') && (*(c + 1) == '-')) {
+                if (strcmp(c + 2, "nofloppy") == 0) {
+                    want_fd = 0;
+		    message("Floppy Disabled\n");
+	        }
+                if (strcmp(c + 2, "nohd") == 0) {
+                    want_hd = 0;
+		    message("Floppy Disabled\n");
+	        }
+	    }
+	    c++;
+	}
+    }
 
     vm86_init();
 
-//    if (want_fd)
-    {
+    if (want_fd) {
         /* In some bioses, INT 0x13 calls INT 0x40 */
         l1_int_bind(0x40, biosdisk_reflect);
         l1_irq_bind(6, biosdisk_reflect);
         irq_unmask(6);
-//        biosdisk_detect_fd();
+        /* biosdisk_detect_fd(); */
     }
-//  if (want_hd)
-    {
+    if (want_hd) {
         l1_irq_bind(15, biosdisk_reflect);
         l1_irq_bind(14, biosdisk_reflect);
         irq_unmask(14);
         irq_unmask(15);
-//        biosdisk_detect_hd();
+	/* biosdisk_detect_hd(); */
     }
     /* Are these needed for both floppies and hard disks? */
     l1_int_bind(0x15, biosdisk_reflect);
@@ -65,6 +89,6 @@ void biosdisk_init(void)
 //    l1_irq_bind(0, biosdisk_reflect);
 //    irq_unmask(0);
 
-    biosdisk_detect();
+    biosdisk_detect(want_fd, want_hd);
     message("BIOSDisk initialized.\n");
 }
