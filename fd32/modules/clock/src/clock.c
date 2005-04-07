@@ -1,5 +1,4 @@
 #include <dr-env.h>
-#include "time.h"
 
 int epoch = 1900;
 /* From Lin... */
