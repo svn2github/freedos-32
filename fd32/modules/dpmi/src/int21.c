@@ -38,7 +38,7 @@
 #include <errors.h>
 #include <stubinfo.h>
 #include <logger.h>
-#include <time.h>
+#include <fd32time.h>
 #include "rmint.h"
 
 /* Define the __DEBUG__ symbol in order to activate log output */

@@ -28,7 +28,7 @@
 #include "filesys.h"
 #include "unicode.h"
 #include "nls.h"
-#include "time.h"
+#include "fd32time.h"
 
 extern DWORD ll_exc_table[16];
 extern struct handler exc_table[32];
@@ -115,7 +115,7 @@ static struct symbol syscall_table[] = {
   { "strcmp",  (DWORD) strcmp  },
   { "toupper", (DWORD) toupper },
   { "strtoi",    (DWORD) strtoi},
-  /* Symbols for date and time functions (from time.h) */
+  /* Symbols for date and time functions (from fd32time.h) */
   { "fd32_get_date", (DWORD) fake_get_date },
   { "fd32_get_time", (DWORD) fake_get_time },
   /* Symbols for logging cunctions (from logger.h) */
