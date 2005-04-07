@@ -127,7 +127,7 @@ static unsigned int initterm(_INITTERMFUN *start,_INITTERMFUN *end)
     if (*current)
     {
       printf("Call init function %p\n", *current);
-      (**current)();
+      (*current)();
       printf("returned\n");
     }
     current++;
