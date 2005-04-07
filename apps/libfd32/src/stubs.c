@@ -1,3 +1,4 @@
+#include <ll/i386/error.h>
 #include <errno.h>
 #undef errno
 extern int errno;
@@ -27,9 +28,16 @@ int kill(int pid, int sig)
   return(-1);
 }
 
-int getpid()
+pid_t getpid(void)
 {
   message("GetPID called: faking...\n");
   return(1);
 }
 
+int link(const char *__path1, const char *__path2 )
+{
+  /* We do not have hard links... Just fail for now */
+
+  errno = EINVAL;
+  return -1;
+}

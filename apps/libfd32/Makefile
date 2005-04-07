@@ -10,7 +10,7 @@ endif
 
 include config.mk
 
-OBJS     = execve.o exit.o io.o isatty.o sbrk.o stubs.o unlink.o
+OBJS     = execve.o exit.o io.o isatty.o sbrk.o stubs.o unlink.o time.o
 C_OPT +=  -I$(NEWLIBC)/include -I$(FD32)/include -I$(OSLIB) -I./include
 LINK_OPT = -Bstatic
 VPATH = src
