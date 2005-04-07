@@ -137,7 +137,7 @@ static BOOL STDCALL fd32_imp__VirtualFree( LPVOID lpAddress, size_t dwSize, DWOR
 
 static LPVOID STDCALL fd32_imp__LocalAlloc( UINT uFlags, size_t uBytes )
 {
-  DWORD *pd = (DWORD *)mem_get(uBytes);
+  DWORD *pd = (DWORD *)mem_get(uBytes+sizeof(DWORD));
   if (pd != NULL) {
     pd[0] = uBytes+sizeof(DWORD);
     return pd+1;
