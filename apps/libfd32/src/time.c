@@ -7,6 +7,8 @@ int gettimeofday(struct timeval *__p, struct timezone *__z)
 {
   struct fd32_date d;
   struct fd32_time t;
+  unsigned long tmp1, tmp2;
+  int elapsed_days[] = {0,31,59,90,120,151,181,212,243,273,304,334};
 
   if (__z != NULL) {
     /* We have no timezones now... */
@@ -17,15 +19,29 @@ int gettimeofday(struct timeval *__p, struct timezone *__z)
     fd32_get_date(&d);
     fd32_get_time(&t);
 
-    d.Year -= 1970;
-#warning Please implement time computation in time()
-    __p->tv_sec = 0;
-    /* FIXME:
-     * how many seconds are d.Year years + d.Day days + d.Mon months ???
-     * please fill __p->tv_sec accordingly!
-     * Have fun!!!
-     */
-    __p->tv_sec += t.Hour * 60 * 60 + t.Sec;
+    /* full years */
+    tmp1 = d.Year;
+    tmp1 -= 1970;
+    /* full days */
+    tmp2 = tmp1;
+    tmp1 *= 365;
+    tmp2++;
+    tmp2 /= 4;
+    tmp1 += tmp2;
+    tmp1 += elapsed_days[d.Mon - 1];
+    if((d.Year % 4 == 0) && (d.Mon > 2))
+        tmp1++;
+    tmp1 += d.Day - 1;
+    /* full hours */
+    tmp1 *= 24;
+    tmp1 += t.Hour;
+    /* full minutes */
+    tmp1 *= 60;
+    tmp1 += t.Min;
+    /* full seconds */
+    tmp1 *= 60;
+    tmp1 += t.Sec;
+    __p->tv_sec = tmp1;
     __p->tv_usec = t.Hund * 10000;	/* We can do better, I know... */
   }
 
