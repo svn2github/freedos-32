@@ -16,5 +16,15 @@ int ata_idle( struct ata_device* dev, BYTE timer);
 int ata_standby_imm( struct ata_device* dev);
 int ata_check_standby( struct ata_device* dev);
 int ata_set_pio_mode( struct ata_device* dev, int mode);
+int ata_sleep( struct ata_device* dev);
+int ata_sreset( struct ata_device* dev);
+int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
+                    struct ata_device* dev,
+                    WORD* packet,        /* the command packet, also used for returning error info */
+                    int packet_size,    /* length of packet in bytes (minimum 12 bytes) */
+                    WORD* buffer,
+                    int max_count,        /* max number of bytes per transfer */
+                    unsigned long* total_bytes, /* return actual number of bytes transfered */
+                    unsigned long buffer_size); /* for safety, bytes */
 
 #endif

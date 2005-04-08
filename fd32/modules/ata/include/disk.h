@@ -35,6 +35,8 @@ struct ata_device
     BYTE status_reg;
     BYTE error_reg;
     int flags;
+    WORD general_config;
+    BYTE int_reason;
 };
 
 #endif

@@ -61,7 +61,7 @@ BYTE ata_cmd_irq(unsigned long max_wait, struct ide_interface *p)
 
 
 
-int ata_poll(DWORD max_wait, int (*test)(const struct ata_device*), const struct ata_device* d)
+int ata_poll(unsigned long max_wait, int (*test)(const struct ata_device*), const struct ata_device* d)
 {
     int tout_event;
     volatile int tout;
@@ -85,13 +85,13 @@ int ata_poll(DWORD max_wait, int (*test)(const struct ata_device*), const struct
     return -1;
 }
 
-int detect_poll(struct ide_interface* intf)
+int detect_poll(unsigned long max_wait, struct ide_interface* intf)
 {
     int tout_event;
     volatile int tout;
 
     tout = 0;
-    tout_event = fd32_event_post(MAX_WAIT_DETECT, private_timed_out, (void *)&tout);
+    tout_event = fd32_event_post(max_wait, private_timed_out, (void *)&tout);
     while (!tout)
     {
         if(!(fd32_inb(intf->command_port + CMD_STATUS) & ATA_STATUS_BSY))

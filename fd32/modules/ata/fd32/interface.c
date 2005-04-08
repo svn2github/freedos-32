@@ -122,10 +122,10 @@ void block_dump(unsigned char* b, int n)
     case FD32_ATA_STANBY_IMM:
         {
 
-            ata_stanby_imm_t *x;
-            
-            x = (ata_stanby_imm_t *) params;
-            if (x->Size < sizeof(ata_stanby_imm_t))
+            ata_dev_parm_t *x;
+
+            x = (ata_dev_parm_t *) params;
+            if (x->Size < sizeof(ata_dev_parm_t))
             {
                 return FD32_EFORMAT;
             }
@@ -133,10 +133,85 @@ void block_dump(unsigned char* b, int n)
             d->flags |= DEV_FLG_STANDBY;
             return ata_standby_imm( d );
         }
+    case FD32_ATA_SLEEP:
+        {
+            /* WARNING! Reset is neccessary to wake up from sleep mode */
+            ata_dev_parm_t *x;
+
+            x = (ata_dev_parm_t *) params;
+            if (x->Size < sizeof(ata_dev_parm_t))
+            {
+                return FD32_EFORMAT;
+            }
+            d = (struct ata_device *) x->DeviceId;
+            d->flags |= DEV_FLG_SLEEP;
+            return ata_sleep( d );
+        }
+    case FD32_ATA_SRESET:
+        {
+            /* Soft reset of device */
+            ata_dev_parm_t *x;
+
+            x = (ata_dev_parm_t *) params;
+            if (x->Size < sizeof(ata_dev_parm_t))
+            {
+                return FD32_EFORMAT;
+            }
+            d = (struct ata_device *) x->DeviceId;
+            return ata_sreset( d );
+        }
+
     }
     return FD32_EINVAL;
 }
 
+static int atapi_request(DWORD f, void *params)
+{
+    struct ata_device *d;
+
+    switch (f)
+    {
+    case FD32_ATAPI_INFO:
+        {
+
+            atapi_info_t *x;
+
+            x = (atapi_info_t *) params;
+            if (x->Size < sizeof(atapi_info_t))
+            {
+                return FD32_EFORMAT;
+            }
+            d = (struct ata_device *) x->DeviceId;
+            x->PIDevType = d->type;
+            if(d->general_config & 1)
+                x->CmdSize = 16;
+            else
+                x->CmdSize = 12;
+            return 0;
+        }
+    case FD32_ATAPI_PACKET:
+        {
+
+            atapi_packet_t *x;
+
+            x = (atapi_packet_t *) params;
+            if (x->Size < sizeof(atapi_packet_t))
+            {
+                return FD32_EFORMAT;
+            }
+            d = (struct ata_device *) x->DeviceId;
+            return ata_packet_pio( x->MaxWait, d, x->Packet, x->PacketSize,
+                                   x->Buffer, x->MaxCount, x->TotalBytes, x->BufferSize);
+        }
+    case FD32_ATA_SRESET:
+    case FD32_ATA_SLEEP:
+    case FD32_ATA_STANBY_IMM:
+        {
+            return ata_request( f, params );
+        }
+    }
+    return FD32_EINVAL;
+}
 
 
 void disk_add(struct ata_device *d, char *name)
@@ -145,21 +220,29 @@ void disk_add(struct ata_device *d, char *name)
     fd32_message("Model: %s\n", d->model);
     fd32_message("Serial: %s\n", d->serial);
     fd32_message("Revision: %s\n", d->revision);
-    if(d->capabilities & ATA_CAPAB_LBA)
+    if(d->flags & DEV_FLG_PI_DEV)
     {
-        fd32_message("Device supports LBA\n");
-        fd32_message("Total number of blocks: %lu\n", d->total_blocks);
+        fd32_message("Packet Interface device\n");
+        fd32_dev_register(atapi_request, d, name);
     }
     else
     {
-        fd32_message("Cylinders: %lu\n", d->cyls);
-        fd32_message("Heads: %lu\n", d->heads);
-        fd32_message("Sectors per track: %lu\n", d->sectors);
+        if(d->capabilities & ATA_CAPAB_LBA)
+        {
+            fd32_message("Device supports LBA\n");
+            fd32_message("Total number of blocks: %lu\n", d->total_blocks);
+        }
+        else
+        {
+            fd32_message("Cylinders: %lu\n", d->cyls);
+            fd32_message("Heads: %lu\n", d->heads);
+            fd32_message("Sectors per track: %lu\n", d->sectors);
+        }
+        if(d->sectors_per_block != 0)
+            fd32_message("Using %u sectors block mode\n", (unsigned)d->sectors_per_block);
+        if(ata_global_flags & ATA_GFLAG_NWRITE)
+            fd32_message("Writing disabled!\n");
+        fd32_dev_register(ata_request, d, name);
+        ata_scanpart(d, name);
     }
-    if(d->sectors_per_block != 0)
-        fd32_message("Using %u sectors block mode\n", (unsigned)d->sectors_per_block);
-    if(ata_global_flags & ATA_GFLAG_NWRITE)
-        fd32_message("Writing disabled!\n");
-    fd32_dev_register(ata_request, d, name);
-    ata_scanpart(d, name);
 }

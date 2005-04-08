@@ -9,6 +9,10 @@
 #include "disk.h"
 #include "ata-ops.h"
 #include "ata-wait.h"
+#include "ata-detect.h"
+
+extern int ata_global_flags;
+extern int max_pio_mode;
 
 #ifdef _DEBUG_
 void reg_dump(const struct ata_device* dev)
@@ -46,6 +50,15 @@ int device_select( unsigned long max_wait, const struct ata_device* dev )
     int res;
     extern int irq_reset(int i);
 
+    if(dev->flags & DEV_FLG_SLEEP)
+    {
+#if 1
+        return ATA_ESLEEP;
+#else
+        if(ata_reset( dev ) < 0)
+            return ATA_ESLEEP;
+#endif
+    }    
     if(dev_is_busy(dev))
     {
         res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
@@ -82,7 +95,7 @@ int device_select( unsigned long max_wait, const struct ata_device* dev )
     }
 #endif
     irq_reset(dev->interface->irq);
-    
+
     return 0;
 }
 
@@ -473,6 +486,44 @@ int ata_standby_imm( struct ata_device* dev)
     return command_ackn(dev);
 }
 
+int ata_sleep( struct ata_device* dev)
+{
+    int res;
+
+    res = device_select( MAX_WAIT_1, dev );
+    if(res)
+        return res;
+    fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_SLEEP);
+    return command_ackn(dev);
+}
+
+int ata_sreset( struct ata_device* dev)
+{
+    BYTE b;
+    int res;
+    
+    b = fd32_inb(dev->interface->control_port);
+    fd32_outb(dev->interface->control_port, b | ATA_SRST);
+    delay(8000);
+    fd32_outb(dev->interface->control_port, b & ~ATA_SRST);
+    ata_wait(2500);
+    /* What about the DEV bit? */
+    res = detect_poll(31*1000*1000, dev->interface);
+    if(res<0)
+        return res;
+    /* FIXME: This is a hack! What PIO modes does the host support? */
+    /* On what type of bus does the controller reside? */           
+    if(!(ata_global_flags & ATA_GFLAG_PIO_MODE))
+    {
+        ata_global_flags |= ATA_GFLAG_PIO_MODE;
+        max_pio_mode = 2;
+    }
+    if(dev->interface->dev0 != 0)
+        ata_detect_single(0, dev->interface, &(dev->interface->dev0), NULL);
+    if(dev->interface->dev1 != 0)
+        ata_detect_single(1, dev->interface, &(dev->interface->dev1), NULL);
+    return 0;
+}
 
 int ata_check_standby( struct ata_device* dev)
 {
@@ -491,6 +542,7 @@ int ata_check_standby( struct ata_device* dev)
     return 0;
 }
 
+
 int ata_set_pio_mode( struct ata_device* dev, int mode)
 {
     int res;
@@ -503,3 +555,199 @@ int ata_set_pio_mode( struct ata_device* dev, int mode)
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_SET_FEATURES);
     return command_ackn(dev);
 }
+
+
+/* TODO: implement overlapped commands */
+int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
+                    struct ata_device* dev,
+                    WORD* packet,        /* the command packet, also used for returning error info */
+                    int packet_size,    /* length of packet in bytes (minimum 12 bytes) */
+                    WORD* buffer,
+                    int max_count,        /* max number of bytes per transfer */
+                    unsigned long* total_bytes, /* return actual number of bytes transfered */
+                    unsigned long buffer_size) /* for safety, bytes */
+{
+    int res;
+    BYTE status;
+    int i;
+    BYTE ir;
+    BYTE* ebuff = (BYTE*)packet;
+    int count;
+    int buffer_overflow = FALSE;
+
+    *total_bytes = 0;
+    res = device_select( MAX_WAIT_1, dev );
+    if(res)
+    {
+        ebuff[0] = 0;
+        *(int*)&ebuff[4] = res;
+        return res;
+    }
+    fd32_outb(dev->interface->command_port + CMD_FEATURES, 0);     /* no overlap or DMA */
+    fd32_outb(dev->interface->command_port + CMD_CNT, 0);
+    fd32_outb(dev->interface->command_port + CMD_PI_COUNT_L, 0xFF & max_count);
+    fd32_outb(dev->interface->command_port + CMD_PI_COUNT_H, 0xFF & (max_count >> 8));
+    fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_PACKET);
+    delay(400);
+    if((dev->polled_mode == 0) && (dev->flags & DEV_FLG_IRQ_ON_PCMD))
+    {
+        /* Only old and odd devices arrive here */
+        status = ata_cmd_irq(MAX_WAIT_1, dev->interface);
+        if(status == 0xFF)
+        {
+            ebuff[0] = 0;
+            *(int*)&ebuff[4] = ATA_ETOIRQ;
+            return ATA_ETOIRQ;
+        }
+    }
+    else
+    {
+        if(dev_is_busy(dev))
+        {
+            res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
+            if(res)
+            {
+                ebuff[0] = 0;
+                *(int*)&ebuff[4] = ATA_ETOBUSY;
+                return ATA_ETOBUSY;
+            }
+        }
+        status = fd32_inb(dev->interface->command_port + CMD_STATUS);
+    }
+    ir = fd32_inb(dev->interface->command_port + CMD_PI_INTERRUPT_REASON);
+    if(((ir & 0x07) != ATAPI_CD) /*|| (status & ATA_STATUS_ERR)*/ || !(status & ATA_STATUS_DRQ))
+    {
+        /* return error info in the command packet buffer */
+        ebuff[0] = 1;
+        ebuff[1] = dev->status_reg = status;
+        ebuff[2] = dev->error_reg = fd32_inb(dev->interface->command_port + CMD_ERROR);
+        ebuff[3] = ir;
+        *(int*)&ebuff[4] = ATA_EPIPRECMD;
+        return ATA_EPIPRECMD;
+    }
+    /* sending command packet */
+    for(i=0; i<packet_size; i+=2)
+    {
+        fd32_outw(dev->interface->command_port + CMD_DATA, *packet++ );
+    }
+    while(1)
+    {
+        if(dev->polled_mode)
+        {
+            delay(400);
+            fd32_inb(dev->interface->control_port);
+            if(dev_is_busy(dev))
+            {
+                res = ata_poll(max_wait, &dev_is_busy, dev);
+                if(res)
+                {
+                    ebuff[0] = 0;
+                    *(int*)&ebuff[4] = ATA_ETOBUSY;
+                    return ATA_ETOBUSY;
+                }
+            }
+            status = fd32_inb(dev->interface->command_port + CMD_STATUS);
+        }
+        else
+        {
+            status = ata_cmd_irq(max_wait, dev->interface);
+            if(status == 0xFF)
+            {
+                ebuff[0] = 0;
+                *(int*)&ebuff[4] = ATA_ETOIRQ;
+                return ATA_ETOIRQ;
+            }
+        }
+        ir = fd32_inb(dev->interface->command_port + CMD_PI_INTERRUPT_REASON);
+        if(ir & ATAPI_CD)
+        {
+            /* If we arrive here, then there is no more data or there is an error*/
+
+            if(!(ir & ATAPI_IO) || (status & ATAPI_CHECK) || !(status & ATA_STATUS_DRDY))
+            {
+                /* return error info in the command packet buffer */
+                ebuff[0] = 1;
+                ebuff[1] = dev->status_reg = status;
+                ebuff[2] = dev->error_reg = fd32_inb(dev->interface->command_port + CMD_ERROR);
+                ebuff[3] = ir;
+                *(int*)&ebuff[4] = ATA_EPIPOSTCMD;
+                return ATA_EPIPOSTCMD;
+            }
+            if(buffer_overflow == TRUE)
+            {
+                ebuff[0] = 0;
+                *(int*)&ebuff[4] = ATA_EOWRFL;
+                return ATA_EOWRFL;
+            }
+            /* Success! */
+            return 0;
+        }
+        if(!(status & ATA_STATUS_DRQ))
+        {
+            /* return error info in the command packet buffer */
+            ebuff[0] = 1;
+            ebuff[1] = dev->status_reg = status;
+            ebuff[2] = dev->error_reg = fd32_inb(dev->interface->command_port + CMD_ERROR);
+            ebuff[3] = ir;
+            *(int*)&ebuff[4] = ATA_EDRQ;
+            return ATA_EDRQ;
+        }
+        count = fd32_inb(dev->interface->command_port + CMD_PI_COUNT_H);
+        count <<= 8;
+        count |= fd32_inb(dev->interface->command_port + CMD_PI_COUNT_L);
+        *total_bytes += count;
+        /* round up and divide */
+        count++;
+        count >>= 1;
+        if(*total_bytes > buffer_size)
+        {
+            buffer_overflow = TRUE;
+            if(ir & ATAPI_IO)
+            {
+                /* We have run out of space to store data. We choose to paly along with the device */
+                /* to avoid device reset, but we will loose the extra data */
+                if(*total_bytes > buffer_size + 1024*1024*16)
+                {
+                    /* No, this has gone too far! Abort! */
+                    ebuff[0] = 0;
+                    *(int*)&ebuff[4] = ATA_EPIFATAL;
+                    return ATA_EPIFATAL;
+                }
+                for(i=0; i<count; i++)
+                {
+                    if(*total_bytes - (count-i)*2 < buffer_size)
+                        *buffer++ = fd32_inw(dev->interface->command_port + CMD_DATA);
+                    else
+                        fd32_inw(dev->interface->command_port + CMD_DATA);
+                }
+            }
+            else
+            {
+                /* The device wants more data than we have */
+                /* We choose abort, but we write what we have first */
+                /* TODO */
+                ebuff[0] = 0;
+                *(int*)&ebuff[4] = ATA_EPIFATAL;
+                return ATA_EPIFATAL;
+            }
+        }
+        else
+        {
+            if(ir & ATAPI_IO)
+            {
+                for(i=0; i<count; i++)
+                {
+                    *buffer++ = fd32_inw(dev->interface->command_port + CMD_DATA);
+                }
+            }
+            else
+            {
+                for(i=0; i<count; i++)
+                {
+                    fd32_outw(dev->interface->command_port + CMD_DATA, *buffer++ );
+                }
+            }
+        }
+    }
+}
+

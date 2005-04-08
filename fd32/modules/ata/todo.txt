@@ -27,7 +27,15 @@ o There is still some ATA2 commands not implemented:
 						multiword etc, go for UDMA
 	READ/WRITE VERIFY			???
 	READ/WRITE BUFFER			???
-	SLEEP					todo
+	SLEEP					done
 	WRITE SAME				useful for formatting?
 	NOP					probably not
 	DOWNLOAD MICROCODE			todo :-)
+
+o Implement overlapping.
+
+o Improve handling of DRDY.
+
+o Find out if the system has a PCI bus (and use it).
+
+o Implement "DEVICE RESET".
