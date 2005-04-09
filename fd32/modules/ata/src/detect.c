@@ -12,10 +12,23 @@
 #include "ata-ops.h"
 #include "ata-wait.h"
 
+
 extern int ata_global_flags;
 extern int max_pio_mode;
 extern BYTE standby_timer;
 extern int block_mode;
+
+#define _DEBUG_
+#define _LOGGER_
+
+#ifdef _LOGGER_
+#define MSG fd32_log_printf
+#define WAIT
+#else
+#define MSG fd32_message
+#define WAIT ata_wait(10*1000*1000)
+#endif
+
 
 static void string_parse(char *dst, WORD *src, int len)
 {
@@ -59,20 +72,32 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
         (*d)->polled_mode = FALSE;
     (*d)->sectors_per_block = 0;
     (*d)->flags = 0;
+#ifdef _DEBUG_
+    MSG("IDENTIFY DEVICE command on device %i\n", device_no);
+#endif
     res = pio_data_in(200 * 1000, 1, 0, (void*)drvdata, *d, ATA_CMD_IDENTIFY);
     if(res<0)
     {
         /* PI device? */
         /* Checking the signature */
+#ifdef _DEBUG_
+        MSG("IDENTIFY DEVICE failed, returned %i, st=%x, err=%x\n", res, (*d)->status_reg, (*d)->error_reg);
+#endif
         b = fd32_inb((*d)->interface->command_port + CMD_CYL_L);
         if(b != 0x14)
             return 0;
         b = fd32_inb((*d)->interface->command_port + CMD_CYL_H);
         if(b != 0xEB)
             return 0;
-        res = pio_data_in(200 * 1000, 1, 0, (void*)drvdata, *d, ATA_CMD_IDENTIFY_PD);
+#ifdef _DEBUG_
+        MSG("Signature present, executing IDENTIFY PACET DEVICE command\n");
+#endif
+         res = pio_data_in(200 * 1000, 1, 0, (void*)drvdata, *d, ATA_CMD_IDENTIFY_PD);
         if(res<0)
         {
+#ifdef _DEBUG_
+            MSG("IDENTIFY PACKET DEVICE failed, returned %i, st=%x, err=%x\n", res, (*d)->status_reg, (*d)->error_reg);
+#endif
             fd32_message("Error: Detection of PI device failed!\n");
             return 0;
         }
@@ -168,15 +193,28 @@ int ata_detect(struct ide_interface *intf, void (*disk_add)(struct ata_device *d
     int detected_drives = 0;
     struct ata_device* d = NULL;
 
+#ifdef _DEBUG_
+    MSG("Staring detection: cmd=%x, ctrl=%x, irq=%u\n", (unsigned)intf->command_port, (unsigned)intf->control_port, intf->irq);
+#endif
     intf->dev0 = NULL;
     intf->dev1 = NULL;
     if(detect_poll(MAX_WAIT_DETECT, intf) < 0)
+    {
+#ifdef _DEBUG_
+        MSG("Timeout on BSY bit, aborting detection\n");
+#endif
         return 0;
+    }
     delay(400);
     /* Read and discard ALT SATUS, then compare STATUS and ALT STATUS */
     fd32_inb(intf->control_port);
     if(fd32_inb(intf->command_port + CMD_STATUS) != fd32_inb(intf->control_port))
+    {
+#ifdef _DEBUG_
+        MSG("STATUS snd ALT STATUS different, aborting detection\n");
+#endif
         return 0;
+    }
     fd32_outb(intf->command_port + CMD_DEVHEAD, 0xF0);
     if(!(ata_global_flags & ATA_GFLAG_POLL))
         ata_irq_enable(intf);
@@ -187,11 +225,19 @@ int ata_detect(struct ide_interface *intf, void (*disk_add)(struct ata_device *d
         disk_add(d, d->device_name);
         intf->dev0 = d;
         d = NULL;
+#ifdef _DEBUG_
+        MSG("Master device detected\n");
+        WAIT;
+#endif
     }
     if(ata_detect_single(1, intf, &d, &detected_drives) == 1)
     {
         disk_add(d, d->device_name);
         intf->dev1 = d;
+#ifdef _DEBUG_
+        MSG("Slave device detected\n");
+        WAIT;
+#endif
     }
     else
         fd32_kmem_free((void*)d, sizeof(struct ata_device));
