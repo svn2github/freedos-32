@@ -208,7 +208,7 @@ int ata_detect(struct ide_interface *intf, void (*disk_add)(struct ata_device *d
     delay(400);
     /* Read and discard ALT SATUS, then compare STATUS and ALT STATUS */
     fd32_inb(intf->control_port);
-    if(fd32_inb(intf->command_port + CMD_STATUS) != fd32_inb(intf->control_port))
+    if((fd32_inb(intf->command_port + CMD_STATUS) & ~0x02) != (fd32_inb(intf->control_port) & ~0x02))
     {
 #ifdef _DEBUG_
         MSG("STATUS snd ALT STATUS different, aborting detection\n");
