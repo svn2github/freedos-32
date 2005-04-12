@@ -42,7 +42,7 @@ int ata_test_init(struct process_info *p)
     fd32_blockread_t ata_read;
     void* ata_devid;
     void* b;
-    ata_stanby_imm_t sb;
+    ata_dev_parm_t sb;
     char* args;
     char c;
     
@@ -102,7 +102,7 @@ int ata_test_init(struct process_info *p)
     if(read(1, 2048 * mtr / 1, &ata_read, b) < 0)
         return 0;
     fd32_message("Testing standby...\n");
-    sb.Size = sizeof(ata_stanby_imm_t);
+    sb.Size = sizeof(ata_dev_parm_t);
     sb.DeviceId = ata_devid;
     ata_request(FD32_ATA_STANBY_IMM, &sb);
     fd32_message("Is the drive spinning down?\n");
