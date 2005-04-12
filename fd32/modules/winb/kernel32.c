@@ -30,12 +30,18 @@ static VOID STDCALL fd32_imp__ExitProcess( UINT ecode )
 static ATOM STDCALL fd32_imp__FindAtomA( LPCSTR str )
 {
   printf("FindAtomA %s\n", str);
-  return 1;
+  if (atomname != 0)
+    return 1;
+  else
+    return 0;
 }
 
 static UINT STDCALL fd32_imp__GetAtomNameA( DWORD atom, LPSTR buffer, int nsize )
 {
-  strcpy(buffer, atomname);
+  if (atomname != 0)
+    strcpy(buffer, atomname);
+  else
+    nsize = 0;
   return nsize;
 }
 

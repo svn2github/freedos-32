@@ -1,7 +1,7 @@
 /* Mini MSVCRT
  * by Hanzac Chen
  *
- * Ref: WINE's msvcrt.dll
+ * Ref: Wine is an Open Source implementation of the Windows API on top of X and Unix.
  *
  * This is free software; see GPL.txt
  */
@@ -60,23 +60,6 @@ static void fd32_imp__set_app_type(int a)
   fd32_log_printf("[WINB] Set app type: %d\n", a);
 }
 
-static char ** fd32_environ;
-static char *** fd32_imp__p__environ(void)
-{
-  return &fd32_environ;
-}
-
-static char ** env;
-static char *** p___ddddenv(void)
-{
-  return &env;
-}
-
-static unsigned int* p__fmode(void)
-{
-  return NULL;
-}
-
 uint32_t mem_limit;
 extern struct psp *current_psp;
 static void fd32_imp__getmainargs(int *argc, char** *argv, char** *envp, int expand_wildcards, int *new_mode)
@@ -86,38 +69,41 @@ static void fd32_imp__getmainargs(int *argc, char** *argv, char** *envp, int exp
   mem_limit = current_psp->memlimit;
 }
 
-static void cexit(void)
+static void fd32_imp_cexit(void)
 {
+  fd32_log_printf("[WINB] cexit (Do nothing)\n");
 }
 
-void restore_sp(uint32_t s);
+/* TODO: How to set these FILE descriptors to stdin, stdout and stderr */
+static FILE fd32_imp_iob[3];
 
-static uint32_t iob[3];
-
-static uint32_t onexit(void * func)
+static uint32_t fd32_imp_onexit(void * func)
 {
-  puts("onexit");
+  fd32_log_printf("[WINB] onexit (func: %x)\n", (uint32_t)func);
   return 0;
 }
 
 static int fd32_imp_setmode(int fd, int mode)
 {
+  fd32_log_printf("[WINB] setmode (fd: %x mode: %x)\n", fd, mode);
   return 0;
 }
 
-static void amsg_exit(int errnum)
+/* _amsg_exit(rterrnum) - Fast exit fatal errors */
+static void fd32_imp_amsg_exit(int errnum)
 {
-  printf("errnum: (%d)\n", errnum);
+  fd32_log_printf("[WINB] Fast exit errnum: %d\n", errnum);
+  exit(255);
 }
 
-static int XcptFilter(int ex, uint32_t ptr)
+static int fd32_imp_XcptFilter(int ex, uint32_t ptr)
 {
-  puts("XcptFilter");
+  fd32_log_printf("[WINB] XcptFilter (ex: %x, ptr: %x\n)", ex, ptr);
   return 0;
 }
 
 typedef void (*_INITTERMFUN)(void);
-static unsigned int initterm(_INITTERMFUN *start,_INITTERMFUN *end)
+static unsigned int fd32_imp_initterm(_INITTERMFUN *start,_INITTERMFUN *end)
 {
   _INITTERMFUN* current = start;
 
@@ -135,32 +121,138 @@ static unsigned int initterm(_INITTERMFUN *start,_INITTERMFUN *end)
   return 0;
 }
 
-static void adjust_fdiv(void)
-{
+/* WINE.MSVCRT._control87 Copyright 2000 Jon Griffiths */
+/* _controlfp masks and bitflags - x86 only so far */
+#ifdef __i386__
+#define _EM_INEXACT    0x1
+#define _EM_UNDERFLOW  0x2
+#define _EM_OVERFLOW   0x4
+#define _EM_ZERODIVIDE 0x8
+#define _EM_INVALID    0x10
+#define _EM_DENORMAL   0x80000
 
+#define _RC_NEAR       0x0
+#define _RC_DOWN       0x100
+#define _RC_UP         0x200
+#define _RC_CHOP       0x300
+
+#define _PC_64         0x0
+#define _PC_53         0x10000
+#define _PC_24         0x20000
+
+#define _IC_AFFINE     0x40000
+#define _IC_PROJECTIVE 0x0
+#endif
+static unsigned int fd32_imp_control87(unsigned int newval, unsigned int mask)
+{
+#if defined(__GNUC__) && defined(__i386__)
+  unsigned int fpword = 0;
+  unsigned int flags = 0;
+
+  fd32_log_printf("[WINB] (%08x, %08x): Called\n", newval, mask);
+
+  /* Get fp control word */
+  __asm__ __volatile__( "fstcw %0" : "=m" (fpword) : );
+
+  fd32_log_printf("[WINB] Control word before : %08x\n", fpword);
+
+  /* Convert into mask constants */
+  if (fpword & 0x1)  flags |= _EM_INVALID;
+  if (fpword & 0x2)  flags |= _EM_DENORMAL;
+  if (fpword & 0x4)  flags |= _EM_ZERODIVIDE;
+  if (fpword & 0x8)  flags |= _EM_OVERFLOW;
+  if (fpword & 0x10) flags |= _EM_UNDERFLOW;
+  if (fpword & 0x20) flags |= _EM_INEXACT;
+  switch(fpword & 0xC00) {
+  case 0xC00: flags |= _RC_UP|_RC_DOWN; break;
+  case 0x800: flags |= _RC_UP; break;
+  case 0x400: flags |= _RC_DOWN; break;
+  }
+  switch(fpword & 0x300) {
+  case 0x0:   flags |= _PC_24; break;
+  case 0x200: flags |= _PC_53; break;
+  case 0x300: flags |= _PC_64; break;
+  }
+  if (fpword & 0x1000) flags |= _IC_AFFINE;
+
+  /* Mask with parameters */
+  flags = (flags & ~mask) | (newval & mask);
+
+  /* Convert (masked) value back to fp word */
+  fpword = 0;
+  if (flags & _EM_INVALID)    fpword |= 0x1;
+  if (flags & _EM_DENORMAL)   fpword |= 0x2;
+  if (flags & _EM_ZERODIVIDE) fpword |= 0x4;
+  if (flags & _EM_OVERFLOW)   fpword |= 0x8;
+  if (flags & _EM_UNDERFLOW)  fpword |= 0x10;
+  if (flags & _EM_INEXACT)    fpword |= 0x20;
+  switch(flags & (_RC_UP | _RC_DOWN)) {
+  case _RC_UP|_RC_DOWN: fpword |= 0xC00; break;
+  case _RC_UP:          fpword |= 0x800; break;
+  case _RC_DOWN:        fpword |= 0x400; break;
+  }
+  switch (flags & (_PC_24 | _PC_53)) {
+  case _PC_64: fpword |= 0x300; break;
+  case _PC_53: fpword |= 0x200; break;
+  case _PC_24: fpword |= 0x0; break;
+  }
+  if (flags & _IC_AFFINE) fpword |= 0x1000;
+
+  fd32_log_printf("[WINB] Control word after  : %08x\n", fpword);
+
+  /* Put fp control word */
+  __asm__ __volatile__( "fldcw %0" : : "m" (fpword) );
+
+  return flags;
+#else
+  fd32_log_printf("[WINB] controlfp Not Implemented on this target!\n");
+  return 0;
+#endif
 }
 
-static unsigned int commode;
-static unsigned int* p__commode(void)
+static unsigned int fd32_imp_controlfp(unsigned int newval, unsigned int mask)
 {
-  return &commode;
+  return fd32_imp_control87(newval, mask);
 }
 
-static unsigned int controlfp(unsigned int newval, unsigned int mask)
+static int fd32_imp_except_handler3(uint32_t rec, void* frame, uint32_t context, void* dispatcher)
 {
-  puts("controlfp:Not Implemented!");
+  fd32_log_printf("[WINB] except_handler3 Not Implemented!\n");
   return 0;
 }
 
-static int except_handler3(uint32_t rec, void* frame, uint32_t context, void* dispatcher)
+static int fd32_imp_adjust_fdiv;
+
+typedef int (*MSVCRT_matherr_func)(void *);
+static MSVCRT_matherr_func fd32_imp_matherr_func = NULL;
+static void fd32_imp__setusermatherr(MSVCRT_matherr_func func)
 {
-  puts("except_handler3:Not Implemented!");
-  return 0;
+  fd32_imp_matherr_func = func;
+  fd32_log_printf("[WINB] Set new matherr handler: %x\n", (uint32_t)func);
 }
 
-static void setusermatherr(void * func)
+static unsigned int fd32_imp_commode;
+static unsigned int* fd32_imp__p__commode(void)
 {
-  printf(":new matherr handler %p\n", func);
+  return &fd32_imp_commode;
+}
+
+static unsigned int fd32_imp_fmode;
+static unsigned int* fd32_imp__p__fmode(void)
+{
+  return &fd32_imp_fmode;
+}
+
+/* from Newlib */
+extern char ** environ;
+static char *** fd32_imp__p___initenv(void)
+{
+  return &environ;
+}
+
+static char *** fd32_imp__p__environ(void)
+{
+  return &environ;
 }
 
 /* from Newlib */
@@ -172,23 +264,23 @@ static uint32_t msvcrt_handle = 0x05;
 static struct symbol msvcrt_symarray[] = {
   {"__dllonexit",    (uint32_t)fd32_imp__dllonexit},
   {"__getmainargs",  (uint32_t)fd32_imp__getmainargs},
-  {"__p___initenv",  (uint32_t)p___ddddenv},
-  {"__p__commode",   (uint32_t)p__commode},
+  {"__p___initenv",  (uint32_t)fd32_imp__p___initenv},
+  {"__p__commode",   (uint32_t)fd32_imp__p__commode},
   {"__p__environ",   (uint32_t)fd32_imp__p__environ},
-  {"__p__fmode",     (uint32_t)p__fmode},
+  {"__p__fmode",     (uint32_t)fd32_imp__p__fmode},
   {"__set_app_type", (uint32_t)fd32_imp__set_app_type},
-  {"__setusermatherr", (uint32_t)setusermatherr},
-  {"_adjust_fdiv",   (uint32_t)adjust_fdiv},
-  {"_amsg_exit",     (uint32_t)amsg_exit},
-  {"_controlfp",     (uint32_t)controlfp},
-  {"_cexit",         (uint32_t)cexit},
-  {"_except_handler3", (uint32_t)except_handler3},
+  {"__setusermatherr", (uint32_t)fd32_imp__setusermatherr},
+  {"_adjust_fdiv",   (uint32_t)&fd32_imp_adjust_fdiv},
+  {"_amsg_exit",     (uint32_t)fd32_imp_amsg_exit},
+  {"_controlfp",     (uint32_t)fd32_imp_controlfp},
+  {"_cexit",         (uint32_t)fd32_imp_cexit},
+  {"_except_handler3", (uint32_t)fd32_imp_except_handler3},
 
-  {"_initterm",      (uint32_t)initterm},
-  {"_iob",           (uint32_t)iob},
-  {"_onexit",        (uint32_t)onexit},
+  {"_initterm",      (uint32_t)fd32_imp_initterm},
+  {"_iob",           (uint32_t)fd32_imp_iob},
+  {"_onexit",        (uint32_t)fd32_imp_onexit},
   {"_setmode",       (uint32_t)fd32_imp_setmode},
-  {"_XcptFilter",    (uint32_t)XcptFilter},
+  {"_XcptFilter",    (uint32_t)fd32_imp_XcptFilter},
 
   /* from Newlib */
   {"_errno",         (uint32_t)__errno},
