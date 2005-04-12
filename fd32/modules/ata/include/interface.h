@@ -30,7 +30,7 @@ typedef struct atapi_info
 }
 atapi_info_t;
 
-typedef struct atapi_packet
+typedef struct atapi_pc_parm
 {
     DWORD Size;
     void *DeviceId;
@@ -42,6 +42,6 @@ typedef struct atapi_packet
     int MaxCount;
     unsigned long* TotalBytes;
 }
-atapi_packet_t;
+atapi_pc_parm_t;
 
 #endif

@@ -192,10 +192,10 @@ static int atapi_request(DWORD f, void *params)
     case FD32_ATAPI_PACKET:
         {
 
-            atapi_packet_t *x;
+            atapi_pc_parm_t *x;
 
-            x = (atapi_packet_t *) params;
-            if (x->Size < sizeof(atapi_packet_t))
+            x = (atapi_pc_parm_t *) params;
+            if (x->Size < sizeof(atapi_pc_parm_t))
             {
                 return FD32_EFORMAT;
             }
