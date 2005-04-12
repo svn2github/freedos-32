@@ -14,7 +14,7 @@
 #include <kernel.h>
 
 /* Define the __BOCHS_DBG__ symbol to send log output to the Bochs window */
-#define __BOCHS_DBG__
+/* #define __BOCHS_DBG__ */
 
 
 #ifndef __BOCHS_DBG__
@@ -87,25 +87,24 @@ void fd32_log_display()
 }
 
 
-/* Shows the buffer starting address, size and current position      */
-void fd32_log_stats()
+/* Shows and stores the buffer starting address, size and return current position      */
+DWORD fd32_log_stats(DWORD *start_addr, DWORD *size)
 {
   #ifdef __BOCHS_DBG__
   message("FD32 debug logger configured for Bochs. No log buffer allocated.\n");
   #else
   char *k;
+
+  if (start_addr == 0 && size == 0) {
   message("Log buffer allocated at %xh (%u bytes)\n",
           (unsigned) LogBufStart, LOGBUFSIZE);
-  message("Current position is %xh, %u bytes written",
+  message("Current position is %xh, %u bytes written\n",
           (unsigned) LogBufPos, (unsigned) LogBufPos - (unsigned) LogBufStart);
+  } else {
+    *start_addr = LogBufStart;
+    *size = LogBufPos - LogBufStart;
+  }
+  return LogBufPos;
 
-//  #ifdef __BOCHS_DBG__
-//  for (k = LogBufStart; k < LogBufPos; k++) {
-//    if (*k == '\n') {
-//      outp(0xE9, '\t');
-//    }
-//    outp(0xE9, *k);
-//  }
-//  #endif /* __BOCHS_DBG__ */
   #endif
 }

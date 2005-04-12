@@ -187,6 +187,6 @@ int main (int argc, char *argv[])
   fd32_log_printf("    Begin stack : %lx\n", sp1);
   fd32_log_printf("    Check if same : %s\n",sp1 == sp2 ? "Ok :-)" : "No :-(");
 #endif    
-  fd32_log_stats();
+  fd32_log_stats(NULL, NULL);
   return 1;
 }

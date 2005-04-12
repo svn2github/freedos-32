@@ -118,8 +118,9 @@ static struct symbol syscall_table[] = {
   /* Symbols for date and time functions (from fd32time.h) */
   { "fd32_get_date", (DWORD) fake_get_date },
   { "fd32_get_time", (DWORD) fake_get_time },
-  /* Symbols for logging cunctions (from logger.h) */
+  /* Symbols for logging functions (from logger.h) */
   { "fd32_log_printf", (DWORD) fd32_log_printf },
+  { "fd32_log_stats", (DWORD) fd32_log_stats },
 #if 0
   /* Symbols for Descriptor Management services */
   { "fd32_allocate_descriptors",         (DWORD) fd32_allocate_descriptors         },
@@ -229,7 +230,7 @@ void *get_syscall_table(void)
 
 DWORD get_syscall_table_size(void)
 {
-	return sizeof(syscall_table)/sizeof(struct symbol);
+  return sizeof(syscall_table)/sizeof(struct symbol);
 }
 
 int add_call(char *name, DWORD address, int mode)
@@ -374,7 +375,7 @@ struct dll_table *get_dll_table(char *dll_name)
   
   /* find and load the DLL */
   message("Find and Load %s\n", dll_name);
-  /* dos_exec("C:\\fd32lib\\kernel32.dll", 0, 0, 0, 0, &retval); */
+  dos_exec(dll_name, 0, 0, 0, 0, &retval);
   /* load the dynalink library */
   
   /* create the process */
