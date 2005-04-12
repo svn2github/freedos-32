@@ -14,7 +14,7 @@
 #include <kernel.h>
 
 /* Define the __BOCHS_DBG__ symbol to send log output to the Bochs window */
-/* #define __BOCHS_DBG__ */
+#define __BOCHS_DBG__
 
 
 #ifndef __BOCHS_DBG__
