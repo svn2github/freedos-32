@@ -19,6 +19,7 @@ struct ide_interface
     struct ata_device* dev1;
 };
 
+/* Offsets into the command register file */
 #define CMD_DATA 0
 #define CMD_ERROR 1
 #define CMD_FEATURES 1
@@ -33,6 +34,7 @@ struct ide_interface
 #define CMD_PI_COUNT_H 5
 #define CMD_PI_INTERRUPT_REASON 3
 
+/* Bits in the above registers and the control register */
 #define ATA_STATUS_DRQ 0x08
 #define ATA_STATUS_BSY 0x80
 #define ATA_STATUS_ERR 0x01
@@ -45,6 +47,7 @@ struct ide_interface
 #define ATAPI_REL 0x04
 #define ATAPI_CHECK 0x01 
 
+/* Comman codes for the COMMAND register */
 #define ATA_CMD_IDENTIFY 0xEC
 #define ATA_CMD_IDENTIFY_PD 0xA1
 #define ATA_CMD_READ_MULTIPLE 0xC4
@@ -60,10 +63,11 @@ struct ide_interface
 #define ATA_CMD_PACKET 0xA0
 #define ATA_CMD_SLEEP 0x99
 
-
+/* Timeout parameters in micro seconds */
 #define MAX_WAIT_DETECT 100 * 1000
 #define MAX_WAIT_1 500 * 1000
 
+/* Error codes */
 #define ATA_ETOBUSY -1
 #define ATA_ETOREADY -2
 #define ATA_ETOIRQ -3
@@ -77,6 +81,7 @@ struct ide_interface
 #define ATA_EPIFATAL -11
 #define ATA_ESLEEP -12
 
+/* Bits in the capabilities word */
 #define ATA_CAPAB_LBA 0x200
 
 #if 0
@@ -85,6 +90,7 @@ struct ide_interface
 #define ATAPI_DATA_IN 2
 #endif
 
+/* Global flags */
 #define ATA_GFLAG_POLL 1
 #define ATA_GFLAG_NWRITE 2
 #define ATA_GFLAG_STANDBY_EN 4
@@ -93,6 +99,7 @@ struct ide_interface
 
 /* Upper four device flags is supported pio modes 1 to 4 */
 #define DEV_FLG_SUPP_PIO_BITS 28
+/* Device specific flags */
 #define DEV_FLG_ST_TIMER_ACTIVE 32
 #define DEV_FLG_STANDBY 64
 #define DEV_FLG_PI_DEV 128
@@ -100,11 +107,5 @@ struct ide_interface
 #define DEV_FLG_SLEEP 512
 
 
-static inline void ata_irq_enable(struct ide_interface *p)
-{
-    extern void ata_irq(int n);
 
-    fd32_irq_bind(p->irq, ata_irq);
-    fd32_outb(p->control_port, 0x08);
-}
 #endif

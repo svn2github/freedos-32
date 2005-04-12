@@ -42,7 +42,13 @@ static void string_parse(char *dst, WORD *src, int len)
     dst[2 * len] = 0;
 }
 
+static void ata_irq_enable(struct ide_interface *p)
+{
+    extern void ata_irq(int n);
 
+    fd32_irq_bind(p->irq, ata_irq);
+    fd32_outb(p->control_port, 0x08);
+}
 
 int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_device** d, int* detected_drives_p)
 {
