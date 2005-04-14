@@ -9,11 +9,14 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <locale.h>
+#include <sys/stat.h>
 
 #include "winb.h"
 
@@ -255,6 +258,31 @@ static char *** fd32_imp__p__environ(void)
   return &environ;
 }
 
+static uint32_t argc;
+static char *argv[255];
+static char **argv_ptr = argv;
+static char*** fd32_imp__p___argv(void)
+{
+  char *p = current_psp->command_line;
+  argv[0] = "stub.exe";
+  argc = 1;
+  if (p != NULL) {
+    while (*p != 0) {
+      argv[argc++] = p;
+      while ((*p != 0) && (*p != ' ')) {
+        p++;
+      }
+      if (*p != 0) {
+        *p++ = 0;
+      }
+      while(*p == ' ') {
+        p++;
+      };
+    }
+  }
+  return &argv_ptr;
+}
+
 /* from Newlib */
 extern int *__errno(void);
 
@@ -264,6 +292,7 @@ static uint32_t msvcrt_handle = 0x05;
 static struct symbol msvcrt_symarray[] = {
   {"__dllonexit",    (uint32_t)fd32_imp__dllonexit},
   {"__getmainargs",  (uint32_t)fd32_imp__getmainargs},
+  {"__p___argv",     (uint32_t)fd32_imp__p___argv},
   {"__p___initenv",  (uint32_t)fd32_imp__p___initenv},
   {"__p__commode",   (uint32_t)fd32_imp__p__commode},
   {"__p__environ",   (uint32_t)fd32_imp__p__environ},
@@ -283,11 +312,18 @@ static struct symbol msvcrt_symarray[] = {
   {"_XcptFilter",    (uint32_t)fd32_imp_XcptFilter},
 
   /* from Newlib */
+  {"_close",         (uint32_t)close},
   {"_errno",         (uint32_t)__errno},
   {"_exit",          (uint32_t)exit},
   {"_fdopen",        (uint32_t)fdopen},
+  {"_fstat",         (uint32_t)fstat},
+  {"_isatty",        (uint32_t)isatty},
+  {"_open",          (uint32_t)open},
+  {"_read",          (uint32_t)read},
+  /* {"_setmode",       (uint32_t)setmode}, */
   {"_unlink",        (uint32_t)unlink},
   {"_vsnprintf",     (uint32_t)vsnprintf},
+  {"_write",         (uint32_t)write},
   {"abort",          (uint32_t)abort},
   {"atexit",         (uint32_t)atexit},
   {"clearerr",       (uint32_t)clearerr},
@@ -297,23 +333,30 @@ static struct symbol msvcrt_symarray[] = {
   {"fopen",          (uint32_t)fopen},
   {"fprintf",        (uint32_t)fprintf},
   {"fputc",          (uint32_t)fputc},
+  {"fputs",          (uint32_t)fputs},
   {"fread",          (uint32_t)fread},
   {"free",           (uint32_t)free},
   {"fseek",          (uint32_t)fseek},
   {"ftell",          (uint32_t)ftell},
   {"fwrite",         (uint32_t)fwrite},
+  {"getenv",         (uint32_t)getenv},
   {"malloc",         (uint32_t)malloc},
   {"memcpy",         (uint32_t)memcpy},
+  {"memmove",        (uint32_t)memmove},
   {"memset",         (uint32_t)memset},
   {"perror",         (uint32_t)perror},
   {"puts",           (uint32_t)puts},
   {"printf",         (uint32_t)printf},
+  {"setlocale",      (uint32_t)setlocale},
   {"signal",         (uint32_t)signal},
   {"sprintf",        (uint32_t)sprintf},
   {"strcat",         (uint32_t)strcat},
+  {"strchr",         (uint32_t)strchr},
   {"strcpy",         (uint32_t)strcpy},
   {"strlen",         (uint32_t)strlen},
-  {"system",         (uint32_t)system}
+  {"strncmp",        (uint32_t)strncmp},
+  {"system",         (uint32_t)system},
+  {"vfprintf",       (uint32_t)vfprintf}
 };
 static uint32_t msvcrt_symnum = sizeof(msvcrt_symarray)/sizeof(struct symbol);
 
