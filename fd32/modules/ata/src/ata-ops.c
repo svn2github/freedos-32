@@ -45,7 +45,7 @@ int dev_not_ready(const struct ata_device* dev)
 }
 
 
-int device_select( unsigned long max_wait, const struct ata_device* dev )
+int device_select( unsigned long max_wait, const struct ata_device* dev, int test_busy )
 {
     int res;
     extern int irq_reset(int i);
@@ -59,7 +59,7 @@ int device_select( unsigned long max_wait, const struct ata_device* dev )
             return ATA_ESLEEP;
 #endif
     }    
-    if(dev_is_busy(dev))
+    if(test_busy && dev_is_busy(dev))
     {
         res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
         if(res)
@@ -127,7 +127,7 @@ int pio_data_in(unsigned long max_wait, BYTE count, DWORD start, void* buffer, s
     BYTE status;
     WORD* b = (WORD*)buffer;
 
-    res = device_select( max_wait, dev );
+    res = device_select( max_wait, dev, command != ATA_CMD_IDENTIFY && command != ATA_CMD_IDENTIFY_PD);
     if(res)
         return res;
 
@@ -256,7 +256,7 @@ int pio_data_out(unsigned long max_wait, BYTE count, DWORD start, void* buffer, 
     BYTE status;
     WORD* b = (WORD*)buffer;
 
-    res = device_select( max_wait, dev );
+    res = device_select( max_wait, dev, TRUE );
     if(res)
         return res;
     write_reg_start_sect(start, dev);
@@ -443,7 +443,7 @@ int ata_set_multiple( struct ata_device* dev, BYTE sectors)
 
     if(sectors > dev->max_multiple_rw)
         return ATA_EINVPARAM;
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, TRUE );
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_CNT, sectors);
@@ -455,7 +455,7 @@ int ata_standby( struct ata_device* dev, BYTE timer)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, FALSE );
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_CNT, timer);
@@ -467,7 +467,7 @@ int ata_idle( struct ata_device* dev, BYTE timer)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, FALSE );
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_CNT, timer);
@@ -479,7 +479,7 @@ int ata_standby_imm( struct ata_device* dev)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, FALSE );
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_STANDBY_IMMEDIATE);
@@ -490,7 +490,7 @@ int ata_sleep( struct ata_device* dev)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, FALSE );
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_SLEEP);
@@ -529,7 +529,7 @@ int ata_check_standby( struct ata_device* dev)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, FALSE );
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_CHECK_POW_MODE);
@@ -547,7 +547,7 @@ int ata_set_pio_mode( struct ata_device* dev, int mode)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, TRUE );
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_FEATURES, 3);
@@ -576,7 +576,7 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
     int buffer_overflow = FALSE;
 
     *total_bytes = 0;
-    res = device_select( MAX_WAIT_1, dev );
+    res = device_select( MAX_WAIT_1, dev, FALSE );
     if(res)
     {
         ebuff[0] = 0;
