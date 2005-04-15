@@ -11,7 +11,7 @@
 #include "disk.h"
 #include "ata-ops.h"
 #include "partscan.h"
-#include "interface.h"
+#include "ata-interf.h"
 
 extern int ata_global_flags;
 //#define _DEBUG_
