@@ -25,9 +25,12 @@ enum
   FD32_UNMOUNT,
   FD32_GETATTR,
   FD32_SETATTR,
-  FD32_REOPENDIR,
+  FD32_REOPENDIR, /* TODO: remove */
   FD32_GETFSINFO,
   FD32_GETFSFREE,
+  FD32_FINDFILE,
+  FD32_FINDFIRST, /* DOS stile short file names only */
+  FD32_FINDNEXT,  /* DOS stile short file names only */
   /* Block device functions */
   FD32_BLOCKWRITE = 0x100,
   FD32_BLOCKREAD,
@@ -320,6 +323,41 @@ typedef struct fd32_getfsfree
 }
 fd32_getfsfree_t;
 /* Returns 0 on success */
+
+
+/**
+ * FINDFILE - Search an open directory for a file
+ * Returns 0 on success.
+ */
+struct fd32_findfile
+{
+	void *dir;        /* Opaque handle of the directory */
+	const char *name; /* File name to lookup */
+	void *find_data;  /* OUT: LFN finddata structure */
+};
+
+
+/**
+ * FINDFIRST - DOS-style findfirst for short file names
+ * Returns 0 on success.
+ */
+struct fd32_findfirst
+{
+	void *volume;     /* Opaque handle of the file system volume */
+	const char *path; /* Directory to lookup into */
+	void *find_data;  /* IN/OUT: 44 bytes DOS finddata block */
+};
+
+
+/**
+ * FINDNEXT - DOS-style findnext for short file names
+ * Returns 0 on success.
+ */
+struct fd32_findnext
+{
+	void *volume;    /* Opaque handle of the file system volume */
+	void *find_data; /* IN/OUT: 44 bytes DOS finddata block */
+};
 
 
 /****************************************************************************/
