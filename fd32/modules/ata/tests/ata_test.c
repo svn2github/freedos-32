@@ -6,7 +6,7 @@
 
 #include <dr-env.h>
 #include <devices.h>
-#include "interface.h"
+#include "ata-interf.h"
 
 
 static fd32_request_t *ata_request;
