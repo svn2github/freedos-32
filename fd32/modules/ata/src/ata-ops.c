@@ -59,7 +59,7 @@ int device_select( unsigned long max_wait, const struct ata_device* dev, int tes
             return ATA_ESLEEP;
 #endif
     }    
-    if(test_busy && dev_is_busy(dev))
+    if(dev_is_busy(dev))
     {
         res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
         if(res)
@@ -77,7 +77,7 @@ int device_select( unsigned long max_wait, const struct ata_device* dev, int tes
                 return ATA_ETOBUSY;
         }
     }
-    if(dev_not_ready(dev))
+    if(test_busy && dev_not_ready(dev))
     {
         res = ata_poll(max_wait, &dev_not_ready, dev);
         if(res)
