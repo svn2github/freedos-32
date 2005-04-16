@@ -172,7 +172,7 @@ static int gen_short_fname1(char *Dest, char *Source, DWORD Flags)
 /* Returns zero if the names match, or nonzero if they don't match.        */
 /* TODO: Works only on single byte character sets!                       */
 /* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
-static int compare_fcb_names(BYTE *Name1, BYTE *Name2)
+int fat_compare_fcb_names(BYTE *Name1, BYTE *Name2)
 {
   int k;
   for (k = 0; k < 11; k++)
@@ -234,7 +234,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
         memcpy(ShortName, Aux, 11);
         return 1;
       }
-      if (compare_fcb_names(E.Name, Aux) == 0) break; /* was from the FS layer */
+      if (fat_compare_fcb_names(E.Name, Aux) == 0) break; /* was from the FS layer */
     }
   }
   return FD32_EACCES;

@@ -183,3 +183,66 @@ int fat_find(tFile *Dir, char *FileSpec, DWORD Flags, tFatFind *Ff)
     }
   return Res;
 }
+
+
+/* Backend for the DOS-style FINDFIRST and FINDNEXT system calls.   */
+/* Searches for the search template specified in the buffer in      */
+/* an open directory "f", then closes the directory.                */
+/* On success, returns 0 and fills the output fields of the buffer. */
+/* On failure, returns a negative error code.                       */
+static int dos_find(tFile *f, fd32_fs_dosfind_t *find_data)
+{
+  tFatFind ff;
+  int res;
+
+  while ((res = readdir(f, &ff)) == 0)
+  {
+    /* According to the RBIL, if search attributes are not 08h (volume  */
+    /* label) all files with at most the specified attributes should be */
+    /* returned (archive and readonly are always returned), otherwise   */
+    /* only the volume label should be returned.                        */
+    if (find_data->SearchAttr != FD32_AVOLID)
+    {
+      BYTE a = find_data->SearchAttr | FD32_AARCHIV | FD32_ARDONLY;
+      if ((a | ff.SfnEntry.Attr) != a) continue;
+    }
+    else
+    {
+      if (ff.SfnEntry.Attr != FD32_AVOLID) continue;
+    }
+    /* Now that attributes match, compare the file names */
+    if (fat_compare_fcb_names(ff.SfnEntry.Name, find_data->SearchTemplate)) continue;
+    /* Ok, we have found the file, fill the output fields of "find_data" */
+    find_data->Attr  = ff.SfnEntry.Attr;
+    find_data->MTime = (WORD) ff.SfnEntry.WrtTime;
+    find_data->MDate = (WORD) (ff.SfnEntry.WrtTime >> 16);
+    find_data->Size  = ff.SfnEntry.FileSize;
+    strcpy(find_data->Name, ff.ShortName);
+    ((tFindRes *) find_data->Reserved)->EntryCount = f->TargetPos >> 5;
+    ((tFindRes *) find_data->Reserved)->FirstDirCluster = FIRSTCLUSTER(f->DirEntry);
+    return fat_close(f);
+  }
+  fat_close(f);
+  return res;
+}
+
+
+/* The DOS-style FINDFIRST system call */
+/* TODO: Clean up const qualifiers */
+int fat_findfirst(tVolume *v, const char *path, fd32_fs_dosfind_t *find_data)
+{
+  tFile *f;
+  int res = fat_open(v, (char *) path, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &f);
+  if (res < 0) return res;
+  return dos_find(f, find_data);
+}
+
+
+/* The DOS-style FINDNEXT system call */
+int fat_findnext(tVolume *v, fd32_fs_dosfind_t *find_data)
+{
+  tFile *f;
+  int res = fat_reopendir(v, (tFindRes *) find_data->Reserved, &f);
+  if (res < 0) return res;
+  return dos_find(f, find_data);
+}

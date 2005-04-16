@@ -103,6 +103,26 @@ int fat_request(DWORD Function, void *Params)
       #endif
       return fat_readdir(F, (fd32_fs_lfnfind_t *) X->Entry);
     }
+    case FD32_FINDFIRST:
+    {
+      struct fd32_findfirst *p = (struct fd32_findfirst *) Params;
+      tVolume *v = (tVolume *) p->volume;
+      if (v->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(v)) < 0) return Res;
+      #endif
+      return fat_findfirst(v, p->path, (fd32_fs_dosfind_t *) p->find_data);
+    }
+    case FD32_FINDNEXT:
+    {
+      struct fd32_findnext *p = (struct fd32_findnext *) Params;
+      tVolume *v = (tVolume *) p->volume;
+      if (v->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(v)) < 0) return Res;
+      #endif
+      return fat_findnext(v, (fd32_fs_dosfind_t *) p->find_data);
+    }
     case FD32_FFLUSH:
     {
       #ifdef FATWRITE

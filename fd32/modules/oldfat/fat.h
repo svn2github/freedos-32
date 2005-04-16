@@ -360,6 +360,7 @@ BYTE lfn_checksum   (tDirEntry *D);
 int  gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint);
 #endif
 int fat_expand_fcb_name(char *Dest, BYTE *Source); /* was from the FS layer */
+int fat_compare_fcb_names(BYTE *Name1, BYTE *Name2); /* was from the FS layer */
 
 
 /* MOUNT.C - Mount a FAT volume initializing all its data */
@@ -395,8 +396,10 @@ int   fat_get_fsfree(fd32_getfsfree_t *F);
 
 
 /* READDIR.C - File find procedures */
-int fat_find   (tFile *F, char *FileSpec, DWORD Flags, tFatFind *FindData);
-int fat_readdir(tFile *P, fd32_fs_lfnfind_t *Entry);
+int fat_find     (tFile *F, char *FileSpec, DWORD Flags, tFatFind *FindData);
+int fat_readdir  (tFile *P, fd32_fs_lfnfind_t *Entry);
+int fat_findfirst(tVolume *v, const char *path, fd32_fs_dosfind_t *find_data);
+int fat_findnext (tVolume *v, fd32_fs_dosfind_t *find_data);
 
 /* READWRIT.C - Write a block of data into a file truncating or extending it */
 int fat_read (tFile *F, void *Buffer, int Size);
