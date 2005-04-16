@@ -110,7 +110,10 @@ void block_dump(unsigned char* b, int n)
             d = (struct ata_device *) x->DeviceId;
             x->BlockSize = d->bytes_per_sector;
             x->TotalBlocks = d->total_blocks;
-            x->Type = d->type;
+            if(d->type == 0xFFFFFFFF)
+                x->Type = FD32_BIGEN;
+            else
+                x->Type = d->type;
             x->MultiBootId = d->multiboot_id;
 #ifdef _DEBUG_
 
