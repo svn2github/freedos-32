@@ -71,7 +71,7 @@ struct ide_interface
 #define ATA_ETOBUSY -1
 #define ATA_ETOREADY -2
 #define ATA_ETOIRQ -3
-#define ATA_EDRQ -4
+#define ATA_EDRQ_CLEAR -4
 #define ATA_ESTATUS -5
 #define ATA_ESYNTAX -6
 #define ATA_EINVPARAM -7
@@ -80,6 +80,7 @@ struct ide_interface
 #define ATA_EOWRFL -10
 #define ATA_EPIFATAL -11
 #define ATA_ESLEEP -12
+#define ATA_DRQ_SET -13
 
 /* Bits in the capabilities word */
 #define ATA_CAPAB_LBA 0x200

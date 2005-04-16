@@ -45,9 +45,10 @@ int dev_not_ready(const struct ata_device* dev)
 }
 
 
-int device_select( unsigned long max_wait, const struct ata_device* dev, int test_ready )
+int device_select( unsigned long max_wait, const struct ata_device* dev)
 {
     int res;
+    BYTE status;
     extern int irq_reset(int i);
 
     if(dev->flags & DEV_FLG_SLEEP)
@@ -55,15 +56,22 @@ int device_select( unsigned long max_wait, const struct ata_device* dev, int tes
 #if 1
         return ATA_ESLEEP;
 #else
+
         if(ata_reset( dev ) < 0)
             return ATA_ESLEEP;
 #endif
-    }    
+
+    }
     if(dev_is_busy(dev))
     {
         res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
         if(res)
             return ATA_ETOBUSY;
+    }
+    status = fd32_inb(dev->interface->command_port + CMD_STATUS);
+    if(status & ATA_STATUS_DRQ)
+    {
+        return ATA_DRQ_SET;
     }
     /* Skip device selection if already selected */
     if(dev->interface->current_dev_bit != dev->dev_bit)
@@ -76,24 +84,12 @@ int device_select( unsigned long max_wait, const struct ata_device* dev, int tes
             if(res)
                 return ATA_ETOBUSY;
         }
+        status = fd32_inb(dev->interface->command_port + CMD_STATUS);
+        if(status & ATA_STATUS_DRQ)
+        {
+            return ATA_DRQ_SET;
+        }
     }
-    if(test_ready && dev_not_ready(dev))
-    {
-        res = ata_poll(max_wait, &dev_not_ready, dev);
-        if(res)
-            return ATA_ETOREADY;
-    }
-    /* DRQ is suppsed to be cleard at this point, but unfortunately DRQ seem to be */
-    /* allways set on some old drives */
-#if 0
-    status = fd32_inb(dev->interface->command_port + CMD_STATUS);//------------
-    if((status & ATA_STATUS_DRQ) != ATA_STATUS_DRQ)
-    {
-        fd32_message("Error: DRQ enabled before command written");
-        while(1)
-            ;
-    }
-#endif
     irq_reset(dev->interface->irq);
 
     return 0;
@@ -127,7 +123,7 @@ int pio_data_in(unsigned long max_wait, BYTE count, DWORD start, void* buffer, s
     BYTE status;
     WORD* b = (WORD*)buffer;
 
-    res = device_select( max_wait, dev, command != ATA_CMD_IDENTIFY && command != ATA_CMD_IDENTIFY_PD);
+    res = device_select( max_wait, dev);
     if(res)
         return res;
 
@@ -158,7 +154,7 @@ int pio_data_in(unsigned long max_wait, BYTE count, DWORD start, void* buffer, s
                 return ATA_ETOIRQ;
         }
         if((status & ATA_STATUS_DRQ) != ATA_STATUS_DRQ)
-            return ATA_EDRQ;
+            return ATA_EDRQ_CLEAR;
         /* If sectors_per_block == 0, then block mode is not enabled */
         if(dev->sectors_per_block == 0)
         {
@@ -256,7 +252,7 @@ int pio_data_out(unsigned long max_wait, BYTE count, DWORD start, void* buffer, 
     BYTE status;
     WORD* b = (WORD*)buffer;
 
-    res = device_select( max_wait, dev, TRUE );
+    res = device_select( max_wait, dev );
     if(res)
         return res;
     write_reg_start_sect(start, dev);
@@ -275,7 +271,7 @@ int pio_data_out(unsigned long max_wait, BYTE count, DWORD start, void* buffer, 
     do
     {
         if((status & ATA_STATUS_DRQ) != ATA_STATUS_DRQ)
-            return ATA_EDRQ;
+            return ATA_EDRQ_CLEAR;
         /* If sectors_per_block == 0, then block mode is not enabled */
         if(dev->sectors_per_block == 0)
         {
@@ -443,7 +439,7 @@ int ata_set_multiple( struct ata_device* dev, BYTE sectors)
 
     if(sectors > dev->max_multiple_rw)
         return ATA_EINVPARAM;
-    res = device_select( MAX_WAIT_1, dev, TRUE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_CNT, sectors);
@@ -455,7 +451,7 @@ int ata_standby( struct ata_device* dev, BYTE timer)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev, FALSE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_CNT, timer);
@@ -467,7 +463,7 @@ int ata_idle( struct ata_device* dev, BYTE timer)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev, FALSE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_CNT, timer);
@@ -479,7 +475,7 @@ int ata_standby_imm( struct ata_device* dev)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev, FALSE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_STANDBY_IMMEDIATE);
@@ -490,7 +486,7 @@ int ata_sleep( struct ata_device* dev)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev, FALSE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_SLEEP);
@@ -501,7 +497,7 @@ int ata_sreset( struct ata_device* dev)
 {
     BYTE b;
     int res;
-    
+
     b = fd32_inb(dev->interface->control_port);
     fd32_outb(dev->interface->control_port, b | ATA_SRST);
     delay(8000);
@@ -512,7 +508,7 @@ int ata_sreset( struct ata_device* dev)
     if(res<0)
         return res;
     /* FIXME: This is a hack! What PIO modes does the host support? */
-    /* On what type of bus does the controller reside? */           
+    /* On what type of bus does the controller reside? */
     if(!(ata_global_flags & ATA_GFLAG_PIO_MODE))
     {
         ata_global_flags |= ATA_GFLAG_PIO_MODE;
@@ -529,7 +525,7 @@ int ata_check_standby( struct ata_device* dev)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev, FALSE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_CHECK_POW_MODE);
@@ -547,7 +543,7 @@ int ata_set_pio_mode( struct ata_device* dev, int mode)
 {
     int res;
 
-    res = device_select( MAX_WAIT_1, dev, TRUE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
         return res;
     fd32_outb(dev->interface->command_port + CMD_FEATURES, 3);
@@ -576,7 +572,7 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
     int buffer_overflow = FALSE;
 
     *total_bytes = 0;
-    res = device_select( MAX_WAIT_1, dev, FALSE );
+    res = device_select( MAX_WAIT_1, dev);
     if(res)
     {
         ebuff[0] = 0;
@@ -689,8 +685,8 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
             ebuff[1] = dev->status_reg = status;
             ebuff[2] = dev->error_reg = fd32_inb(dev->interface->command_port + CMD_ERROR);
             ebuff[3] = ir;
-            *(int*)&ebuff[4] = ATA_EDRQ;
-            return ATA_EDRQ;
+            *(int*)&ebuff[4] = ATA_EDRQ_CLEAR;
+            return ATA_EDRQ_CLEAR;
         }
         count = fd32_inb(dev->interface->command_port + CMD_PI_COUNT_H);
         count <<= 8;
