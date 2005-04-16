@@ -69,16 +69,16 @@ int ata_test_init(struct process_info *p)
         return 0;
     }
     
-    fd32_message("Searching for partition \"hda1\"...\n");
-    part = fd32_dev_search("hda1");
+    fd32_message("Searching for device \"hda\"...\n");
+    part = fd32_dev_search("hda");
     if (part < 0)
     {
-        fd32_message("hda1 not found!\n");
+        fd32_message("hda not found!\n");
         return 0;
     }
     if (fd32_dev_get(part, &ata_request, &ata_devid, NULL, 0) < 0)
     {
-        fd32_message("Failed to get partiton device data!!!\n");
+        fd32_message("Failed to get device data!!!\n");
         return 0;
     }
     if ((b = fd32_kmem_get(1024*1024)) == NULL)
