@@ -510,7 +510,7 @@ int cd_premount( struct cd_device* d )
         fd32_log_printf("blocks=%lu bytes/sect=%lu\n", d->total_blocks, d->bytes_per_sector);
 #endif
 
-        d->flags &= ~CD_FLAG_MOUNTED;
+        d->flags |= CD_FLAG_MOUNTED;
         return 0;
     }
 }
