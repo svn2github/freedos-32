@@ -29,8 +29,8 @@ enum
   FD32_GETFSINFO,
   FD32_GETFSFREE,
   FD32_FINDFILE,
-  FD32_FINDFIRST, /* DOS stile short file names only */
-  FD32_FINDNEXT,  /* DOS stile short file names only */
+  FD32_FINDFIRST, /* DOS-style short file names only */
+  FD32_FINDNEXT,  /* DOS-style short file names only */
   /* Block device functions */
   FD32_BLOCKWRITE = 0x100,
   FD32_BLOCKREAD,
@@ -345,6 +345,7 @@ struct fd32_findfirst
 {
 	void *volume;     /* Opaque handle of the file system volume */
 	const char *path; /* Directory to lookup into */
+	int attrib;       /* Mask of allowable DOS attributes */
 	void *find_data;  /* IN/OUT: 44 bytes DOS finddata block */
 };
 

@@ -228,11 +228,18 @@ static int dos_find(tFile *f, fd32_fs_dosfind_t *find_data)
 
 
 /* The DOS-style FINDFIRST system call */
-/* TODO: Clean up const qualifiers */
-int fat_findfirst(tVolume *v, const char *path, fd32_fs_dosfind_t *find_data)
+/* TODO: Remove useless string copy */
+int fat_findfirst(tVolume *v, const char *path, int attributes, fd32_fs_dosfind_t *find_data)
 {
+  char dir[FD32_LFNPMAX];
+  char name[FD32_LFNPMAX];
+  int res;
   tFile *f;
-  int res = fat_open(v, (char *) path, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &f);
+  find_data->SearchAttr = attributes;
+  fat_split_path(path, dir, name);
+  res = fat_build_fcb_name(find_data->SearchTemplate, name);
+  if (res < 0) return res;
+  res = fat_open(v, dir, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &f);
   if (res < 0) return res;
   return dos_find(f, find_data);
 }
@@ -245,4 +252,19 @@ int fat_findnext(tVolume *v, fd32_fs_dosfind_t *find_data)
   int res = fat_reopendir(v, (tFindRes *) find_data->Reserved, &f);
   if (res < 0) return res;
   return dos_find(f, find_data);
+}
+
+
+/* TODO: enable search attributes/flags  */
+int fat_findfile(tFile *f, const char *name, fd32_fs_lfnfind_t *find_data)
+{
+  tFatFind ff;
+  int res;
+  while ((res = readdir(f, &ff)) == 0)
+//    if (((AllowableAttr | FindData->Attr) == AllowableAttr)
+//     && ((RequiredAttr & FindData->Attr) == RequiredAttr))
+      if ((fat_fnameicmp(ff.LongName, name) == 0)
+       || (fat_fnameicmp(ff.ShortName, name) == 0))
+        return 0;
+  return res;
 }

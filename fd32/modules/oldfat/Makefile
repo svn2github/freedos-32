@@ -16,7 +16,7 @@ ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
 
 OBJS =  attrib.o blockio.o creat.o dir.o fat12.o fat16.o fat32.o fatreq.o\
-	lfn.o mount.o open.o readdir.o readwrit.o support.o fatinit.o
+	lfn.o mount.o open.o readdir.o readwrit.o support.o fatinit.o wildcard.o
 
 all: fat.o
 

@@ -205,13 +205,10 @@ static tFile *take_file(void)
 
 /* Splits a full valid path name (path + file name) into its path and  */
 /* file name components.                                               */
-/* Called by fat_open, fat_unlink (creat.c), fsvol_lfn_findfirst       */
-/* (find.c), fsvol_dos_findfirst (find.c) and fsvol_rename (rename.c). */
-/* TODO: Fix list of callers and name... */
-void split_path(char *FullPath, char *Path, char *Name)
+void fat_split_path(const char *FullPath, char *Path, char *Name)
 {
-  char *NameStart;
-  char *s;
+  const char *NameStart;
+  const char *s;
   
   /* Move to the end of the FullPath string */
   for (s = FullPath; *s; s++);
@@ -564,7 +561,7 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
   /* Use the Fp file structure to descend the path. If no file  */
   /* name is provided (the FileName string ends with '\') apply */
   /* the specified opening mode directly to Fp and return it.   */
-  split_path(FileName, Path, Name);
+  fat_split_path(FileName, Path, Name);
   if ((Res = descend_path(V, Path, &Fp)) < 0) return Res;
   if (!(*Name))
   {

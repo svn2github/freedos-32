@@ -123,6 +123,16 @@ int fat_request(DWORD Function, void *Params)
       #endif
       return fat_findnext(v, (fd32_fs_dosfind_t *) p->find_data);
     }
+    case FD32_FINDFILE:
+    {
+      struct fd32_findfile *p = (struct fd32_findfile *) Params;
+      tFile *f = (tFile *) p->dir;
+      if (f->FilSig != FAT_FILSIG) return FD32_EBADF;
+      #ifdef FATREMOVABLE
+      if ((Res = fat_mediachange(f->V)) < 0) return Res;
+      #endif
+      return fat_findfile(f, p->name, (fd32_fs_lfnfind_t *) p->find_data);
+    }
     case FD32_FFLUSH:
     {
       #ifdef FATWRITE

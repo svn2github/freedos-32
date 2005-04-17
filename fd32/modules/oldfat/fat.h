@@ -359,6 +359,7 @@ BYTE lfn_checksum   (tDirEntry *D);
 #ifdef FATWRITE
 int  gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint);
 #endif
+int fat_build_fcb_name(BYTE *Dest, char *Source); /* was from the FS layer */
 int fat_expand_fcb_name(char *Dest, BYTE *Source); /* was from the FS layer */
 int fat_compare_fcb_names(BYTE *Name1, BYTE *Name2); /* was from the FS layer */
 
@@ -377,7 +378,7 @@ int    fat_isopen   (tFileId *Fid);
 int    fat_syncentry(tFile *F);
 void   fat_syncpos  (tFile *F);
 tFile *fat_getfile  (DWORD FileId);
-void   split_path   (char *FullPath, char *Path, char *Name);
+void   fat_split_path(const char *FullPath, char *Path, char *Name);
 int    fat_open     (tVolume *V, char *FileName, DWORD Mode, WORD Attr,
                      WORD AliasHint, tFile **F);
 int    fat_reopendir(tVolume *V, tFindRes *Id, tFile **F);
@@ -398,8 +399,10 @@ int   fat_get_fsfree(fd32_getfsfree_t *F);
 /* READDIR.C - File find procedures */
 int fat_find     (tFile *F, char *FileSpec, DWORD Flags, tFatFind *FindData);
 int fat_readdir  (tFile *P, fd32_fs_lfnfind_t *Entry);
-int fat_findfirst(tVolume *v, const char *path, fd32_fs_dosfind_t *find_data);
+int fat_findfirst(tVolume *v, const char *path, int attributes, fd32_fs_dosfind_t *find_data);
 int fat_findnext (tVolume *v, fd32_fs_dosfind_t *find_data);
+int fat_findfile (tFile *f, const char *name, fd32_fs_lfnfind_t *find_data);
+
 
 /* READWRIT.C - Write a block of data into a file truncating or extending it */
 int fat_read (tFile *F, void *Buffer, int Size);
@@ -407,5 +410,7 @@ int fat_read (tFile *F, void *Buffer, int Size);
 int fat_write(tFile *F, void *Buffer, int Size);
 #endif
 
-#endif /* #ifndef __FD32_FAT_H */
+/* WILDCARD.C - Compare UTG-8 file names with wildcards */
+int fat_fnameicmp(const char *s1, const char *s2);
 
+#endif /* #ifndef __FD32_FAT_H */

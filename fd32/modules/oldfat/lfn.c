@@ -242,6 +242,58 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
 #endif /* #ifdef FATWRITE */
 
 
+/* Given a file name Source in UTF-8, checks if it's valid */
+/* and returns in Dest the file name in FCB format.        */
+/* On success, returns 0 if no wildcards are present, or a */
+/* positive number if '?' wildcards are present in Dest.   */
+/* On failure, returns a negative error code.              */
+/* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
+int fat_build_fcb_name(BYTE *Dest, char *Source)
+{
+  int   WildCards = 0;
+  char  SourceU[FD32_LFNPMAX];
+  int   Res;
+  int   k;
+
+  /* Name and extension have to be padded with spaces */
+  memset(Dest, 0x20, 11);
+  
+  /* Build ".          " and "..         " if Source is "." or ".." */
+  if ((strcmp(Source, ".") == 0) || (strcmp(Source, "..") == 0))
+  {
+    for (; *Source; Source++, Dest++) *Dest = *Source;
+    return 0;
+  }
+
+  if ((Res = utf8_strupr(SourceU, Source)) < 0) return FD32_EUTF8;
+  for (k = 0; (SourceU[k] != '.') && SourceU[k]; k++);
+  utf8_to_oemcp(SourceU, SourceU[k] ? k : -1, Dest, 8);
+  if (SourceU[k]) utf8_to_oemcp(&SourceU[k + 1], -1, &Dest[8], 3);
+
+  if (Dest[0] == ' ') return FD32_EFORMAT;
+  if (Dest[0] == 0xE5) Dest[0] = 0x05;
+  for (k = 0; k < 11;)
+  {
+    if (Dest[k] < 0x20) return FD32_EFORMAT;
+    switch (Dest[k])
+    {
+      case '"': case '+': case ',': case '.': case '/': case ':': case ';':
+      case '<': case '=': case '>': case '[': case '\\': case ']':  case '|':
+        return FD32_EFORMAT;
+      case '?': WildCards = 1;
+                k++;
+                break;
+      case '*': WildCards = 1;
+                if (k < 8) for (; k < 8; k++) Dest[k] = '?';
+                else for (; k < 11; k++) Dest[k] = '?';
+                break;
+      default : k += oemcp_skipchar(&Dest[k]);
+    }
+  }
+  return WildCards;
+}
+
+
 /* Gets a UTF-8 short file name from an FCB file name. */
 /* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
 int fat_expand_fcb_name(char *Dest, BYTE *Source)
