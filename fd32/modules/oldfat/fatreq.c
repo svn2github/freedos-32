@@ -111,7 +111,7 @@ int fat_request(DWORD Function, void *Params)
       #ifdef FATREMOVABLE
       if ((Res = fat_mediachange(v)) < 0) return Res;
       #endif
-      return fat_findfirst(v, p->path, (fd32_fs_dosfind_t *) p->find_data);
+      return fat_findfirst(v, p->path, p->attrib, (fd32_fs_dosfind_t *) p->find_data);
     }
     case FD32_FINDNEXT:
     {
