@@ -26,5 +26,6 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
                     int max_count,        /* max number of bytes per transfer */
                     unsigned long* total_bytes, /* return actual number of bytes transfered */
                     unsigned long buffer_size); /* for safety, bytes */
+int dev_is_busy(const struct ide_interface* iface);
 
 #endif

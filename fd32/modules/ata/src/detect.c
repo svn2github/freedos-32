@@ -203,7 +203,7 @@ int ata_detect(struct ide_interface *intf, void (*disk_add)(struct ata_device *d
 #endif
     intf->dev0 = NULL;
     intf->dev1 = NULL;
-    if(detect_poll(MAX_WAIT_DETECT, intf) < 0)
+    if(ata_poll(MAX_WAIT_DETECT, &dev_is_busy, intf) < 0)
     {
 #ifdef _DEBUG_
         MSG("Timeout on BSY bit, aborting detection\n");

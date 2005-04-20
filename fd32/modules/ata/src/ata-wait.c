@@ -61,7 +61,7 @@ BYTE ata_cmd_irq(unsigned long max_wait, struct ide_interface *p)
 
 
 
-int ata_poll(unsigned long max_wait, int (*test)(const struct ata_device*), const struct ata_device* d)
+int ata_poll(unsigned long max_wait, int (*test)(const struct ide_interface*), const struct ide_interface* iface)
 {
     int tout_event;
     volatile int tout;
@@ -71,7 +71,7 @@ int ata_poll(unsigned long max_wait, int (*test)(const struct ata_device*), cons
     while (!tout)
     {
         //        fd32_cpu_idle();
-        if(!test(d))
+        if(!test(iface))
             break;
     }
     fd32_cli();
@@ -85,25 +85,3 @@ int ata_poll(unsigned long max_wait, int (*test)(const struct ata_device*), cons
     return -1;
 }
 
-int detect_poll(unsigned long max_wait, struct ide_interface* intf)
-{
-    int tout_event;
-    volatile int tout;
-
-    tout = 0;
-    tout_event = fd32_event_post(max_wait, private_timed_out, (void *)&tout);
-    while (!tout)
-    {
-        if(!(fd32_inb(intf->command_port + CMD_STATUS) & ATA_STATUS_BSY))
-            break;
-    }
-    fd32_cli();
-    if (!tout)
-    {
-        fd32_event_delete(tout_event);
-        fd32_sti();
-        return 0;
-    }
-    fd32_sti();
-    return -1;
-}

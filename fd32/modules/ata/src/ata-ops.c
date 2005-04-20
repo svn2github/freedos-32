@@ -33,16 +33,22 @@ void reg_dump(const struct ata_device* dev)
 }
 #endif
 
-int dev_is_busy(const struct ata_device* dev)
+int dev_is_busy(const struct ide_interface* iface)
 {
-    return ((fd32_inb(dev->interface->control_port) & ATA_STATUS_BSY) != 0);
+    return ((fd32_inb(iface->control_port) & ATA_STATUS_BSY) != 0);
 }
 
 
-int dev_not_ready(const struct ata_device* dev)
+int dev_not_ready(const struct ide_interface* iface)
 {
-    return ((fd32_inb(dev->interface->control_port) & ATA_STATUS_DRDY) == 0);
+    return ((fd32_inb(iface->control_port) & ATA_STATUS_DRDY) == 0);
 }
+
+int bsy_drq_is_set(const struct ide_interface* iface)
+{
+    return (fd32_inb(iface->control_port) & (ATA_STATUS_BSY | ATA_STATUS_DRQ));
+}
+
 
 
 int device_select( unsigned long max_wait, const struct ata_device* dev)
@@ -62,32 +68,36 @@ int device_select( unsigned long max_wait, const struct ata_device* dev)
 #endif
 
     }
-    if(dev_is_busy(dev))
+    if(bsy_drq_is_set(dev->interface))
     {
-        res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
+        res = ata_poll(MAX_WAIT_1, &bsy_drq_is_set, dev->interface);
         if(res)
+        {
+            status = fd32_inb(dev->interface->command_port + CMD_STATUS);
+            if(status & ATA_STATUS_DRQ)
+            {
+                return ATA_DRQ_SET;
+            }
             return ATA_ETOBUSY;
-    }
-    status = fd32_inb(dev->interface->command_port + CMD_STATUS);
-    if(status & ATA_STATUS_DRQ)
-    {
-        return ATA_DRQ_SET;
+        }
     }
     /* Skip device selection if already selected */
     if(dev->interface->current_dev_bit != dev->dev_bit)
     {
         fd32_outb(dev->interface->command_port + CMD_DEVHEAD, dev->dev_bit);
         dev->interface->current_dev_bit = dev->dev_bit;
-        if(dev_is_busy(dev))
+        if(bsy_drq_is_set(dev->interface))
         {
-            res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
+            res = ata_poll(MAX_WAIT_1, &bsy_drq_is_set, dev->interface);
             if(res)
+            {
+                status = fd32_inb(dev->interface->command_port + CMD_STATUS);
+                if(status & ATA_STATUS_DRQ)
+                {
+                    return ATA_DRQ_SET;
+                }
                 return ATA_ETOBUSY;
-        }
-        status = fd32_inb(dev->interface->command_port + CMD_STATUS);
-        if(status & ATA_STATUS_DRQ)
-        {
-            return ATA_DRQ_SET;
+            }
         }
     }
     irq_reset(dev->interface->irq);
@@ -139,9 +149,9 @@ int pio_data_in(unsigned long max_wait, BYTE count, DWORD start, void* buffer, s
         {
             delay(400);
             fd32_inb(dev->interface->control_port);
-            if(dev_is_busy(dev))
+            if(dev_is_busy(dev->interface))
             {
-                res = ata_poll(max_wait, &dev_is_busy, dev);
+                res = ata_poll(max_wait, &dev_is_busy, dev->interface);
                 if(res)
                     return ATA_ETOBUSY;
             }
@@ -259,9 +269,9 @@ int pio_data_out(unsigned long max_wait, BYTE count, DWORD start, void* buffer, 
     fd32_outb(dev->interface->command_port + CMD_CNT, count);
     fd32_outb(dev->interface->command_port + CMD_COMMAND, command);
     delay(400);
-    if(dev_is_busy(dev))
+    if(dev_is_busy(dev->interface))
     {
-        res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
+        res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev->interface);
         if(res)
             return ATA_ETOBUSY;
     }
@@ -299,9 +309,9 @@ int pio_data_out(unsigned long max_wait, BYTE count, DWORD start, void* buffer, 
         {
             delay(400);
             fd32_inb(dev->interface->control_port);
-            if(dev_is_busy(dev))
+            if(dev_is_busy(dev->interface))
             {
-                res = ata_poll(max_wait, &dev_is_busy, dev);
+                res = ata_poll(max_wait, &dev_is_busy, dev->interface);
                 if(res)
                     return ATA_ETOBUSY;
             }
@@ -386,9 +396,9 @@ int command_ackn(struct ata_device* dev)
     {
         delay(400);
         fd32_inb(dev->interface->control_port);
-        if(dev_is_busy(dev))
+        if(dev_is_busy(dev->interface))
         {
-            res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
+            res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev->interface);
             if(res)
                 return ATA_ETOBUSY;
         }
@@ -504,7 +514,7 @@ int ata_sreset( struct ata_device* dev)
     fd32_outb(dev->interface->control_port, b & ~ATA_SRST);
     ata_wait(2500);
     /* What about the DEV bit? */
-    res = detect_poll(31*1000*1000, dev->interface);
+    res = ata_poll(31*1000*1000, &dev_is_busy, dev->interface);
     if(res<0)
         return res;
     /* FIXME: This is a hack! What PIO modes does the host support? */
@@ -598,9 +608,9 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
     }
     else
     {
-        if(dev_is_busy(dev))
+        if(dev_is_busy(dev->interface))
         {
-            res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev);
+            res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev->interface);
             if(res)
             {
                 ebuff[0] = 0;
@@ -632,9 +642,9 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
         {
             delay(400);
             fd32_inb(dev->interface->control_port);
-            if(dev_is_busy(dev))
+            if(dev_is_busy(dev->interface))
             {
-                res = ata_poll(max_wait, &dev_is_busy, dev);
+                res = ata_poll(max_wait, &dev_is_busy, dev->interface);
                 if(res)
                 {
                     ebuff[0] = 0;
