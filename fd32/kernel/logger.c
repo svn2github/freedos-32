@@ -90,21 +90,27 @@ void fd32_log_display()
 /* Shows and stores the buffer starting address, size and return current position      */
 DWORD fd32_log_stats(DWORD *start_addr, DWORD *size)
 {
-  #ifdef __BOCHS_DBG__
+#ifdef __BOCHS_DBG__
   message("FD32 debug logger configured for Bochs. No log buffer allocated.\n");
-  #else
+  /* Just in case */
+  if (start_addr != 0)
+    *start_addr = 0;
+  if (size != 0)
+    *size = 0;
+  return 0;
+#else
   char *k;
-
   if (start_addr == 0 && size == 0) {
   message("Log buffer allocated at %xh (%u bytes)\n",
           (unsigned) LogBufStart, LOGBUFSIZE);
   message("Current position is %xh, %u bytes written\n",
           (unsigned) LogBufPos, (unsigned) LogBufPos - (unsigned) LogBufStart);
   } else {
-    *start_addr = LogBufStart;
-    *size = LogBufPos - LogBufStart;
+    if (start_addr != 0)
+      *start_addr = LogBufStart;
+    if (size != 0)
+      *size = LogBufPos - LogBufStart;
   }
   return LogBufPos;
-
-  #endif
+#endif
 }

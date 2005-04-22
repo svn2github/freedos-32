@@ -54,5 +54,8 @@ void winbase_init(void)
 {
   message("Initing WINB module ...\n");
   install_kernel32();
+  install_user32();
+  install_advapi32();
+  install_oleaut32();
   install_msvcrt();
 }

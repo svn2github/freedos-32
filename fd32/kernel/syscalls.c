@@ -280,8 +280,8 @@ int add_call(char *name, DWORD address, int mode)
 
 
 /*
-   DLL Table management... pre-install FD32 syscalls' DLL
-   - Hanzac Chen 
+ * DLL Table management... pre-install FD32 syscalls' DLL
+ * - Hanzac Chen 
  */
 
 #define DLL_TABLE_NUMBER         (0x100)
@@ -304,7 +304,11 @@ static DWORD empty_table_num = DLL_TABLE_NUMBER-1;
 void destroy_process(DWORD dll_handle) {}
 /* void create_process(DWORD dll_handle) {} */
 
-/* if succeed, return the index of the table */
+/* Add the DLL export functions' table
+ * Return the index of the table if succeeded
+ * Note: if the DLL is created and loaded in application runtime, the handle is the image_base 
+ *       otherwise, the handle is system defined numbers, e.g. in the WINB module
+ */
 int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol *symbol_array)
 {
   int i;

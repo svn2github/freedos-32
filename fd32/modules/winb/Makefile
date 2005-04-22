@@ -22,7 +22,7 @@ C_OPT = -Wall -fexpensive-optimizations -O3 -finline-functions -nostdinc -mno-st
 ASM_OPT += $(INCL)
 LINK_OPT = -Bstatic -L$(NEWLIBC)/lib
 
-OBJS = kernel32.o msvcrt.o init.o
+OBJS = kernel32.o user32.o advapi32.o oleaut32.o msvcrt.o init.o
 
 all: winb.o
 

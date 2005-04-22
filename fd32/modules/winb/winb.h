@@ -73,7 +73,18 @@ uint32_t mem_get_region(uint32_t base, uint32_t size);
 int mem_free(uint32_t base, uint32_t size);
 
 
+#define HANDLE_OF_KERNEL32 0x01
+#define HANDLE_OF_USER32   0x02
+#define HANDLE_OF_GDI32    0x03
+#define HANDLE_OF_ADVAPI32 0x04
+#define HANDLE_OF_OLEAUT32 0x05
+#define HANDLE_OF_MSVCRT   0x10
+/* Note: MSVCRT handles (0x10 - 0x1F) should be reserved */
+
 void install_kernel32(void);
+void install_user32(void);
+void install_advapi32(void);
+void install_oleaut32(void);
 void install_msvcrt(void);
 
 #endif

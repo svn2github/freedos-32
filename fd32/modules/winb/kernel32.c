@@ -14,7 +14,7 @@
 
 
 static LPCSTR atomname = 0;
-static ATOM STDCALL fd32_imp__AddAtomA( LPCSTR str )
+static ATOM WINAPI fd32_imp__AddAtomA( LPCSTR str )
 {
   printf("AddAtomA %s\n", str);
   atomname = str;
@@ -22,12 +22,12 @@ static ATOM STDCALL fd32_imp__AddAtomA( LPCSTR str )
 }
 
 void restore_sp(DWORD s);
-static VOID STDCALL fd32_imp__ExitProcess( UINT ecode )
+static VOID WINAPI fd32_imp__ExitProcess( UINT ecode )
 {
   restore_sp(ecode);
 }
 
-static ATOM STDCALL fd32_imp__FindAtomA( LPCSTR str )
+static ATOM WINAPI fd32_imp__FindAtomA( LPCSTR str )
 {
   printf("FindAtomA %s\n", str);
   if (atomname != 0)
@@ -36,7 +36,7 @@ static ATOM STDCALL fd32_imp__FindAtomA( LPCSTR str )
     return 0;
 }
 
-static UINT STDCALL fd32_imp__GetAtomNameA( DWORD atom, LPSTR buffer, int nsize )
+static UINT WINAPI fd32_imp__GetAtomNameA( DWORD atom, LPSTR buffer, int nsize )
 {
   if (atomname != 0)
     strcpy(buffer, atomname);
@@ -45,7 +45,7 @@ static UINT STDCALL fd32_imp__GetAtomNameA( DWORD atom, LPSTR buffer, int nsize 
   return nsize;
 }
 
-static DWORD STDCALL fd32_imp__GetModuleHandleA( LPCSTR module )
+static DWORD WINAPI fd32_imp__GetModuleHandleA( LPCSTR module )
 {
   printf("Module Name: %s\n", module);
   return 0;
@@ -110,7 +110,7 @@ static BOOL WINAPI fd32_imp__QueryPerformanceCounter( PLARGE_INTEGER lpcount )
 }
 
 static PTOP_LEVEL_EXCEPTION_FILTER top_filter;
-static LPVOID STDCALL fd32_imp__SetUnhandledExceptionFilter( LPTOP_LEVEL_EXCEPTION_FILTER filter )
+static LPVOID WINAPI fd32_imp__SetUnhandledExceptionFilter( LPTOP_LEVEL_EXCEPTION_FILTER filter )
 {
   LPTOP_LEVEL_EXCEPTION_FILTER old = top_filter;
   
@@ -119,7 +119,7 @@ static LPVOID STDCALL fd32_imp__SetUnhandledExceptionFilter( LPTOP_LEVEL_EXCEPTI
   return old;
 }
 
-static LPVOID STDCALL fd32_imp__VirtualAlloc( LPVOID lpAddress, size_t dwSize, DWORD flAllocationType, DWORD flProtect )
+static LPVOID WINAPI fd32_imp__VirtualAlloc( LPVOID lpAddress, size_t dwSize, DWORD flAllocationType, DWORD flProtect )
 {
   if (mem_get_region((uint32_t)lpAddress, dwSize+sizeof(DWORD)) == 1) {
     DWORD *pd = (DWORD *) lpAddress;
@@ -130,7 +130,7 @@ static LPVOID STDCALL fd32_imp__VirtualAlloc( LPVOID lpAddress, size_t dwSize, D
   }
 }
 
-static BOOL STDCALL fd32_imp__VirtualFree( LPVOID lpAddress, size_t dwSize, DWORD dwFreeType )
+static BOOL WINAPI fd32_imp__VirtualFree( LPVOID lpAddress, size_t dwSize, DWORD dwFreeType )
 {
   DWORD *pd = (DWORD *)lpAddress;
   if (pd != NULL) {
@@ -141,7 +141,7 @@ static BOOL STDCALL fd32_imp__VirtualFree( LPVOID lpAddress, size_t dwSize, DWOR
   }
 }
 
-static LPVOID STDCALL fd32_imp__LocalAlloc( UINT uFlags, size_t uBytes )
+static LPVOID WINAPI fd32_imp__LocalAlloc( UINT uFlags, size_t uBytes )
 {
   DWORD *pd = (DWORD *)mem_get(uBytes+sizeof(DWORD));
   if (pd != NULL) {
@@ -159,7 +159,7 @@ static LPVOID STDCALL fd32_imp__LocalAlloc( UINT uFlags, size_t uBytes )
  * If the function succeeds, the return value is NULL.
  * If the function fails, the return value is equal to the handle of the local memory object. 
  */
-static HLOCAL STDCALL fd32_imp__LocalFree( HLOCAL hMem )
+static HLOCAL WINAPI fd32_imp__LocalFree( HLOCAL hMem )
 {
   DWORD *pd = (DWORD *)hMem;
   if (pd != NULL) {
@@ -171,29 +171,41 @@ static HLOCAL STDCALL fd32_imp__LocalFree( HLOCAL hMem )
 }
 
 
+/* ____________________
+ * |                   |
+ * | Console Functions |
+ * |___________________|
+ */
+static HANDLE WINAPI fd32_imp__CreateConsoleScreenBuffer(DWORD dwDesiredAccess, DWORD dwShareMode, SECURITY_ATTRIBUTES *lpSecurityAttributes, DWORD dwFlags, LPVOID lpScreenBufferData)
+{
+  return 0;
+}
+
+
+
 static char kernel32_name[] = "kernel32.dll";
-static uint32_t kernel32_handle = 0x01;
-static uint32_t kernel32_symnum = 0x10;
-static struct symbol kernel32_symarray[0x10] = {
-  {"AddAtomA",         (uint32_t)fd32_imp__AddAtomA},
-  {"ExitProcess",      (uint32_t)fd32_imp__ExitProcess},
-  {"FindAtomA",        (uint32_t)fd32_imp__FindAtomA},
-  {"GetAtomNameA",     (uint32_t)fd32_imp__GetAtomNameA},
-  {"GetCurrentProcessId", (uint32_t)fd32_imp__GetCurrentProcessId},
-  {"GetCurrentThreadId",  (uint32_t)fd32_imp__GetCurrentThreadId},
-  {"GetModuleHandleA", (uint32_t)fd32_imp__GetModuleHandleA},
+static struct symbol kernel32_symarray[] = {
+  {"AddAtomA",                    (uint32_t)fd32_imp__AddAtomA},
+  {"CreateConsoleScreenBuffer",   (uint32_t)fd32_imp__CreateConsoleScreenBuffer},
+  {"ExitProcess",                 (uint32_t)fd32_imp__ExitProcess},
+  {"FindAtomA",                   (uint32_t)fd32_imp__FindAtomA},
+  {"GetAtomNameA",                (uint32_t)fd32_imp__GetAtomNameA},
+  {"GetCurrentProcessId",         (uint32_t)fd32_imp__GetCurrentProcessId},
+  {"GetCurrentThreadId",          (uint32_t)fd32_imp__GetCurrentThreadId},
+  {"GetModuleHandleA",            (uint32_t)fd32_imp__GetModuleHandleA},
   {"GetSystemTimeAsFileTime",     (uint32_t)fd32_imp__GetSystemTimeAsFileTime},
-  {"GetTickCount",     (uint32_t)fd32_imp__GetTickCount},
-  {"LocalAlloc",       (uint32_t)fd32_imp__LocalAlloc},
-  {"LocalFree",        (uint32_t)fd32_imp__LocalFree},
+  {"GetTickCount",                (uint32_t)fd32_imp__GetTickCount},
+  {"LocalAlloc",                  (uint32_t)fd32_imp__LocalAlloc},
+  {"LocalFree",                   (uint32_t)fd32_imp__LocalFree},
   {"QueryPerformanceCounter",     (uint32_t)fd32_imp__QueryPerformanceCounter},
   {"SetUnhandledExceptionFilter", (uint32_t)fd32_imp__SetUnhandledExceptionFilter},
-  {"VirtualAlloc",     (uint32_t)fd32_imp__VirtualAlloc},
-  {"VirtualFree",      (uint32_t)fd32_imp__VirtualFree}
+  {"VirtualAlloc",                (uint32_t)fd32_imp__VirtualAlloc},
+  {"VirtualFree",                 (uint32_t)fd32_imp__VirtualFree}
 };
+static uint32_t kernel32_symnum = sizeof(kernel32_symarray)/sizeof(struct symbol);
 
 void install_kernel32(void)
 {
-  add_dll_table(kernel32_name, kernel32_handle, kernel32_symnum, kernel32_symarray);
+  add_dll_table(kernel32_name, HANDLE_OF_KERNEL32, kernel32_symnum, kernel32_symarray);
 }
 

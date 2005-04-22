@@ -288,7 +288,6 @@ extern int *__errno(void);
 
 static char msvcrt_name[] = "msvcrt.dll";
 static char msvcr7_name[] = "msvcr70.dll";
-static uint32_t msvcrt_handle = 0x05;
 static struct symbol msvcrt_symarray[] = {
   {"__dllonexit",    (uint32_t)fd32_imp__dllonexit},
   {"__getmainargs",  (uint32_t)fd32_imp__getmainargs},
@@ -362,6 +361,6 @@ static uint32_t msvcrt_symnum = sizeof(msvcrt_symarray)/sizeof(struct symbol);
 
 void install_msvcrt(void)
 {
-  add_dll_table(msvcrt_name, msvcrt_handle, msvcrt_symnum, msvcrt_symarray);
-  add_dll_table(msvcr7_name, msvcrt_handle+1, msvcrt_symnum, msvcrt_symarray);
+  add_dll_table(msvcrt_name, HANDLE_OF_MSVCRT, msvcrt_symnum, msvcrt_symarray);
+  add_dll_table(msvcr7_name, HANDLE_OF_MSVCRT+1, msvcrt_symnum, msvcrt_symarray);
 }
