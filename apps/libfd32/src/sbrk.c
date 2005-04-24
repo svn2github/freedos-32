@@ -23,7 +23,7 @@ void *sbrk(int incr)
         return 0;
       }
     } else if (incr < 0) {
-      mem_free(mem_limit + incr, incr);
+      mem_free(mem_limit + incr, -incr);
     }
     mem_limit += incr;
   } else {
