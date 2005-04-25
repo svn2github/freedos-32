@@ -206,6 +206,19 @@ static int atapi_request(DWORD f, void *params)
             return ata_packet_pio( x->MaxWait, d, x->Packet, x->PacketSize,
                                    x->Buffer, x->MaxCount, x->TotalBytes, x->BufferSize);
         }
+    case FD32_ATA_DRESET:
+        {
+            /* Soft reset of device */
+            ata_dev_parm_t *x;
+
+            x = (ata_dev_parm_t *) params;
+            if (x->Size < sizeof(ata_dev_parm_t))
+            {
+                return FD32_EFORMAT;
+            }
+            d = (struct ata_device *) x->DeviceId;
+            return ata_dev_reset( d );
+        }
     case FD32_ATA_SRESET:
     case FD32_ATA_SLEEP:
     case FD32_ATA_STANBY_IMM:

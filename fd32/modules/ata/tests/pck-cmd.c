@@ -468,14 +468,21 @@ int cd_premount( struct cd_device* d )
 
         p.Size = sizeof(ata_dev_parm_t);
         p.DeviceId = d->device_id;
-        res1 = d->req(FD32_ATA_SRESET, (void*)&p);
+        res1 = d->req(FD32_ATA_DRESET, (void*)&p);
         if(res1 < 0)
         {
 #ifdef _DEBUG_
-            fd32_log_printf("Reset failed!!! Returned %i\n", res1);
+            fd32_log_printf("Device reset failed!");
+#endif
+            res1 = d->req(FD32_ATA_SRESET, (void*)&p);
+            if(res1 < 0)
+            {
+#ifdef _DEBUG_
+                fd32_log_printf("Software reset failed!!! Returned %i\n", res1);
 #endif
 
-            return -1;
+                return -1;
+            }
         }
         d->flags &= ~CD_FLAG_FATAL_ERROR;
     }

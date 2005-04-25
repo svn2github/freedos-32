@@ -62,6 +62,7 @@ struct ide_interface
 #define ATA_CMD_SET_FEATURES 0xEF
 #define ATA_CMD_PACKET 0xA0
 #define ATA_CMD_SLEEP 0x99
+#define ATA_CMD_DEVICE_RESET 0x08
 
 /* Timeout parameters in micro seconds */
 #define MAX_WAIT_DETECT 100 * 1000

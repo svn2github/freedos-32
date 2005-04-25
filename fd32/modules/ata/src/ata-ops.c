@@ -535,6 +535,38 @@ int ata_sreset( struct ata_device* dev)
     return 0;
 }
 
+int ata_dev_reset( struct ata_device* dev)
+{
+    int res;
+    BYTE status;
+    
+    if(dev->interface->current_dev_bit != dev->dev_bit)
+    {
+        /* Is this correct? Should we wait for the other device? */
+        if(bsy_drq_is_set(dev->interface))
+        {
+            res = ata_poll(MAX_WAIT_1, &bsy_drq_is_set, dev->interface);
+            if(res)
+            {
+                status = fd32_inb(dev->interface->command_port + CMD_STATUS);
+                if(status & ATA_STATUS_DRQ)
+                {
+                    return ATA_DRQ_SET;
+                }
+                return ATA_ETOBUSY;
+            }
+        }
+        fd32_outb(dev->interface->command_port + CMD_DEVHEAD, dev->dev_bit);
+        dev->interface->current_dev_bit = dev->dev_bit;
+    }
+    fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_DEVICE_RESET);
+    /* The device is not supposed to revert to defaults after this command, so we just return */
+    /* without reinitializing */
+    /* FIXME: proper timeout */
+    /* TODO: check (return?) diagnostics results */
+    return command_ackn(dev);
+}
+
 int ata_check_standby( struct ata_device* dev)
 {
     int res;

@@ -13,6 +13,7 @@
 #define FD32_ATAPI_PACKET   12347
 #define FD32_ATA_SLEEP      12348
 #define FD32_ATA_SRESET      12349
+#define FD32_ATA_DRESET      12350
 
 typedef struct ata_dev_parm
 {
