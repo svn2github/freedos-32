@@ -28,7 +28,10 @@
 
 #include <devices.h>
 #include <ll/sys/types.h>
+#ifndef	_OFF_T_
+#define	_OFF_T_
 typedef long long int off_t;
+#endif	/* Not _OFF_T_ */
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 /* File and path names limits, in bytes, including the NULL terminator */
