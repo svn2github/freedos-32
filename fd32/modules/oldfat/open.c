@@ -442,7 +442,7 @@ static int descend_path(tVolume *V, char *Path, tFile **Fp)
     *pComponent = 0;
     LOG_PRINTF(("Path component: \"%s\"\n", Component));
     /* Search for the file named Component in the directory */
-    Res = fat_find(F, Component, FD32_FRNONE | FD32_FAALL, &D);
+    Res = fat_find(F, Component, FD32_FRNONE | FAT_FANOVOLID, &D);
     if (Res < 0)
     {
       if (Res == FD32_ENMFILE) Res = FD32_ENOTDIR;
@@ -573,7 +573,7 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
 
   /* If a file name has been provided, find it in the parent directory */
   LOG_PRINTF(("FAT: Opening the actual file...\n"));
-  Res = fat_find(Fp, Name, FD32_FRNONE | FD32_FAALL, &D);
+  Res = fat_find(Fp, Name, FD32_FRNONE | FAT_FANOVOLID, &D);
   if (Res < 0)
   {
     if (Res != FD32_ENMFILE) { Fp->References = 0; return Res; }

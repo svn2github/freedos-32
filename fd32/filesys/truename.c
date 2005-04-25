@@ -34,8 +34,22 @@
 
 #include <kmem.h>
 #include <filesys.h>
-#include <unicode.h>
 #include <errors.h>
+
+/* Based on strcmp from OSLib.
+ * TODO: Temporary solution while waiting it is implemented in OSLib.
+ */
+#include <ll/ctype.h>
+int strcasecmp(const char *s1,const char *s2)
+{
+	while (toupper(*s1) == toupper(*s2))
+	{
+		if (*s1 == 0) return 0;
+		s1++;
+		s2++;
+	}
+	return *(unsigned const char *)s1 - *(unsigned const char *)(s2);
+}
 
 /* Define the __DEBUG__ symbol in order to activate log output */
 //#define __DEBUG__
@@ -44,6 +58,8 @@
 #else
  #define LOG_PRINTF(s)
 #endif
+
+#define ENABLE_SUBST 1
 
 
 /* Current Directury Structure.                                               */
@@ -65,6 +81,7 @@ tCds;
 extern void **fd32_get_cdslist();
 
 
+#if ENABLE_SUBST
 /* SUBSTituted drives structure.                                          */
 /* The File System Layer owns a list of SUBST structures with the SUBSTed */
 /* path for each drive.                                                   */
@@ -133,7 +150,7 @@ int fd32_terminate_subst(char *DriveAlias)
 {
   tSubst *S, *PrevS;
   for (PrevS = NULL, S = SubstList; S; PrevS = S, S = S->Next)
-    if (utf8_stricmp(S->DriveAlias, DriveAlias) == 0)
+    if (strcasecmp(S->DriveAlias, DriveAlias) == 0)
     {
       if (PrevS) PrevS->Next = S->Next;
             else SubstList   = S->Next;
@@ -152,13 +169,14 @@ int fd32_query_subst(char *DriveAlias, char *Target)
 {
   tSubst *S;
   for (S = SubstList; S; S = S->Next)
-    if (utf8_stricmp(S->DriveAlias, DriveAlias) == 0)
+    if (strcasecmp(S->DriveAlias, DriveAlias) == 0)
     {
       strcpy(Target, S->Target);
       return 0;
     }
   return FD32_ENODRV;
 }
+#endif /* #if ENABLE_SUBST */
 
 
 /* The CHDIR system call.                                            */
@@ -205,7 +223,7 @@ int fd32_chdir(/*const */char *DirName)
 
   /* Search for the specified drive in the CDS list of the current process */
   for (D = *CdsList; D; D = D->Next)
-    if (utf8_stricmp(D->Drive, Drive) == 0)
+    if (strcasecmp(D->Drive, Drive) == 0)
     {
       strcpy(D->CurDir, &Aux[Res + 1]);
       break;
@@ -253,7 +271,7 @@ int fd32_getcwd(const char *Drive, char *Dest)
 
   /* Search for the specified drive in the CDS list of the current process */
   for (C = *CdsList; C; C = C->Next)
-    if (utf8_stricmp(C->Drive, Drive) == 0)
+    if (strcasecmp(C->Drive, Drive) == 0)
     {
       strcpy(Dest, C->CurDir);
       LOG_PRINTF(("[GETCWD] Getting the current dir of \"%s\": \"%s\"\n", Drive, Dest));
@@ -280,7 +298,9 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
   char   *pComp;          /* Pointer into the Comp string  */
   char   *RootStart;
   int     Dots;
+  #if ENABLE_SUBST
   tSubst *S;
+  #endif
 
   LOG_PRINTF(("[TRUENAME] In:\"%s\"\n", Source));
   /* Get the drive specification */
@@ -296,9 +316,10 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
   /* If Drive is not a SUBSTed drive, copy it to the destination */
   for (pAux = Aux, s = Drive; *s; *pAux++ = *s++); *pAux++ = ':';
   /* Check if Drive refers to a SUBSTed drive alias */
+  #if ENABLE_SUBST
   if (Flags & FD32_TNSUBST)
     for (S = SubstList; S; S = S->Next)
-      if (utf8_stricmp(S->DriveAlias, Drive) == 0)
+      if (strcasecmp(S->DriveAlias, Drive) == 0)
       {
         /* If Drive is an alias, copy the target to the destination, */
         /* removing the trailing '\' if present.                     */
@@ -306,6 +327,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
         if (*(pAux - 1) == '\\') pAux--;
         break;
       }
+  #endif
 //  if (!(S || is_a_valid_drive(Drive))) return FD32_ERROR_UNKNOWN_UNIT;
   /* The root directory in the destination starts right after the Drive.  */
   /* If Drive was a SUBSTed drive, the root start right after the target. */

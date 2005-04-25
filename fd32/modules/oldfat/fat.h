@@ -86,6 +86,8 @@ typedef enum { FAT12, FAT16, FAT32 } tFatType;
 /* FIX ME: These should be removed. Use FD32 errors instead. */
 #define FAT_RET_EOF -0xF7
 
+/* Additional allowable attributes mask for lookup */
+#define FAT_FANOVOLID 0x37 /* All attributes but volume label */
 
 /* FAT32 Boot Sector and BIOS Parameter Block                         */
 /* This structure is used in all driver functions, even if the volume */

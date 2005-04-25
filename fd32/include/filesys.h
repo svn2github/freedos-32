@@ -27,7 +27,8 @@
 #define __FD32_FILESYS_H
 
 #include <devices.h>
-
+#include <ll/sys/types.h>
+typedef long long int off_t;
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 /* File and path names limits, in bytes, including the NULL terminator */
@@ -84,6 +85,7 @@
 #define FD32_ALNGNAM 0x0F /* Long file name directory slot (R+H+S+V) */
 #define FD32_AALL    0x3F /* Select all attributes                   */
 #define FD32_ANONE   0x00 /* Select no attributes                    */
+#define FD32_ANOVOLID 0x37 /* All attributes but volume label */
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -254,12 +256,6 @@ int  fd32_lfn_findfirst    (char *FileSpec, DWORD Flags, fd32_fs_lfnfind_t *Find
 int  fd32_lfn_findnext     (int Handle, DWORD Flags, fd32_fs_lfnfind_t *FindData);
 int  fd32_lfn_findclose    (int Handle);
 
-/* NAMES.C - File name management services */
-int  fd32_gen_short_fname  (char *Dest, char *Source, DWORD Flags);
-int  fd32_build_fcb_name   (BYTE *Dest, char *Source);
-int  fd32_expand_fcb_name  (char *Dest, BYTE *Source);
-int  fd32_compare_fcb_names(BYTE *Name1, BYTE *Name2);
-
 /* TRUENAME.C - File name canonicalization, current directory and subst */
 int  fd32_create_subst     (char *DriveAlias, char *Target);
 int  fd32_terminate_subst  (char *DriveAlias);
@@ -269,8 +265,16 @@ int  fd32_getcwd           (const char *Drive, char *Dest);
 int  fd32_truename         (char *Dest, char *Source, DWORD Flags);
 int  fd32_sfn_truename     (char *Dest, char *Source);
 
-/* WILDCARD.C - Compare file name with wildcards support */
-int  utf8_fnameicmp        (char *s1, char *s2);
+
+int     fs_open(char *file_name, DWORD mode, WORD attr, WORD alias_hint, fd32_request_t **request, void **file);
+int     fs_close(fd32_request_t *request, void *file);
+int     fs_fflush(fd32_request_t *request, void *file);
+ssize_t fs_read(fd32_request_t *request, void *file, void *buffer, size_t count);
+ssize_t fs_write(fd32_request_t *request, void *file, const void *buffer, size_t count);
+off_t   fs_lseek(fd32_request_t *request, void *file, off_t offset, int whence);
+int     fs_get_attributes(fd32_request_t *request, void *file, fd32_fs_attr_t *a);
+int     fs_set_attributes(fd32_request_t *request, void *file, const fd32_fs_attr_t *a);
+
 
 #endif /* ifndef __FD32_FILESYS_H */
 

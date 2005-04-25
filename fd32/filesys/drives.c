@@ -31,7 +31,6 @@
 #include <ll/i386/error.h>
 #include <ll/ctype.h>
 
-#include <unicode.h>
 #include <devices.h>
 #include <errors.h>
 #include <filesys.h>

@@ -326,7 +326,7 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
   if (Res < 0) return Res;
 
   /* Find the source name and get all its informations */
-  Res = fat_find(SrcDir, OldName, FD32_FRNONE | FD32_FAALL, &D);
+  Res = fat_find(SrcDir, OldName, FD32_FRNONE | FAT_FANOVOLID, &D);
   if (Res < 0)
   {
     fat_close(SrcDir);
@@ -360,7 +360,7 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
   Res = fat_open(V, NewPath, FD32_ORDWR | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &DstDir);
   if (Res < 0) return Res;
   /* Check if the destination name already exists */
-  Res = fat_find(DstDir, NewName, FD32_FRNONE | FD32_FAALL, NULL);
+  Res = fat_find(DstDir, NewName, FD32_FRNONE | FAT_FANOVOLID, NULL);
   if (Res == 0)
   {
     fat_close(SrcDir);

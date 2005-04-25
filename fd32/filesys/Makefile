@@ -11,7 +11,7 @@ LIB_DIR  = $(OSLIB)\lib
 C_OPT +=  -I../include $(DEBUG)
 LINK_OPT = -Bstatic
 
-OBJS =  dir.o drives.o fs.o find.o jft.o names.o truename.o wildcard.o
+OBJS =  drives.o fs.o jft.o truename.o
 
 all: filesys.o
 

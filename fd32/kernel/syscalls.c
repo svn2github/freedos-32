@@ -172,10 +172,6 @@ static struct symbol syscall_table[] = {
   { "fd32_lfn_findfirst",     (DWORD) fd32_lfn_findfirst     },
   { "fd32_lfn_findnext",      (DWORD) fd32_lfn_findnext      },
   { "fd32_lfn_findclose",     (DWORD) fd32_lfn_findclose     },
-  { "fd32_gen_short_fname",   (DWORD) fd32_gen_short_fname   },
-  { "fd32_build_fcb_name",    (DWORD) fd32_build_fcb_name    },
-  { "fd32_expand_fcb_name",   (DWORD) fd32_expand_fcb_name   },
-  { "fd32_compare_fcb_names", (DWORD) fd32_compare_fcb_names },
   { "fd32_create_subst",      (DWORD) fd32_create_subst      },
   { "fd32_terminate_subst",   (DWORD) fd32_terminate_subst   },
   { "fd32_query_subst",       (DWORD) fd32_query_subst       },
@@ -183,7 +179,6 @@ static struct symbol syscall_table[] = {
   { "fd32_getcwd",            (DWORD) fd32_getcwd            },
   { "fd32_truename",          (DWORD) fd32_truename          },
   { "fd32_sfn_truename",      (DWORD) fd32_sfn_truename      },
-  { "utf8_fnameicmp",         (DWORD) utf8_fnameicmp         },
   /* Symbols for Unicode support (from unicode.h) */
   { "fd32_utf16to32",  (DWORD) fd32_utf16to32  },
   { "fd32_utf32to16",  (DWORD) fd32_utf32to16  },

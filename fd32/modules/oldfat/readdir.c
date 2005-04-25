@@ -258,13 +258,12 @@ int fat_findnext(tVolume *v, fd32_fs_dosfind_t *find_data)
 /* TODO: enable search attributes/flags  */
 int fat_findfile(tFile *f, const char *name, fd32_fs_lfnfind_t *find_data)
 {
-  tFatFind ff;
   int res;
-  while ((res = readdir(f, &ff)) == 0)
+  while ((res = fat_readdir(f, find_data)) == 0)
 //    if (((AllowableAttr | FindData->Attr) == AllowableAttr)
 //     && ((RequiredAttr & FindData->Attr) == RequiredAttr))
-      if ((fat_fnameicmp(ff.LongName, name) == 0)
-       || (fat_fnameicmp(ff.ShortName, name) == 0))
+      if ((fat_fnameicmp(find_data->LongName, name) == 0)
+       || (fat_fnameicmp(find_data->ShortName, name) == 0))
         return 0;
   return res;
 }

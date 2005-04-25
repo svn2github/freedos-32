@@ -93,6 +93,91 @@ typedef struct
 __attribute__ ((packed)) tExtDiskFree;
 
 
+/* TODO: Cleanup path name shortening */
+#include <unicode.h>
+/* From NLS support */
+int oemcp_to_utf8(char *Source, UTF8 *Dest);
+int utf8_to_oemcp(UTF8 *Source, int SourceSize, char *Dest, int DestSize);
+int oemcp_skipchar(char *Dest);
+
+/* Given a file name Source in UTF-8, checks if it's valid */
+/* and returns in Dest the file name in FCB format.        */
+/* On success, returns 0 if no wildcards are present, or a */
+/* positive number if '?' wildcards are present in Dest.   */
+/* On failure, returns a negative error code.              */
+/* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
+static int build_fcb_name(BYTE *Dest, char *Source)
+{
+  int   WildCards = 0;
+  char  SourceU[FD32_LFNPMAX];
+  int   Res;
+  int   k;
+
+  /* Name and extension have to be padded with spaces */
+  memset(Dest, 0x20, 11);
+  
+  /* Build ".          " and "..         " if Source is "." or ".." */
+  if ((strcmp(Source, ".") == 0) || (strcmp(Source, "..") == 0))
+  {
+    for (; *Source; Source++, Dest++) *Dest = *Source;
+    return 0;
+  }
+
+  if ((Res = utf8_strupr(SourceU, Source)) < 0) return FD32_EUTF8;
+  for (k = 0; (SourceU[k] != '.') && SourceU[k]; k++);
+  utf8_to_oemcp(SourceU, SourceU[k] ? k : -1, Dest, 8);
+  if (SourceU[k]) utf8_to_oemcp(&SourceU[k + 1], -1, &Dest[8], 3);
+
+  if (Dest[0] == ' ') return FD32_EFORMAT;
+  if (Dest[0] == 0xE5) Dest[0] = 0x05;
+  for (k = 0; k < 11;)
+  {
+    if (Dest[k] < 0x20) return FD32_EFORMAT;
+    switch (Dest[k])
+    {
+      case '"': case '+': case ',': case '.': case '/': case ':': case ';':
+      case '<': case '=': case '>': case '[': case '\\': case ']':  case '|':
+        return FD32_EFORMAT;
+      case '?': WildCards = 1;
+                k++;
+                break;
+      case '*': WildCards = 1;
+                if (k < 8) for (; k < 8; k++) Dest[k] = '?';
+                else for (; k < 11; k++) Dest[k] = '?';
+                break;
+      default : k += oemcp_skipchar(&Dest[k]);
+    }
+  }
+  return WildCards;
+}
+
+
+/* Gets a UTF-8 short file name from an FCB file name. */
+/* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
+static int expand_fcb_name(char *Dest, BYTE *Source)
+{
+  BYTE *NameEnd;
+  BYTE *ExtEnd;
+  char  Aux[13];
+  BYTE *s = Source;
+  char *a = Aux;
+
+  /* Count padding spaces at the end of the name and the extension */
+  for (NameEnd = Source + 7;  *NameEnd == ' '; NameEnd--);
+  for (ExtEnd  = Source + 10; *ExtEnd  == ' '; ExtEnd--);
+
+  /* Put the name, a dot and the extension in Aux */
+  if (*s == 0x05) *a++ = (char) 0xE5, s++;
+  for (; s <= NameEnd; *a++ = (char) *s++);
+  if (Source + 8 <= ExtEnd) *a++ = '.';
+  for (s = Source + 8; s <= ExtEnd; *a++ = (char) *s++);
+  *a = 0;
+
+  /* And finally convert Aux from the OEM code page to UTF-8 */
+  return oemcp_to_utf8(Aux, Dest);
+}
+
+
 /* Converts the passed path name to a valid path of 8.3 names,  */
 /* in the OEM code page, as required for short file name calls. */
 /* Returns 0 on success, or a negative error code on failure.   */
@@ -128,8 +213,8 @@ static int make_sfn_path(char *Dest, const char *Source)
     if (*Comp)
     {
       /* Comp is not empty, let's shrink it */
-      if ((Res = fd32_build_fcb_name(FcbName, Comp)) < 0) return Res;
-      if ((Res = fd32_expand_fcb_name(Comp, FcbName)) < 0) return Res;
+      if ((Res = build_fcb_name(FcbName, Comp)) < 0) return Res;
+      if ((Res = expand_fcb_name(Comp, FcbName)) < 0) return Res;
       /* And append shrunk Comp to the Dest string, without trailing backslash */
       for (c = Comp; *c; *(Dest++) = *(c++));
     }
@@ -904,6 +989,7 @@ void int21_handler(union rmregs *r)
       /* CX    number of bytes to read        */
       /* DS:DX pointer to the transfer buffer */
       Res = fd32_read(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx);
+      //LOG_PRINTF(("INT 21h - Read (AH=3Fh) from handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, Res));
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
@@ -931,6 +1017,7 @@ void int21_handler(union rmregs *r)
       /* CX    number of bytes to write       */
       /* DS:DX pointer to the transfer buffer */
       Res = fd32_write(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx);
+      //LOG_PRINTF(("INT 21h - Write (AH=40h) to handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, Res));
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
@@ -1209,6 +1296,7 @@ void int21_handler(union rmregs *r)
       if (Res < 0) return;
       Res = fd32_open(SfnPath, (DWORD) (r->x.dx << 16) + r->x.bx,
                       r->x.cx, 0, &Action);
+      LOG_PRINTF(("INT 21h - Extended open/create (AH=6Ch) \"%s\" res=%08xh\n", SfnPath, Res));
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
