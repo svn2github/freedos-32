@@ -55,6 +55,16 @@ struct psp {
 int message(char *fmt, ...) __attribute__((format(printf, 1, 2)));
 #define error(msg) message("Error! File:%s Line:%d %s", __FILE__, __LINE__, msg)
 
+/*
+ * from oslib/ll/i386/hw-func.h
+ */
+uint32_t gdt_read(uint16_t sel, uint32_t *lim, uint8_t *acc, uint8_t *gran);
+
+/*
+ * from fd32/include/filesys.h
+ */
+int fd32_fflush(int Handle);
+
 /* Sends formatted output from the arguments (...) to the log buffer
  * from fd32/include/logger.h
  */
@@ -63,6 +73,7 @@ int fd32_log_printf(char *fmt, ...) __attribute__ ((format(printf, 1, 2)));
 /*
  * from fd32/include/kernel.h
  */
+void fd32_abort(void);
 int add_dll_table(char *dll_name, uint32_t handle, uint32_t symbol_num, struct symbol *symbol_array);
 
 /*
@@ -71,7 +82,12 @@ int add_dll_table(char *dll_name, uint32_t handle, uint32_t symbol_num, struct s
 uint32_t mem_get(uint32_t amount);
 uint32_t mem_get_region(uint32_t base, uint32_t size);
 int mem_free(uint32_t base, uint32_t size);
+void mem_dump(void);
 
+/*
+ * from newlib sys/unistd.h
+ */
+int ftruncate(int fd, off_t length);
 
 #define HANDLE_OF_KERNEL32 0x01
 #define HANDLE_OF_USER32   0x02

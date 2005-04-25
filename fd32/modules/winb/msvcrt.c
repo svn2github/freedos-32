@@ -57,19 +57,16 @@ static _onexit_t fd32_imp__dllonexit(_onexit_t func, _onexit_t **start, _onexit_
   return func;
 }
 
-
 static void fd32_imp__set_app_type(int a)
 {
   fd32_log_printf("[WINB] Set app type: %d\n", a);
 }
 
-uint32_t mem_limit;
 extern struct psp *current_psp;
 static void fd32_imp__getmainargs(int *argc, char** *argv, char** *envp, int expand_wildcards, int *new_mode)
 {
-  fd32_log_printf("[WINB] GETMAINARGS: (also set the memlimit (0x%x) here)\n", current_psp->memlimit);
+  fd32_log_printf("[WINB] GETMAINARGS: %x, %x, %x, %x, %x\n", (uint32_t)argc, (uint32_t)argv, (uint32_t)envp, (uint32_t)expand_wildcards, (uint32_t)new_mode);
   fd32_log_printf("[WINB] Current PSP cmdline: %s (%d)\n", current_psp->command_line, current_psp->command_line_len);
-  mem_limit = current_psp->memlimit;
 }
 
 static void fd32_imp_cexit(void)
