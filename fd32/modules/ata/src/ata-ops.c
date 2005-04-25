@@ -214,6 +214,10 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
     WORD* buff = (WORD*)b;
     unsigned long max_wait;
 
+    if(b == NULL || d == NULL)
+    {
+        return -1;
+    }
     if(d->flags & (DEV_FLG_ST_TIMER_ACTIVE | DEV_FLG_STANDBY))
     {
         /* TODO: check timer (and DRDY?) first */
@@ -222,12 +226,10 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
     else
         max_wait = MAX_WAIT_1;
     if(start + count > d->total_blocks)
-        return -1;
+        return ATA_ERANGE;
     start += d->first_sector;
-    if(b == NULL || d == NULL)
-    {
-        return -1;
-    }
+    if((start + count - 1) & 0xF0000000)
+        return ATA_ERANGE;
     if(d->sectors_per_block != 0)
         command = ATA_CMD_READ_MULTIPLE;
     else
@@ -344,6 +346,10 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
     WORD* buff = (WORD*)b;
     unsigned long max_wait;
 
+    if(b == NULL || d == NULL)
+    {
+        return -1;
+    }
     if(d->flags & (DEV_FLG_ST_TIMER_ACTIVE | DEV_FLG_STANDBY))
     {
         /* TODO: check timer (and DRDY?) first */
@@ -352,12 +358,10 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
     else
         max_wait = MAX_WAIT_1;
     if(start + count > d->total_blocks)
-        return -1;
+        return ATA_ERANGE;
     start += d->first_sector;
-    if(b == NULL || d == NULL)
-    {
-        return -1;
-    }
+    if((start + count - 1) & 0xF0000000)
+        return ATA_ERANGE;
     if(d->sectors_per_block != 0)
         command = ATA_CMD_WRITE_MULTIPLE;
     else

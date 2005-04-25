@@ -68,7 +68,7 @@ struct ide_interface
 #define MAX_WAIT_1 500 * 1000
 
 /* Error codes */
-#define ATA_ETOBUSY -1
+#define ATA_EGENERAL -1
 #define ATA_ETOREADY -2
 #define ATA_ETOIRQ -3
 #define ATA_EDRQ_CLEAR -4
@@ -81,6 +81,8 @@ struct ide_interface
 #define ATA_EPIFATAL -11
 #define ATA_ESLEEP -12
 #define ATA_DRQ_SET -13
+#define ATA_ERANGE -14
+#define ATA_ETOBUSY -15
 
 /* Bits in the capabilities word */
 #define ATA_CAPAB_LBA 0x200
