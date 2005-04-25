@@ -2,7 +2,6 @@
 
 #include <ll/i386/hw-data.h>
 #include <kernel.h>
-#include <filesys.h>
 
 int execve(const char *name, char * const argv[], char * const env[])
 {

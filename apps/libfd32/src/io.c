@@ -1,15 +1,10 @@
-#include <unistd.h>
 #include <sys/stat.h>
-#define open fake_open
 #include <sys/fcntl.h>
-#undef open
 
 #include <ll/i386/hw-data.h>
-/*
-#include <ll/i386/string.h>
-*/
-#include <kernel.h>
 #include <filesys.h>
+#include <kernel.h>
+
 
 ssize_t	read(int fd, void *ptr, size_t len)
 {
