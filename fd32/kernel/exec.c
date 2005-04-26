@@ -156,6 +156,9 @@ DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DW
 
     return dyn_entry;
   } else {
+    /* Reloc the entry if it's a relocated (PE) executable image */
+    if (tables.flags & NEED_IMAGE_RELOCATION)
+      dyn_entry += ((struct pe_reloc_info *)sections[0].reloc)->offset;
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 1) Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
 	    dyn_entry + offset, dyn_entry, offset);
