@@ -80,7 +80,7 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
 #ifdef _DEBUG_
     MSG("IDENTIFY DEVICE command on device %i\n", device_no);
 #endif
-    res = pio_data_in(200 * 1000, 1, 0, (void*)drvdata, *d, ATA_CMD_IDENTIFY);
+    res = pio_data_in(200 * 1000, 1, 0, (void*)drvdata, *d, ATA_CMD_IDENTIFY, FALSE);
     if(res<0)
     {
         /* PI device? */
@@ -97,7 +97,7 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
 #ifdef _DEBUG_
         MSG("Signature present, executing IDENTIFY PACET DEVICE command\n");
 #endif
-         res = pio_data_in(200 * 1000, 1, 0, (void*)drvdata, *d, ATA_CMD_IDENTIFY_PD);
+         res = pio_data_in(200 * 1000, 1, 0, (void*)drvdata, *d, ATA_CMD_IDENTIFY_PD, FALSE);
         if(res<0)
         {
 #ifdef _DEBUG_
@@ -142,7 +142,11 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
         (*d)->bytes_per_sector = 512;
         (*d)->max_multiple_rw = drvdata[47] & 0xFF;
         if((*d)->capabilities & ATA_CAPAB_LBA)
+        {
             (*d)->total_blocks = *((int*)&(drvdata[60]));
+            if( drvdata[83] & (1 << 10) )
+                (*d)->flags |= DEV_FLG_48BIT_LBA;
+        }
         else
             (*d)->total_blocks = (*d)->cyls * (*d)->heads * (*d)->sectors;
         /* Enable block mode */

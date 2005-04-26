@@ -106,15 +106,24 @@ int device_select( unsigned long max_wait, const struct ata_device* dev)
 }
 
 
-static void write_reg_start_sect(DWORD start, const struct ata_device* dev)
+static void write_reg_start_count(DWORD start, WORD count, int use_48bit, const struct ata_device* dev)
 {
     if(dev->capabilities & ATA_CAPAB_LBA)
     {
+        if(use_48bit)
+        {
+            fd32_outb(dev->interface->command_port + CMD_SECT, (BYTE)(start>>24));
+            fd32_outb(dev->interface->command_port + CMD_CYL_L, (BYTE)((QWORD)start>>32));
+            fd32_outb(dev->interface->command_port + CMD_CYL_H, (BYTE)((QWORD)start>>40));
+            fd32_outb(dev->interface->command_port + CMD_CNT, (BYTE)(count>>8));
+        }
+        else
+            fd32_outb(dev->interface->command_port + CMD_DEVHEAD,
+                      (BYTE)( ((start>>24) & 0x0F) | dev->dev_bit | ATA_DEVHEAD_L | 0xA0));
+
         fd32_outb(dev->interface->command_port + CMD_SECT, (BYTE)start);
         fd32_outb(dev->interface->command_port + CMD_CYL_L, (BYTE)(start>>8));
         fd32_outb(dev->interface->command_port + CMD_CYL_H, (BYTE)(start>>16));
-        fd32_outb(dev->interface->command_port + CMD_DEVHEAD,
-                  (BYTE)( ((start>>24) & 0x0F) | dev->dev_bit | ATA_DEVHEAD_L | 0xA0));
     }
     else
     {
@@ -125,9 +134,11 @@ static void write_reg_start_sect(DWORD start, const struct ata_device* dev)
         fd32_outb(dev->interface->command_port + CMD_CYL_L, (BYTE) start );
         fd32_outb(dev->interface->command_port + CMD_CYL_H, (BYTE)(start>>8));
     }
+    fd32_outb(dev->interface->command_port + CMD_CNT, (BYTE)count);
 }
 
-int pio_data_in(unsigned long max_wait, BYTE count, DWORD start, void* buffer, struct ata_device* dev, BYTE command)
+int pio_data_in(unsigned long max_wait, BYTE count, DWORD start,
+                void* buffer, struct ata_device* dev, BYTE command, int use_48bit)
 {
     int res, i, j, k;
     BYTE status;
@@ -139,8 +150,7 @@ int pio_data_in(unsigned long max_wait, BYTE count, DWORD start, void* buffer, s
 
     if(command != ATA_CMD_IDENTIFY)
     {
-        write_reg_start_sect(start, dev);
-        fd32_outb(dev->interface->command_port + CMD_CNT, count);
+        write_reg_start_count(start, count, use_48bit, dev);
     }
     fd32_outb(dev->interface->command_port + CMD_COMMAND, command);
     do
@@ -213,6 +223,8 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
     BYTE command;
     WORD* buff = (WORD*)b;
     unsigned long max_wait;
+    int use_48bit = FALSE;
+    int max_per_irq;
 
     if(b == NULL || d == NULL)
     {
@@ -229,23 +241,38 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
         return ATA_ERANGE;
     start += d->first_sector;
     if((start + count - 1) & 0xF0000000)
-        return ATA_ERANGE;
-    if(d->sectors_per_block != 0)
-        command = ATA_CMD_READ_MULTIPLE;
+    {
+        if(d->flags & DEV_FLG_48BIT_LBA)
+            use_48bit = TRUE;
+        else
+            return ATA_ERANGE;
+        if(d->sectors_per_block != 0)
+            command = ATA_CMD_READ_MULTIPLE_EXT;
+        else
+            command = ATA_CMD_READ_SECTORS_EXT;
+        max_per_irq = 256 * 256;
+
+    }
     else
-        command = ATA_CMD_READ_SECTORS;
+    {
+        if(d->sectors_per_block != 0)
+            command = ATA_CMD_READ_MULTIPLE;
+        else
+            command = ATA_CMD_READ_SECTORS;
+        max_per_irq = 256;
+    }
     while(count)
     {
-        if(count >= 256)
+        if(count >= max_per_irq)
         {
             /* When we ask for 0 sectors, then we mean 256 sectors */
-            res = pio_data_in(max_wait, 0, start, (void*)buff, d, command);
-            count -= 256;
-            buff += 256;
+            res = pio_data_in(max_wait, 0, start, (void*)buff, d, command, use_48bit);
+            count -= max_per_irq;
+            buff += max_per_irq;
         }
         else
         {
-            res = pio_data_in(max_wait, (BYTE)count, start, (void*)buff, d, command);
+            res = pio_data_in(max_wait, (BYTE)count, start, (void*)buff, d, command, use_48bit);
             count = 0;
         }
         if(res)
@@ -258,7 +285,8 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
 }
 
 
-int pio_data_out(unsigned long max_wait, BYTE count, DWORD start, void* buffer, struct ata_device* dev, BYTE command)
+int pio_data_out(unsigned long max_wait, WORD count, DWORD start,
+                 void* buffer, struct ata_device* dev, BYTE command, int use_48bit)
 {
     int res, i, j, k;
     BYTE status;
@@ -267,7 +295,7 @@ int pio_data_out(unsigned long max_wait, BYTE count, DWORD start, void* buffer, 
     res = device_select( max_wait, dev );
     if(res)
         return res;
-    write_reg_start_sect(start, dev);
+    write_reg_start_count(start, count, use_48bit, dev);
     fd32_outb(dev->interface->command_port + CMD_CNT, count);
     fd32_outb(dev->interface->command_port + CMD_COMMAND, command);
     delay(400);
@@ -345,6 +373,8 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
     BYTE command;
     WORD* buff = (WORD*)b;
     unsigned long max_wait;
+    int use_48bit = FALSE;
+    int max_per_irq;
 
     if(b == NULL || d == NULL)
     {
@@ -361,22 +391,37 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
         return ATA_ERANGE;
     start += d->first_sector;
     if((start + count - 1) & 0xF0000000)
-        return ATA_ERANGE;
-    if(d->sectors_per_block != 0)
-        command = ATA_CMD_WRITE_MULTIPLE;
+    {
+        if(d->flags & DEV_FLG_48BIT_LBA)
+            use_48bit = TRUE;
+        else
+            return ATA_ERANGE;
+        if(d->sectors_per_block != 0)
+            command = ATA_CMD_WRITE_MULTIPLE_EXT;
+        else
+            command = ATA_CMD_WRITE_SECTORS_EXT;
+        max_per_irq = 256 * 256;
+
+    }
     else
-        command = ATA_CMD_WRITE_SECTORS;
+    {
+        if(d->sectors_per_block != 0)
+            command = ATA_CMD_WRITE_MULTIPLE;
+        else
+            command = ATA_CMD_WRITE_SECTORS;
+        max_per_irq = 256;
+    }
     while(count)
     {
-        if(count >= 256)
+        if(count >= max_per_irq)
         {
-            res = pio_data_out(max_wait, 0, start, (void*)buff, d, command);
-            count -= 256;
-            buff += 256;
+            res = pio_data_out(max_wait, 0, start, (void*)buff, d, command, use_48bit);
+            count -= max_per_irq;
+            buff += max_per_irq;
         }
         else
         {
-            res = pio_data_out(max_wait, (BYTE)count, start, (void*)buff, d, command);
+            res = pio_data_out(max_wait, (BYTE)count, start, (void*)buff, d, command, use_48bit);
             count = 0;
         }
         if(res)
@@ -539,7 +584,7 @@ int ata_dev_reset( struct ata_device* dev)
 {
     int res;
     BYTE status;
-    
+
     if(dev->interface->current_dev_bit != dev->dev_bit)
     {
         /* Is this correct? Should we wait for the other device? */

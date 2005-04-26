@@ -9,7 +9,8 @@
 
 int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b);
 int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b);
-int pio_data_in(unsigned long max_wait, BYTE count, DWORD start, void* buffer, struct ata_device* dev, BYTE command);
+int pio_data_in(unsigned long max_wait, BYTE count, DWORD start,
+                void* buffer, struct ata_device* dev, BYTE command, int use_48bit);
 int ata_set_multiple( struct ata_device* dev, BYTE sectors);
 int ata_standby( struct ata_device* dev, BYTE timer);
 int ata_idle( struct ata_device* dev, BYTE timer);
