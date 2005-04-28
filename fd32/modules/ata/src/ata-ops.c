@@ -746,11 +746,11 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
             }
         }
         ir = fd32_inb(dev->interface->command_port + CMD_PI_INTERRUPT_REASON);
-        if(ir & ATAPI_CD)
+        if(!(status & ATA_STATUS_DRQ))
         {
             /* If we arrive here, then there is no more data or there is an error*/
 
-            if(!(ir & ATAPI_IO) || (status & ATAPI_CHECK) || !(status & ATA_STATUS_DRDY))
+            if(status & ATAPI_CHECK)
             {
                 /* return error info in the command packet buffer */
                 ebuff[0] = 1;
@@ -768,16 +768,6 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
             }
             /* Success! */
             return 0;
-        }
-        if(!(status & ATA_STATUS_DRQ))
-        {
-            /* return error info in the command packet buffer */
-            ebuff[0] = 1;
-            ebuff[1] = dev->status_reg = status;
-            ebuff[2] = dev->error_reg = fd32_inb(dev->interface->command_port + CMD_ERROR);
-            ebuff[3] = ir;
-            *(int*)&ebuff[4] = ATA_EDRQ_CLEAR;
-            return ATA_EDRQ_CLEAR;
         }
         count = fd32_inb(dev->interface->command_port + CMD_PI_COUNT_H);
         count <<= 8;

@@ -32,6 +32,7 @@ static int cd_request_sense(struct cd_device* d, struct cd_sense* s)
     atapi_pc_parm_t pcp;
     BYTE packet[16];
     unsigned long tb;
+    int res;
 
     pcp.Size = sizeof(atapi_pc_parm_t);
     pcp.DeviceId = d->device_id;
@@ -46,7 +47,15 @@ static int cd_request_sense(struct cd_device* d, struct cd_sense* s)
     memset((void*)packet, 0, 16);
     packet[0] = 0x03;
     packet[4] = 18; /* allocation length */
-    return d->req(FD32_ATAPI_PACKET, (void*)&pcp);
+    res = d->req(FD32_ATAPI_PACKET, (void*)&pcp);
+#ifdef _DEBUG_
+
+    if(res<0)
+        fd32_log_printf("REQUEST SENSE cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
+                        res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
+#endif
+
+    return res;
 }
 
 /* Diagnose a check condition */
@@ -474,6 +483,7 @@ int cd_premount( struct cd_device* d )
 #ifdef _DEBUG_
             fd32_log_printf("Device reset failed!");
 #endif
+
             res1 = d->req(FD32_ATA_SRESET, (void*)&p);
             if(res1 < 0)
             {
@@ -493,6 +503,8 @@ int cd_premount( struct cd_device* d )
             return -1;
         }
         res1 = cd_check( d, &s, &res2);
+        /* TODO: test if reset needed */
+        /* TODO: test to see if we should return here */
         if(res1 < 0)
             continue;
         if(res2 == 0)
