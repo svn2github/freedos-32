@@ -13,10 +13,13 @@ LINK_OPT = -Bstatic
 
 OBJS = cp437.o
 
-all: $(OBJS)
+all: nls.o
 
 clean:
 	$(RM) *.o
+
+nls.o: $(OBJS)
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o nls.o
 
 %.o : %.c
 	$(REDIR) $(CC) $(C_OPT) -s -c $<
