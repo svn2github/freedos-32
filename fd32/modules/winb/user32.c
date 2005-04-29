@@ -18,6 +18,9 @@
  */
 static BOOL WINAPI fd32_imp__MessageBeep(UINT uType)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] MessageBeep ...\n");
+#endif
   return FALSE;
 }
 

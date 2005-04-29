@@ -2,41 +2,87 @@
 #include <sys/syslimits.h>
 #include "winb.h"
 
+
+#define FD32_PAGE_SIZE 0x1000
+#define FD32_SBRK_SIZE 0x2000
+
 /* The truncate function changes the size of filename to length. */
 int ftruncate(int fd, off_t length)
 {
   return -1;
 }
 
-/* Temporary implemented sbrk 'til the libfd32 is mature */
+/* Track the sbrk, segment resizing, to be used in the garbage collecting when destroying the current process */
+typedef struct sbrk_mem_track
+{
+  uint32_t addr;
+  uint32_t size;
+  struct sbrk_mem_track *next;
+} sbrk_mem_track_t;
+
+static sbrk_mem_track_t smthdr;
+static sbrk_mem_track_t *psmtcur = &smthdr;
+
+static void winb_mem_clear_up(void)
+{
+  for (psmtcur = smthdr.next; psmtcur != NULL; psmtcur = psmtcur->next)
+  {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] Memory clear up, mem_free(%x %x)\n", psmtcur->addr, psmtcur->size);
+#endif
+    mem_free(psmtcur->addr, psmtcur->size);
+  }
+}
+
+/* sbrk for the mallocr implementation in newlib
+ * (temporary implemented sbrk 'til the libfd32 is mature)
+ */
 void *sbrk(int incr)
 {
   extern struct psp *current_psp;
   uint32_t prev_heap_end = 0;
-  int res;
 
-  if (current_psp->memlimit != 0) {
-    prev_heap_end = current_psp->memlimit;
-    if (incr > 0) {
-      res = mem_get_region(current_psp->memlimit, incr);
-      if (res == -1) {
-        /* Alternative heap increament (not continuous) */
-        prev_heap_end = current_psp->memlimit = mem_get(incr);
-        if (prev_heap_end == 0) {
-          message("[WINB] SBRK problem: cannot memget(%x %x)\n", current_psp->memlimit, incr);
-          mem_dump();
-          return 0;
-        }
+  /* TODO: Get rid of assiging the clear_up function everytime */
+  current_psp->mem_clear_up = winb_mem_clear_up;
+
+  if (incr > 0) {
+    if (smthdr.size > incr) {
+      prev_heap_end = psmtcur->addr+FD32_SBRK_SIZE-smthdr.size;
+      smthdr.size -= incr;
+    } else {
+      /* TODO: Free the unused memory if (smthdr.size != 0) */
+    
+      /* Get 0x2000 bytes of memory and slice it at FD32_PAGE_SIZE boundary */
+      prev_heap_end = mem_get(FD32_SBRK_SIZE+sizeof(sbrk_mem_track_t));
+      if (prev_heap_end == 0) {
+        message("[WINB] SBRK problem: cannot memget(%x %x)\n", current_psp->memlimit, incr);
+        mem_dump();
+        return 0;
+      } else {
+        /* Keep the track of the allocated memory */
+        sbrk_mem_track_t *psmt = (sbrk_mem_track_t *)(prev_heap_end+FD32_SBRK_SIZE);
+        psmt->addr = prev_heap_end;
+        psmt->size = FD32_SBRK_SIZE+sizeof(sbrk_mem_track_t);
+        psmt->next = NULL;
+        psmtcur->next = psmt;
+        psmtcur = psmt;
+        /* Save the free 2-page size in the track header */
+        smthdr.size = FD32_SBRK_SIZE;
+        /* Align at the FD32_PAGE_SIZE boundary */
+        prev_heap_end += FD32_PAGE_SIZE-1;
+        prev_heap_end &= ~(FD32_PAGE_SIZE-1);
+        /* TODO: Free the unused memory prev_heap_end-psmtcur->addr */
+        smthdr.size -= prev_heap_end-psmtcur->addr;
+        smthdr.size -= incr;
       }
-    } else if (incr < 0) {
-      mem_free(current_psp->memlimit + incr, -incr);
+    
     }
-    current_psp->memlimit += incr;
+  } else if (incr < 0) {
+    message("How to decrease to the incr: %d!\n", incr);
   } else {
-    message("sbrk error: Memory Limit == 0!\n");
-    fd32_abort();
+    /* incr == 0, get the current brk */
+    prev_heap_end = psmtcur->addr;
   }
-
 #ifdef __WINB_DEBUG__
   fd32_log_printf("[WINB] SBRK: memget(%x %x)\n", prev_heap_end, incr);
 #endif
@@ -55,7 +101,7 @@ long sysconf(int parameter)
       res = ARG_MAX;
       break;
     case _SC_PAGESIZE:
-      res = 0x1000;
+      res = FD32_PAGE_SIZE;
       break;
     default:
       res = -1;
@@ -99,6 +145,7 @@ int isnan(double x)
 void winbase_init(void)
 {
   message("Initing WINB module ...\n");
+  message("Current time: %d\n", time(NULL));
   install_kernel32();
   install_user32();
   install_advapi32();

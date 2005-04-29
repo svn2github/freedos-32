@@ -24,6 +24,9 @@ typedef HKEY *PHKEY;
  */
 static LONG WINAPI fd32_imp__RegOpenKeyExA(HKEY hKey, LPCSTR lpSubKey, DWORD ulOptions, REGSAM samDesired, PHKEY phkResult)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] RegOpenKeyExA: %lx %s\n", (DWORD)hKey, lpSubKey);
+#endif
   return ERROR_NOT_SUPPORTED;
 }
 
@@ -37,6 +40,9 @@ static LONG WINAPI fd32_imp__RegOpenKeyExA(HKEY hKey, LPCSTR lpSubKey, DWORD ulO
  */
 static LONG WINAPI fd32_imp__RegCloseKey(HKEY hKey)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] RegCloseKey: %lx\n", (DWORD)hKey);
+#endif
   return ERROR_NOT_SUPPORTED;
 }
 

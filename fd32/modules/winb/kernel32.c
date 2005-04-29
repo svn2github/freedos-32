@@ -123,10 +123,13 @@ static BOOL WINAPI fd32_imp__PeekNamedPipe(HANDLE hNamedPipe, LPVOID lpBuffer, D
  *|Dynamic-Link Library Functions|*
 \*|______________________________|*/
 
+extern struct psp *current_psp;
 static DWORD WINAPI fd32_imp__GetModuleHandleA( LPCSTR module )
 {
-  printf("GetModuleHandle: %s\n", module);
-  return 0;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GetModuleHandle: %s\n", module);
+#endif
+  return (DWORD)current_psp;
 }
 
 
@@ -136,9 +139,13 @@ static DWORD WINAPI fd32_imp__GetModuleHandleA( LPCSTR module )
 \*|______________________________|*/
 
 void restore_sp(DWORD s);
-extern struct psp *current_psp;
 static VOID WINAPI fd32_imp__ExitProcess( UINT ecode )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] ExitProcess: %x and do memory clear-up!\n", ecode);
+#endif
+  if (current_psp->mem_clear_up != NULL)
+    current_psp->mem_clear_up();
   restore_sp(ecode);
 }
 
@@ -184,6 +191,9 @@ static VOID WINAPI fd32_imp__GetStartupInfoA(LPSTARTUPINFOA lpStartupInfo)
  */
 static DWORD WINAPI fd32_imp__GetCurrentProcessId( void )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GetCurrentProcessId ...\n");
+#endif
   return (DWORD)current_psp;
 }
 
@@ -194,12 +204,18 @@ static DWORD WINAPI fd32_imp__GetCurrentProcessId( void )
  */
 static DWORD WINAPI fd32_imp__GetCurrentThreadId( void )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GetCurrentThreadId ... not supported\n");
+#endif
   /* FD32 currently no multi-threading */
   return 0;
 }
 
 static void WINAPI fd32_imp__Sleep(DWORD dwMilliseconds)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] Sleep ... not implemented\n");
+#endif
   /* TODO: Using int nanosleep (const struct timespec *requested_time, struct timespec *remaining) in newlib */
   /* int nanosleep(const struct timespec *rqtp, struct timespec *rmtp);
      struct timespec rqt = {dwMilliseconds/1000, dwMilliseconds*1000000-(dwMilliseconds/1000)*1000000000};
@@ -222,7 +238,9 @@ static void WINAPI fd32_imp__Sleep(DWORD dwMilliseconds)
  */
 static void WINAPI fd32_imp__GetSystemTimeAsFileTime( LPFILETIME lpftime )
 {
-  
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GetSystemTimeAsFileTime: %lx ... not implemented\n", (DWORD)lpftime);
+#endif
 }
 
 /* The GetTickCount function retrieves the number of milliseconds that have elapsed since Windows was started. 
@@ -232,6 +250,9 @@ static void WINAPI fd32_imp__GetSystemTimeAsFileTime( LPFILETIME lpftime )
  */
 static DWORD WINAPI fd32_imp__GetTickCount( VOID )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GetTickCount ... not implemented\n");
+#endif
   return 0;
 }
 
@@ -247,6 +268,9 @@ static DWORD WINAPI fd32_imp__GetTickCount( VOID )
  */
 static BOOL WINAPI fd32_imp__QueryPerformanceCounter( PLARGE_INTEGER lpcount )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] QueryPerformanceCounter ... not implemented, return FALSE\n");
+#endif
   return FALSE;
 }
 
@@ -258,6 +282,9 @@ static BOOL WINAPI fd32_imp__QueryPerformanceCounter( PLARGE_INTEGER lpcount )
 
 static LPVOID WINAPI fd32_imp__VirtualAlloc( LPVOID lpAddress, size_t dwSize, DWORD flAllocationType, DWORD flProtect )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] VirtualAlloc: at %lx with %d bytes\n", (DWORD)lpAddress, dwSize);
+#endif
   if (mem_get_region((uint32_t)lpAddress, dwSize+sizeof(DWORD)) == 1) {
     DWORD *pd = (DWORD *) lpAddress;
     pd[0] = dwSize+sizeof(DWORD);
@@ -270,6 +297,9 @@ static LPVOID WINAPI fd32_imp__VirtualAlloc( LPVOID lpAddress, size_t dwSize, DW
 static BOOL WINAPI fd32_imp__VirtualFree( LPVOID lpAddress, size_t dwSize, DWORD dwFreeType )
 {
   DWORD *pd = (DWORD *)lpAddress;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] VirtualFree: at %lx with %d bytes\n", (DWORD)lpAddress, dwSize);
+#endif
   if (pd != NULL) {
     mem_free((uint32_t)(pd-1), pd[0]);
     return TRUE;
@@ -287,6 +317,9 @@ static BOOL WINAPI fd32_imp__VirtualFree( LPVOID lpAddress, size_t dwSize, DWORD
  */
 static HGLOBAL WINAPI fd32_imp__GlobalAlloc( UINT uFlags, size_t uBytes )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GlobalAlloc: %d bytes\n", uBytes);
+#endif
   /* Allocate memory from heap, so using malloc implemented in newlib */
   return malloc(uBytes);
 }
@@ -300,6 +333,9 @@ static HGLOBAL WINAPI fd32_imp__GlobalAlloc( UINT uFlags, size_t uBytes )
  */
 static HGLOBAL WINAPI fd32_imp__GlobalFree( HGLOBAL hMem )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GlobalFree: %lx\n", (DWORD)hMem);
+#endif
   free(hMem);
   return NULL;
 }
@@ -313,6 +349,9 @@ static HGLOBAL WINAPI fd32_imp__GlobalFree( HGLOBAL hMem )
  */
 static HLOCAL WINAPI fd32_imp__LocalAlloc( UINT uFlags, size_t uBytes )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] LocalAlloc: %d bytes\n", uBytes);
+#endif
   /* Allocate memory from heap, so using malloc implemented in newlib */
   return malloc(uBytes);
 }
@@ -326,6 +365,9 @@ static HLOCAL WINAPI fd32_imp__LocalAlloc( UINT uFlags, size_t uBytes )
  */
 static HLOCAL WINAPI fd32_imp__LocalFree( HLOCAL hMem )
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] LocalFree: %lx\n", (DWORD)hMem);
+#endif
   free(hMem);
   return NULL;
 }
@@ -344,6 +386,9 @@ static HLOCAL WINAPI fd32_imp__LocalFree( HLOCAL hMem )
  */
 static BOOL WINAPI fd32_imp__CloseHandle(HANDLE hObject)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] CloseHandle: %lx\n", (DWORD)hObject);
+#endif
   if (close((int)hObject) == 0)
     return TRUE;
   else
@@ -367,8 +412,19 @@ static HANDLE WINAPI fd32_imp__CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAcc
   int filedes, mode, flags;
 
 #ifdef __WINB_DEBUG__
-  fd32_log_printf("[WINB] CreateFileA: %s, %lx, %lx, ...\n", lpFileName, dwDesiredAccess, dwShareMode);
+  fd32_log_printf("[WINB] CreateFileA: %s (%lx), %lx, %lx, ...\n", lpFileName, *((DWORD *)lpFileName), dwDesiredAccess, dwShareMode);
 #endif
+  if (*((DWORD *)lpFileName) == 0x494E4F43 && *((WORD *)(lpFileName+4)) == 0x244E) {
+#ifdef __WINB_DEBUG__
+    fd32_log_printf("[WINB] Create CONIN$ handle\n");
+#endif
+    return (HANDLE)0;
+  } else if (*((DWORD *)lpFileName) == 0x4F4E4F43 && *((DWORD *)(lpFileName+4)) == 0x00245455) {
+#ifdef __WINB_DEBUG__
+    fd32_log_printf("[WINB] Create CONOUT$ handle\n");
+#endif
+    return (HANDLE)1;
+  }
   /* access (read-write) mode */
   
   if (dwDesiredAccess == (GENERIC_READ|GENERIC_WRITE))
@@ -409,6 +465,9 @@ static HANDLE WINAPI fd32_imp__CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAcc
 
 static BOOL WINAPI fd32_imp__FlushFileBuffers(HANDLE hFile)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] FlushFileBuffers: %lx\n", (DWORD)hFile);
+#endif
   /* NOTE: Direct using FD32 system call */
   if (fd32_fflush((int)hFile) == 0)
     return TRUE;
@@ -426,6 +485,9 @@ static BOOL WINAPI fd32_imp__FlushFileBuffers(HANDLE hFile)
 static BOOL WINAPI fd32_imp__ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped)
 {
   ssize_t res;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] ReadFile: %lx %lx %ld\n", (DWORD)hFile, (DWORD)lpBuffer, nNumberOfBytesToRead);
+#endif
   res = read((int)hFile, lpBuffer, nNumberOfBytesToRead);
   
   if (res >= 0) {
@@ -445,7 +507,10 @@ static BOOL WINAPI fd32_imp__ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumb
 static BOOL WINAPI fd32_imp__SetEndOfFile(HANDLE hFile)
 {
   off_t length = lseek((int)hFile, 0, SEEK_CUR);
-  
+
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] SetEndOfFile: %lx\n", (DWORD)hFile);
+#endif
   if (length >= 0) {
     if (ftruncate((int)hFile, length) == 0)
       return TRUE;
@@ -467,6 +532,9 @@ DWORD WINAPI fd32_imp__SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG 
      #define FILE_CURRENT 1
      #define FILE_END     2 */
   off_t res;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] SetFilePointer: %lx\n", (DWORD)hFile);
+#endif
   /* TODO: Support 64 bits mode of file seek */
   res = lseek((int)hFile, lDistanceToMove, dwMoveMethod);
   if (res >= 0) {
@@ -485,8 +553,15 @@ DWORD WINAPI fd32_imp__SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG 
 static BOOL WINAPI fd32_imp__WriteFile( HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten, LPOVERLAPPED lpOverlapped)
 {
   ssize_t res;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] WriteFile: %lx %lx %ld\n", (DWORD)hFile, (DWORD)lpBuffer, nNumberOfBytesToWrite);
+  if (hFile == (HANDLE)1)
+    fd32_log_printf("[WINB] buf: %x %x\n", ((BYTE *)lpBuffer)[0], ((BYTE *)lpBuffer)[1]);
+#endif
   res = write((int)hFile, lpBuffer, nNumberOfBytesToWrite);
-  
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] res: %d\n", res);
+#endif
   if (res >= 0) {
     *lpNumberOfBytesWritten = res;
     return TRUE;
@@ -503,6 +578,9 @@ static BOOL WINAPI fd32_imp__WriteFile( HANDLE hFile, LPCVOID lpBuffer, DWORD nN
 
 static HANDLE WINAPI fd32_imp__CreateConsoleScreenBuffer(DWORD dwDesiredAccess, DWORD dwShareMode, SECURITY_ATTRIBUTES *lpSecurityAttributes, DWORD dwFlags, LPVOID lpScreenBufferData)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] CreateConsoleScreenBuffer: %lx %lx Scrbuf at %lx\n", dwDesiredAccess, dwShareMode, (DWORD)lpScreenBufferData);
+#endif
   return 0;
 }
 
@@ -524,6 +602,9 @@ static BOOL WINAPI fd32_imp__FillConsoleOutputCharacterA(HANDLE hConsoleOutput, 
 
 static BOOL WINAPI fd32_imp__FlushConsoleInputBuffer(HANDLE hConsoleInput)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] FlushConsoleInputBuffer: %lx\n", (DWORD)hConsoleInput);
+#endif
   return fd32_imp__FlushFileBuffers(hConsoleInput);
 }
 
@@ -540,7 +621,7 @@ static BOOL WINAPI fd32_imp__GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMod
 #ifdef __WINB_DEBUG__
   fd32_log_printf("[WINB] GetConsoleMode: %lx\n", (DWORD)hConsoleHandle);
 #endif
-  *lpMode = ENABLE_LINE_INPUT|ENABLE_ECHO_INPUT;
+  *lpMode = ENABLE_LINE_INPUT|ENABLE_ECHO_INPUT; /* WRAP_AT_EOL */
   return TRUE;
 }
 
@@ -589,6 +670,9 @@ BOOL WINAPI fd32_imp__GetNumberOfConsoleMouseButtons(LPDWORD lpNumberOfMouseButt
 static HANDLE WINAPI fd32_imp__GetStdHandle(DWORD nStdHandle)
 {
   HANDLE handle;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] GetStdHandle: %lx\n", nStdHandle);
+#endif
 
   switch(nStdHandle)
   {
@@ -628,6 +712,9 @@ static BOOL WINAPI fd32_imp__ScrollConsoleScreenBufferA(HANDLE hConsoleOutput, C
 
 static BOOL WINAPI fd32_imp__SetConsoleActiveScreenBuffer(HANDLE hConsoleOutput)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] SetConsoleActiveScreenBuffer: %lx\n", (DWORD)hConsoleOutput);
+#endif
   /* NOTE: Support only one screen buffer return true directly */
   return TRUE;
 }

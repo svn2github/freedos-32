@@ -23,18 +23,43 @@ typedef OLECHAR *BSTR;
 
 static WINOLEAUTAPI_(BSTR) fd32_imp__SysAllocStringByteLen(LPCSTR psz, UINT len)
 {
-  return NULL;
+  DWORD *p;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] SysAllocStringByteLen: %s (%lx) %d WCHAR size: %d\n", psz, (DWORD)psz, len, sizeof(WCHAR));
+#endif
+  p = malloc(len+4);
+  /* Save the length of BSTR, general implementation of BSTR */
+  *p++ = len;
+  /* Direct copy the psz to newly-allocated address */
+  if (psz != NULL)
+    memcpy(p, psz, len);
+  return (BSTR)p;
 }
 
 
 static WINOLEAUTAPI_(void) fd32_imp__SysFreeString(BSTR bstr)
 {
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] SysFreeString: %lx\n", (DWORD)bstr);
+#endif
+  free((DWORD *)bstr-1);
 }
 
 
+/* SysStringByteLen Returns the length (in bytes) of a BSTR. Valid for 32-bit systems only.
+ *
+ * Return Value
+ * The number of bytes in bstr, not including a terminating null character. If the bstr parameter is NULL then zero is returned.
+ */
 static WINOLEAUTAPI_(UINT) fd32_imp__SysStringByteLen(BSTR bstr)
 {
-  return 0;
+  UINT len = 0;
+#ifdef __WINB_DEBUG__
+  fd32_log_printf("[WINB] SysStringByteLen: %lx\n", (DWORD)bstr);
+#endif
+  if (bstr != NULL)
+    len = *((DWORD *)bstr-1);
+  return len;
 }
 
 

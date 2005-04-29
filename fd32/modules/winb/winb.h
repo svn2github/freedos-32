@@ -40,7 +40,8 @@ struct psp {
 
   /* The following fields must start at offset 2Ch (44) */
   uint16_t environment_selector;
-  uint8_t  reserved_3[4];
+  /* uint8_t  reserved_3[4]; */
+  void (*mem_clear_up)(void); /* WINB special memory clear up */
   uint16_t jft_size; /* Offset 32h (50) */
   void *jft;      /* Offset 34h (52) */
   uint8_t  reserved[66]; /* Just used as padding */

@@ -307,7 +307,7 @@ static struct symbol msvcrt_symarray[] = {
   {"_setmode",       (uint32_t)fd32_imp_setmode},
   {"_XcptFilter",    (uint32_t)fd32_imp_XcptFilter},
 
-  /* from Newlib */
+  /* from Newlib and libfd32 */
   {"_close",         (uint32_t)close},
   {"_errno",         (uint32_t)__errno},
   {"_exit",          (uint32_t)exit},

@@ -1,3 +1,14 @@
+
+NOTE:
+----
+If you don't want to bother compiling the newlib with MingW ('cause it's
+quite annoying and you have to apply the include.diff in the libfd32), you
+can download the pre-complied ones:
+  http://freehost24.websamba.com/xnova/newlib-1.13.0-binary-mingw.zip
+  http://idea.51.net/temp/newlib-1.13.0-binary-mingw.zip
+
+COMPILING:
+----
 Compiling the winb module requires newlib and libfd32, and can be difficult,
 hence these short notes...
 
