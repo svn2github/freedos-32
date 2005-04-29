@@ -151,3 +151,28 @@ int oemcp_skipchar(char *Dest)
 {
   return 1;
 }
+
+
+#if 1
+#include <kernel.h>
+#include <ll/i386/error.h>
+static struct { char *Name; DWORD Address; } Symbols[] =
+{
+  { "oemcp_to_utf8",  (DWORD) oemcp_to_utf8  },
+  { "utf8_to_oemcp",  (DWORD) utf8_to_oemcp  },
+  { "oemcp_skipchar", (DWORD) oemcp_skipchar },
+  { 0, 0 }
+};
+
+
+void cp437_init(void)
+{
+  int k;
+
+  message("Going to install the old and dirty cp437 NLS driver... ");
+  for (k = 0; Symbols[k].Name; k++)
+    if (add_call(Symbols[k].Name, Symbols[k].Address, ADD) == -1)
+      message("Cannot add %s to the symbol table\n", Symbols[k].Name);
+  message("Done\n");
+}
+#endif

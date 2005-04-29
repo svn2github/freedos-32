@@ -11,8 +11,10 @@ INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
+#OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
+#	kernel/kernel.o nls/cp437.o unicode/unicode.o cons/cons.o
 OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
-	kernel/kernel.o nls/cp437.o unicode/unicode.o cons/cons.o
+	kernel/kernel.o cons/cons.o
 
 KERNEL_DIRS = $(OSLIB) boot devices dynalink filesys kernel nls unicode cons
 

@@ -75,3 +75,35 @@ int fd32_utf16to8(const UTF16 *Utf16, UTF8 *Utf8)
     }
   }
 }
+
+
+#if 1
+#include <kernel.h>
+#include <ll/i386/error.h>
+/* Symbols for Unicode support (from unicode.h) */
+static struct { char *Name; DWORD Address; } Symbols[] =
+{
+  { "fd32_utf16to32",  (DWORD) fd32_utf16to32  },
+  { "fd32_utf32to16",  (DWORD) fd32_utf32to16  },
+  { "fd32_utf8to32",   (DWORD) fd32_utf8to32   },
+  { "fd32_utf32to8",   (DWORD) fd32_utf32to8   },
+  { "utf8_stricmp",    (DWORD) utf8_stricmp    },
+  { "utf8_strupr",     (DWORD) utf8_strupr     },
+  { "fd32_utf8to16",   (DWORD) fd32_utf8to16   },
+  { "fd32_utf16to8",   (DWORD) fd32_utf16to8   },
+  { "unicode_toupper", (DWORD) unicode_toupper },
+  { 0, 0 }
+};
+
+
+void unicode_init(void)
+{
+  int k;
+
+  message("Going to install the Unicode support library... ");
+  for (k = 0; Symbols[k].Name; k++)
+    if (add_call(Symbols[k].Name, Symbols[k].Address, ADD) == -1)
+      message("Cannot add %s to the symbol table\n", Symbols[k].Name);
+  message("Done\n");
+}
+#endif
