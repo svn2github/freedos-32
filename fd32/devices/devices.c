@@ -1,7 +1,7 @@
 /* Use the following defines to customize the devices engine */
 //#define DEV_FD32    /* Define this to add these calls to the FD32 kernel */
-#define DEV_UNICODE /* Define this to use Unicode UTF-8 in device names  */
-//#define DEV_CASE    /* Define this to use case sensitive device names    */
+//#define DEV_UNICODE /* Define this to use Unicode UTF-8 in device names  */
+#define DEV_CASE    /* Define this to use case sensitive device names    */
 #define DEV_NODUP   /* Define this to forbit devices with same name      */
 
 #include <ll/i386/hw-data.h>
