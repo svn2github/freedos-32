@@ -214,8 +214,8 @@ static int dos_find(tFile *f, fd32_fs_dosfind_t *find_data)
     if (fat_compare_fcb_names(ff.SfnEntry.Name, find_data->SearchTemplate)) continue;
     /* Ok, we have found the file, fill the output fields of "find_data" */
     find_data->Attr  = ff.SfnEntry.Attr;
-    find_data->MTime = (WORD) ff.SfnEntry.WrtTime;
-    find_data->MDate = (WORD) (ff.SfnEntry.WrtTime >> 16);
+    find_data->MTime = ff.SfnEntry.WrtTime;
+    find_data->MDate = ff.SfnEntry.WrtDate;
     find_data->Size  = ff.SfnEntry.FileSize;
     strcpy(find_data->Name, ff.ShortName);
     ((tFindRes *) find_data->Reserved)->EntryCount = f->TargetPos >> 5;
