@@ -23,6 +23,7 @@
 #include "kernel.h"
 #include "kmem.h"
 #include "format.h"
+#include "handler.h"
 #include "logger.h"
 #include "devices.h"
 #include "filesys.h"
@@ -30,7 +31,7 @@
 #include "nls.h"
 #include "fd32time.h"
 
-extern DWORD ll_exc_table[16];
+/* "not used" extern DWORD ll_exc_table[16]; */
 extern struct handler exc_table[32];
 extern struct gate IDT[256];
 extern DWORD rm_irq_table[256];

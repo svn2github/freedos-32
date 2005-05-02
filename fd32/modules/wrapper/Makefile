@@ -20,7 +20,8 @@ VPATH = src
 all: wrapper.com
 
 clean :
-	$(RM) *.o wrapper.com
+	$(RM) *.o
+	$(RM) wrapper.com
 
 wrapper.com: $(OBJS)
 	$(LD) $(LINK_OPT) $(OBJS) -r -s -o wrapper.com
