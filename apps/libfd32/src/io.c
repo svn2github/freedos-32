@@ -2,6 +2,8 @@
 #include <sys/fcntl.h>
 
 #include <ll/i386/hw-data.h>
+#include <ll/i386/error.h>
+#include <ll/stdarg.h>
 #include <filesys.h>
 #include <kernel.h>
 
@@ -42,11 +44,17 @@ int close(int fd)
   return fd32_close(fd);
 }
 
-int open(const char *name, int flags, int mode)
+int open(const char *name, int flags, ...)
 {
-  int res, action;
+  int mode, res, action;
   DWORD dosflags;
   WORD dosattr;
+  va_list ap;
+  
+  /* Get the mode */
+  va_start (ap, flags);
+  mode = va_arg (ap, int);
+  va_end (ap);
 
   dosflags = 0;
   dosattr = 0;

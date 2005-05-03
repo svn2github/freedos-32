@@ -11,18 +11,6 @@ diff -urp /home/luca/devel/Cross/local/i586-pc-msdosdjgpp/include/stddef.h inclu
  
  #ifndef __dj_ENFORCE_ANSI_FREESTANDING
 
-diff -u -d -r newlib-1.13.0/newlib/libc/include/sys/fcntl.h freedos-32/apps/newlib/include/sys/fcntl.h
---- newlib-1.13.0/newlib/libc/include/sys/fcntl.h	Tue Dec  2 01:27:02 2003
-+++ freedos-32/apps/newlib/include/sys/fcntl.h	Tue Apr 26 07:04:52 2005
-@@ -165,7 +165,7 @@
- #include <sys/types.h>
- #include <sys/stat.h>		/* sigh. for the mode bits for open/creat */
- 
--extern int open _PARAMS ((const char *, int, ...));
-+extern int open _PARAMS ((const char *, int, int));
- extern int creat _PARAMS ((const char *, mode_t));
- extern int fcntl _PARAMS ((int, int, ...));
- 
 diff -u -d -r newlib-1.13.0/newlib/libc/include/sys/types.h freedos-32/apps/newlib/include/sys/types.h
 --- newlib-1.13.0/newlib/libc/include/sys/types.h	Thu Jul  3 04:32:08 2003
 +++ freedos-32/apps/newlib/include/sys/types.h	Tue Apr 26 07:10:18 2005
