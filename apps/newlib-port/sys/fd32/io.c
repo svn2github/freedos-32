@@ -8,7 +8,7 @@
 #include <kernel.h>
 
 
-ssize_t	read(int fd, void *ptr, size_t len)
+ssize_t	_read(int fd, void *ptr, size_t len)
 {
   int res;
 
@@ -17,7 +17,7 @@ ssize_t	read(int fd, void *ptr, size_t len)
   return res;
 }
 
-off_t lseek(int fd, off_t ptr, int dir)
+off_t _lseek(int fd, off_t ptr, int dir)
 {
   int res;
   long long int newpos;
@@ -30,7 +30,7 @@ off_t lseek(int fd, off_t ptr, int dir)
   return newpos;
 }
 
-ssize_t	write(int fd, const void *ptr, size_t len)
+ssize_t	_write(int fd, const void *ptr, size_t len)
 {
   int res;
   
@@ -39,12 +39,12 @@ ssize_t	write(int fd, const void *ptr, size_t len)
   return res;
 }
 
-int close(int fd)
+int _close(int fd)
 {
   return fd32_close(fd);
 }
 
-int open(const char *name, int flags, ...)
+int _open(const char *name, int flags, ...)
 {
   int mode, res, action;
   DWORD dosflags;
@@ -88,7 +88,7 @@ int open(const char *name, int flags, ...)
   return res;
 }
 
-int fstat(int fd, struct stat *st)
+int _fstat(int fd, struct stat *st)
 {
   st->st_mode = S_IFCHR;
 

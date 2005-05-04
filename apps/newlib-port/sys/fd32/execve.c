@@ -3,7 +3,7 @@
 #include <ll/i386/hw-data.h>
 #include <kernel.h>
 
-int execve(const char *name, char * const argv[], char * const env[])
+int _execve(const char *name, char * const argv[], char * const env[])
 {
   WORD retcode;
   int res;

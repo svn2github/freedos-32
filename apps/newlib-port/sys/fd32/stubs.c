@@ -5,7 +5,7 @@ extern int errno;
 
 #include <unistd.h>
 
-int fork(void)
+int _fork(void)
 {
   message("Fork called: failing...\n");
   errno=EAGAIN;
@@ -13,7 +13,7 @@ int fork(void)
   return -1;
 }
 
-int wait(int *status)
+int _wait(int *status)
 {
   message("Wait called: failing...\n");
   errno = ECHILD;
@@ -21,20 +21,20 @@ int wait(int *status)
   return -1;
 }
 
-int kill(int pid, int sig)
+int _kill(int pid, int sig)
 {
   message("Kill called: failing...\n");
   errno = EINVAL;
   return(-1);
 }
 
-pid_t getpid(void)
+pid_t _getpid(void)
 {
   message("GetPID called: faking...\n");
   return(1);
 }
 
-int link(const char *__path1, const char *__path2 )
+int _link(const char *__path1, const char *__path2 )
 {
   /* We do not have hard links... Just fail for now */
 

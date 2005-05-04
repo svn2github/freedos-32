@@ -3,7 +3,7 @@
 #include <ll/i386/hw-data.h>
 #include <filesys.h>
 
-int unlink(const char *name)
+int _unlink(const char *name)
 {
   int res;
   

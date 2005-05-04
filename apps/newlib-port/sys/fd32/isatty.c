@@ -3,7 +3,7 @@
 #include <ll/i386/hw-data.h>
 #include <filesys.h>
 
-int isatty(int fd)
+int _isatty(int fd)
 {
   int res;
 

@@ -6,7 +6,7 @@
 #include <kmem.h>
 #include <stubinfo.h>
 
-void *sbrk(int incr)
+void *_sbrk(int incr)
 {
   char *prev_heap_end = NULL;
   int res;

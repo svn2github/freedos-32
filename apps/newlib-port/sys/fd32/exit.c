@@ -5,7 +5,7 @@
 
 extern struct psp *current_psp;
 
-void _exit(int res)
+void __exit(int res)
 {
   void restore_sp(int res);
 

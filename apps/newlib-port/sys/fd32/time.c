@@ -4,7 +4,7 @@
 #include <sys/time.h>
 #include <sys/times.h>
 
-int gettimeofday(struct timeval *__p, struct timezone *__z)
+int _gettimeofday(struct timeval *__p, struct timezone *__z)
 {
   struct fd32_date d;
   struct fd32_time t;
@@ -51,7 +51,7 @@ int gettimeofday(struct timeval *__p, struct timezone *__z)
 
 /* times Timing information for current process. */
 
-clock_t times(struct tms *buf)
+clock_t _times(struct tms *buf)
 {
   return -1;
 }
