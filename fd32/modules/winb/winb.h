@@ -40,11 +40,13 @@ struct psp {
 
   /* The following fields must start at offset 2Ch (44) */
   uint16_t environment_selector;
-  /* uint8_t  reserved_3[4]; */
-  void (*mem_clear_up)(void); /* WINB special memory clear up */
+  uint8_t  reserved_3[4];
   uint16_t jft_size; /* Offset 32h (50) */
   void *jft;      /* Offset 34h (52) */
-  uint8_t  reserved[66]; /* Just used as padding */
+  uint8_t  reserved_4[32];
+  void (*mem_clear_up)(void);
+  uint8_t  default_FCB_1[16];
+  uint8_t  default_FCB_2[20];
   /* Offset 80h (128): this is also the start of the default DTA */
   uint8_t  command_line_len;
   uint8_t  command_line[127];

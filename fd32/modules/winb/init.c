@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/syslimits.h>
 #include "winb.h"
 
@@ -89,6 +90,11 @@ void *sbrk(int incr)
   return (void *)prev_heap_end;
 }
 
+int access(const char *fn, int flags)
+{
+  return -1;
+}
+
 long sysconf(int parameter)
 {
   long res;
@@ -145,7 +151,7 @@ int isnan(double x)
 void winbase_init(void)
 {
   message("Initing WINB module ...\n");
-  message("Current time: %d\n", time(NULL));
+  message("Current time: %ld\n", time(NULL));
   install_kernel32();
   install_user32();
   install_advapi32();

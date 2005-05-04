@@ -15,7 +15,7 @@
 #include "winb.h"
 
 
-static LPCSTR atomname = 0;
+static LPCSTR atomname = NULL;
 static ATOM WINAPI fd32_imp__AddAtomA( LPCSTR str )
 {
   printf("AddAtomA: %s\n", str);
@@ -26,7 +26,7 @@ static ATOM WINAPI fd32_imp__AddAtomA( LPCSTR str )
 static ATOM WINAPI fd32_imp__FindAtomA( LPCSTR str )
 {
   printf("FindAtomA: %s\n", str);
-  if (atomname != 0)
+  if (atomname != NULL)
     return 1;
   else
     return 0;
@@ -144,6 +144,8 @@ static VOID WINAPI fd32_imp__ExitProcess( UINT ecode )
 #ifdef __WINB_DEBUG__
   fd32_log_printf("[WINB] ExitProcess: %x and do memory clear-up!\n", ecode);
 #endif
+  /* TODO: Remove the Atom? */
+  atomname = NULL;
   if (current_psp->mem_clear_up != NULL)
     current_psp->mem_clear_up();
   restore_sp(ecode);
