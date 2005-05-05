@@ -1,0 +1,23 @@
+--- ref/configure.host	2004-10-05 21:44:24.000000000 +0200
++++ newlib/configure.host	2005-05-05 15:42:08.197473696 +0200
+@@ -349,6 +349,9 @@
+ 	sys_dir=sysvi386
+ 	unix_dir=unix
+ 	;;
++  i[34567]86-pc-fd32*)
++	sys_dir=fd32
++	;;
+   i[34567]86-pc-linux-*)
+ 	sys_dir=linux
+ 	unix_dir=unix
+@@ -546,6 +549,10 @@
+   i[34567]86-*-netware*)
+ 	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES -DNO_EXEC -DABORT_PROVIDED -DCLOCK_PROVIDED -DMALLOC_PROVIDED -DHAVE_FCNTL"
+ 	;;
++  i[34567]86-pc-fd32*)
++	syscall_dir=syscalls
++	newlib_cflags="${newlib_cflags} -DHAVE_GETTIMEOFDAY"
++	;;
+   iq2000*)
+ 	syscall_dir=syscalls
+ 	default_newlib_io_long_long="yes"
