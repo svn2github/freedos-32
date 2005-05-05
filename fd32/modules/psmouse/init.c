@@ -36,7 +36,7 @@ typedef union psctrl_status
     BYTE general_timeout   :1;
     BYTE parity_error      :1;
   } s;
-} psctrl_status;
+} psctrl_status_t;
 
 
 typedef union psmouse_info
@@ -61,25 +61,43 @@ typedef union psmouse_info
     char ymovement;
   } i;
   DWORD raw;
-} psmouse_info;
+} psmouse_info_t;
 
 
-#define FD32_MOUSE_HIDE    0x00
-#define FD32_MOUSE_SHOW    0x01
-#define FD32_MOUSE_SHAPE   0x02
-#define FD32_MOUSE_GETXY   0x03
-#define FD32_MOUSE_GETBTN  0x04
+#define FD32_MOUSE_HIDE            0x00
+#define FD32_MOUSE_SHOW            0x01
+#define FD32_MOUSE_SHAPE           0x02
+#define FD32_MOUSE_GETXY           0x03
+#define FD32_MOUSE_GETBTN          0x04
+#define FD32_MOUSE_GETBTN_PRESSES  0x05
+#define FD32_MOUSE_GETBTN_RELEASES 0x06
 
 
 /* text mode video memory */
 static WORD *v = (WORD *)0xB8000;
-/* text mode cursor and mask */
-static WORD save, reserved, scrmask = 0x77ff, curmask = 0x7700;
 /* mouse status */
 static int text_x = -1, text_y = -1, x, y, visible;
-
 static fd32_request_t request;
-static psmouse_info info;
+static psmouse_info_t info;
+/* text mode cursor and mask */
+static WORD save, reserved, scrmask = 0x77ff, curmask = 0x7700;
+
+typedef struct psmouse_button_info
+{
+  WORD presses;
+  WORD releases;
+  WORD status[2];
+} psmouse_button_info_t;
+static psmouse_button_info_t btn[3];
+
+
+typedef struct fd32_mouse_getbutton
+{
+  WORD button;
+  WORD count;
+  WORD x;
+  WORD y;
+} fd32_mouse_getbutton_t;
 
 
 static int request(DWORD function, void *params)
@@ -99,7 +117,7 @@ static int request(DWORD function, void *params)
       v[80*text_y+text_x] ^= curmask;
       break;
     case FD32_MOUSE_SHAPE:
-      if(data != 0) {
+      if(data != NULL) {
         scrmask = data[0]&0x000000ff;
         curmask = data[0]&0x00ff0000;
       } else {
@@ -113,6 +131,30 @@ static int request(DWORD function, void *params)
       break;
     case FD32_MOUSE_GETBTN:
       data[0] = info.raw;
+      break;
+    case FD32_MOUSE_GETBTN_PRESSES:
+      if(data != NULL) {
+        fd32_mouse_getbutton_t *p = (fd32_mouse_getbutton_t *)data;
+        p[0].count = btn[p[0].button].presses;
+        /* Reset the counter */
+        btn[p[0].button].presses = 0;
+        p[0].x = text_x;
+        p[0].y = text_y;
+        /* Retrieve the current buttons' status */
+        p[0].button = info.raw&0x0007;
+      }
+      break;
+    case FD32_MOUSE_GETBTN_RELEASES:
+      if(data != NULL) {
+        fd32_mouse_getbutton_t *p = (fd32_mouse_getbutton_t *)data;
+        p[0].count = btn[p[0].button].releases;
+        /* Reset the counter */
+        btn[p[0].button].releases = 0;
+        p[0].x = text_x;
+        p[0].y = text_y;
+        /* Retrieve the current buttons' status */
+        p[0].button = info.raw&0x0007;
+      }
       break;
     default:
       return FD32_EINVAL;
@@ -130,7 +172,27 @@ static void psmouse_handler(int n)
 
   info.d.data[info.d.index] = fd32_inb(0x60);
   info.d.index++;
-  
+
+  /*
+   * status 0: previous button status
+   * status 1: new button status
+   */
+  btn[0].status[1] = info.i.lbutton;
+  btn[1].status[1] = info.i.rbutton;
+  btn[2].status[1] = info.i.mbutton;
+  /* Track the button presses count, status changing from 0 -> 1 */
+  btn[0].presses += (!btn[0].status[0])&(btn[0].status[1]);
+  btn[1].presses += (!btn[1].status[0])&(btn[1].status[1]);
+  btn[2].presses += (!btn[2].status[0])&(btn[2].status[1]);
+  /* Track the button releases count, status changing from 1 -> 0 */
+  btn[0].releases += (btn[0].status[0])&(!btn[0].status[1]);
+  btn[1].releases += (btn[1].status[0])&(!btn[1].status[1]);
+  btn[2].releases += (btn[2].status[0])&(!btn[2].status[1]);
+  /* Store the buttons statuses */
+  btn[0].status[0] = info.i.lbutton;
+  btn[1].status[0] = info.i.rbutton;
+  btn[2].status[0] = info.i.mbutton;
+
   if(info.d.index > 2) /* The precision */
   {
 #ifdef __PSMOUSE_DEBUG__
@@ -165,7 +227,7 @@ static void psmouse_handler(int n)
 /* The temporary wait only for initialization */
 static void tmp_wait(void)
 {
-  psctrl_status status;
+  psctrl_status_t status;
 
   for(status.data = fd32_inb(0x64); status.data&0x03; status.data = fd32_inb(0x64))
   {

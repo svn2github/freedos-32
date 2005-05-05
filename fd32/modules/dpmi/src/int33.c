@@ -27,11 +27,22 @@ static int log;
 #endif
 
 
-#define FD32_MOUSE_HIDE		0x00
-#define FD32_MOUSE_SHOW		0x01
-#define FD32_MOUSE_SHAPE	0x02
-#define FD32_MOUSE_GETXY	0x03
-#define FD32_MOUSE_GETBTN	0x04  /* The low 3 bits of retrieved data is the button status */
+#define FD32_MOUSE_HIDE            0x00
+#define FD32_MOUSE_SHOW            0x01
+#define FD32_MOUSE_SHAPE           0x02
+#define FD32_MOUSE_GETXY           0x03
+#define FD32_MOUSE_GETBTN          0x04  /* The low 3 bits of retrieved data is the button status */
+#define FD32_MOUSE_GETBTN_PRESSES  0x05
+#define FD32_MOUSE_GETBTN_RELEASES 0x06
+
+/* TODO: Make a common mouse header, define and put the request structures there */
+typedef struct fd32_mouse_getbutton
+{
+  WORD button;
+  WORD count;
+  WORD x;
+  WORD y;
+} fd32_mouse_getbutton_t;
 
 
 static fd32_request_t *request;
@@ -110,7 +121,7 @@ int mousebios_int(union rmregs *r)
           if(res < 0) { LOG_PRINTF("no FD32_MOUSE_GETBTN request call\n"); break; }
           res = request(FD32_MOUSE_GETXY, (void *)pos);
           if(res < 0) { LOG_PRINTF("no FD32_MOUSE_GETXY request call\n"); break; }
-          r->x.bx = raw&0x00000007;
+          r->x.bx = raw&0x0007;
           r->x.cx = pos[0];
           r->x.dx = pos[1];
           res = 0;
@@ -118,6 +129,42 @@ int mousebios_int(union rmregs *r)
           if(r->x.bx != 0)
             fd32_log_printf("[MOUSE BIOS] Button clicked, cx: %x\tdx: %x\tbx: %x\n", r->x.cx, r->x.dx, r->x.bx);
           #endif
+        }
+        break;
+      /* MS MOUSE v1.0+ - RETURN BUTTON PRESS DATA */
+      case 0x05:
+        if(mousedev_get())
+        {
+          fd32_mouse_getbutton_t mb;
+          mb.button = r->x.bx;
+          res = request(FD32_MOUSE_GETBTN_PRESSES, (void *)&mb);
+          if(res < 0) {
+            LOG_PRINTF("no FD32_MOUSE_GETBTN_PRESSES request call\n");
+          } else {
+            r->x.ax = mb.button; /* button states */
+            r->x.bx = mb.count;
+            r->x.cx = mb.x;
+            r->x.dx = mb.y;
+            res = 0;
+          }
+        }
+        break;
+      /* MS MOUSE v1.0+ - RETURN BUTTON RELEASE DATA */
+      case 0x06:
+        if(mousedev_get())
+        {
+          fd32_mouse_getbutton_t mb;
+          mb.button = r->x.bx;
+          res = request(FD32_MOUSE_GETBTN_RELEASES, (void *)&mb);
+          if(res < 0) {
+            LOG_PRINTF("no FD32_MOUSE_GETBTN_RELEASES request call\n");
+          } else {
+            r->x.ax = mb.button; /* button states */
+            r->x.bx = mb.count;
+            r->x.cx = mb.x;
+            r->x.dx = mb.y;
+            res = 0;
+          }
         }
         break;
       /* MS MOUSE v1.0+ - DEFINE HORIZONTAL CURSOR RANGE */

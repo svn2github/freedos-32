@@ -70,6 +70,10 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       res = 0;
       switch(r1->x.ax)
       {
+        /* CD-ROM v2.00+ - DRIVE CHECK */
+        case 0x150B:
+          message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
+          break;
         /* MS Windows - WINDOWS ENHANCED MODE INSTALLATION CHECK */
         case 0x1600:
           r1->h.al = 0;
