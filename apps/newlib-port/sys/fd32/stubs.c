@@ -38,6 +38,6 @@ int _link(const char *__path1, const char *__path2 )
 {
   /* We do not have hard links... Just fail for now */
 
-  errno = EINVAL;
+  errno = ENOSYS;
   return -1;
 }
