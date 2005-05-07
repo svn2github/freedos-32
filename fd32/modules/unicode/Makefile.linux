@@ -1,0 +1,27 @@
+# FreeDOS-32 Unicode Support Library 2.0
+# Makefile for the Linux target
+
+CC = gcc
+LD = ld
+RM = rm -f
+
+C_OPT    = -Wall -O3
+LINK_OPT = -Bstatic -r -s
+
+OBJS   = simple_fold.o utf16towc.o utf8towc.o wctoutf16.o wctoutf8.o
+OUTLIB = unicode.o
+OUTEXE = unicode
+
+all: $(OUTLIB) $(OUTEXE)
+
+clean:
+	$(RM) $(OBJS) test.o $(OUTLIB) $(OUTEXE)
+
+$(OUTLIB): $(OBJS)
+	$(LD) $(LINK_OPT) $(OBJS) -o $(OUTLIB)
+
+$(OUTEXE): $(OUTLIB) test.o
+	$(CC) $(C_OPT) $(OUTLIB) test.o -o $(OUTEXE)
+
+%.o : %.c
+	$(CC) $(C_OPT) -c $<
