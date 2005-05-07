@@ -79,6 +79,13 @@ extern inline int fd32_event_delete(int index)
 
 #define WFC(c) while (c) fd32_cpu_idle()
 
+/* FIXME: This is a temporary hack while waiting for standard headers */
+#include <dr-env/stdint.h>
+#include <errors.h>
+#define EILSEQ -FD32_EINVAL
+#define EINVAL -FD32_EINVAL
+#define ENAMETOOLONG -FD32_EINVAL
+typedef int wchar_t;
+typedef int wint_t;
 
 #endif /* #ifndef __FD32_FD32_DRENV_H */
-
