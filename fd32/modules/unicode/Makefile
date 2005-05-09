@@ -20,7 +20,7 @@ LIB_DIR  = $(OSLIB)\lib
 C_OPT +=  -I$(FD32)/include -I$(OSLIB) -I$(PORTAB) -Wall -O3
 LINK_OPT = -Bstatic -r -s
 
-OBJS   = simple_fold.o utf16towc.o utf8towc.o wctoutf16.o wctoutf8.o
+OBJS   = init.o simple_fold.o utf16towc.o utf8towc.o wctoutf16.o wctoutf8.o
 OUTLIB = unicode.o
 
 all: $(OUTLIB)

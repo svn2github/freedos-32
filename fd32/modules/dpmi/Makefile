@@ -1,6 +1,12 @@
 ifndef OSLIB
 OSLIB = ../../../oslib
 endif
+ifndef DRIVERS
+DRIVERS = ../../../drivers
+endif
+ifndef PORTAB
+PORTAB = ../../../drivers/include/fd32
+endif
 
 include $(OSLIB)/config.mk
 
@@ -10,7 +16,7 @@ LIB_DIR  = $(OSLIB)\lib
 
 #DEBUG = -D__DEBUG__ -D__DPMI_DEBUG__ -D__DPMIMEM_DEBUG__ -D__RM_INT_DEBUG__
 
-C_OPT += -I../../include -I ./include $(DEBUG)
+C_OPT += -I../../include -I ./include -I$(DRIVERS) -I$(PORTAB) $(DEBUG)
 LINK_OPT = -Bstatic
 
 OBJS = chandler.o dpmimem.o dpmiexc.o rmint.o ldtmanag.o init.o \

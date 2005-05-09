@@ -4,11 +4,10 @@
 #include <errors.h>
 #include <nls.h>
 
-
 /* Unicode scalar values for the CP437 character set.                  */
 /* Thanks to Roman Czyborra <http://czyborra.com> for this table.      */
 /* Thanks to RHIDE macros that helped me very much in writing it in C. */
-static const WORD Cp437[256] =
+static const uint16_t Cp437[256] =
 {
 #if 1 /* Set it if you want to use glyph chars instead of control chars */
 /* 00 */ 0x0000, 0x263A, 0x263B, 0x2665, 0x2666, 0x2663, 0x2660, 0x2022,
@@ -55,7 +54,7 @@ static const WORD Cp437[256] =
 /* Converts a Unicode scalar value into a code-page specific value */
 /* and append it to the Local string.                              */
 /* Returns the number of bytes taken by the converted character.   */
-int fd32_unicode_to_oemcp(DWORD Scalar, char *Dest)
+int fd32_unicode_to_oemcp(wchar_t Scalar, char *Dest)
 {
   int k;
 
@@ -67,18 +66,19 @@ int fd32_unicode_to_oemcp(DWORD Scalar, char *Dest)
 }
 
 
-int oemcp_to_utf8(char *Source, UTF8 *Dest)
+int oemcp_to_utf8(char *Source, char *Dest)
 {
-  UTF32 Ch;
+  wchar_t Ch;
   int   Res;
 
   for (; *Source; Source++)
   {
     Ch = Cp437[(unsigned) *Source];
-    if (Ch < 0x000080) *Dest++ = (UTF8) Ch;
+    if (Ch < 0x000080) *Dest++ = (char) Ch;
     else
     {
-      if ((Res = fd32_utf32to8(Ch, Dest)) < 0) return FD32_EUTF8;
+      Res = unicode_wctoutf8(Dest, Ch, 6);
+      if (Res < 0) return FD32_EUTF8;
       Dest += Res;
     }
   }
@@ -96,13 +96,13 @@ int oemcp_to_utf8(char *Source, UTF8 *Dest)
 /* at most DestSize bytes. If SourceSize is -1 the Source string is    */
 /* supposed to be null terminated.                                     */
 /* WARNING: Does not append the null terminator to Dest.               */
-int utf8_to_oemcp(UTF8 *Source, int SourceSize,
+int utf8_to_oemcp(char *Source, int SourceSize,
                   char *Dest,   int DestSize)
 {
-  UTF8  *SourceLast = NULL;
+  char  *SourceLast = NULL;
   char  *DestLast   = Dest + DestSize - 1;
   int    k, Res = 0;
-  UTF32  Scalar;
+  wchar_t Scalar;
 
   if (SourceSize != -1) SourceLast = Source + SourceSize - 1;
   while (*Source)
@@ -117,7 +117,7 @@ int utf8_to_oemcp(UTF8 *Source, int SourceSize,
     if (!(*Source & 0x80)) Scalar = *Source++;
     else
     {
-      int Skip = fd32_utf8to32(Source, &Scalar);
+      int Skip = unicode_utf8towc(&Scalar, Source, 6);
       if (Skip < 0) return FD32_EUTF8;
       Source += Skip;
     }

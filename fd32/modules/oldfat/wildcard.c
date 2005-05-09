@@ -3,7 +3,7 @@
  * Wrappers for file system driver functions and JFT support              *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "wildcard.c" - To compare file names with wildcards support.   *
  *                                                                        *
@@ -29,7 +29,7 @@
 #include <ll/i386/hw-data.h>
 #include <ll/ctype.h>
 
-#include <unicode.h>
+#include <unicode/unicode.h>
 #include <errors.h>
 
 /* This enum is used for return values of internal (static) compare functions */
@@ -48,7 +48,7 @@ enum
 /* If the characters don't match, returns DONT_MATCH.                   */
 static inline int compare_char(const char **s1, const char **s2, int *ImplicitDot)
 {
-  DWORD Scalar1, Scalar2;
+  wchar_t Scalar1, Scalar2;
   int   Res;
   /* Due to the possible implicit dot, we have to treat the case of the   */
   /* end of s1 separately: the trailing implicit dot of s2 may match with */
@@ -72,14 +72,17 @@ static inline int compare_char(const char **s1, const char **s2, int *ImplicitDo
       ++*s2;
       return MATCH;
     }
-    if ((Res = fd32_utf8to32(*s1, &Scalar1)) < 0) return FD32_EUTF8;
+    Res = unicode_utf8towc(&Scalar1, *s1, 6);
+    if (Res < 0) return FD32_EUTF8;
     *s1 += Res;
-    if ((Res = fd32_utf8to32(*s2, &Scalar2)) < 0) return FD32_EUTF8;
+    Res = unicode_utf8towc(&Scalar2, *s2, 6);
+    if (Res < 0) return FD32_EUTF8;
     *s2 += Res;
-    if (unicode_toupper(Scalar1) != unicode_toupper(Scalar2)) return DONT_MATCH;
+    if (unicode_simple_fold(Scalar1) != unicode_simple_fold(Scalar2)) return DONT_MATCH;
   }
   /* If we have a '?' we skip a character both in s1 and s2 */
-  if ((Res = fd32_utf8to32(*s1, &Scalar1)) < 0) return FD32_EUTF8;
+  Res = unicode_utf8towc(&Scalar1, *s1, 6);
+  if (Res < 0) return FD32_EUTF8;
   *s1 += Res;
   ++*s2;
   return MATCH;

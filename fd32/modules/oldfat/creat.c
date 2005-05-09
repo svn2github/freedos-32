@@ -25,8 +25,7 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 #include <dr-env.h>
-
-#include <unicode.h>
+#include <unicode/unicode.h>
 #include "fat.h"
 
 #ifdef FATWRITE
@@ -42,7 +41,7 @@
 /* Copies the 16-bit character Ch into the LFN slot Slot in the position */
 /* SlotPos, taking care of the slot structure.                           */
 /* Called by split_lfn.                                                  */
-static void copy_char_in_lfn_slot(tLfnEntry *Slot, int SlotPos, UTF16 Ch)
+static void copy_char_in_lfn_slot(tLfnEntry *Slot, int SlotPos, uint16_t Ch)
 {
   if ((SlotPos >= 0)  && (SlotPos <= 4))  Slot->Name0_4  [SlotPos]    = Ch;
   else
@@ -65,10 +64,9 @@ static int split_lfn(tLfnEntry *Slot, tDirEntry *D, char *LongName, int *NumSlot
   int   SlotPos  = 0;
   int   Order    = 0;
   BYTE  Checksum = lfn_checksum(D);
-  UTF16 LfnUtf16[FD32_LFNPMAX];
-
-  /* Long file names are stored in UTF-16 */
-  if (fd32_utf8to16(LongName, LfnUtf16)) return FD32_EUTF8;
+  uint16_t utf16[2];
+  wchar_t  wc;
+  int      res, k;
 
   /* Initialize the first slot */
   Slot[0].Order    = 1;
@@ -77,20 +75,29 @@ static int split_lfn(tLfnEntry *Slot, tDirEntry *D, char *LongName, int *NumSlot
   Slot[0].Checksum = Checksum;
   Slot[0].FstClus  = 0;
 
-  while (LfnUtf16[NamePos])
+  for (;;)
   {
-    if (SlotPos == 13)
+    res = unicode_utf8towc(&wc, LongName, 6);
+    if (res < 0) return res;
+    if (!wc) break;
+    LongName += res;
+    res = unicode_wctoutf16(utf16, wc, sizeof(utf16));
+    if (res < 0) return res;
+    for (k = 0; k < res; k++)
     {
-      SlotPos = 0;
-      Order++;
-      Slot[Order].Order    = Order + 1; /* 1-based numeration */
-      Slot[Order].Attr     = FD32_ALNGNAM;
-      Slot[Order].Reserved = 0;
-      Slot[Order].Checksum = Checksum;
-      Slot[Order].FstClus  = 0;
+      if (SlotPos == 13)
+      {
+        SlotPos = 0;
+        Order++;
+        Slot[Order].Order    = Order + 1; /* 1-based numeration */
+        Slot[Order].Attr     = FD32_ALNGNAM;
+        Slot[Order].Reserved = 0;
+        Slot[Order].Checksum = Checksum;
+        Slot[Order].FstClus  = 0;
+      }
+      copy_char_in_lfn_slot(&Slot[Order], SlotPos++, utf16[k]);
+      if (++NamePos == FD32_LFNMAX) return FD32_EFORMAT;
     }
-    copy_char_in_lfn_slot(&Slot[Order], SlotPos++, LfnUtf16[NamePos]);
-    if (++NamePos == FD32_LFNMAX) return FD32_EFORMAT;
   }
   /* Mark the slot as last */
   Slot[Order].Order |= 0x40;

@@ -26,7 +26,7 @@
  **************************************************************************/
 #include <dr-env.h>
 
-#include <unicode.h>
+#include <unicode/unicode.h>
 #include "fat.h"
 
 /* Define the DEBUG symbol in order to activate driver's log output */
@@ -73,6 +73,22 @@ static int fetch_lfn(tDirEntry *Buffer, int BufferPos, WORD *Name)
   return Order;
 }
 
+/* Temporary function */
+static int utf16to8(const WORD *restrict source, char *restrict dest)
+{
+	wchar_t wc;
+	int res;
+	while (*source)
+	{
+		res = unicode_utf16towc(&wc, source, 2);
+		if (res < 0) return res;
+		source += res;
+		res = unicode_wctoutf8(dest, wc, 6);
+		if (res < 0) return res;
+		dest += res;
+	}
+	return 0;
+}
 
 /* Searches an open directory for files matching the file specification */
 /* and the search flags.                                                */
@@ -108,9 +124,11 @@ static int readdir(tFile *Dir, tFatFind *Ff)
         #ifdef FATLFN
         Ff->LfnEntries = fetch_lfn(Buffer, BufferPos, LongNameUtf16);
         if (Ff->LfnEntries)
-          fd32_utf16to8(LongNameUtf16, Ff->LongName);
-         else
-          strcpy(Ff->LongName, Ff->ShortName);
+        {
+          int res = utf16to8(LongNameUtf16, Ff->LongName);
+          if (res < 0) return res;
+        }
+        else strcpy(Ff->LongName, Ff->ShortName);
         #else
         Ff->LfnEntries  = 0;
         strcpy(Ff->LongName, Ff->ShortName);
@@ -152,6 +170,35 @@ int fat_readdir(tFile *Dir, fd32_fs_lfnfind_t *Entry)
   return 0;
 }
 
+/* Compares two UTF-8 strings, disregarding case.
+ * Returns 0 if the strings match, a positive value if they don't match,
+ * or a FD32_EUTF8 if an invalid UTF-8 sequence is found.
+ */
+static int utf8_stricmp(const char *s1, const char *s2)
+{
+	wchar_t wc1, wc2;
+	int res;
+	for (;;)
+	{
+		if (!(*s2 & 0x80))
+		{
+			if (toupper(*s1) != toupper(*s2)) return 1;
+			if (*s1 == 0) return 0;
+			s1++;
+			s2++;
+		}
+		else
+		{
+			res = unicode_utf8towc(&wc1, s1, 6);
+			if (res < 0) return res;
+			s1 += res;
+			res = unicode_utf8towc(&wc2, s2, 6);
+			if (res < 0) return res;
+			s2 += res;
+			if (unicode_simple_fold(wc1) != unicode_simple_fold(wc2)) return 1;
+		}
+	}
+}
 
 /* Searches an open directory for files matching the file specification and   */
 /* the search flags.                                                          */

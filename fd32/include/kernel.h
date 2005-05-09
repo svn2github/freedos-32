@@ -5,7 +5,7 @@
  */
 
 #ifndef __KERNEL_H__
-#define __KERNEL_H_
+#define __KERNEL_H__
 
 struct process_info {
   char *args;

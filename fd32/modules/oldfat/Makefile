@@ -11,7 +11,7 @@ INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-C_OPT += -I$(FDOS)/include -I ../include/fd32
+C_OPT += -I$(FDOS)/include -I ../include/fd32 -I..
 ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
 

@@ -30,7 +30,7 @@
 #include "fat.h"
 
 #ifdef FATNAMECACHE
- #include <unicode.h>
+ #error FATNAMECACHE doesn't work! It just doesn't work!
 #endif
 
 /* Define the DEBUG symbol in order to activate driver's log output */

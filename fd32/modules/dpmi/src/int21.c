@@ -94,11 +94,29 @@ __attribute__ ((packed)) tExtDiskFree;
 
 
 /* TODO: Cleanup path name shortening */
-#include <unicode.h>
+#include <unicode/unicode.h>
 /* From NLS support */
-int oemcp_to_utf8(char *Source, UTF8 *Dest);
-int utf8_to_oemcp(UTF8 *Source, int SourceSize, char *Dest, int DestSize);
+int oemcp_to_utf8(char *Source, uint8_t *Dest);
+int utf8_to_oemcp(uint8_t *Source, int SourceSize, char *Dest, int DestSize);
 int oemcp_skipchar(char *Dest);
+
+/* This function is temporary, while waiting for the new NLS support */
+static int utf8_strupr(char *restrict dest, const char *restrict source)
+{
+	wchar_t wc;
+	int res;
+	while (*source)
+	{
+		res = unicode_utf8towc(&wc, source, 6);
+		if (res < 0) return -1;
+		source += res;
+		res = unicode_wctoutf8(dest, toupper(wc), 6);
+		if (res < 0) return -1;
+		dest += res;
+	}
+	*dest = 0;
+	return 0;
+}
 
 /* Given a file name Source in UTF-8, checks if it's valid */
 /* and returns in Dest the file name in FCB format.        */

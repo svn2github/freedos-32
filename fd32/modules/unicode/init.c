@@ -19,9 +19,9 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include "unicode.h"
 #include <kernel.h>
 #include <ll/i386/error.h>
-#include "unicode.h"
 
 static struct { char *name; uint32_t address; } symbols[] =
 {

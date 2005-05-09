@@ -27,8 +27,6 @@
 #include "logger.h"
 #include "devices.h"
 #include "filesys.h"
-#include "unicode.h"
-#include "nls.h"
 #include "fd32time.h"
 
 /* "not used" extern DWORD ll_exc_table[16]; */
