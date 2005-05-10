@@ -8,6 +8,7 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/mem.h>
 #include <ll/i386/string.h>
+char *strstr(const char *haystack, const char *needle); /* FIXME: Place this in oslib/ll/i386/string.h */
 
 #include "format.h"
 #include "common.h"

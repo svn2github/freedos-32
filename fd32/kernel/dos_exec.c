@@ -8,7 +8,12 @@
 #include "kmem.h"
 #include "logger.h"
 #include "exec.h"
-
+/* The following is implemented in fd32/boot/modules.c */
+void process_dos_module(struct kern_funcs *p, int file,
+	struct read_funcs *parser, char *cmdline, char *args);
+/* The following is implemented in fd32/kernel/run.s */
+int run(DWORD entry_point, DWORD idontknow, DWORD process_info);
+      
 /* from fd32/boot/modules.c */
 int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
 /* from fd32/kernel/exec.c */

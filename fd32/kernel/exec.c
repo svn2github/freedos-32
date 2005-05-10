@@ -23,7 +23,9 @@
 
 DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, DWORD *image_base, int *s)
 {
+  #ifdef __EXEC_DEBUG__
   DWORD offset;
+  #endif
   int size;
   DWORD exec_space;
   int bss_sect, i;

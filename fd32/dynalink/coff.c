@@ -127,7 +127,7 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
   int i, j;
   int pos;
   char name[9];
-  DWORD tmp;
+  DWORD tmp = 0;
   struct external_scnhdr h;
   struct coff_reloc_info rel;
 

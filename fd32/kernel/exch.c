@@ -12,6 +12,9 @@
 
 #include "handler.h"
 #include "kernel.h"
+/* This is implemented in oslib/xlib/ctx.s */
+extern CONTEXT context_save(void);
+
 
 struct handler exc_table[32];
 DWORD rm_irq_table[256];
