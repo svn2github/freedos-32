@@ -3,7 +3,7 @@
  * Wrappers for file system driver functions and JFT support              *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2002-2003, Salvatore Isaja                               *
+ * Copyright (C) 2002-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "truename.c" - Services to work with canonicalized file names  *
  *                        (setting and resolving current directory,       *
@@ -35,21 +35,7 @@
 #include <kmem.h>
 #include <filesys.h>
 #include <errors.h>
-
-/* Based on strcmp from OSLib.
- * TODO: Temporary solution while waiting it is implemented in OSLib.
- */
-#include <ll/ctype.h>
-int strcasecmp(const char *s1,const char *s2)
-{
-	while (toupper(*s1) == toupper(*s2))
-	{
-		if (*s1 == 0) return 0;
-		s1++;
-		s2++;
-	}
-	return *(unsigned const char *)s1 - *(unsigned const char *)(s2);
-}
+#include <kernel.h> /* strcasecmp */
 
 /* Define the __DEBUG__ symbol in order to activate log output */
 //#define __DEBUG__

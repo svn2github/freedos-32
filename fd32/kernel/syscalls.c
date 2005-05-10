@@ -114,6 +114,8 @@ static struct symbol syscall_table[] = {
   { "strcmp",  (DWORD) strcmp  },
   { "toupper", (DWORD) toupper },
   { "strtoi",    (DWORD) strtoi},
+  { "strcasecmp",  (DWORD) strcasecmp  }, /* currently from strcase.c and kernel.h */
+  { "strncasecmp", (DWORD) strncasecmp }, /* currently from strcase.c and kernel.h */
   /* Symbols for date and time functions (from fd32time.h) */
   { "fd32_get_date", (DWORD) fake_get_date },
   { "fd32_get_time", (DWORD) fake_get_time },

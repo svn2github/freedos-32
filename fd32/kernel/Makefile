@@ -14,7 +14,7 @@ C_OPT += -I../include $(DEBUG)
 LINK_OPT = -Bstatic
 
 OBJS = call.o pmm.o run.o exch.o abort.o process.o exec.o \
-	 syscalls.o logger.o dos_exec.o
+	 syscalls.o logger.o dos_exec.o strcase.o
 
 all: kernel.o
 
