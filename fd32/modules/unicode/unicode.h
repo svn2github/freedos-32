@@ -1,3 +1,6 @@
+/* Header file for the FreeDOS-32 Unicode Support Library version 2.0
+ * by Salvo Isaja, 2005
+ */
 #ifndef __FD32_UNICODE_H
 #define __FD32_UNICODE_H
 

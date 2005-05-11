@@ -1,3 +1,6 @@
+/* A simple test program for the FreeDOS-32 Unicode Support Library
+ * by Salvo Isaja, 2005
+ */
 #include "unicode.h"
 //#define wchar_t old_wchar_t
 #include <stdio.h>
