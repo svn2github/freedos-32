@@ -21,15 +21,15 @@ C_OPT +=  -I$(FD32)/include -I$(OSLIB) -I$(PORTAB) -Wall -O3
 LINK_OPT = -Bstatic -r -s
 
 OBJS = nls.o
-MODS = nls.ko
+MODS = nls.o
 
 all: $(MODS)
 
 clean:
-	$(RM) $(OBJS) $(MODS)
+	$(RM) *.o
 
-nls.ko: nls.o
-	$(LD) $(LINK_OPT) $< -o $@
-
+# Module with single object, Common compile and link
 %.o : %.c
-	$(CC) $(C_OPT) -c $<
+	$(REDIR) $(CC) $(C_OPT) -c $< $(LINK_OPT) -o tmp.o
+	$(LD) $(LINK_OPT) tmp.o -r -s -o $@
+	$(RM) tmp.o
