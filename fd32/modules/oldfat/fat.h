@@ -32,6 +32,7 @@
 #include <filesys.h>
 #include <devices.h>
 #include <errors.h>
+#include <nls/nls.h>
 
 /* Use the following defines to add features to the FAT driver */
 /* TODO: The FAT driver currently doesn't work with buffers disabled! */
@@ -211,6 +212,8 @@ typedef struct
   DWORD      FSI_Free_Count;  /* The count of free clusters              */
   DWORD      FSI_Nxt_Free;    /* The cluster number from which to start  */
                               /* to search for free clusters, if known   */
+  struct nls_operations *nls; /* NLS operations for short file names     */
+
   /* Buffers */
   #ifdef FATBUFFERS
   DWORD      BufferAccess; /* Counter of buffered read operations */
@@ -361,8 +364,8 @@ BYTE lfn_checksum   (tDirEntry *D);
 #ifdef FATWRITE
 int  gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint);
 #endif
-int fat_build_fcb_name(BYTE *Dest, char *Source); /* was from the FS layer */
-int fat_expand_fcb_name(char *Dest, BYTE *Source); /* was from the FS layer */
+int fat_build_fcb_name   (const struct nls_operations *nls, BYTE *Dest, char *Source);
+int fat_expand_fcb_name  (const struct nls_operations *nls, char *Dest, const BYTE *Source, size_t size);
 int fat_compare_fcb_names(BYTE *Name1, BYTE *Name2); /* was from the FS layer */
 
 

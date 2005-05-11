@@ -38,12 +38,6 @@
 #endif
 
 
-/* From NLS support */
-int oemcp_to_utf8(char *Source, uint8_t *Dest);
-int utf8_to_oemcp(uint8_t *Source, int SourceSize, char *Dest, int DestSize);
-int oemcp_skipchar(char *Dest);
-
-
 /* Calculate the 8-bit checksum for the long file name from its */
 /* corresponding short name.                                    */
 /* Called by split_lfn and find (find.c).                       */
@@ -86,11 +80,51 @@ int lfn_is_valid(char *s)
 #endif
 
 
+/** \brief Converts a substring in UTF-8 to a subscript in a code page.
+ *  \internal
+ *  \param nls  NLS operations for the code page;
+ *  \param dest destination substring in the national character set;
+ *  \param src  source string in UTF-8;
+ *  \param stop if not NULL, address in \c src where to stop processing;
+ *  \param size max number of bytes to write in \c dest.
+ *  \retval 0  success, all characters successfully converted;
+ *  \retval >0 success, some inconvertable characters replaced with '_';
+ *  \retval <0 error.
+ */
+static int gen_short_fname2(const struct nls_operations *nls, char *dest, const char *src, const char *stop, size_t size)
+{
+	/* TODO: Must report WAS_INVALID if an extended char maps to ASCII! */
+	int     res = 0;
+	int     skip;
+	wchar_t wc;
+	while (*src)
+	{
+		if (stop && (src == stop)) break;
+		skip = unicode_utf8towc(&wc, src, 6);
+		if (skip < 0) return skip;
+		src += skip;
+		skip = nls->wctomb(dest, wc, size);
+		if (skip < 0)
+		{
+			*(dest++) = '_';
+			res = 1;
+		}
+		else
+		{
+			if (skip == 1) *dest = nls->toupper(*dest);
+			dest += skip;
+			size -= skip;
+		}
+	}
+	return res;
+}
+
+
 /* Generates a valid 8.3 file name from a valid long file name. */
 /* The generated short name has not a numeric tail.             */
 /* Returns 0 on success, or a negative error code on failure.   */
 /* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
-static int gen_short_fname1(char *Dest, char *Source, DWORD Flags)
+static int gen_short_fname1(const struct nls_operations *nls, char *Dest, char *Source, DWORD Flags)
 {
   BYTE  ShortName[11] = "           ";
   char  Purified[FD32_LFNPMAX]; /* A long name without invalid 8.3 characters */
@@ -135,27 +169,25 @@ static int gen_short_fname1(char *Dest, char *Source, DWORD Flags)
     }
     else /* Process extended characters */
     {
-      wchar_t Ch, upCh;
+      wchar_t Ch;//, upCh;
       int     Skip;
 
       Skip = unicode_utf8towc(&Ch, Source, 6);
       if (Skip < 0) return Skip;
       Source += Skip;
-      upCh = unicode_simple_fold(Ch);
-      if (upCh != Ch) Res |= FD32_GENSFN_CASE_CHANGED;
-      if (upCh < 0x80) Res |= FD32_GENSFN_WAS_INVALID;
-      Skip = unicode_wctoutf8(s, upCh, 6); /* FIXME: Overflow possible */
+      //upCh = unicode_simple_fold(Ch);
+      //if (upCh != Ch) Res |= FD32_GENSFN_CASE_CHANGED;
+      //if (upCh < 0x80) Res |= FD32_GENSFN_WAS_INVALID;
+      //Skip = unicode_wctoutf8(s, upCh, 6); /* FIXME: Overflow possible */
+      Skip = unicode_wctoutf8(s, Ch, 6); /* FIXME: Overflow possible */
       if (Skip < 0) return Skip;
       s += Skip;
     }
   *s = 0;
 
   /* Convert the Purified name to the OEM code page in FCB format */
-  /* TODO: Must report WAS_INVALID if an extended char maps to ASCII! */
-  if (utf8_to_oemcp(Purified, DotPos ? DotPos - Purified : -1, ShortName, 8))
-    Res |= FD32_GENSFN_WAS_INVALID;
-  if (DotPos) if (utf8_to_oemcp(DotPos + 1, -1, &ShortName[8], 3))
-                Res |= FD32_GENSFN_WAS_INVALID;
+  if (gen_short_fname2(nls, ShortName, Purified, DotPos, 8)) Res |= FD32_GENSFN_WAS_INVALID;
+  if (DotPos) if (gen_short_fname2(nls, &ShortName[8], DotPos + 1, NULL, 3)) Res |= FD32_GENSFN_WAS_INVALID;
   if (ShortName[0] == ' ') return FD32_EFORMAT;
   if (ShortName[0] == 0xE5) Dest[0] = (char) 0x05;
 
@@ -164,7 +196,7 @@ static int gen_short_fname1(char *Dest, char *Source, DWORD Flags)
   {
     case FD32_GENSFN_FORMAT_FCB    : memcpy(Dest, ShortName, 11);
                                      return Res;
-    case FD32_GENSFN_FORMAT_NORMAL : fat_expand_fcb_name(Dest, ShortName); /* was from the FS layer */
+    case FD32_GENSFN_FORMAT_NORMAL : fat_expand_fcb_name(nls, Dest, ShortName, 12); /* was from the FS layer */
                                      return Res;
     default                        : return FD32_EINVAL;
   }
@@ -206,7 +238,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
   tDirEntry  E;
 
   LOG_PRINTF(("Generating unique short file name for \"%s\"\n", LongName));
-  Res = gen_short_fname1(ShortName, LongName, FD32_GENSFN_FORMAT_FCB); /* was from FS layer */
+  Res = gen_short_fname1(Dir->V->nls, ShortName, LongName, FD32_GENSFN_FORMAT_FCB); /* was from FS layer */
   LOG_PRINTF(("gen_short_fname1 returned %08x\n", Res));
   if (Res <= 0) return Res;
   /* TODO: Check case change! */
@@ -222,7 +254,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
     szCounterLen = strlen(szCounter);
     /* TODO: This may not work properly with multibyte charsets, but this is not
      *       a problem for now, since the whole NLS stuff has to be replaced. */
-    for (k = 0; (k < 7 - szCounterLen) && (Aux[k] != ' '); k += oemcp_skipchar(&Aux[k]));
+    for (k = 0; (k < 7 - szCounterLen) && (Aux[k] != ' '); k += Dir->V->nls->mblen(&Aux[k], NLS_MB_MAX_LEN));
     Aux[k++] = '~';
     for (s = szCounter; *s; Aux[k++] = *s++);
 
@@ -244,6 +276,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
 }
 #endif /* #ifdef FATWRITE */
 
+#if 0
 /* This function is temporary, while waiting for the new NLS support */
 static int utf8_strupr(char *restrict dest, const char *restrict source)
 {
@@ -261,6 +294,7 @@ static int utf8_strupr(char *restrict dest, const char *restrict source)
 	*dest = 0;
 	return 0;
 }
+#endif
 
 /* Given a file name Source in UTF-8, checks if it's valid */
 /* and returns in Dest the file name in FCB format.        */
@@ -268,10 +302,10 @@ static int utf8_strupr(char *restrict dest, const char *restrict source)
 /* positive number if '?' wildcards are present in Dest.   */
 /* On failure, returns a negative error code.              */
 /* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
-int fat_build_fcb_name(BYTE *Dest, char *Source)
+int fat_build_fcb_name(const struct nls_operations *nls, BYTE *Dest, char *Source)
 {
   int   WildCards = 0;
-  char  SourceU[FD32_LFNPMAX];
+  //char  SourceU[FD32_LFNPMAX];
   int   Res;
   int   k;
 
@@ -285,10 +319,19 @@ int fat_build_fcb_name(BYTE *Dest, char *Source)
     return 0;
   }
 
-  if ((Res = utf8_strupr(SourceU, Source)) < 0) return FD32_EUTF8;
-  for (k = 0; (SourceU[k] != '.') && SourceU[k]; k++);
-  utf8_to_oemcp(SourceU, SourceU[k] ? k : -1, Dest, 8);
-  if (SourceU[k]) utf8_to_oemcp(&SourceU[k + 1], -1, &Dest[8], 3);
+  //if ((Res = utf8_strupr(SourceU, Source)) < 0) return FD32_EUTF8;
+  //for (k = 0; (SourceU[k] != '.') && SourceU[k]; k++);
+  for (k = 0; (Source[k] != '.') && Source[k]; k++);
+
+  Res = gen_short_fname2(nls, Dest, Source, Source[k] ? &Source[k] : NULL, 8);
+  if (Res < 0) return Res;
+  if (Source[k])
+  {
+    Res = gen_short_fname2(nls, &Dest[8], &Source[k + 1], NULL, 3);
+    if (Res < 0) return Res;
+  }
+  //utf8_to_oemcp(SourceU, SourceU[k] ? k : -1, Dest, 8);
+  //if (SourceU[k]) utf8_to_oemcp(&SourceU[k + 1], -1, &Dest[8], 3);
 
   if (Dest[0] == ' ') return FD32_EFORMAT;
   if (Dest[0] == 0xE5) Dest[0] = 0x05;
@@ -307,7 +350,7 @@ int fat_build_fcb_name(BYTE *Dest, char *Source)
                 if (k < 8) for (; k < 8; k++) Dest[k] = '?';
                 else for (; k < 11; k++) Dest[k] = '?';
                 break;
-      default : k += oemcp_skipchar(&Dest[k]);
+      default : k += nls->mblen(&Dest[k], NLS_MB_MAX_LEN);
     }
   }
   return WildCards;
@@ -315,13 +358,12 @@ int fat_build_fcb_name(BYTE *Dest, char *Source)
 
 
 /* Gets a UTF-8 short file name from an FCB file name. */
-/* NOTE: Pasted from fd32/filesys/names.c (that has to be removed) */
-int fat_expand_fcb_name(char *Dest, BYTE *Source)
+int fat_expand_fcb_name(const struct nls_operations *nls, char *Dest, const BYTE *Source, size_t size)
 {
-  BYTE *NameEnd;
-  BYTE *ExtEnd;
+  const BYTE *NameEnd;
+  const BYTE *ExtEnd;
   char  Aux[13];
-  BYTE *s = Source;
+  const BYTE *s = Source;
   char *a = Aux;
 
   /* Count padding spaces at the end of the name and the extension */
@@ -336,5 +378,19 @@ int fat_expand_fcb_name(char *Dest, BYTE *Source)
   *a = 0;
 
   /* And finally convert Aux from the OEM code page to UTF-8 */
-  return oemcp_to_utf8(Aux, Dest);
+  for (a = Aux; *a; )
+  {
+    wchar_t wc;
+    int res;
+    res = nls->mbtowc(&wc, a, 6);
+    if (res < 0) return res;
+    a += res;
+    res = unicode_wctoutf8(Dest, wc, size);
+    if (res < 0) return res;
+    Dest += res;
+    size -= res;
+  }
+  if (size < 1) return FD32_EFORMAT;
+  *Dest = 0;
+  return 0;
 }

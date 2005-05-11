@@ -161,6 +161,7 @@ static void free_volume(tVolume *V)
 {
   int k;
 
+  if (V->nls) V->nls->release();
   #ifdef FATBUFFERS
   if (V->Buffers)
   {
@@ -416,6 +417,14 @@ int fat_mount(DWORD hDev, tVolume **NewV)
     if (Res) ABORT_MOUNT(V, Res);
   }
   LOG_PRINTF(("%lu/%lu clusters available\n", V->FSI_Free_Count, V->DataClusters));
+
+  Res = nls_get("default", OT_NLS_OPERATIONS, (void **) &V->nls);
+  if (Res < 0)
+  {
+    LOG_PRINTF(("Error %x getting NLS operations\n", Res));
+    ABORT_MOUNT(V, Res);
+  }
+
   *NewV = V;
 
   #ifdef FAT_FD32DEV

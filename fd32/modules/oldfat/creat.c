@@ -191,7 +191,7 @@ static int allocate_sfn_dir_entry(tFile *F, tDirEntry *D, char *FileName)
   int Res, EntryOffset;
 
   /* Get the name in FCB format, wildcards not allowed */
-  if (fat_build_fcb_name(D->Name, FileName)) return FD32_EFORMAT; /* was from the FS layer */
+  if (fat_build_fcb_name(F->V->nls, D->Name, FileName)) return FD32_EFORMAT; /* was from the FS layer */
     
   /* Search for a free directory entry, extending the dir if needed */
   LOG_PRINTF(("Searching for a free directory entry\n"));

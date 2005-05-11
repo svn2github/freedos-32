@@ -120,7 +120,7 @@ static int readdir(tFile *Dir, tFatFind *Ff)
       {
         Ff->SfnEntry    = Buffer[BufferPos];
         Ff->EntryOffset = Dir->TargetPos - NumRead;
-        fat_expand_fcb_name(Ff->ShortName, Buffer[BufferPos].Name); /* was from the FS layer */
+        fat_expand_fcb_name(Dir->V->nls, Ff->ShortName, Buffer[BufferPos].Name, sizeof(Ff->ShortName)); /* was from the FS layer */
         #ifdef FATLFN
         Ff->LfnEntries = fetch_lfn(Buffer, BufferPos, LongNameUtf16);
         if (Ff->LfnEntries)
@@ -284,7 +284,7 @@ int fat_findfirst(tVolume *v, const char *path, int attributes, fd32_fs_dosfind_
   tFile *f;
   find_data->SearchAttr = attributes;
   fat_split_path(path, dir, name);
-  res = fat_build_fcb_name(find_data->SearchTemplate, name);
+  res = fat_build_fcb_name(v->nls, find_data->SearchTemplate, name);
   if (res < 0) return res;
   res = fat_open(v, dir, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &f);
   if (res < 0) return res;
