@@ -19,13 +19,13 @@ LINK_OPT = -Bstatic
 
 OBJS = cp437.o
 
-all: nls.o
+all: cp437.o
 
 clean:
 	$(RM) *.o
 
-nls.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -s -o nls.o
-
+# Module with single object, Common compile and link
 %.o : %.c
-	$(REDIR) $(CC) $(C_OPT) -s -c $<
+	$(REDIR) $(CC) $(C_OPT) -c $< $(LINK_OPT) -o tmp.o
+	$(LD) $(LINK_OPT) tmp.o -r -s -o $@
+	$(RM) tmp.o
