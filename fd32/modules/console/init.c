@@ -14,9 +14,9 @@
 #define CONS_DEV_NAME  "con"
 #define KEYB_DEV_NAME  "kbd"
 
-char cons_buff[CONS_BUFF_SIZE];
+static char cons_buff[CONS_BUFF_SIZE];
 static int cons_count = 0;
-static int cons_echo = 0;    /* Console ECHO control */
+static int cons_echo = TRUE;    /* Console ECHO control */
 
 static fd32_request_t *keyb_request;
 static void *keyb_devid;
@@ -41,7 +41,7 @@ static int write(BYTE *buf, DWORD size)
   return size;
 }
 
-static int read(void *id, DWORD n, BYTE *buf)
+static int read(BYTE *buf, DWORD n)
 {
   int done;
   char c;
@@ -99,40 +99,70 @@ static int read(void *id, DWORD n, BYTE *buf)
   return n;
 }
 
+static int getattr(void *attribute)
+{
+  *((DWORD *)attribute) = cons_echo;
+  return 0;
+}
+
+static int setattr(void *attribute)
+{
+  cons_echo = (*((DWORD *)attribute) != 0);
+  return 0;
+}
+
 static fd32_request_t console_request;
 static int console_request(DWORD function, void *params)
 {
+  int res = FD32_EINVAL;
+  /* This style of converting and setting variables will be well-optimized */
+  fd32_read_t *r = (fd32_read_t *) params;
+  fd32_write_t *w = (fd32_write_t *) params;
+  fd32_close_t *c = (fd32_close_t *) params;
+  fd32_setattr_t *sa = (fd32_setattr_t *) params;
+  fd32_getattr_t *ga = (fd32_getattr_t *) params;
+
   switch (function)
   {
     case FD32_WRITE:
-    {
-      fd32_write_t *w = (fd32_write_t *) params;
-      if (w->Size < sizeof(fd32_write_t)) return FD32_EFORMAT;
-      return write(w->Buffer, w->BufferBytes);
-    }
+      if (w->Size < sizeof(fd32_write_t))
+        res = FD32_EFORMAT;
+      else
+        res = write(w->Buffer, w->BufferBytes);
+      break;
     case FD32_READ:
-    {
-      fd32_read_t *r = (fd32_read_t *) params;
-      if (r->Size < sizeof(fd32_read_t)) return FD32_EFORMAT;
-      return read(r->DeviceId, r->BufferBytes, r->Buffer);
-    }
+      if (r->Size < sizeof(fd32_read_t))
+        res = FD32_EFORMAT;
+      else
+        res = read(r->Buffer, r->BufferBytes);
+      break;
+    case FD32_GETATTR:
+      /* NOTE: Control the console's ECHO with FD32_SETATTR? */
+      if (ga->Size < sizeof(fd32_getattr_t))
+        res = FD32_EFORMAT;
+      else
+        res = getattr(ga->Attr);
+      break;
     case FD32_SETATTR:
-    {
-      /* TODO: Control the console's ECHO with FD32_SETATTR? */
-      return 0;
-    }
+      /* NOTE: Control the console's ECHO with FD32_SETATTR? */
+      if (sa->Size < sizeof(fd32_setattr_t))
+        res = FD32_EFORMAT;
+      else
+        res = setattr(sa->Attr);
+      break;
     case FD32_GET_DEV_INFO:
-    {
-      return 0x83;
-    }
+      res = 0x83;
+      break;
     case FD32_CLOSE:
-    {
-      fd32_close_t *c = (fd32_close_t *) params;
-      if (c->Size < sizeof(fd32_close_t)) return FD32_EFORMAT;
-      return 0;
-    }
+      if (c->Size < sizeof(fd32_close_t))
+        res = FD32_EFORMAT;
+      else
+        res = 0;
+      break;
+    default:
+      break;
   }
-  return FD32_EINVAL;
+  return res;
 }
 
 void console_init(void)

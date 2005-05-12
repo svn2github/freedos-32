@@ -23,7 +23,7 @@ clean :
 	$(RM) *.o
 
 consdrv.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -o consdrv.o
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o consdrv.o
 
 # Common rules
 %.o : %.c
