@@ -16,7 +16,7 @@ LIB_DIR  = $(OSLIB)\lib
 OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
 	kernel/kernel.o cons/cons.o
 
-KERNEL_DIRS = $(OSLIB) boot devices dynalink filesys kernel nls cons
+KERNEL_DIRS = $(OSLIB) boot devices dynalink filesys kernel cons
 
 all: fd32.bin drv_subdir
 
@@ -27,8 +27,8 @@ clean : $(OSLIB)/config.mk
 	make -C dynalink clean
 	make -C filesys clean
 	make -C kernel clean
-	make -C nls clean
 	make -C drivers/dpmi clean
+	make -C drivers/wrapper clean
 	make -C cons clean
 
 allclean: clean
