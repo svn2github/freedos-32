@@ -2,7 +2,7 @@
  * INT 21h handler for the FreeDOS32 DPMI Driver                          *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
+ * Copyright (C) 2001-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "int21.c" - A wrapper to provide DOS application the standard  *
  *                     DOS INT 21h API they need to run under FD32.       *
@@ -93,6 +93,7 @@ typedef struct
 __attribute__ ((packed)) tExtDiskFree;
 
 
+#if 0
 /* TODO: Cleanup path name shortening */
 #include <unicode/unicode.h>
 /* From NLS support */
@@ -254,6 +255,52 @@ static char *fix_lfn_path(char *Dest)
       Dest[i] = '\\';
   return Dest;
 }
+#endif
+
+
+#include <unicode/unicode.h>
+#include <nls/nls.h>
+struct nls_operations *current_cp;
+/** \brief Converts a path name from DOS API to UTF-8.
+ *  \param dest buffer to hold the path name converted to UTF-8;
+ *  \param source source path name in some national code page;
+ *  \param size size in bytes of the buffer pointed by \c dest.
+ *  \remarks Forward slashes '/' are converted to back slashes '\'.
+ *  \return 0 on success, or a negative error.
+ */
+static int fix_path(char *restrict dest, const char *restrict source, size_t size)
+{
+	#if 0 /* Input is in OEM code page: use Unicode and NLS support */
+	int res = 0;
+	wchar_t wc;
+	while (*source)
+	{
+		res = current_cp->mbtowc(&wc, source, NLS_MB_MAX_LEN);
+		if (res < 0) return res;
+		source += res;
+		if (wc == (wchar_t) '/') wc = (wchar_t) '\\';
+		res = unicode_wctoutf8(dest, wc, size);
+		if (res < 0) return res;
+		dest += res;
+		size -= res;
+		
+	}
+	#else /* Input is already in UTF-8: no conversion needed */
+	char c;
+	while (*source)
+	{
+		if (!size) return FD32_EFORMAT; //-ENAMETOOLONG
+		c = *(source++);
+		if (c == '/') c = '\\';
+		*(dest++) = c;
+	}
+	#endif
+	if (!size) return FD32_EFORMAT; //-ENAMETOOLONG
+	*dest = 0;
+	return 0;
+}
+#define make_sfn_path(dest, source) fix_path(dest, source, sizeof(dest))
+#define FAR2ADDR(seg, off) (((DWORD) seg << 4) + (DWORD) off)
 
 
 /* Given a FD32 return code, prepare the standard DOS return status. */
@@ -388,7 +435,7 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
   char           SfnPath[FD32_LFNPMAX];
   
   /* DS:DX pointer to the ASCIZ file name */
-  Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+  Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
   dos_return(Res, r);
   if (Res < 0) return;
   Handle = fd32_open(SfnPath, FD32_OREAD | FD32_OEXIST, FD32_ANONE, 0, NULL);
@@ -465,13 +512,14 @@ static inline void lfn_get_and_set_attributes(union rmregs *r)
 {
   int            Handle, Res;
   fd32_fs_attr_t A;
+  char fn[FD32_LFNPMAX];
 
   /* DS:DX pointer to the ASCIZ file name */
-  Handle = fd32_open((char *) (r->x.ds << 4) + r->x.dx, FD32_ORDWR | FD32_OEXIST,
-                     FD32_ANONE, 0, NULL);
+  Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+  dos_return(Res, r);
+  Handle = fd32_open(fn, FD32_ORDWR | FD32_OEXIST, FD32_ANONE, 0, NULL);
   if (Handle < 0) /* It could be a directory... */
-    Handle = fd32_open((char *) (r->x.ds << 4) + r->x.dx, FD32_ORDWR | FD32_OEXIST | FD32_ODIR,
-                       FD32_ANONE, 0, NULL);
+    Handle = fd32_open(fn, FD32_ORDWR | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, NULL);
   dos_return(Handle, r);
   if (Handle < 0) return;
   /* BL contains the action */
@@ -592,27 +640,34 @@ static inline void lfn_get_and_set_attributes(union rmregs *r)
 static inline void lfn_functions(union rmregs *r)
 {
   int Res;
+  char fn[FD32_LFNPMAX];
 
   switch (r->h.al)
   {
     /* Make directory */
     case 0x39:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = fd32_mkdir((char *) (r->x.ds << 4) + r->x.dx);
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+      dos_return(Res, r);
+      Res = fd32_mkdir(fn);
       dos_return(Res, r);
       return;
 
     /* Remove directory */
     case 0x3A:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = fd32_rmdir((char *) (r->x.ds << 4) + r->x.dx);
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+      dos_return(Res, r);
+      Res = fd32_rmdir(fn);
       dos_return(Res, r);
       return;
 
     /* Change directory */
     case 0x3B:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = fd32_chdir((char *) (r->x.ds << 4) + r->x.dx);
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+      dos_return(Res, r);
+      Res = fd32_chdir(fn);
       dos_return(Res, r);
       return;
 
@@ -623,8 +678,9 @@ static inline void lfn_functions(union rmregs *r)
       /* CL    search attributes                                            */
       /* CH    must-match attributes                                        */
       /* FIX ME: Parameter in SI is not yet used!                           */
-      Res = fd32_unlink((char *) (r->x.ds << 4) + r->x.dx,
-                        (DWORD) (r->h.ch << 8) + r->h.cl);
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+      dos_return(Res, r);
+      Res = fd32_unlink(fn, ((DWORD) r->h.ch << 8) + (DWORD) r->h.cl);
       dos_return(Res, r);
       return;
 
@@ -641,12 +697,13 @@ static inline void lfn_functions(union rmregs *r)
       /* DS:SI 64-byte buffer for ASCIZ pathname           */
       char  Drive[2] = "\0\0";
       char  Cwd[FD32_LFNPMAX];
-      char *Dest = (char *) (r->x.ds << 4) + r->x.si;
+      char *Dest = (char *) FAR2ADDR(r->x.ds, r->x.si);
 
       Drive[0] = fd32_get_default_drive();
       if (r->h.dl != 0x00) Drive[0] = r->h.dl + 'A' - 1;
       fd32_getcwd(Drive, Cwd);
       strcpy(Dest, Cwd + 1); /* Skip leading backslash as required from DOS */
+      /* FIXME: Convert from UTF-8 to OEM */
       return;
     }
 
@@ -658,9 +715,10 @@ static inline void lfn_functions(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file specification           */
       /* ES:DI pointer to the find data record                   */
       /* FIX ME: Parameter in SI is not yet used!                */
-      Res = fd32_lfn_findfirst(fix_lfn_path((char *) (r->x.ds << 4) + r->x.dx),
-                               (DWORD) (r->h.ch << 8) + r->h.cl,
-                               (fd32_fs_lfnfind_t *) ((r->x.es << 4) + r->x.di));
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+      dos_return(Res, r);
+      Res = fd32_lfn_findfirst(fn, ((DWORD) r->h.ch << 8) + (DWORD) r->h.cl,
+                               (fd32_fs_lfnfind_t *) FAR2ADDR(r->x.es, r->x.di));
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
@@ -682,8 +740,7 @@ static inline void lfn_functions(union rmregs *r)
       /* SI    date/time format: 0000h Windows time, 0001h DOS time */
       /* ES:DI pointer to the find data record                      */
       /* FIX ME: Parameter in SI should be mixed with old search flags! */
-      Res = fd32_lfn_findnext(r->x.bx, 0,
-                              (fd32_fs_lfnfind_t *) ((r->x.es << 4) + r->x.di));
+      Res = fd32_lfn_findnext(r->x.bx, 0, (fd32_fs_lfnfind_t *) FAR2ADDR(r->x.es, r->x.di));
       dos_return(Res, r);
       if (Res == 0) r->x.cx = 0;
                    /* FIX ME: Not yet implemented: Unicode conversion flag */
@@ -695,12 +752,18 @@ static inline void lfn_functions(union rmregs *r)
 
     /* Rename of move file */
     case 0x56:
+    {
       /* DS:DX pointer to the ASCIZ name of the file to be renamed */
       /* ES:DI pointer to the ASCIZ new name for the file          */
-      Res = fd32_rename((char *) (r->x.ds << 4) + r->x.dx,
-                        (char *) (r->x.es << 4) + r->x.di);
+      char newn[FD32_LFNPMAX];
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+      dos_return(Res, r);
+      Res = fix_path(newn, (char *) FAR2ADDR(r->x.es, r->x.di), sizeof(newn));
+      dos_return(Res, r);
+      Res = fd32_rename(fn, newn);
       dos_return(Res, r);
       return;
+    }
       
     /* Truename */
     case 0x60:
@@ -713,8 +776,9 @@ static inline void lfn_functions(union rmregs *r)
       /* CH    SUBST expansion flag (ignored): 80h to not resolve SUBST */
       /* DS:SI pointer to the ASCIZ long filename or path               */
       /* ES:DI pointer to a buffer for short pathname                   */
-      Res = fd32_sfn_truename((char *) (r->x.es << 4) + r->x.di,
-                              (char *) (r->x.ds << 4) + r->x.si);
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
+      dos_return(Res, r);
+      Res = fd32_sfn_truename((char *) FAR2ADDR(r->x.es, r->x.di), fn);
       dos_return(Res, r);
       return;
 
@@ -727,9 +791,10 @@ static inline void lfn_functions(union rmregs *r)
       /* DX    action                           */
       /* DS:SI pointer to the ASCIZ file name   */
       /* DI    numeric alias hint               */
-      Res = fd32_open((char *) (r->x.ds << 4) + r->x.si,
-                      (DWORD) (r->x.dx << 16) + r->x.bx, r->x.cx,
-                      r->x.di, &Action);
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
+      dos_return(Res, r);
+      Res = fd32_open(fn, ((DWORD) r->x.dx << 16) + (DWORD) r->x.bx,
+                      r->x.cx, r->x.di, &Action);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
@@ -749,10 +814,12 @@ static inline void lfn_functions(union rmregs *r)
       /* DS:DX pointer to the ASCIZ root directory name          */
       /* ES:DI pointer to a buffer to store the file system name */
       /* CX    size of the buffer pointed by ES:DI               */
+      Res = fix_path(fn, (char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+      dos_return(Res, r);
       FSInfo.Size       = sizeof(fd32_fs_info_t);
       FSInfo.FSNameSize = r->x.cx;
-      FSInfo.FSName     = (char *) (r->x.es << 4) + r->x.di;
-      Res = fd32_get_fsinfo((char *) (r->x.ds << 4) + r->x.dx, &FSInfo);
+      FSInfo.FSName     = fn;
+      Res = fd32_get_fsinfo((char *) FAR2ADDR(r->x.ds, r->x.dx), &FSInfo);
       r->x.bx = FSInfo.Flags;
       r->x.cx = FSInfo.NameMax;
       r->x.dx = FSInfo.PathMax;
@@ -820,7 +887,7 @@ void int21_handler(union rmregs *r)
     case 0x1A:
       LOG_PRINTF(("INT 21h - Set Disk Transfer Area Address: %04x:%04x\n", r->x.ds, r->x.dx));
       /* DS:DX pointer to the new DTA */
-      current_psp->dta = (void *) (r->x.ds << 4) + r->x.dx;
+      current_psp->dta = (void *) FAR2ADDR(r->x.ds, r->x.dx);
       return;
 
     /* DOS 1+ - GET SYSTEM DATE */
@@ -917,7 +984,7 @@ void int21_handler(union rmregs *r)
     /* DOS 2+ - "MKDIR" - Create subdirectory */
     case 0x39:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       LOG_PRINTF(("INT 21h - Make directory \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
@@ -928,7 +995,7 @@ void int21_handler(union rmregs *r)
     /* DOS 2+ - "RMDIR" - Remove subdirectory */
     case 0x3A:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       LOG_PRINTF(("INT 21h - Remove directory \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
@@ -939,7 +1006,7 @@ void int21_handler(union rmregs *r)
     /* DOS 2+ - "CHDIR" - Set current directory */
     case 0x3B:
       /* DS:DX pointer to the ASCIZ directory name */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       LOG_PRINTF(("INT 21h - Change directory to \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
@@ -952,7 +1019,7 @@ void int21_handler(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file name               */
       /* CX    attribute mask for the new file              */
       /*       (volume label and directory are not allowed) */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       dos_return(Res, r);
       LOG_PRINTF(("INT 21h - Creat \"%s\" with attr %04x\n", SfnPath, r->x.cx));
       if (Res < 0) return;
@@ -976,7 +1043,7 @@ void int21_handler(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file name                 */
       /* AL    opening mode                                   */
       /* CL    attribute mask for to look for (?server call?) */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       dos_return(Res, r);
       LOG_PRINTF(("INT 21h - Open \"%s\" with mode %02x\n", SfnPath, r->h.al));
       if (Res < 0) return;
@@ -1006,7 +1073,7 @@ void int21_handler(union rmregs *r)
       /* BX    file handle                    */
       /* CX    number of bytes to read        */
       /* DS:DX pointer to the transfer buffer */
-      Res = fd32_read(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx);
+      Res = fd32_read(r->x.bx, (void *) FAR2ADDR(r->x.ds, r->x.dx), r->x.cx);
       //LOG_PRINTF(("INT 21h - Read (AH=3Fh) from handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, Res));
       if (Res < 0)
       {
@@ -1034,7 +1101,7 @@ void int21_handler(union rmregs *r)
       /* BX    file handle                    */
       /* CX    number of bytes to write       */
       /* DS:DX pointer to the transfer buffer */
-      Res = fd32_write(r->x.bx, (void *) (r->x.ds << 4) + r->x.dx, r->x.cx);
+      Res = fd32_write(r->x.bx, (void *) FAR2ADDR(r->x.ds, r->x.dx), r->x.cx);
       //LOG_PRINTF(("INT 21h - Write (AH=40h) to handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, Res));
       if (Res < 0)
       {
@@ -1051,7 +1118,7 @@ void int21_handler(union rmregs *r)
       /* DS:DX pointer to the ASCIZ file name                  */
       /* CL    attribute mask for deletion (?server call?)     */
       /*       FIX ME: check if they are required or allowable */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       LOG_PRINTF(("INT 21h - Delete file \"%s\"\n", SfnPath));
       dos_return(Res, r);
       if (Res < 0) return;
@@ -1064,7 +1131,8 @@ void int21_handler(union rmregs *r)
       /* BX    file handle */
       /* CX:DX offset      */
       /* AL    origin      */
-      Res = fd32_lseek(r->x.bx, (long long int) (r->x.cx << 8) + r->x.dx,
+      /* FIXME: Replace with off_t */
+      Res = fd32_lseek(r->x.bx, ((long long) r->x.cx << 8) + (long long) r->x.dx,
                        r->h.al, &llRes);
       if (Res < 0)
       {
@@ -1086,15 +1154,17 @@ void int21_handler(union rmregs *r)
     /* IOCTL functions - FIX ME: THIS MUST BE COMPLETELY DONE! */
     case 0x44:
       Res = fd32_get_dev_info(r->x.bx);
-      if (Res < 0) {
+      if (Res < 0)
+      {
         r->x.ax = (WORD)FD32_EBADF;
         RMREGS_SET_CARRY;
-      } else {
-	r->x.ax = Res;
-	r->x.dx = r->x.ax;
+      }
+      else
+      {
+        r->x.ax = Res;
+        r->x.dx = r->x.ax;
         RMREGS_CLEAR_CARRY;
       }
-
       return;
 /*
  * Warning!!!
@@ -1155,7 +1225,7 @@ void int21_handler(union rmregs *r)
       char  Drive[2] = "\0\0";
       char  Cwd[FD32_LFNPMAX];
       char *c;
-      char *Dest = (char *) (r->x.ds << 4) + r->x.si;
+      char *Dest = (char *) FAR2ADDR(r->x.ds, r->x.si);
 
       LOG_PRINTF(("INT 21h - Getting current dir of drive %02x\n", r->h.dl));
       Drive[0] = fd32_get_default_drive();
@@ -1169,6 +1239,7 @@ void int21_handler(union rmregs *r)
       strcpy(Dest, c + 1);
       LOG_PRINTF(("Returned CWD:\"%s\"\n", Dest));
       r->x.ax = 0x0100; /* Undocumented success return value, from RBIL */
+      /* TODO: Convert from UTF-8 to OEM */
       return;
     }
 
@@ -1179,26 +1250,28 @@ void int21_handler(union rmregs *r)
       char *args, *p, c[128];
       int cnt, i;
       
-      pb = (tExecParams *) ((r->x.es << 4) + r->x.bx);
+      pb = (tExecParams *) FAR2ADDR(r->x.es, r->x.bx);
       /* Only AH = 0x00 - Load and Execute - is currently supported */
       if (r->h.al != 0)
       {
         dos_return(FD32_EINVAL, r);
         return;
       }
-      p = (char *)((DWORD)(pb->arg_seg << 4) + (DWORD)pb->arg_offs);
+      p = (char *) FAR2ADDR(pb->arg_seg, pb->arg_offs);
       cnt = *p++;
       if (cnt == 0) {
-	args = NULL;
+        args = NULL;
       } else {
-	for (i = 0; i < cnt; i++) {
+        for (i = 0; i < cnt; i++) {
           c[i] = *p++;
-	}
-	c[i] = 0;
-	args = c;
+        }
+        c[i] = 0;
+        args = c;
       }
-      Res = dos_exec((char *) ((r->x.ds << 4) + r->x.dx),
-                     pb->Env, args, pb->Fcb1, pb->Fcb2, &DosReturnCode);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
+      LOG_PRINTF(("INT 21h - Load and Execute \"%s\"\n", SfnPath));
+      dos_return(Res, r);
+      Res = dos_exec(SfnPath, pb->Env, args, pb->Fcb1, pb->Fcb2, &DosReturnCode);
     }
     dos_return(Res, r);
     return;
@@ -1216,9 +1289,10 @@ void int21_handler(union rmregs *r)
       /* AL    special flag for APPEND (ignored)                   */
       /* CX    allowable attributes (archive and readonly ignored) */
       /* DS:DX pointer to the ASCIZ file specification             */
-      LOG_PRINTF(("INT 21h - Findfirst \"%s\" with attr %04x\n", (char *) (r->x.ds << 4) + r->x.dx, r->x.cx));
-      Res = fd32_dos_findfirst((char *) (r->x.ds << 4) + r->x.dx,
-                               r->x.cx, current_psp->dta);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
+      LOG_PRINTF(("INT 21h - Findfirst \"%s\" with attr %04x\n", SfnPath, r->x.cx));
+      dos_return(Res, r);
+      Res = fd32_dos_findfirst(SfnPath, r->x.cx, current_psp->dta);
       dos_return(Res, r);
       return;
 
@@ -1236,10 +1310,10 @@ void int21_handler(union rmregs *r)
       /* DS:DX pointer to the ASCIZ name of the file to be renamed */
       /* ES:DI pointer to the ASCIZ new name for the file          */
       /* CL    attribute mask for server call (ignored)            */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       dos_return(Res, r);
       if (Res < 0) return;
-      Res = make_sfn_path(SfnPathNew, (char *) (r->x.es << 4) + r->x.di);
+      Res = make_sfn_path(SfnPathNew, (char *) FAR2ADDR(r->x.es, r->x.di));
       dos_return(Res, r);
       LOG_PRINTF(("INT 21h - Renaming \"%s\" to \"%s\"\n", SfnPath, SfnPathNew));
       if (Res < 0) return;
@@ -1257,12 +1331,11 @@ void int21_handler(union rmregs *r)
     case 0x5B:
       /* CX    attribute mask for the new file */
       /* DS:DX pointer to the ASCIZ file name  */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.dx);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.dx));
       LOG_PRINTF(("INT 21h - Creating new file (AH=5Bh) \"%s\" with attr %04x\n", SfnPath, r->x.cx));
       dos_return(Res, r);
       if (Res < 0) return;
-      Res = fd32_open(SfnPath, FD32_ORDWR | FD32_OCOMPAT | FD32_OCREAT,
-                      r->x.cx, 0, NULL);
+      Res = fd32_open(SfnPath, FD32_ORDWR | FD32_OCOMPAT | FD32_OCREAT, r->x.cx, 0, NULL);
       if (Res < 0)
       {
         RMREGS_SET_CARRY;
@@ -1275,8 +1348,8 @@ void int21_handler(union rmregs *r)
 
     case 0x62:
       LOG_PRINTF(("INT 21h - Get current PSP address\n"));
-      r->x.bx = (DWORD) current_psp>>4;
-	  return;
+      r->x.bx = (DWORD) current_psp >> 4;
+      return;
 
     /* DOS 3.3+ - "FFLUSH" - Commit file   */
     /* DOS 4.0+ Undocumented - Commit file */
@@ -1309,11 +1382,10 @@ void int21_handler(union rmregs *r)
       /*               bit 0 = open file if exists                         */
       /* DH    reserved, must be 00h                                       */
       /* DS:SI pointer to the ASCIZ file name                              */
-      Res = make_sfn_path(SfnPath, (char *) (r->x.ds << 4) + r->x.si);
+      Res = make_sfn_path(SfnPath, (char *) FAR2ADDR(r->x.ds, r->x.si));
       dos_return(Res, r);
       if (Res < 0) return;
-      Res = fd32_open(SfnPath, (DWORD) (r->x.dx << 16) + r->x.bx,
-                      r->x.cx, 0, &Action);
+      Res = fd32_open(SfnPath, ((DWORD) r->x.dx << 16) + (DWORD) r->x.bx, r->x.cx, 0, &Action);
       LOG_PRINTF(("INT 21h - Extended open/create (AH=6Ch) \"%s\" res=%08xh\n", SfnPath, Res));
       if (Res < 0)
       {
@@ -1364,14 +1436,14 @@ void int21_handler(union rmregs *r)
         dos_return(FD32_EFORMAT, r);
         return;
       }
-      Edf = (tExtDiskFree *) (r->x.es << 4) + r->x.di;
+      Edf = (tExtDiskFree *) FAR2ADDR(r->x.es, r->x.di);
       if (Edf->Version != 0x0000)
       {
         dos_return(FD32_EFORMAT, r);
         return;
       }
       FSFree.Size = sizeof(fd32_getfsfree_t);
-      Res = fd32_get_fsfree((char *) (r->x.ds << 4) + r->x.dx, &FSFree);
+      Res = fd32_get_fsfree((char *) FAR2ADDR(r->x.ds, r->x.dx), &FSFree);
       if (Res >= 0)
       {
         Edf->Size = sizeof(tExtDiskFree);
