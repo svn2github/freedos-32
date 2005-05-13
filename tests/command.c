@@ -43,27 +43,30 @@
 /* WARNING: This is not the original version.     */
 /* Slightly modified for FreeDOS32 by Salvo Isaja */
 
-#include <values.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <conio.h>
-#include <crt0.h>
-#include <unistd.h>
-#include <dos.h>
 #include <dir.h>
-#include <go32.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
+#include <dos.h>
+#include <conio.h>
 #include <ctype.h>
-#include <float.h>
-#include <sys/exceptn.h>
-#include <dpmi.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/stat.h>
+
+#ifdef __MINGW32__
+#define MAXPATH MAX_PATH
+#elif __DJGPP__
+#include <values.h>
+#endif
 
 /*
-*   These declarations/definitions turn off some unwanted DJGPP features
-*/
+ *   These declarations/definitions turn off some unwanted DJGPP features
+ */
+
+#ifdef __DJGPP__
+#include <crt0.h>
+
 #define UNUSED __attribute__((unused))
 int _crt0_startup_flags =
        _CRT0_FLAG_USE_DOS_SLASHES |          // keep the backslashes
@@ -73,6 +76,8 @@ int _crt0_startup_flags =
        _CRT0_FLAG_PRESERVE_FILENAME_CASE;    // keep DOS names uppercase
 char **__crt0_glob_function(char *_argument UNUSED) {return NULL;} // prevent wildcard expansion of arguments of main()
 void __crt0_load_environment_file(char *_app_name UNUSED) {} // prevent loading of environment file
+#endif
+
 
 /*
 *   Define true and false
@@ -427,11 +432,10 @@ NoArgs:
 #define KEY_ASCII(k)    (k & 0x00FF)
 #define KEY_SCANCODE(k) (k >> 0x08 )
 #define KEY_EXTM(k)     (k & 0xFF1F)
-#define KEY_NORM(k)     (k)
 #define KEY_EXT          0x00E0
-#define KEY_ESC          KEY_NORM(0x011B)
-#define KEY_ENTER        KEY_NORM(0x1C0D)
-#define KEY_BACKSPACE    KEY_NORM(0x0E08)
+#define KEY_ESC          KEY_ASCII(0x011B)
+#define KEY_ENTER        KEY_ASCII(0x1C0D)
+#define KEY_BACKSPACE    KEY_ASCII(0x0E08)
 #define KEY_INSERT       KEY_EXTM(0x52E0)
 #define KEY_DELETE       KEY_EXTM(0x53E0)
 #define KEY_HOME         KEY_EXTM(0x47E0)
@@ -439,18 +443,12 @@ NoArgs:
 #define KEY_RIGHT        KEY_EXTM(0x4DE0)
 static unsigned short keyb_get_rawcode(void)
 {
-  __dpmi_regs r;
-  r.h.ah = GET_ENHANCED_KEYSTROKE;
-  __dpmi_int(0x16, &r);
-  return r.x.ax;
+  return bioskey(GET_ENHANCED_KEYSTROKE);
 }
 
 static unsigned short keyb_get_shift_states(void)
 {
-  __dpmi_regs r;
-  r.h.ah = GET_EXTENDED_SHIFT_STATES;
-  __dpmi_int(0x16, &r);
-  return r.x.ax;
+  return bioskey(GET_EXTENDED_SHIFT_STATES);
 }
 
 #define LEFT  (0xFFFFFFFF)
@@ -502,26 +500,28 @@ static void cmdbuf_delch(char *cmd_buf)
 }
 
 
-static void cmdbuf_putch(char *cmd_buf, char ch, unsigned short flag)
+static void cmdbuf_putch(char *cmd_buf, unsigned int buf_size, char ch, unsigned short flag)
 {
   unsigned int i;
-  
-  /* Reflect the insert method */
-  if (flag&KEYB_FLAG_INSERT) {
-    for (i = tail; i > cur; i--)
-      cmd_buf[i] = cmd_buf[i-1];
+
+  if (cur < buf_size) {
+    /* Reflect the insert method */
+    if (flag&KEYB_FLAG_INSERT) {
+      for (i = tail; i > cur; i--)
+        cmd_buf[i] = cmd_buf[i-1];
+    }
+    /* Put into cmdline buffer */
+    cmd_buf[cur++] = ch;
+    if (flag&KEYB_FLAG_INSERT || cur > tail)
+      tail++;
+    /* Update the string on screen */
+    for (i = cur-1; i < tail; i++)
+      putch(cmd_buf[i]);
+    
+    /* Put cursor back to the current position */
+    for (i = cur; i < tail; i++)
+      putch(KEY_ASCII(KEY_BACKSPACE));
   }
-  /* Put into cmdline buffer */
-  cmd_buf[cur++] = ch;
-  if (flag&KEYB_FLAG_INSERT || cur > tail)
-    tail++;
-  /* Update the string on screen */
-  for (i = cur-1; i < tail; i++)
-    putch(cmd_buf[i]);
-  
-  /* Put cursor back to the current position */
-  for (i = cur; i < tail; i++)
-    putch(KEY_ASCII(KEY_BACKSPACE));
 }
 
 
@@ -565,6 +565,8 @@ static void prompt_for_and_get_cmd(void)
     
     if (KEY_ASCII(key) == KEY_EXT)
       key = KEY_EXTM(key);
+    else
+      key = KEY_ASCII(key);
     switch (key)
     {
       case 0:
@@ -594,7 +596,7 @@ static void prompt_for_and_get_cmd(void)
         break;
       default:
         if (KEY_ASCII(key) != 0x00 && KEY_ASCII(key) != 0xE0) {
-          cmdbuf_putch(conbuf+2, KEY_ASCII(key), flag);
+          cmdbuf_putch(conbuf+2, MAX_CMD_BUFLEN-2, KEY_ASCII(key), flag);
         }
         break;
     }
