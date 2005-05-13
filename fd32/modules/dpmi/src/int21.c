@@ -847,6 +847,7 @@ static inline void lfn_functions(union rmregs *r)
 void int21_handler(union rmregs *r)
 {
   int      Res;
+  int      tmp;
   long long int llRes;
   char     SfnPath[FD32_LFNPMAX];
 
@@ -854,14 +855,25 @@ void int21_handler(union rmregs *r)
   {
     /* DOS 1+ - Direct character input, without echo */
     case 0x07:
-      /* Perform 1-byte read from the stdin, file handle 0. */
+      /* Perform 1-byte read from the stdin, file handle 0.
+         1. Save the old mode of stdin
+         2. Set the stdin to the raw mode without echo
+         3. Read 1 byte from stdin and restore the old mode
+         This procedure is very alike when doing on the Win32 platform
+       */
       /* This call doesn't check for Ctrl-C or Ctrl-Break.  */
-      #define STDIN 0
-      Res = fd32_read(STDIN, &(r->h.al), 1);
+      fd32_get_attributes(0, &tmp);
+      Res = 0; /* Res used to set the attributes only once */
+      fd32_set_attributes(0, &Res);
+      Res = fd32_read(0, &(r->h.al), 1);
+      fd32_set_attributes(0, &tmp);
       /* Return the character in AL */
-      /* TODO: from RBIL:
-         if the interim console flag is set (see AX=6301h), partially-formed
-         double-byte characters may be returned */
+      /* TODO:
+         1. Get rid of the warning: passing arg 2 of `fd32_get_attributes'
+            from incompatible pointer type, maybe using another system call?
+         2. from RBIL: if the interim console flag is set (see AX=6301h),
+            partially-formed double-byte characters may be returned
+       */
       return;
 
     /* DOS 1+ - Set default drive */
