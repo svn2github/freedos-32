@@ -43,8 +43,8 @@ int fat_init()
   /* Register the FAT Driver request function to the kernel symbol table */
   if (add_call("fat_request", (DWORD) fat_request, ADD) == -1)
   {
-    fd32_error("Couldn't add 'fat_request' to the symbol table\n");
-    return FD32_ENOMEM; /* TODO: Check if ENOMEM is true... */
+    fd32_message("Couldn't add 'fat_request' to the symbol table\n");
+    return -ENOMEM; /* TODO: Check if ENOMEM is true... */
   }
   fd32_message("FAT Driver installed.\n");
   return 0;

@@ -26,7 +26,7 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 
-#include <errors.h>
+#include <errno.h>
 #include "biosdisk.h"
 
 
@@ -140,7 +140,7 @@ static int add_partition(const Disk *d, const char *name, unsigned part, PartTab
 
         /* Allocate and initialize the private data structure */
         if ((new_d = (Disk *) fd32_kmem_get(sizeof(Disk))) == NULL)
-            return FD32_ENOMEM;
+            return -ENOMEM;
         *new_d = *d;
         new_d->open_count = 0;
         new_d->first_sector = lba_start;
@@ -151,7 +151,7 @@ static int add_partition(const Disk *d, const char *name, unsigned part, PartTab
         #ifdef BIOSDISK_FD32DEV
         /* Register the new device to the FD32 kernel */
         dev_name = (char *) fd32_kmem_get(strlen(new_name) + 1);
-        if (dev_name == NULL) return FD32_ENOMEM;
+        if (dev_name == NULL) return -ENOMEM;
         strcpy(dev_name, new_name);
         res = fd32_dev_register(biosdisk_request, (void *) new_d, dev_name);
         if (res < 0) return res;

@@ -15,6 +15,7 @@
  #include <wchar.h>
 #else /* FreeDOS-32 headers */
  #include <dr-env.h>
+ #include <errno.h>
 #endif
 
 #ifdef __GNUC__

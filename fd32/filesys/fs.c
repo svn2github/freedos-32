@@ -34,7 +34,7 @@
 
 #include <devices.h>
 #include <filesys.h>
-#include <errors.h>
+#include <errno.h>
 #ifndef NULL
 #define NULL 0
 #endif
@@ -94,7 +94,7 @@ int fs_open(char *file_name, DWORD mode, WORD attr, WORD alias_hint, fd32_reques
 		of.AliasHint = alias_hint;
 		res = r(FD32_OPENFILE, &of);
 	}
-	while (res == FD32_ENMOUNT);
+	while (res == -ENOTMOUNT);
 	if (res >= 0)
 	{
 		*request = r;
@@ -160,7 +160,7 @@ int fd32_unlink(char *file_name, DWORD flags)
 		res = fd32_get_drive(aux, &request, &p.DeviceId, &p.FileName);
 		if (res < 0) return res;
 		res = request(FD32_UNLINK, &p);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }
 
@@ -220,11 +220,11 @@ int fd32_rename(/*const*/ char *old_name, /*const */char *new_name)
 		if (res < 0) return res;
 		res = fd32_get_drive(aux_new, &request_new, &dev_new, &p.NewName);
 		if (res < 0) return res;
-		if ((request_old != request_new) || (dev_old != dev_new)) return FD32_EXDEV;
+		if ((request_old != request_new) || (dev_old != dev_new)) return -EXDEV;
 		p.Size     = sizeof(fd32_rename_t);
 		p.DeviceId = dev_old;
 		res = request_old(FD32_RENAME, &p);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }
 
@@ -245,7 +245,7 @@ int fd32_get_fsinfo(char *pathname, fd32_fs_info_t *fsinfo)
 		res = fd32_get_drive(aux, &request, &p.DeviceId, NULL);
 		if (res < 0) return res;
 		res = request(FD32_GETFSINFO, &p);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }
 
@@ -258,13 +258,13 @@ int fd32_get_fsfree(char *pathname, fd32_getfsfree_t *fsfree)
 
 	res = fd32_truename(aux, pathname, FD32_TNSUBST);
 	if (res < 0) return res;
-	if (fsfree->Size < sizeof(fd32_getfsfree_t)) return FD32_EFORMAT;
+	if (fsfree->Size < sizeof(fd32_getfsfree_t)) return -EINVAL;
 	for (;;)
 	{
 		res = fd32_get_drive(aux, &request, &fsfree->DeviceId, NULL);
 		if (res < 0) return res;
 		res = request(FD32_GETFSFREE, fsfree);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }
 
@@ -286,7 +286,7 @@ int fd32_mkdir(/*const*/ char *dir_name)
 		res = fd32_get_drive(aux, &request, &p.DeviceId, &p.DirName);
 		if (res < 0) return res;
 		res = request(FD32_MKDIR, &p);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }
 
@@ -306,6 +306,6 @@ int fd32_rmdir(/*const*/ char *dir_name)
 		res = fd32_get_drive(aux, &request, &p.DeviceId, &p.DirName);
 		if (res < 0) return res;
 		res = request(FD32_RMDIR, &p);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }

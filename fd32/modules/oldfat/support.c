@@ -84,10 +84,10 @@ int fat_lseek(tFile *F, long long int *Offset, int Origin)
   {
     case FD32_SEEKSET : F->TargetPos = *Offset; break;
     case FD32_SEEKCUR : F->TargetPos += *Offset; break;
-    case FD32_SEEKEND : if (F->DirEntry.Attr & FD32_ADIR) return FD32_EINVAL;
+    case FD32_SEEKEND : if (F->DirEntry.Attr & FD32_ADIR) return -EINVAL;
                         F->TargetPos = F->DirEntry.FileSize + *Offset;
                         break;
-    default           : return FD32_EINVAL;
+    default           : return -EINVAL;
   }
   *Offset = F->TargetPos;
   return 0;
@@ -98,7 +98,7 @@ int fat_lseek(tFile *F, long long int *Offset, int Origin)
 /* Returns 0 on success, or a negative error code on failure. */
 int fat_get_fsinfo(fd32_fs_info_t *Fsi)
 {
-  if (Fsi->Size < sizeof(fd32_fs_info_t)) return FD32_EFORMAT;
+  if (Fsi->Size < sizeof(fd32_fs_info_t)) return -EINVAL;
   #ifdef FATLFN
   Fsi->Flags   = FD32_FSICASEPRES | FD32_FSIUNICODE | FD32_FSILFN;
   Fsi->NameMax = FD32_LFNMAX;
@@ -120,9 +120,9 @@ int fat_get_fsfree(fd32_getfsfree_t *F)
   tVolume *V;
   int      Res;
 
-  if (F->Size < sizeof(fd32_getfsfree_t)) return FD32_EFORMAT;
+  if (F->Size < sizeof(fd32_getfsfree_t)) return -EINVAL;
   V = (tVolume *) F->DeviceId;
-  if (V->VolSig != FAT_VOLSIG) return FD32_ENODEV;
+  if (V->VolSig != FAT_VOLSIG) return -ENODEV;
   #ifdef FATREMOVABLE
   if ((Res = fat_mediachange(V)) < 0) return Res;
   #endif

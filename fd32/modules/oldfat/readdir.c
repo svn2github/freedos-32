@@ -101,7 +101,7 @@ static int readdir(tFile *Dir, tFatFind *Ff)
   int        NumRead;
   WORD       LongNameUtf16[FD32_LFNMAX];
 
-  if (!(Dir->DirEntry.Attr & FD32_ADIR)) return FD32_EBADF;
+  if (!(Dir->DirEntry.Attr & FD32_ADIR)) return -EBADF;
 
   NumRead = fat_read(Dir, &Buffer[0], 32);
   if (NumRead < 0) return NumRead;
@@ -109,7 +109,7 @@ static int readdir(tFile *Dir, tFatFind *Ff)
   {
     /* If the directory name starts with FAT_DIR_ENFOFDIR */
     /* we don't need to scan further.                     */
-    if (Buffer[BufferPos].Name[0] == ENDOFDIR) return FD32_ENMFILE;
+    if (Buffer[BufferPos].Name[0] == ENDOFDIR) return -ENOENT;
 
     /* If the entry is marked as deleded we skip to the next entry */
     if (Buffer[BufferPos].Name[0] != FREEENT)
@@ -141,7 +141,7 @@ static int readdir(tFile *Dir, tFatFind *Ff)
     NumRead = fat_read(Dir, &Buffer[BufferPos], 32);
     if (NumRead < 0) return NumRead;
   } /* while (NumRead > 0) */
-  return FD32_ENMFILE;
+  return -ENOENT;
 }
 
 
@@ -154,7 +154,7 @@ int fat_readdir(tFile *Dir, fd32_fs_lfnfind_t *Entry)
   tFatFind F;
   int      Res;
 
-  if (!Entry) return FD32_EINVAL;
+  if (!Entry) return -EINVAL;
   if ((Res = readdir(Dir, &F)) < 0) return Res;
 
   Entry->Attr   = F.SfnEntry.Attr;
@@ -172,7 +172,7 @@ int fat_readdir(tFile *Dir, fd32_fs_lfnfind_t *Entry)
 
 /* Compares two UTF-8 strings, disregarding case.
  * Returns 0 if the strings match, a positive value if they don't match,
- * or a FD32_EUTF8 if an invalid UTF-8 sequence is found.
+ * or a -EILSEQ if an invalid UTF-8 sequence is found.
  */
 static int utf8_stricmp(const char *s1, const char *s2)
 {

@@ -19,7 +19,7 @@
  ***************************************************************************/
  
 #include <dr-env.h>
-#include <errors.h>
+#include <errno.h>
 #include <devices.h>
 #include <ata-interf.h>
 #include "pck-cmd.h"
@@ -38,7 +38,7 @@ static int cd_request(DWORD f, void *params)
             ;
             if (x->Size < sizeof(fd32_blockread_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct cd_device*) x->DeviceId;
             if(d->flags & CD_FLAG_MOUNTED)
@@ -53,7 +53,7 @@ static int cd_request(DWORD f, void *params)
             fd32_blockinfo_t *x = (fd32_blockinfo_t*) params;
             if (x->Size < sizeof(fd32_blockinfo_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct cd_device*) x->DeviceId;
             if(d->flags & CD_FLAG_MOUNTED)
@@ -73,7 +73,7 @@ static int cd_request(DWORD f, void *params)
             cd_dev_parm_t *x = (cd_dev_parm_t*) params;
             if (x->Size < sizeof(cd_dev_parm_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct cd_device*) x->DeviceId;
             return cd_premount( d );
@@ -84,7 +84,7 @@ static int cd_request(DWORD f, void *params)
             cd_dev_info_t *x = (cd_dev_info_t*) params;
             if (x->Size < sizeof(cd_dev_info_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct cd_device*) x->DeviceId;
             *(int*)&(x->name[0]) = *(int*)&(d->in_name[0]);
@@ -98,14 +98,14 @@ static int cd_request(DWORD f, void *params)
             cd_set_tout_t *x = (cd_set_tout_t*) params;
             if (x->Size < sizeof(cd_set_tout_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct cd_device*) x->DeviceId;
             d->tout_read_us = x->tout_read_us;
             return 0;
         }
     }
-    return FD32_EINVAL;
+    return -ENOTSUP;
 }
 
 

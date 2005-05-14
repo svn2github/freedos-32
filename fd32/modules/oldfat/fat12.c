@@ -43,7 +43,7 @@ static int fat12_cluster_entry(tVolume *V, DWORD N, int FatNum,
 {
   DWORD FATSz, FATOffset;
 
-  if (N > V->DataClusters + 1) return FD32_EISEEK;
+  if (N > V->DataClusters + 1) return -ENXIO;
   /* Multiply by 1.5 rounding down */
   FATOffset = N + (N / 2);
   if (V->Bpb.BPB_FATSz16 != 0) FATSz = V->Bpb.BPB_FATSz16;

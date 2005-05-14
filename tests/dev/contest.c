@@ -1,5 +1,4 @@
 #include <dr-env.h>
-#include <errors.h>
 #include <stubinfo.h>
 
 int contest_init(int argc, char *argv[])

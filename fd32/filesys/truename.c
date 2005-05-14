@@ -34,7 +34,7 @@
 
 #include <kmem.h>
 #include <filesys.h>
-#include <errors.h>
+#include <errno.h>
 #include <kernel.h> /* strcasecmp */
 
 /* Define the __DEBUG__ symbol in order to activate log output */
@@ -112,14 +112,14 @@ int fd32_create_subst(char *DriveAlias, char *Target)
     Res = request(FD32_OPENFILE, &Of);
     if (Res < 0)
     {
-      if (Res == FD32_ENMOUNT) continue;
+      if (Res == -ENOTMOUNT) continue;
       return Res;
     }
     C.Size     = sizeof(fd32_close_t);
     C.DeviceId = Of.FileId;
     if ((Res = request(FD32_CLOSE, &C)) < 0) return Res;
     /* Initialize a new tSubst structure and make it the SubstList head */
-    if ((S = (void *)mem_get(sizeof(tSubst))) == NULL) return FD32_ENOMEM;
+    if ((S = (void *)mem_get(sizeof(tSubst))) == NULL) return -ENOMEM;
     S->Next = SubstList;
     strcpy(S->DriveAlias, DriveAlias);
     strcpy(S->Target, Target);
@@ -131,7 +131,7 @@ int fd32_create_subst(char *DriveAlias, char *Target)
 
 /* The TERMINATE SUBST system call.                      */
 /* Removes a drive alias from the SUBST structures list. */
-/* Returns 0 on success, or FD32_ENODRV if not found.    */
+/* Returns 0 on success, or -ENODEV if not found.        */
 int fd32_terminate_subst(char *DriveAlias)
 {
   tSubst *S, *PrevS;
@@ -143,14 +143,14 @@ int fd32_terminate_subst(char *DriveAlias)
       mem_free((DWORD)S, sizeof(tSubst));
       return 0;
     }
-  return FD32_ENODRV;
+  return -ENODEV;
 }
 
 
 /* The QUERY SUBST system call.                                */
 /* Gets the actual path associated with a SUBSTed drive alias. */
 /* On success, returns 0 and fills the Target string.          */
-/* If the drive alias is not found returns FD32_ENODRV.        */
+/* If the drive alias is not found returns -ENODEV.            */
 int fd32_query_subst(char *DriveAlias, char *Target)
 {
   tSubst *S;
@@ -160,7 +160,7 @@ int fd32_query_subst(char *DriveAlias, char *Target)
       strcpy(Target, S->Target);
       return 0;
     }
-  return FD32_ENODRV;
+  return -ENODEV;
 }
 #endif /* #if ENABLE_SUBST */
 
@@ -195,7 +195,7 @@ int fd32_chdir(/*const */char *DirName)
     Of.Mode     = FD32_OREAD | FD32_OEXIST | FD32_ODIR;
     Res = request(FD32_OPENFILE, &Of);
     if (Res == FD32_OROPEN) break;
-    if (Res != FD32_ENMOUNT) return Res;
+    if (Res != -ENOTMOUNT) return Res;
   }
   /* If we arrive here, the directory is valid */
   C.Size     = sizeof(fd32_close_t);
@@ -216,7 +216,7 @@ int fd32_chdir(/*const */char *DirName)
     }
 
   /* If no CDS is present for the specified drive, add the entry */
-  if ((D = (void *)mem_get(sizeof(tCds))) == NULL) return FD32_ENOMEM;
+  if ((D = (void *)mem_get(sizeof(tCds))) == NULL) return -ENOMEM;
   D->Next = *CdsList;
   strcpy(D->Drive, Drive);
   strcpy(D->CurDir, &Aux[Res + 1]);
@@ -314,7 +314,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
         break;
       }
   #endif
-//  if (!(S || is_a_valid_drive(Drive))) return FD32_ERROR_UNKNOWN_UNIT;
+//  if (!(S || is_a_valid_drive(Drive))) return -ENODEV;
   /* The root directory in the destination starts right after the Drive.  */
   /* If Drive was a SUBSTed drive, the root start right after the target. */
   RootStart = pAux;
@@ -366,7 +366,7 @@ int fd32_truename(char *Dest, char *Source, DWORD Flags)
         {
           if (*(pAux - 1) == '\\') Dots--;
           if (Dots == 0) break;
-          if (--pAux == RootStart) return FD32_ENOTDIR;
+          if (--pAux == RootStart) return -ENOTDIR;
         }
       }
       else

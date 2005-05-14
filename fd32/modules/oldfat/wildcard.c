@@ -30,7 +30,7 @@
 #include <ll/ctype.h>
 
 #include <unicode/unicode.h>
-#include <errors.h>
+#include <errno.h>
 
 /* This enum is used for return values of internal (static) compare functions */
 enum
@@ -73,16 +73,16 @@ static inline int compare_char(const char **s1, const char **s2, int *ImplicitDo
       return MATCH;
     }
     Res = unicode_utf8towc(&Scalar1, *s1, 6);
-    if (Res < 0) return FD32_EUTF8;
+    if (Res < 0) return -EILSEQ;
     *s1 += Res;
     Res = unicode_utf8towc(&Scalar2, *s2, 6);
-    if (Res < 0) return FD32_EUTF8;
+    if (Res < 0) return -EILSEQ;
     *s2 += Res;
     if (unicode_simple_fold(Scalar1) != unicode_simple_fold(Scalar2)) return DONT_MATCH;
   }
   /* If we have a '?' we skip a character both in s1 and s2 */
   Res = unicode_utf8towc(&Scalar1, *s1, 6);
-  if (Res < 0) return FD32_EUTF8;
+  if (Res < 0) return -EILSEQ;
   *s1 += Res;
   ++*s2;
   return MATCH;
@@ -107,7 +107,7 @@ static inline int compare_n_chars(const char *s1, const char *s2, int n, int *Im
 /* trailing implicit dot as required for DOS/Win file names.           */
 /* The s2 string may contain any combination of '*' and '?' wildcards. */
 /* Returns zero if the strings match, a positive value if they don't   */
-/* match, or FD32_EUTF8 if an invalid UTF-8 sequence is found.         */
+/* match, or -EILSEQ if an invalid UTF-8 sequence is found.            */
 int fat_fnameicmp(const char *s1, const char *s2)
 {
   int Res, ImplicitDot = 1;
@@ -132,7 +132,7 @@ int fat_fnameicmp(const char *s1, const char *s2)
       for (;;)
       {
         Res = compare_n_chars(s1, s2, k, &ImplicitDot);
-        if (Res < 0) return FD32_EUTF8;
+        if (Res < 0) return -EILSEQ;
         if (Res == MATCH) break;
         if (Res == MATCH_END) return 0;
         if (*s1 == 0) return 1;
@@ -146,7 +146,7 @@ int fat_fnameicmp(const char *s1, const char *s2)
     {
       /* If '*' is not found, a simple comparison char by char is peformed */
       Res = compare_char(&s1, &s2, &ImplicitDot);
-      if (Res < 0) return FD32_EUTF8;
+      if (Res < 0) return -EILSEQ;
       if (Res == DONT_MATCH) return 1;
       if (Res == MATCH_END) return 0;
     }

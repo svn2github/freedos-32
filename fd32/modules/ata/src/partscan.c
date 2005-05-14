@@ -34,7 +34,7 @@
 
 #ifdef __BIOSDISK__
 
-#include <errors.h>
+#include <errno.h>
 #include "biosdisk.h"
 
 #define PS_DEVICE Disk
@@ -52,7 +52,7 @@
 
 #include <dr-env.h>
 #include <devices.h>
-#include <errors.h>
+#include <errno.h>
 #include "ata.h"
 #include "disk.h"
 #include "partscan.h"
@@ -182,7 +182,7 @@ static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, Pa
 
         /* Allocate and initialize the private data structure */
         if ((new_d = (PS_DEVICE *) fd32_kmem_get(sizeof(PS_DEVICE))) == NULL)
-            return FD32_ENOMEM;
+            return -ENOMEM;
         memcpy(new_d, d, sizeof(PS_DEVICE));
         new_d->open_count = 0;
         new_d->first_sector = lba_start;
@@ -193,7 +193,7 @@ static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, Pa
         #ifdef FD32DEV
         /* Register the new device to the FD32 kernel */
         dev_name = (char *) fd32_kmem_get(strlen(new_name) + 1);
-        if (dev_name == NULL) return FD32_ENOMEM;
+        if (dev_name == NULL) return -ENOMEM;
         strcpy(dev_name, new_name);
         res = fd32_dev_register(PS_REQUEST, (void *) new_d, dev_name);
         if (res < 0) return res;

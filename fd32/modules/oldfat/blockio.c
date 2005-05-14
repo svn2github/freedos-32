@@ -87,7 +87,7 @@ static int flush_buffer(tVolume *V, int NumBuf)
     Params.Buffer    = V->Buffers[NumBuf].Data;
     Params.NumBlocks = 1;
     Res = V->blkreq(FD32_BLOCKWRITE, &Params);
-    if (Res < 0) return FD32_EGENERAL;
+    if (Res < 0) return -EIO;
     V->Buffers[NumBuf].Flags &= ~DIRTY;
   }
   return 0;
@@ -136,7 +136,7 @@ int fat_writebuf(tVolume *V, int NumBuf)
   Params.Buffer    = V->Buffers[NumBuf].Data;
   Params.NumBlocks = 1;
   Res = V->blkreq(FD32_BLOCKWRITE, &Params);
-  if (Res < 0) return FD32_EGENERAL;
+  if (Res < 0) return -EIO;
   return 0;
   #endif
 }
@@ -185,7 +185,7 @@ int fat_readbuf(tVolume *V, DWORD Sector)
     Params.Buffer    = V->Buffers[NumBuf].Data;
     Params.NumBlocks = 1;
     Res = V->blkreq(FD32_BLOCKREAD, &Params);
-    if (Res < 0) return FD32_EGENERAL;
+    if (Res < 0) return -EIO;
     V->Buffers[NumBuf].StartingSector = Sector;
     V->Buffers[NumBuf].Flags |= USED;
   }

@@ -52,27 +52,27 @@ int fat_rmdir(tVolume *V, char *DirName)
   if (Res < 0) return Res;
   
   /* Check if trying to remove the current directory */
-//  if (firstcluster(F) == V->CurDirCluster) return FD32_ERROR_RMDIR_CURRENT;
+//  if (firstcluster(F) == V->CurDirCluster) return -EBUSY;
 
   /* Check if trying to remove the root directory */
   if (((V->FatType == FAT32)
     && (FIRSTCLUSTER(F->DirEntry) == V->Bpb.BPB_RootClus))
-    || ISROOT(F)) return FD32_EACCES;
+    || ISROOT(F)) return -EBUSY;
 
   LOG_PRINTF(("Checking if directory is empty\n"));
   /* Check if the directory contains dot and dotdot as first two entries */
   Res = fat_read(F, &D, 32);
   if (Res < 0) { fat_close(F); return Res; }
-  if (memcmp(".          ", D.Name, 11)) { fat_close(F); return FD32_EACCES; }
+  if (memcmp(".          ", D.Name, 11)) { fat_close(F); return -ENOTEMPTY; }
   Res = fat_read(F, &D, 32);
   if (Res < 0) { fat_close(F); return Res; }
-  if (memcmp("..         ", D.Name, 11)) { fat_close(F); return FD32_EACCES; }
+  if (memcmp("..         ", D.Name, 11)) { fat_close(F); return -ENOTEMPTY; }
   /* And finally check that the following entries are free */
   do
   {
     Res = fat_read(F, &D, 32);
     if (Res < 0) { fat_close(F); return Res; }
-    if ((D.Name[0] != FREEENT) && (D.Name[0] != ENDOFDIR)) { fat_close(F); return FD32_EACCES; }
+    if ((D.Name[0] != FREEENT) && (D.Name[0] != ENDOFDIR)) { fat_close(F); return -ENOTEMPTY; }
   }
   while (D.Name[0] != ENDOFDIR);
   /* If we arrive here, it's Ok, we can unlink the directory */

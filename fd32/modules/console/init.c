@@ -7,8 +7,8 @@
 #include <ll/i386/cons.h>
 #include <dr-env.h>
 
-#include "devices.h"
-#include "errors.h"
+#include <devices.h>
+#include <errno.h>
 
 #define CONS_BUFF_SIZE 129   /* DOS allows max 127 chrs per console input */
 #define CONS_DEV_NAME  "con"
@@ -114,7 +114,7 @@ static int setattr(void *attribute)
 static fd32_request_t console_request;
 static int console_request(DWORD function, void *params)
 {
-  int res = FD32_EINVAL;
+  int res = -ENOTSUP;
   /* This style of converting and setting variables will be well-optimized */
   fd32_read_t *r = (fd32_read_t *) params;
   fd32_write_t *w = (fd32_write_t *) params;
@@ -126,27 +126,27 @@ static int console_request(DWORD function, void *params)
   {
     case FD32_WRITE:
       if (w->Size < sizeof(fd32_write_t))
-        res = FD32_EFORMAT;
+        res = -EINVAL;
       else
         res = write(w->Buffer, w->BufferBytes);
       break;
     case FD32_READ:
       if (r->Size < sizeof(fd32_read_t))
-        res = FD32_EFORMAT;
+        res = -EINVAL;
       else
         res = read(r->Buffer, r->BufferBytes);
       break;
     case FD32_GETATTR:
       /* NOTE: Control the console's ECHO with FD32_SETATTR? */
       if (ga->Size < sizeof(fd32_getattr_t))
-        res = FD32_EFORMAT;
+        res = -EINVAL;
       else
         res = getattr(ga->Attr);
       break;
     case FD32_SETATTR:
       /* NOTE: Control the console's ECHO with FD32_SETATTR? */
       if (sa->Size < sizeof(fd32_setattr_t))
-        res = FD32_EFORMAT;
+        res = -EINVAL;
       else
         res = setattr(sa->Attr);
       break;
@@ -155,7 +155,7 @@ static int console_request(DWORD function, void *params)
       break;
     case FD32_CLOSE:
       if (c->Size < sizeof(fd32_close_t))
-        res = FD32_EFORMAT;
+        res = -EINVAL;
       else
         res = 0;
       break;

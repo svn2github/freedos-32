@@ -5,7 +5,7 @@
  */
 
 #include <dr-env.h>
-#include <errors.h>
+#include <errno.h>
 #include <devices.h>
 #include "ata.h"
 #include "disk.h"
@@ -58,7 +58,7 @@ void block_dump(unsigned char* b, int n)
             x = (fd32_blockread_t *) params;
             if (x->Size < sizeof(fd32_blockread_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
 
@@ -83,7 +83,7 @@ void block_dump(unsigned char* b, int n)
             x = (fd32_blockwrite_t *) params;
             if (x->Size < sizeof(fd32_blockwrite_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
 #ifdef _DEBUG_
@@ -105,7 +105,7 @@ void block_dump(unsigned char* b, int n)
             x = (fd32_blockinfo_t *) params;
             if (x->Size < sizeof(fd32_blockinfo_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
             x->BlockSize = d->bytes_per_sector;
@@ -130,7 +130,7 @@ void block_dump(unsigned char* b, int n)
             x = (ata_dev_parm_t *) params;
             if (x->Size < sizeof(ata_dev_parm_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
             d->flags |= DEV_FLG_STANDBY;
@@ -144,7 +144,7 @@ void block_dump(unsigned char* b, int n)
             x = (ata_dev_parm_t *) params;
             if (x->Size < sizeof(ata_dev_parm_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
             d->flags |= DEV_FLG_SLEEP;
@@ -158,14 +158,14 @@ void block_dump(unsigned char* b, int n)
             x = (ata_dev_parm_t *) params;
             if (x->Size < sizeof(ata_dev_parm_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
             return ata_sreset( d );
         }
 
     }
-    return FD32_EINVAL;
+    return -ENOTSUP;
 }
 
 static int atapi_request(DWORD f, void *params)
@@ -182,7 +182,7 @@ static int atapi_request(DWORD f, void *params)
             x = (atapi_info_t *) params;
             if (x->Size < sizeof(atapi_info_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
             x->PIDevType = d->type;
@@ -200,7 +200,7 @@ static int atapi_request(DWORD f, void *params)
             x = (atapi_pc_parm_t *) params;
             if (x->Size < sizeof(atapi_pc_parm_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
             return ata_packet_pio( x->MaxWait, d, x->Packet, x->PacketSize,
@@ -214,7 +214,7 @@ static int atapi_request(DWORD f, void *params)
             x = (ata_dev_parm_t *) params;
             if (x->Size < sizeof(ata_dev_parm_t))
             {
-                return FD32_EFORMAT;
+                return -EINVAL;
             }
             d = (struct ata_device *) x->DeviceId;
             return ata_dev_reset( d );
@@ -226,7 +226,7 @@ static int atapi_request(DWORD f, void *params)
             return ata_request( f, params );
         }
     }
-    return FD32_EINVAL;
+    return -ENOTSUP;
 }
 
 

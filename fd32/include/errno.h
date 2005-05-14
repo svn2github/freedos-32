@@ -129,6 +129,11 @@
 #define EOVERFLOW 139	/* Value too large for defined data type */
 #define EWOULDBLOCK EAGAIN	/* Operation would block */
 
+/* The following is temporary, to deal with the current way
+ * the file system layer handles media change requests.
+ */
+#define ENOTMOUNT 200 /* Volume not mounted after valid media change */
+
 #define __ELASTERROR 2000	/* Users can add values starting here */
 
 #endif /* #ifndef __FD32_ERRNO_H */

@@ -16,7 +16,7 @@
 
 
 #include <dr-env.h>
-#include <errors.h>
+#include <errno.h>
 #include <devices.h>
 
 #include "psmouse.h"
@@ -157,7 +157,7 @@ static int request(DWORD function, void *params)
       }
       break;
     default:
-      return FD32_EINVAL;
+      return -ENOTSUP;
   }
   
   return 0;

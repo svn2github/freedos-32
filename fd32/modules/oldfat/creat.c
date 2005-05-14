@@ -96,7 +96,7 @@ static int split_lfn(tLfnEntry *Slot, tDirEntry *D, char *LongName, int *NumSlot
         Slot[Order].FstClus  = 0;
       }
       copy_char_in_lfn_slot(&Slot[Order], SlotPos++, utf16[k]);
-      if (++NamePos == FD32_LFNMAX) return FD32_EFORMAT;
+      if (++NamePos == FD32_LFNMAX) return -ENAMETOOLONG;
     }
   }
   /* Mark the slot as last */
@@ -168,9 +168,9 @@ static int find_empty_dir_entries(tFile *F, int NumEntries)
   /* next we return back to the beginning of that cluster.               */
   LOG_PRINTF(("End of dir at pos %lu\n", (DWORD) F->TargetPos));
   /* A FAT12/FAT16 root directory cannot be extended */
-  if ISROOT(F) return FD32_EACCES;
+  if ISROOT(F) return -EFBIG;
   /* A directory cannot have more than 65536 entries */
-  if (F->TargetPos == 65536 * 32) return FD32_EACCES;
+  if (F->TargetPos == 65536 * 32) return -EFBIG;
   EntryOffset = F->TargetPos;
   /* The following write could fail if disk is full */
   Res = fat_write(F, NULL, F->V->Bpb.BPB_BytsPerSec * F->V->Bpb.BPB_SecPerClus);
@@ -191,7 +191,7 @@ static int allocate_sfn_dir_entry(tFile *F, tDirEntry *D, char *FileName)
   int Res, EntryOffset;
 
   /* Get the name in FCB format, wildcards not allowed */
-  if (fat_build_fcb_name(F->V->nls, D->Name, FileName)) return FD32_EFORMAT; /* was from the FS layer */
+  if (fat_build_fcb_name(F->V->nls, D->Name, FileName)) return -EINVAL;
     
   /* Search for a free directory entry, extending the dir if needed */
   LOG_PRINTF(("Searching for a free directory entry\n"));
@@ -221,7 +221,7 @@ static int allocate_lfn_dir_entries(tFile *F, tDirEntry *D, char *FileName, WORD
   int       k;
 
   /* gen_short_fname already checks if the LFN is valid */
-  /* if (!lfn_is_valid(FileName)) return FD32_EFORMAT;  */
+  /* if (!lfn_is_valid(FileName)) return -EINVAL;  */
   /* TODO: gen_short_fname cross reference without fat_ prefix */
   Res = gen_short_fname(F, FileName, ShortName, Hint);
   if (Res < 0) return Res;
@@ -347,7 +347,7 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
   if (fat_isopen(&Fid))
   {
     fat_close(SrcDir);
-    return FD32_EACCES; /* Open files cannot be renamed */
+    return -EBUSY; /* Open files cannot be renamed */
   }
   #endif
 
@@ -372,7 +372,7 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
   {
     fat_close(SrcDir);
     fat_close(DstDir);
-    return FD32_EEXIST;
+    return -EEXIST;
   }
 
   /* Delete the old entries from the source directory */
@@ -444,11 +444,11 @@ int fat_unlink(tVolume *V, char *FileName, DWORD Flags)
     if (Res < 0)
     {
       fat_close(Dir);
-      if (Res != FD32_ENMFILE) return Res;
-      if (NoneDeleted) return FD32_ENOENT;
+      if (Res != -ENOENT) return Res;
+      if (NoneDeleted) return -ENOENT;
       return 0;
     }
-    if (D.SfnEntry.Attr & FD32_ARDONLY) return FD32_EACCES;
+    if (D.SfnEntry.Attr & FD32_ARDONLY) return -EACCES;
 
     #ifdef FATSHARE
     Fid.V              = V;
@@ -457,7 +457,7 @@ int fat_unlink(tVolume *V, char *FileName, DWORD Flags)
     if (fat_isopen(&Fid))
     {
       fat_close(Dir);
-      return FD32_EACCES; /* Open files cannot be deleted */
+      return -EBUSY; /* Open files cannot be deleted */
     }
     #endif
 

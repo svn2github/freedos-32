@@ -7,7 +7,7 @@
  */
 
 #include <dr-env.h>
-#include <errors.h>
+#include <errno.h>
 #include <devices.h>
 
 #include "key.h"
@@ -53,7 +53,7 @@ void keyb_handler(int n)
  */
 static int read(void *id, DWORD n, BYTE *buf)
 {
-  int res = FD32_EREAD;
+  int res = -EIO;
   DWORD count;
 
   /* Convention: n = 0 --> nonblock; n != 0 --> block */
@@ -112,13 +112,13 @@ static int keyb_request(DWORD function, void *params)
       break;
     case FD32_READ:
       if (r->Size < sizeof(fd32_read_t)) {
-        res = FD32_EFORMAT;
+        res = -EINVAL;
       } else {
         res = read(r->DeviceId, r->BufferBytes, r->Buffer);
       }
       break;
     default:
-      res = FD32_EINVAL;
+      res = -ENOTSUP;
       break;
   }
   

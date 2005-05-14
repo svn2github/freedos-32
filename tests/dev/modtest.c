@@ -1,5 +1,4 @@
 #include <dr-env.h>
-#include <errors.h>
 
 static int integer0;
 static int integer1 = 0;

@@ -31,7 +31,7 @@
 #include <dr-env.h>
 #include <filesys.h>
 #include <devices.h>
-#include <errors.h>
+#include <errno.h>
 #include <nls/nls.h>
 
 /* Use the following defines to add features to the FAT driver */

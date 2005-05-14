@@ -26,7 +26,7 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 
-#include <errors.h>
+#include <errno.h>
 #include "biosdisk.h"
 
 int biosdisk_request(DWORD function, void *params)
@@ -37,9 +37,9 @@ int biosdisk_request(DWORD function, void *params)
         case FD32_MEDIACHANGE:
         {
             fd32_mediachange_t *x = (fd32_mediachange_t *) params;
-            if (x->Size < sizeof(fd32_mediachange_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_mediachange_t)) return -EINVAL;
             d = (Disk *) x->DeviceId;
-            if (!(d->priv_flags & REMOVABLE)) return FD32_EINVAL;
+            if (!(d->priv_flags & REMOVABLE)) return -ENOTSUP;
             if (d->priv_flags & CHANGELINE) return biosdisk_mediachange(d);
             /* If disk does not support change line, always report a disk change */
             return 1;
@@ -47,7 +47,7 @@ int biosdisk_request(DWORD function, void *params)
         case FD32_BLOCKREAD:
         {
             fd32_blockread_t *x = (fd32_blockread_t *) params;
-            if (x->Size < sizeof(fd32_blockread_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_blockread_t)) return -EINVAL;
             d = (Disk *) x->DeviceId;
             return biosdisk_read(d, x->Start, x->NumBlocks, x->Buffer);
         }
@@ -55,7 +55,7 @@ int biosdisk_request(DWORD function, void *params)
         case FD32_BLOCKWRITE:
         {
             fd32_blockwrite_t *x = (fd32_blockwrite_t *) params;
-            if (x->Size < sizeof(fd32_blockwrite_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_blockwrite_t)) return -EINVAL;
             d = (Disk *) x->DeviceId;
             return biosdisk_write(d, x->Start, x->NumBlocks, x->Buffer);
         }
@@ -63,7 +63,7 @@ int biosdisk_request(DWORD function, void *params)
         case FD32_BLOCKINFO:
         {
             fd32_blockinfo_t *x = (fd32_blockinfo_t *) params;
-            if (x->Size < sizeof(fd32_blockinfo_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_blockinfo_t)) return -EINVAL;
             d = (Disk *) x->DeviceId;
             x->BlockSize   = d->block_size;
             x->TotalBlocks = d->total_blocks;
@@ -72,5 +72,5 @@ int biosdisk_request(DWORD function, void *params)
             return 0;
         }
     }
-    return FD32_EINVAL;
+    return -ENOTSUP;
 }

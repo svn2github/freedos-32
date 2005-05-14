@@ -26,7 +26,7 @@
  **************************************************************************/
 #include <ll/i386/hw-data.h>
 #include <ll/i386/error.h>
-#include <errors.h>
+#include <errno.h>
 #include <devices.h>
 #include "blockio.h"
 
@@ -45,20 +45,20 @@ int floppy_request(DWORD function, void *params)
         case FD32_MEDIACHANGE:
         {
             fd32_mediachange_t *x = (fd32_mediachange_t *) params;
-            if (x->Size < sizeof(fd32_mediachange_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_mediachange_t)) return -EINVAL;
             return (fdc_disk_changed(((Floppy *) x->DeviceId)->fdd) != 0);
         }
         case FD32_BLOCKREAD:
         {
             fd32_blockread_t *x = (fd32_blockread_t *) params;
-            if (x->Size < sizeof(fd32_blockread_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_blockread_t)) return -EINVAL;
             return floppy_read((Floppy *) x->DeviceId, x->Start, x->NumBlocks, x->Buffer);
         }
         #ifdef FLOPPY_WRITE
         case FD32_BLOCKWRITE:
         {
             fd32_blockwrite_t *x = (fd32_blockwrite_t *) params;
-            if (x->Size < sizeof(fd32_blockwrite_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_blockwrite_t)) return -EINVAL;
             return floppy_write((Floppy *) x->DeviceId, x->Start, x->NumBlocks, x->Buffer);
         }
         #endif
@@ -66,7 +66,7 @@ int floppy_request(DWORD function, void *params)
         {
             Fdd              *fdd;
             fd32_blockinfo_t *x = (fd32_blockinfo_t *) params;
-            if (x->Size < sizeof(fd32_blockinfo_t)) return FD32_EFORMAT;
+            if (x->Size < sizeof(fd32_blockinfo_t)) return -EINVAL;
             fdd = ((Floppy *) x->DeviceId)->fdd;
             x->BlockSize   = 512; /* TODO: Make this selectable */
             x->TotalBlocks = fdd->fmt->size;
@@ -76,7 +76,7 @@ int floppy_request(DWORD function, void *params)
             return 0;
         }
     }
-    return FD32_EINVAL;
+    return -ENOTSUP;
 }
 
 

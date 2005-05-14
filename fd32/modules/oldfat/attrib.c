@@ -33,7 +33,7 @@
 /* This is a public driver function.                          */
 int fat_get_attr(tFile *F, fd32_fs_attr_t *A)
 {
-  if (A->Size < sizeof(fd32_fs_attr_t)) return FD32_EFORMAT;
+  if (A->Size < sizeof(fd32_fs_attr_t)) return -EINVAL;
   A->Attr  = (WORD) F->DirEntry.Attr;
   A->MDate = F->DirEntry.WrtDate;
   A->MTime = F->DirEntry.WrtTime;
@@ -51,7 +51,7 @@ int fat_get_attr(tFile *F, fd32_fs_attr_t *A)
 /* This is a public driver function.                          */
 int fat_set_attr(tFile *F, fd32_fs_attr_t *A)
 {
-  if (A->Size < sizeof(fd32_fs_attr_t)) return FD32_EFORMAT;
+  if (A->Size < sizeof(fd32_fs_attr_t)) return -EINVAL;
   F->DirEntry.Attr         = (BYTE) A->Attr;
   F->DirEntry.WrtDate      = A->MDate;
   F->DirEntry.WrtTime      = A->MTime;

@@ -8,7 +8,7 @@
 #include <dr-env.h>
 #include <devices.h>       /* For driver interfaces                     */
 #include <filesys.h>       /* For opening modes and finddata structure  */
-#include <errors.h>        /* For FD32_ENMFILE readdir termination code */
+#include <errno.h>
 
 /* Set the following to the file system device you like          */
 #define DEVNAME "hda1"
@@ -101,7 +101,7 @@ int fat_readdirtest_init(void)
             (int)  (F.MTime >>  5) & 0x3F,         /* minutes */
             F.LongName);
   }
-  if (Res != FD32_ENMFILE)
+  if (Res != -ENOENT)
   {
     message("Error %08xh while reading from directory\n", Res);
     close_and_unmount(Of.FileId, M.FsDev);

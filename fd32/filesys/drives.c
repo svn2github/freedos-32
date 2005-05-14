@@ -32,7 +32,7 @@
 #include <ll/ctype.h>
 
 #include <devices.h>
-#include <errors.h>
+#include <errno.h>
 #include <filesys.h>
 
 #define NULBOOTDEV 0xFFFFFFFF
@@ -64,7 +64,7 @@ static int dynamic_assign(DWORD Type, int d)
   fd32_blockinfo_t   Bi;
   char               DevName[51];
 
-  for (hDev = fd32_dev_first(); hDev != FD32_ENMDEV; hDev = fd32_dev_next(hDev))
+  for (hDev = fd32_dev_first(); hDev != -ENODEV; hDev = fd32_dev_next(hDev))
   {
     /* Check if this device is already assigned (even with fixed letters) */
     for (Res = 0; Res < 26; Res++) if (Drives[Res] == hDev) continue;
@@ -86,7 +86,7 @@ static int dynamic_assign(DWORD Type, int d)
       if (Res == NumFSReq) continue;
     }
     /* Assign the next available drive number (0 is 'A') to the device */
-    while (Drives[d] != FD32_ENODEV) if (d++ == 'Z' - 'A') return FD32_ENODRV;
+    while (Drives[d] != -ENODEV) if (d++ == 'Z' - 'A') return -ENODEV;
     Drives[d] = hDev;
     message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', DevName);
     /* Set the default drive to this drive if boot device is known, */
@@ -107,7 +107,7 @@ static int assign_drive_letters(void)
   int k;
 
   /* Initialize the Drives array with all drives unassigned */
-  for (k = 0; k < 26; k++) Drives[k] = FD32_ENODEV;
+  for (k = 0; k < 26; k++) Drives[k] = -ENODEV;
 
   #ifdef DRIVES_FIXED
   /* Assign fixed drive letters */
@@ -159,9 +159,9 @@ static int fd32_mount(DWORD hDev, void **FsDev)
         *FsDev = M.FsDev;
         return k;
       }
-      if (Res != FD32_EMEDIA) return Res;
+      if (Res != -ENODEV /* Unknown FS */) return Res;
     }
-  return FD32_EMEDIA;
+  return -ENODEV; /* Unknown FS */
 }
 
 
@@ -201,14 +201,14 @@ int fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId,
     if (Drive[1] == 0)
     {
       Letter = toupper(Drive[0]);
-      if ((Letter < 'A') || (Letter > 'Z')) return FD32_ENODRV;
+      if ((Letter < 'A') || (Letter > 'Z')) return -ENODEV;
       if (Path) *Path = pFileName + 1;
       hDev = Drives[Letter - 'A'];
     }
     else /* search for a device with the specified name */
     {
       Letter = 0;
-      if ((hDev = fd32_dev_search(Drive)) < 0) return FD32_ENODRV;
+      if ((hDev = fd32_dev_search(Drive)) < 0) return -ENODEV;
     }
   }
   if ((Res = fd32_dev_get(hDev, &blkreq, &BlkDev, NULL, 0)) < 0) return Res;
@@ -222,7 +222,7 @@ int fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId,
     *DeviceId = Im.FSDevId;
     return Letter;
   }
-  if (Res != FD32_EINVAL) return Res; /* TODO: Function not supported */
+  if (Res != -ENOTSUP) return Res; /* TODO: Function not supported */
   /* If it's not mounted, mount it */
   if ((Res = fd32_mount(hDev, DeviceId)) < 0) return Res;
   *request = fsreq[Res];
@@ -249,8 +249,8 @@ static char *get_name_without_drive(char *FileName)
 int fd32_set_default_drive(char Drive)
 {
   /* TODO: LASTDRIVE should be read frm Config.sys */
-  if ((toupper(Drive) < 'A') || (toupper(Drive) > 'Z')) return FD32_ENODRV;
-  if (Drives[Drive - 'A'] != FD32_ENODEV)
+  if ((toupper(Drive) < 'A') || (toupper(Drive) > 'Z')) return -ENODEV;
+  if (Drives[Drive - 'A'] != -ENODEV)
     DefaultDrive = toupper(Drive);
   /* TODO: From the RBIL (INT 21h, AH=0Eh)
            under DOS 3.0+, the return value is the greatest of 5,
@@ -278,7 +278,7 @@ int fd32_add_fs(fd32_request_t *request)
       fsreq[k] = request;
       return assign_drive_letters();
     }
-  return FD32_ENOMEM;
+  return -ENOMEM;
 }
 
 

@@ -3,7 +3,7 @@
  * Copyright (C) 2004, Salvatore Isaja                                       *
  *   project web site: http://freedos-32.sourceforge.net                     *
  *   e-mail: salvois at users.sourceforge.net                                *
- *                                                                           *                                                                           *
+ *                                                                           *                                                         
  * This program is free software; you can redistribute it and/or modify      *
  * it under the terms of the GNU General Public License as published by      *
  * the Free Software Foundation; either version 2 of the License, or         *
@@ -27,7 +27,7 @@ typedef signed char CHAR;
 typedef enum { false = 0, true = 1 } bool;
 #endif
 #include <devices.h>
-#include <errors.h>
+#include <errno.h>
 
 
 #if 0
@@ -354,7 +354,7 @@ static int request(DWORD function, void *params)
             return 0;
         }
     }
-    return FD32_EINVAL;
+    return -ENOTSUP;
 }
 
 

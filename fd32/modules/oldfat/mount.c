@@ -43,8 +43,8 @@ static int mounted_request(DWORD Function, void *Params)
   fd32_ismounted_t *Im = (fd32_ismounted_t *) Params;
   /* If a request different from ISMOUNTED is presented to a device, */
   /* the call will fail because a file system is mounted on it.      */
-  if (Function != FD32_ISMOUNTED) return FD32_ELOCKED;
-  if (Im->Size < sizeof(fd32_ismounted_t)) return FD32_EFORMAT;
+  if (Function != FD32_ISMOUNTED) return -EBUSY;
+  if (Im->Size < sizeof(fd32_ismounted_t)) return -EINVAL;
   Im->fsreq   = fat_request;
   Im->FSDevId = Im->DeviceId;
   return 0;
@@ -182,7 +182,7 @@ int fat_unmount(tVolume *V)
 {
   int Res;
   /* If there are open files the volume cannot be unmounted */
-  if (fat_openfiles(V)) return FD32_EACCES;
+  if (fat_openfiles(V)) return -EBUSY;
   #ifdef FAT_FD32DEV
   /* Restore the original device data for the hosting block device */
   if ((Res = fd32_dev_replace(V->hBlkDev, V->blkreq, V->BlkDev)) < 0) return Res;
@@ -208,7 +208,7 @@ static int check_bpb(BYTE *SecBuf, DWORD DskSz)
   if (*((WORD *) &SecBuf[510]) != 0xAA55)
   {
     LOG_PRINTF(("Boot sector signature 0xAA55 not found\n"));
-    return FD32_EMEDIA;
+    return -ENODEV;
   }
 
   /* Check volume size. If both TotSec32 and TotSec16 are nonzero,
@@ -220,14 +220,14 @@ static int check_bpb(BYTE *SecBuf, DWORD DskSz)
     if (!TotSec)
     {
       LOG_PRINTF(("Both BPB_TotSec16 and BPB_TotSec32 are zero\n"));
-      return FD32_EMEDIA;
+      return -ENODEV;
     }
   }
   if (TotSec > DskSz)
   {
     LOG_PRINTF(("BPB_TotSec16/32 is larger than block device size: %lu > %lu\n",
                 TotSec, DskSz));
-    return FD32_EMEDIA;
+    return -ENODEV;
   }
 
   /* BPB_BytsPerSec can be 512, 1024, 2048 or 4096 */
@@ -236,7 +236,7 @@ static int check_bpb(BYTE *SecBuf, DWORD DskSz)
     case 512: case 1024: case 2048: case 4096: break;
     default:
       LOG_PRINTF(("Invalid BPB_BytsPerSec: %u\n", Bpb->BPB_BytsPerSec));
-      return FD32_EMEDIA;
+      return -ENODEV;
   }
 
   /* BPB_SecPerCluster can be 1, 2, 4, 8, 16, 32, 64, 128 */
@@ -245,14 +245,14 @@ static int check_bpb(BYTE *SecBuf, DWORD DskSz)
     case 1: case 2: case 4: case 8: case 16: case 32: case 64: case 128: break;
     default:
       LOG_PRINTF(("Invalid BPB_SecPerClus: %u\n", Bpb->BPB_SecPerClus));
-      return FD32_EMEDIA;
+      return -ENODEV;
   }
 
   /* BPB_Media can be 0xF0, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF */
   if ((Bpb->BPB_Media != 0xF0) && (Bpb->BPB_Media < 0xF8))
   {
     LOG_PRINTF(("Invalid BPB_Media: %u\n", Bpb->BPB_Media));
-    return FD32_EMEDIA;
+    return -ENODEV;
   }
 
   return 0;
@@ -283,7 +283,7 @@ static int read_bpb(tVolume *V, tBpb *Bpb, tFatType *FatType)
   }
   /* Read the first block of the device */
   BootSector = (BYTE *) fd32_kmem_get(Bi.BlockSize);
-  if (BootSector == NULL) return FD32_ENOMEM;
+  if (BootSector == NULL) return -ENOMEM;
   Br.Size      = sizeof(fd32_blockread_t);
   Br.DeviceId  = V->BlkDev;
   Br.Start     = 0;
@@ -293,7 +293,7 @@ static int read_bpb(tVolume *V, tBpb *Bpb, tFatType *FatType)
   {
     LOG_PRINTF(("Cannot read the boot sector\n"));
     fd32_kmem_free(BootSector, Bi.BlockSize);
-    return FD32_EGENERAL;
+    return -EIO;
   }
   /* Check if the BPB is valid */
   if ((Res = check_bpb(BootSector, Bi.TotalBlocks)) < 0)
@@ -312,7 +312,7 @@ static int read_bpb(tVolume *V, tBpb *Bpb, tFatType *FatType)
     {
       LOG_PRINTF(("Unknown FAT32 version in BPB_FSVer: %04X\n", Bpb->BPB_FSVer));
       fd32_kmem_free(BootSector, Bi.BlockSize);
-      return FD32_EMEDIA;
+      return -ENODEV;
     }
   }
   else
@@ -355,7 +355,7 @@ int fat_mount(DWORD hDev, tVolume **NewV)
   tVolume *V;
 
   /* Allocate the FAT volume structure */
-  if (!NewV) return FD32_EINVAL;
+  if (!NewV) return -EINVAL;
   V = (tVolume *) fd32_kmem_get(sizeof(tVolume));
   memset(V, 0, sizeof(tVolume));
   if ((Res = fd32_dev_get(hDev, &V->blkreq, &V->BlkDev, BlkName, 19)) < 0)
@@ -374,12 +374,12 @@ int fat_mount(DWORD hDev, tVolume **NewV)
   /* Initialize volume's buffers */
   V->NumBuffers = FAT_MAX_BUFFERS; /* TODO: Make it user selectable */
   V->Buffers = (tBuffer *) fd32_kmem_get(sizeof(tBuffer) * V->NumBuffers);
-  if (V->Buffers == NULL) ABORT_MOUNT(V, FD32_ENOMEM);
+  if (V->Buffers == NULL) ABORT_MOUNT(V, -ENOMEM);
   memset(V->Buffers, 0, sizeof(tBuffer) * V->NumBuffers);
   for (k = 0; k < V->NumBuffers; k++)
   {
     V->Buffers[k].Data = (BYTE *) fd32_kmem_get(V->Bpb.BPB_BytsPerSec);
-    if (V->Buffers[k].Data == NULL) ABORT_MOUNT(V, FD32_ENOMEM);
+    if (V->Buffers[k].Data == NULL) ABORT_MOUNT(V, -ENOMEM);
   }
   #endif
 
@@ -392,9 +392,9 @@ int fat_mount(DWORD hDev, tVolume **NewV)
     FSInfo = (tFSInfo *) V->Buffers[Res].Data;
 
     /* Check FAT32 FSInfo signatures */
-    if (FSInfo->LeadSig  != 0x41615252) ABORT_MOUNT(V, FD32_EMEDIA);
-    if (FSInfo->StrucSig != 0x61417272) ABORT_MOUNT(V, FD32_EMEDIA);
-    if (FSInfo->TrailSig != 0xAA550000) ABORT_MOUNT(V, FD32_EMEDIA);
+    if (FSInfo->LeadSig  != 0x41615252) ABORT_MOUNT(V, -ENODEV);
+    if (FSInfo->StrucSig != 0x61417272) ABORT_MOUNT(V, -ENODEV);
+    if (FSInfo->TrailSig != 0xAA550000) ABORT_MOUNT(V, -ENODEV);
     /* Assign FSInfo parameters to FAT volume fields */
     V->FSI_Free_Count = FSInfo->Free_Count;
     V->FSI_Nxt_Free   = FSInfo->Nxt_Free;
@@ -448,8 +448,8 @@ int fat_mount(DWORD hDev, tVolume **NewV)
 
 #ifdef FATREMOVABLE
 /* Checks if the media hosting a FAT volume has been changed.                 */
-/* If media has been changed, but there are open files, returns FD32_ECHANGE. */
-/* If there are not open files the volume is unmounted and FD32_ENMOUNT is    */
+/* If media has been changed, but there are open files, returns -EBUSY.       */
+/* If there are not open files the volume is unmounted and -ENOTMOUNT is      */
 /* returned. If media has not been changed, returns 0.                        */
 /* Note: this function directly interfaces with the hosting block device.     */
 int fat_mediachange(tVolume *V)
@@ -463,20 +463,20 @@ int fat_mediachange(tVolume *V)
   Mc.Size     = sizeof(fd32_mediachange_t);
   Mc.DeviceId = V->BlkDev;
   Res = V->blkreq(FD32_MEDIACHANGE, &Mc);
-  if (Res == FD32_EINVAL) return 0; /* Device without removable media */
+  if (Res == -ENOTSUP) return 0; /* Device without removable media */
   if (Res <= 0) return Res;
   num_open = fat_openfiles(V);
   Res = read_bpb(V, &Bpb, &FatType);
   LOG_PRINTF(("Read_bpb result: %08x\n", Res));
-  if ((Res < 0) && (Res != FD32_EMEDIA)) return Res;
-  if ((Res == FD32_EMEDIA) || (V->FatType != FatType) || memcmp(&V->Bpb, &Bpb, sizeof(tBpb)))
+  if ((Res < 0) && (Res != -ENODEV)) return Res;
+  if ((Res == -ENODEV) || (V->FatType != FatType) || memcmp(&V->Bpb, &Bpb, sizeof(tBpb)))
   {
-    if (num_open > 0) return FD32_ECHANGE;
+    if (num_open > 0) return -EBUSY;
     fat_unmount(V);
-    return FD32_ENMOUNT;
+    return -ENOTMOUNT;
   }
   Res = 0;
-  if (!num_open) if (fat_trashbuf(V) < 0) Res = FD32_ECHANGE;
+  if (!num_open) if (fat_trashbuf(V) < 0) Res = -EBUSY;
   return Res;
 }
 #endif

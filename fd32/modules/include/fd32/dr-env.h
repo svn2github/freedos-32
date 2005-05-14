@@ -81,10 +81,7 @@ extern inline int fd32_event_delete(int index)
 
 /* FIXME: This is a temporary hack while waiting for standard headers */
 #include <dr-env/stdint.h>
-#include <errors.h>
-#define EILSEQ -FD32_EINVAL
-#define EINVAL -FD32_EINVAL
-#define ENAMETOOLONG -FD32_EINVAL
+#define assert(x) /* always as with NDEBUG defined */
 typedef int wchar_t;
 typedef int wint_t;
 

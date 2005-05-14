@@ -26,7 +26,7 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
  **************************************************************************/
 
-#include <errors.h>
+#include <errno.h>
 #include "biosdisk.h"
 
 //#define __DEBUG__
@@ -286,7 +286,7 @@ static int biosdisk_detect_fd(void)
         if ((d = (Disk *) fd32_kmem_get(sizeof(Disk))) == NULL)
         {
             LOG_PRINTF(("[BIOSDISK] Not enough memory for fd%d private data\n", disk));
-            return FD32_ENOMEM;
+            return -ENOMEM;
         }
         ksprintf(name, "fd%d", disk);
 
@@ -325,7 +325,7 @@ static int biosdisk_detect_fd(void)
         if (dev_name == NULL)
         {
             LOG_PRINTF(("[BIOSDISK] Not enough memory for fd%d device name\n", disk));
-            return FD32_ENOMEM;
+            return -ENOMEM;
         }
         strcpy(dev_name, name);
         res = fd32_dev_register(biosdisk_request, (void *) d, dev_name);
@@ -367,7 +367,7 @@ static int biosdisk_detect_hd(void)
         if ((d = (Disk *) fd32_kmem_get(sizeof(Disk))) == NULL)
         {
             LOG_PRINTF(("[BIOSDISK] Not enough memory for drive %02xh private data\n", disk));
-            return FD32_ENOMEM;
+            return -ENOMEM;
         }
 
         /* Initialize the private data */
@@ -421,7 +421,7 @@ static int biosdisk_detect_hd(void)
         if (dev_name == NULL)
         {
             LOG_PRINTF(("[BIOSDISK] Not enough memory for %s device name\n", name));
-            return FD32_ENOMEM;
+            return -ENOMEM;
         }
         strcpy(dev_name, name);
         res = fd32_dev_register(biosdisk_request, (void *) d, dev_name);

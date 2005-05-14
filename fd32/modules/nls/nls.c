@@ -21,6 +21,7 @@
  * fs/nls/nls_base.c (which has no copyright nor lincensing notices) as
  * inspiration, as well as the GNU libc documentation.
  */
+#include <errno.h>
 #include "nls.h"
  
 /* Head of the NLS manager linked list of code pages */

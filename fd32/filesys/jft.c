@@ -24,7 +24,7 @@
 
 #include <kmem.h>
 #include <kernel.h>
-#include <errors.h>
+#include <errno.h>
 #include <devices.h>
 #include <filesys.h>
 
@@ -75,7 +75,7 @@ int fd32_get_dev_info(int fd)
 {
 	int res;
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return FD32_EBADF;
+	if (!j) return -EBADF;
 	res = j->request(FD32_GET_DEV_INFO, NULL);
 	if (res > 0) return res;
 	return 0;
@@ -114,17 +114,17 @@ static int fake_console_request(DWORD function, void *params)
 		case FD32_WRITE:
 		{
 			fd32_write_t *p = (fd32_write_t *) params;
-			if (p->Size < sizeof(fd32_write_t)) return FD32_EFORMAT;
+			if (p->Size < sizeof(fd32_write_t)) return -EINVAL;
 			return fake_console_write(p->Buffer, p->BufferBytes);
 		}
 		case FD32_CLOSE:
 		{
 			fd32_close_t *p = (fd32_close_t *) params;
-			if (p->Size < sizeof(fd32_close_t)) return FD32_EFORMAT;
+			if (p->Size < sizeof(fd32_close_t)) return -EINVAL;
 			return 0;
 		}
 	}
-	return FD32_EINVAL;
+	return -ENOTSUP;
 }
 
 
@@ -139,11 +139,11 @@ static int dummy_request(DWORD function, void *params)
 		case FD32_CLOSE:
 		{
 			fd32_close_t *p = (fd32_close_t *) params;
-			if (p->Size < sizeof(fd32_close_t)) return FD32_EFORMAT;
+			if (p->Size < sizeof(fd32_close_t)) return -EINVAL;
 			return 0;
 		}
 	}
-	return FD32_EINVAL;
+	return -ENOTSUP;
 }
 
 
@@ -249,7 +249,7 @@ int fd32_lseek(int fd, long long int offset, int whence, long long int *result)
 {
 	off_t res;
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return FD32_EBADF;
+	if (!j) return -EBADF;
 	res = fs_lseek(j->request, j->file, offset, whence);
 	if (res < 0) return (int) res;
 	if (result) *result = res;
@@ -264,7 +264,7 @@ int fd32_lseek(int fd, long long int offset, int whence, long long int *result)
 int fd32_read(int fd, void *buffer, int size)
 {
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return FD32_EBADF;
+	if (!j) return -EBADF;
 	return fs_read(j->request, j->file, buffer, size);
 }
 
@@ -282,7 +282,7 @@ int fd32_write(int fd, void *buffer, int size)
 		if ((fd == 1) || (fd == 2)) return fake_console_write(buffer, size);
 		else
 		#endif
-		return FD32_EBADF;
+		return -EBADF;
 	}
 	return fs_write(j->request, j->file, buffer, size);
 }
@@ -296,7 +296,7 @@ int fd32_write(int fd, void *buffer, int size)
 int fd32_set_attributes(int fd, fd32_fs_attr_t *p)
 {
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return FD32_EBADF;
+	if (!j) return -EBADF;
 	return fs_set_attributes(j->request, j->file, p);
 }
 
@@ -310,7 +310,7 @@ int fd32_set_attributes(int fd, fd32_fs_attr_t *p)
 int fd32_get_attributes(int fd, fd32_fs_attr_t *p)
 {
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return FD32_EBADF;
+	if (!j) return -EBADF;
 	return fs_get_attributes(j->request, j->file, p);
 }
 
@@ -321,7 +321,7 @@ int fd32_get_attributes(int fd, fd32_fs_attr_t *p)
 int fd32_fflush(int fd)
 {
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return FD32_EBADF;
+	if (!j) return -EBADF;
 	return fs_fflush(j->request, j->file);
 }
 
@@ -334,7 +334,7 @@ int fd32_close(int fd)
 {
 	int res;
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return FD32_EBADF;
+	if (!j) return -EBADF;
 	res = fs_close(j->request, j->file);
 	if (res >= 0) j->request = NULL;
 	return res;
@@ -352,8 +352,8 @@ int fd32_dup(int oldfd)
 	int jft_size;
 	struct JftEntry *j = (struct JftEntry *) fd32_get_jft(&jft_size);
 
-	if ((oldfd < 0) || (oldfd >= jft_size)) return FD32_EBADF;
-	if (!j[oldfd].request) return FD32_EBADF;
+	if ((oldfd < 0) || (oldfd >= jft_size)) return -EBADF;
+	if (!j[oldfd].request) return -EBADF;
 
 	for (h = 0; h < jft_size; h++)
 		if (!j[h].request)
@@ -365,7 +365,7 @@ int fd32_dup(int oldfd)
 			j[oldfd].request(FD32_OPEN, &p);
 			return h;
 		}
-	return FD32_EMFILE;
+	return -EMFILE;
 }
 
 
@@ -380,10 +380,10 @@ int fd32_forcedup(int oldfd, int newfd)
 	int jft_size;
 	struct JftEntry *j = (struct JftEntry *) fd32_get_jft(&jft_size);
 
-	if ((oldfd < 0) || (oldfd >= jft_size)) return FD32_EBADF;
-	if (!j[oldfd].request) return FD32_EBADF;
+	if ((oldfd < 0) || (oldfd >= jft_size)) return -EBADF;
+	if (!j[oldfd].request) return -EBADF;
 	if (newfd == oldfd) return 0;
-	if ((newfd < 0) || (newfd >= jft_size)) return FD32_EBADF;
+	if ((newfd < 0) || (newfd >= jft_size)) return -EBADF;
 
 	/* Close the file associated to "newfd" if currently open */
 	if (j[newfd].request)
@@ -421,7 +421,7 @@ int fd32_open(char *file_name, DWORD mode, WORD attr, WORD alias_hint, int *resu
 			j[fd].search  = NULL;
 			return fd;
 		}
-	return FD32_EMFILE;
+	return -EMFILE;
 }
 
 
@@ -484,7 +484,7 @@ int fd32_dos_findfirst(char *file_spec, BYTE attrib, fd32_fs_dosfind_t *find_dat
 		res = fd32_get_drive(aux, &request, &volume, &path);
 		if (res < 0) return res;
 		/* DOS find functions work only on drives identified by a drive letter */
-		if (res == 0) return FD32_ENODRV;
+		if (res == 0) return -ENODEV;
 		find_data->SearchDrive = res - 'A' + 1;
 		/* Open the directory and search for the specified template */
 		p.volume    = volume;
@@ -492,7 +492,7 @@ int fd32_dos_findfirst(char *file_spec, BYTE attrib, fd32_fs_dosfind_t *find_dat
 		p.attrib    = attrib;
 		p.find_data = find_data;
 		res = request(FD32_FINDFIRST, &p);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }
 
@@ -516,7 +516,7 @@ int fd32_dos_findnext(fd32_fs_dosfind_t *find_data)
 		p.volume    = volume;
 		p.find_data = find_data;
 		res = request(FD32_FINDNEXT, &p);
-		if (res != FD32_ENMOUNT) return res;
+		if (res != -ENOTMOUNT) return res;
 	}
 }
 
@@ -619,7 +619,7 @@ int fd32_lfn_findfirst(/*const*/ char *file_spec, DWORD flags, fd32_fs_lfnfind_t
 			void *file;
 			int res;
 			struct Search *search = search_get();
-			if (!search) return FD32_ENOMEM;
+			if (!search) return -ENOMEM;
 			split_path(file_spec, path, name);
 			res = fs_open(path, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &request, &file);
 			if (res < 0)
@@ -645,7 +645,7 @@ int fd32_lfn_findfirst(/*const*/ char *file_spec, DWORD flags, fd32_fs_lfnfind_t
 			j[fd].search  = search;
 			return fd;
 		}
-	return FD32_EMFILE;
+	return -EMFILE;
 }
 
 
@@ -655,7 +655,7 @@ int fd32_lfn_findfirst(/*const*/ char *file_spec, DWORD flags, fd32_fs_lfnfind_t
 /* Returns 0 on success, or a negative error code on failure.            */
 int fd32_lfn_findnext(int fd, DWORD flags, fd32_fs_lfnfind_t *find_data)
 {
-	int res = FD32_EBADF;
+	int res = -EBADF;
 	struct JftEntry *j = validate_search_handle(fd);
 	if (j)
 	{
@@ -675,7 +675,7 @@ int fd32_lfn_findnext(int fd, DWORD flags, fd32_fs_lfnfind_t *find_data)
 /* Returns 0 on success, or a negative error code on failure.          */
 int fd32_lfn_findclose(int fd)
 {
-	int res = FD32_EBADF;
+	int res = -EBADF;
 	struct JftEntry *j = validate_search_handle(fd);
 	if (j)
 	{

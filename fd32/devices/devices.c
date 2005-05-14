@@ -14,7 +14,7 @@
 #ifdef DEV_UNICODE
 #include <unicode.h>
 #endif
-#include <errors.h>
+#include <errno.h>
 #include <kernel.h> /* strcasecmp */
 
 
@@ -32,16 +32,16 @@ tDevice;
 /* Dynamic array of FD32 devices */
 #define DEVSIZESTEP 20
 static unsigned DevSize  = 0;
-static int      DevFirst = FD32_ENMDEV;
-static int      DevLast  = FD32_ENMDEV;
+static int      DevFirst = -ENODEV;
+static int      DevLast  = -ENODEV;
 static tDevice *Devices  = NULL;
 
 
 /* Returns nonzero if the passed device handle is invalid */
 static inline int is_invalid(unsigned Handle)
 {
-  if (Handle >= DevSize) return FD32_ENODEV;
-  if (!(Devices[Handle].request)) return FD32_ENODEV;
+  if (Handle >= DevSize) return -ENODEV;
+  if (!(Devices[Handle].request)) return -ENODEV;
   return 0;
 }
 
@@ -53,7 +53,7 @@ static inline int is_invalid(unsigned Handle)
 int fd32_dev_get(unsigned Handle, fd32_request_t **request, void **DeviceId,
                  char *Name, int MaxName)
 {
-  if (is_invalid(Handle)) return FD32_ENODEV;
+  if (is_invalid(Handle)) return -ENODEV;
   if (request) *request = Devices[Handle].request;
   if (DeviceId) *DeviceId = Devices[Handle].DeviceId;
   if (Name && MaxName) strncpy(Name, Devices[Handle].Name, MaxName);
@@ -64,12 +64,12 @@ int fd32_dev_get(unsigned Handle, fd32_request_t **request, void **DeviceId,
 /* Searches for a devices with the specified name, starting from     */
 /* the last registered one. Use the DEV_CASE and DEV_UNICODE symbols */
 /* to customize the behaviour of this function.                      */
-/* Returns a not negative device handle on success, or FD32_ENODEV   */
+/* Returns a not negative device handle on success, or -ENODEV       */
 /* if a device with that name is not found.                          */
 int fd32_dev_search(const char *Name)
 {
   int k;
-  for (k = DevLast; k != FD32_ENMDEV; k = Devices[k].Prev)
+  for (k = DevLast; k != -ENODEV; k = Devices[k].Prev)
   {
     #ifdef DEV_CASE
      if (strcmp(Devices[k].Name, Name) == 0) return k;
@@ -81,7 +81,7 @@ int fd32_dev_search(const char *Name)
      #endif
     #endif
   }
-  return FD32_ENODEV;
+  return -ENODEV;
 }
 
 
@@ -100,21 +100,21 @@ int fd32_dev_last(void)
 
 
 /* Returns the handle of the device registered after the specified device. */
-/* If the specified device is the last device, FD32_ENMDEV is returned.    */
+/* If the specified device is the last device, -ENODEV is returned.        */
 /* On failure, returns a negative error code.                              */
 int fd32_dev_next(unsigned Handle)
 {
-  if (is_invalid(Handle)) return FD32_ENODEV;
+  if (is_invalid(Handle)) return -ENODEV;
   return Devices[Handle].Next;
 }
 
 
 /* Returns the handle of the device registered before the specified device. */
-/* If the specified device is the first device, FD32_ENMDEV is returned.    */
+/* If the specified device is the first device, -ENODEV is returned.        */
 /* On failure, returns a negative error code.                               */
 int fd32_dev_prev(unsigned Handle)
 {
-  if (is_invalid(Handle)) return FD32_ENODEV;
+  if (is_invalid(Handle)) return -ENODEV;
   return Devices[Handle].Prev;
 }
 
@@ -129,7 +129,7 @@ int fd32_dev_register(fd32_request_t *request, void *DeviceId, const char *Name)
   unsigned k;
 
   #ifdef DEV_NODUP
-  if (fd32_dev_search(Name) >= 0) return FD32_EACCES; //FIX ME: A decent one
+  if (fd32_dev_search(Name) >= 0) return -EEXIST;
   #endif
   /* Search for an unused entry in the devices array */
   for (k = 0; k < DevSize; k++) if (Devices[k].request == NULL) break;
@@ -140,7 +140,7 @@ int fd32_dev_register(fd32_request_t *request, void *DeviceId, const char *Name)
     DWORD    OldSize  = DevSize * sizeof(tDevice);
     DWORD    NewSize  = (DevSize + DEVSIZESTEP) * sizeof(tDevice);
     tDevice *NewArray = (tDevice *) mem_get(NewSize);
-    if (NewArray == NULL) return FD32_ENOMEM;
+    if (NewArray == NULL) return -ENOMEM;
     memset(NewArray, 0, NewSize);
     memcpy(NewArray, Devices, OldSize);
     if (Devices) mem_free((DWORD)Devices, OldSize);
@@ -150,10 +150,10 @@ int fd32_dev_register(fd32_request_t *request, void *DeviceId, const char *Name)
   Devices[k].request  = request;
   Devices[k].DeviceId = DeviceId;
   Devices[k].Name     = Name;
-  Devices[k].Next     = FD32_ENMDEV;
+  Devices[k].Next     = -ENODEV;
   Devices[k].Prev     = DevLast;
-  if (DevLast != FD32_ENMDEV) Devices[DevLast].Next = k;
-                         else DevFirst = k;
+  if (DevLast != -ENODEV) Devices[DevLast].Next = k;
+                     else DevFirst = k;
   DevLast = k;
   return (int) k;
 }
@@ -164,15 +164,15 @@ int fd32_dev_register(fd32_request_t *request, void *DeviceId, const char *Name)
 /* Returns 0 on success, or a negative error code on failure. */
 int fd32_dev_unregister(unsigned Handle)
 {
-  if (is_invalid(Handle)) return FD32_ENODEV;
+  if (is_invalid(Handle)) return -ENODEV;
   Devices[Handle].request = NULL;
   /* Unlink first-to-last chain */
-  if (Devices[Handle].Prev != FD32_ENMDEV)
+  if (Devices[Handle].Prev != -ENODEV)
     Devices[Devices[Handle].Prev].Next = Devices[Handle].Next;
    else
     DevFirst = Devices[Handle].Next;
   /* Unlink last-to-first chain */
-  if (Devices[Handle].Next != FD32_ENMDEV)
+  if (Devices[Handle].Next != -ENODEV)
     Devices[Devices[Handle].Next].Prev = Devices[Handle].Prev;
    else
     DevLast = Devices[Handle].Prev;
@@ -186,7 +186,7 @@ int fd32_dev_unregister(unsigned Handle)
 /* Returns 0 on success, or a negative error code on failure.              */
 int fd32_dev_replace(unsigned Handle, fd32_request_t *request, void *DeviceId)
 {
-  if (is_invalid(Handle)) return FD32_ENODEV;
+  if (is_invalid(Handle)) return -ENODEV;
   Devices[Handle].request  = request;
   Devices[Handle].DeviceId = DeviceId;
   return 0;
@@ -219,7 +219,7 @@ void fd32_devices_engine_init(void)
   fd32_message("Going to install the Devices Engine...\n");
   for (k = 0; Symbols[k].Name; k++)
     if (add_call(Symbols[k].Name, Symbols[k].Address, ADD) == -1)
-      fd32_error("Cannot add %s to the symbol table\n", Symbols[k].Name);
+      fd32_message("Cannot add %s to the symbol table\n", Symbols[k].Name);
   fd32_message("Done\n");
 }
 #endif

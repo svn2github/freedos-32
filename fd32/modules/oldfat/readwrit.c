@@ -40,7 +40,7 @@ typedef enum { MOVE_ON_READ, MOVE_ON_WRITE } tMoveType;
 #ifdef FATWRITE
 /* Searches a volume for a free cluster in the specified range of clusters. */
 /* On success, returns 0, updates V->FSI_Nxt_Free and fills Cluster.        */
-/* If no free cluster is found in the specified range, returns FD32_ENOSPC. */
+/* If no free cluster is found in the specified range, returns -ENOSPC.     */
 /* On other failure returns a negative error code.                          */
 static int free_cluster_in_range(tVolume *V, DWORD From, DWORD To, DWORD *Cluster)
 {
@@ -79,13 +79,13 @@ static int free_cluster_in_range(tVolume *V, DWORD From, DWORD To, DWORD *Cluste
                  }
                  break;
   }
-  return FD32_ENOSPC;
+  return -ENOSPC;
 }
 
 
 /* The number of the first free data cluster found in the FAT volume.  */
 /* On success, returns 0, updates V->FSI_Nxt_Free and fills Cluster.   */
-/* On failure, returns a negative error code, notably FD32_ENOSPC.     */
+/* On failure, returns a negative error code, notably -ENOSPC.         */
 /* Called by allocate_and_link_new_cluster and allocate_first_cluster. */
 static int first_free_cluster(tVolume *V, DWORD *Cluster)
 {
@@ -99,18 +99,18 @@ static int first_free_cluster(tVolume *V, DWORD *Cluster)
   {
     V->FSI_Nxt_Free = 2;
     Res = free_cluster_in_range(V, 2, V->DataClusters + 2, Cluster);
-    if (Res != FD32_ENOSPC) return Res; /* Includes the case Res == 0 */
+    if (Res != -ENOSPC) return Res; /* Includes the case Res == 0 */
     V->FSI_Nxt_Free = 0xFFFFFFFF;
-    return FD32_ENOSPC;
+    return -ENOSPC;
   }
   Res = free_cluster_in_range(V, V->FSI_Nxt_Free, V->DataClusters + 2, Cluster);
-  if (Res != FD32_ENOSPC) return Res; /* Includes the case Res == 0 */
+  if (Res != -ENOSPC) return Res; /* Includes the case Res == 0 */
   /* If a free cluster is not found after the V->FSI_Nxt_Free cluster, */
   /* we may have it before V->FSI_Nxt_Free.                            */
   Res = free_cluster_in_range(V, 2, V->FSI_Nxt_Free, Cluster);
-  if (Res != FD32_ENOSPC) return Res; /* Includes the case Res == 0 */
+  if (Res != -ENOSPC) return Res; /* Includes the case Res == 0 */
   V->FSI_Nxt_Free = 0xFFFFFFFF;
-  return FD32_ENOSPC;
+  return -ENOSPC;
 }
 
 
@@ -270,7 +270,7 @@ static int move_to_targetpos(tFile *F, tMoveType Op)
   #endif
   
   /* Check if we want to go before the beginning of the file */
-  if (F->TargetPos < 0) return FD32_EISEEK;
+  if (F->TargetPos < 0) return -ENXIO;
 
   /* If we are beyond the target position, we restart from the beginning */
   if (F->FilePos > F->TargetPos)
@@ -385,7 +385,7 @@ int fat_read(tFile *F, void *Buffer, int Size)
   LOG_PRINTF(("FAT: reading %i bytes\n", Size));
   /* Check if reading from file is allowed */
   if (((F->Mode & FD32_OACCESS) != FD32_OREAD)
-   && ((F->Mode & FD32_OACCESS) != FD32_ORDWR)) return FD32_EACCES;
+   && ((F->Mode & FD32_OACCESS) != FD32_ORDWR)) return -EACCES;
 
   for (k = 0; k < Size; k++)
   {
@@ -558,17 +558,17 @@ int fat_write(tFile *F, void *Buffer, int Size)
 
   /* Check if writing into the file is allowed */
   if (((F->Mode & FD32_OACCESS) != FD32_OWRITE)
-   && ((F->Mode & FD32_OACCESS) != FD32_ORDWR)) return FD32_EACCES;
-  if (F->DirEntry.Attr & FD32_ARDONLY) return FD32_EACCES;
+   && ((F->Mode & FD32_OACCESS) != FD32_ORDWR)) return -EACCES;
+  if (F->DirEntry.Attr & FD32_ARDONLY) return -EACCES;
 
   /* Check if the file will fits into disk space after writing this block */
-  if (block_is_too_large(F, Size)) return FD32_ENOSPC;
+  if (block_is_too_large(F, Size)) return -ENOSPC;
 
   /* Special case: if Size is zero, the file has to be truncated/extended */
   /* to the current target position, if it's not a FAT12/FAT16 root dir.  */
   if (Size == 0)
   {
-    if ISROOT(F) return FD32_EACCES;
+    if ISROOT(F) return -EACCES;
             else return truncate_or_extend(F);
   }
   /* Now really write */
@@ -577,7 +577,7 @@ int fat_write(tFile *F, void *Buffer, int Size)
     Res = move_to_targetpos(F, MOVE_ON_WRITE);
     /* This is possible only if the file is a FAT12/FAT16 */
     /* root directory with no more room.                  */
-    if (Res == FAT_RET_EOF) return FD32_EACCES;
+    if (Res == FAT_RET_EOF) return -EACCES;
     else if (Res < 0) return Res;
 
     /* Then we load the sector we sought, change the byte */

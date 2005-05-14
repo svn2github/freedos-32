@@ -254,11 +254,11 @@ static int set_opening_mode(tFile *F, DWORD Mode)
   /* Directory consistency check */
   if (F->DirEntry.Attr & FD32_ADIR)
   {
-    if (!(Mode & FD32_ODIR)) return FD32_EACCES;
+    if (!(Mode & FD32_ODIR)) return -EISDIR;
   }
   else
   {
-    if (Mode & FD32_ODIR) return FD32_ENOTDIR;
+    if (Mode & FD32_ODIR) return -ENOTDIR;
   }
 
   /* Check if the access code is valid */
@@ -267,9 +267,9 @@ static int set_opening_mode(tFile *F, DWORD Mode)
     case FD32_OWRITE:
     case FD32_ORDWR :
       #ifdef FATWRITE
-      if (F->DirEntry.Attr & FD32_ARDONLY) return FD32_EACCES;
+      if (F->DirEntry.Attr & FD32_ARDONLY) return -EACCES;
       #else
-      return FD32_EROFS;
+      return -EROFS;
       #endif
   }
   F->Mode = Mode;
@@ -291,7 +291,7 @@ static int set_opening_mode(tFile *F, DWORD Mode)
         case FD32_OWRITE : F1Mode = 0x0F00; break;
         case FD32_ORDWR  : F1Mode = 0x00F0; break;
         case FD32_ORDNA  : F1Mode = 0x000F; break;
-        default          : return FD32_EACODE;
+        default          : return -EINVAL;
       }
       switch (F->Mode & FD32_OACCESS)
       {
@@ -299,7 +299,7 @@ static int set_opening_mode(tFile *F, DWORD Mode)
         case FD32_OWRITE : FMode = 0x4444; break;
         case FD32_ORDWR  : FMode = 0x2222; break;
         case FD32_ORDNA  : FMode = 0x1111; break;
-        default          : return FD32_EACODE;
+        default          : return -EINVAL;
       }
       switch (F1->Mode & FD32_OSHARE)
       {
@@ -308,7 +308,7 @@ static int set_opening_mode(tFile *F, DWORD Mode)
         case FD32_ODENYWR : F1Share = 2; break;
         case FD32_ODENYRD : F1Share = 3; break;
         case FD32_ODENYNO : F1Share = 4; break;
-        default           : return FD32_EACODE;
+        default           : return -EINVAL;
       }
       switch (F->Mode & FD32_OSHARE)
       {
@@ -317,12 +317,12 @@ static int set_opening_mode(tFile *F, DWORD Mode)
         case FD32_ODENYWR : FShare = 2; break;
         case FD32_ODENYRD : FShare = 3; break;
         case FD32_ODENYNO : FShare = 4; break;
-        default           : return FD32_EACODE;
+        default           : return -EINVAL;
       }
       if (!(SharingBehaviour[F1Share][FShare] & F1Mode & FMode))
       {
-        if (FShare == 0) return FD32_EVSHAR; /* INT 24h */
-                         return FD32_EACCES;
+        if (FShare == 0) return -EINVAL; /* Sharing violation (INT 24h) */
+                         return -EINVAL;
       }
     } /* if ((F != F1) && SAMEFILE(F1, F)) */
   }
@@ -397,7 +397,7 @@ static int descend_path(tVolume *V, char *Path, tFile **Fp)
       /* If the file is already open copy its status to a new structure */
       if (F->References)
       {
-        if ((F = get_fd(V)) == NULL) return FD32_EMFILE;
+        if ((F = get_fd(V)) == NULL) return -EMFILE;
         memcpy(F, &V->Files[Res], sizeof(tFile));
       }
       F->Mode       &= ROOT;
@@ -411,7 +411,7 @@ static int descend_path(tVolume *V, char *Path, tFile **Fp)
   #endif
 
   /* Allocate a file descriptor to descend the path */
-  if ((F = take_file()) == NULL) return FD32_EMFILE;
+  if ((F = take_file()) == NULL) return -ENFILE;
   F->V    = V;
   F->Mode = 0;
   memset(&F->DirEntry, 0, sizeof(tDirEntry));
@@ -445,7 +445,7 @@ static int descend_path(tVolume *V, char *Path, tFile **Fp)
     Res = fat_find(F, Component, FD32_FRNONE | FAT_FANOVOLID, &D);
     if (Res < 0)
     {
-      if (Res == FD32_ENMFILE) Res = FD32_ENOTDIR;
+      if (Res == -ENOENT) Res = -ENOTDIR;
       F->References = 0;
       return Res;
     }
@@ -472,13 +472,13 @@ static int validate_open_arguments(DWORD Mode)
     case 0          :
     case FD32_OEXIST:
     case FD32_OTRUNC: break;
-    default         : return FD32_EINVAL;
+    default         : return -EINVAL;
   }
   switch (Mode & 0x00F00000)
   {
     case 0          :
     case FD32_OCREAT: break;
-    default         : return FD32_EINVAL;
+    default         : return -EINVAL;
   }
   /* Check if access and sharing modes are valid */
   switch (Mode & FD32_OACCESS)
@@ -487,7 +487,7 @@ static int validate_open_arguments(DWORD Mode)
     case FD32_OWRITE:
     case FD32_ORDWR :
     case FD32_ORDNA : break;
-    default         : return FD32_EACODE;
+    default         : return -EINVAL;
   }
   switch (Mode & FD32_OSHARE)
   {
@@ -496,7 +496,7 @@ static int validate_open_arguments(DWORD Mode)
     case FD32_ODENYWR:
     case FD32_ODENYRD:
     case FD32_ODENYNO: break;
-    default          : return FD32_EACODE;
+    default          : return -EINVAL;
   }
   return 0;
 }
@@ -528,12 +528,12 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
     {
       LOG_PRINTF(("FAT: File to open found in the name cache\n"));
       if ((!(Mode & FD32_OEXIST)) && (!(Mode & FD32_OTRUNC)))
-        return FD32_EACCES;
+        return -EACCES;
       Ff = &V->Files[Res];
       /* If the file is already open copy its status to a new structure */
       if (Ff->References)
       {
-        if ((Ff = get_fd(V)) == NULL) return FD32_EMFILE;
+        if ((Ff = get_fd(V)) == NULL) return -ENFILE;
         memcpy(Ff, &V->Files[Res], sizeof(tFile));
       }
       Ff->Mode       = 0;
@@ -550,7 +550,7 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
         return FD32_ORTRUNC;
         #else
         Ff->References = 0;
-        return FD32_EROFS;
+        return -EROFS;
         #endif
       }
       *F = Ff;
@@ -576,18 +576,18 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
   Res = fat_find(Fp, Name, FD32_FRNONE | FAT_FANOVOLID, &D);
   if (Res < 0)
   {
-    if (Res != FD32_ENMFILE) { Fp->References = 0; return Res; }
+    if (Res != -ENOENT) { Fp->References = 0; return Res; }
     /* If the file does not exist and creation is not required return error */
     if (!(Mode & FD32_OCREAT))
     {
       LOG_PRINTF(("FAT: File does not exist, FD32_OCREAT not specified.\n"));
       Fp->References = 0;
-      if (Mode & FD32_ODIR) return FD32_ENOTDIR;
-      return FD32_ENOENT;
+      if (Mode & FD32_ODIR) return -ENOTDIR;
+      return -ENOENT;
     }
     /* Otherwise create the file */
     #ifdef FATWRITE
-     if ((Ff = take_file()) == NULL) { Fp->References = 0; return FD32_EMFILE; }
+     if ((Ff = take_file()) == NULL) { Fp->References = 0; return -ENFILE; }
      if (!(Mode & FD32_OALIAS)) AliasHint = 1;
      Res = fat_creat(Fp, Ff, Name, Attr, AliasHint);
      Fp->References = 0;
@@ -603,14 +603,14 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
      return FD32_ORCREAT;
     #else
      Fp->References = 0;
-     return FD32_EROFS;
+     return -EROFS;
     #endif
   }
 
   /* If we arrive here, the file already exists */
-  if ((!(Mode & FD32_OEXIST)) && (!(Mode & FD32_OTRUNC))) { Fp->References = 0; return FD32_EACCES; }
+  if ((!(Mode & FD32_OEXIST)) && (!(Mode & FD32_OTRUNC))) { Fp->References = 0; return -EACCES; }
   /* Allocate a file descriptor for the file and open it */
-  if ((Ff = take_file()) == NULL) { Fp->References = 0; return FD32_EMFILE; }
+  if ((Ff = take_file()) == NULL) { Fp->References = 0; return -ENFILE; }
   Res = open_existing(Fp, Ff, &D.SfnEntry, Mode);
   Fp->References = 0;
   if (Res < 0) { Ff->References = 0; return Res; }
@@ -629,7 +629,7 @@ int fat_open(tVolume *V, char *FileName, DWORD Mode, WORD Attr,
      return FD32_ORTRUNC;
     #else
      Ff->References = 0;
-     return FD32_EROFS;
+     return -EROFS;
     #endif
   }
   *F = Ff;
@@ -645,7 +645,7 @@ int fat_reopendir(tVolume *V, tFindRes *Id, tFile **F)
 {
   int Res;
   LOG_PRINTF(("fat_reopendir: EntryCount=%u FirstDirCluster=%lu\n", Id->EntryCount, Id->FirstDirCluster));
-  if ((*F = take_file()) == NULL) return FD32_EMFILE;
+  if ((*F = take_file()) == NULL) return -ENFILE;
   (*F)->V = V;
   (*F)->ParentFstClus  = 0; /* Not available */
   (*F)->DirEntryOffset = 0; /* Not available */
@@ -695,7 +695,7 @@ int fat_fflush(tFile *F)
 /* This is a public driver function.                          */
 int fat_close(tFile *F)
 {
-  if (F->References == 0) return FD32_EBADF;
+  if (F->References == 0) return -EBADF;
   #ifdef FATWRITE
   if (F->References - 1 == 0)
   {

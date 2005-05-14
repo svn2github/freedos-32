@@ -133,7 +133,7 @@ static int gen_short_fname1(const struct nls_operations *nls, char *Dest, char *
   int   Res = 0;
 
   /* Find the last embedded dot, if present */
-  if (!(*Source)) return FD32_EFORMAT;
+  if (!(*Source)) return -EINVAL;
   for (s = Source + 1; *s; s++)
     if ((*s == '.') && (*(s-1) != '.') && (*(s+1) != '.') && *(s+1))
       DotPos = s;
@@ -147,7 +147,7 @@ static int gen_short_fname1(const struct nls_operations *nls, char *Dest, char *
         *s++ = *Source + 'A' - 'a';
         Res |= FD32_GENSFN_CASE_CHANGED;
       }
-      else if (*Source < 0x20) return FD32_EFORMAT;
+      else if (*Source < 0x20) return -EINVAL;
       else switch (*Source)
       {
         /* Spaces and periods must be removed */
@@ -161,7 +161,7 @@ static int gen_short_fname1(const struct nls_operations *nls, char *Dest, char *
         /* Check for invalid LFN characters */
         case '"': case '*' : case '/': case ':': case '<': case '>':
         case '?': case '\\': case '|':
-          return FD32_EFORMAT;
+          return -EINVAL;
         /* Return any other single-byte character unchanged */
         default : *s++ = *Source;
       }
@@ -188,7 +188,7 @@ static int gen_short_fname1(const struct nls_operations *nls, char *Dest, char *
   /* Convert the Purified name to the OEM code page in FCB format */
   if (gen_short_fname2(nls, ShortName, Purified, DotPos, 8)) Res |= FD32_GENSFN_WAS_INVALID;
   if (DotPos) if (gen_short_fname2(nls, &ShortName[8], DotPos + 1, NULL, 3)) Res |= FD32_GENSFN_WAS_INVALID;
-  if (ShortName[0] == ' ') return FD32_EFORMAT;
+  if (ShortName[0] == ' ') return -EINVAL;
   if (ShortName[0] == 0xE5) Dest[0] = (char) 0x05;
 
   /* Return the generated short name in the specified format */
@@ -198,7 +198,7 @@ static int gen_short_fname1(const struct nls_operations *nls, char *Dest, char *
                                      return Res;
     case FD32_GENSFN_FORMAT_NORMAL : fat_expand_fcb_name(nls, Dest, ShortName, 12); /* was from the FS layer */
                                      return Res;
-    default                        : return FD32_EINVAL;
+    default                        : return -ENOTSUP;
   }
 }
 
@@ -272,7 +272,7 @@ int gen_short_fname(tFile *Dir, char *LongName, BYTE *ShortName, WORD Hint)
       if (fat_compare_fcb_names(E.Name, Aux) == 0) break; /* was from the FS layer */
     }
   }
-  return FD32_EACCES;
+  return -EEXIST;
 }
 #endif /* #ifdef FATWRITE */
 
@@ -319,7 +319,7 @@ int fat_build_fcb_name(const struct nls_operations *nls, BYTE *Dest, char *Sourc
     return 0;
   }
 
-  //if ((Res = utf8_strupr(SourceU, Source)) < 0) return FD32_EUTF8;
+  //if ((Res = utf8_strupr(SourceU, Source)) < 0) return -EILSEQ;
   //for (k = 0; (SourceU[k] != '.') && SourceU[k]; k++);
   for (k = 0; (Source[k] != '.') && Source[k]; k++);
 
@@ -333,16 +333,16 @@ int fat_build_fcb_name(const struct nls_operations *nls, BYTE *Dest, char *Sourc
   //utf8_to_oemcp(SourceU, SourceU[k] ? k : -1, Dest, 8);
   //if (SourceU[k]) utf8_to_oemcp(&SourceU[k + 1], -1, &Dest[8], 3);
 
-  if (Dest[0] == ' ') return FD32_EFORMAT;
+  if (Dest[0] == ' ') return -EINVAL;
   if (Dest[0] == 0xE5) Dest[0] = 0x05;
   for (k = 0; k < 11;)
   {
-    if (Dest[k] < 0x20) return FD32_EFORMAT;
+    if (Dest[k] < 0x20) return -EINVAL;
     switch (Dest[k])
     {
       case '"': case '+': case ',': case '.': case '/': case ':': case ';':
       case '<': case '=': case '>': case '[': case '\\': case ']':  case '|':
-        return FD32_EFORMAT;
+        return -EINVAL;
       case '?': WildCards = 1;
                 k++;
                 break;
@@ -390,7 +390,7 @@ int fat_expand_fcb_name(const struct nls_operations *nls, char *Dest, const BYTE
     Dest += res;
     size -= res;
   }
-  if (size < 1) return FD32_EFORMAT;
+  if (size < 1) return -EINVAL;
   *Dest = 0;
   return 0;
 }
