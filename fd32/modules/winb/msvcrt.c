@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,9 +68,6 @@ static void fd32_imp_cexit(void)
 {
   fd32_log_printf("[WINB] cexit (Do nothing)\n");
 }
-
-/* TODO: How to set these FILE descriptors to stdin, stdout and stderr */
-static FILE fd32_imp_iob[3];
 
 static uint32_t fd32_imp_onexit(void * func)
 {
@@ -303,16 +301,91 @@ static int fd32_imp_isctype(int c, int type)
     return 0;
 }
 
+/* TODO: How to set these FILE descriptors to stdin, stdout and stderr */
+typedef struct fd32_iobuf
+{
+  char*	_ptr;
+  int	_cnt;
+  char*	_base;
+  int	_flag;
+  int	_file;
+  int	_charbuf;
+  int	_bufsiz;
+  char*	_tmpfname;
+} fd32_FILE;
+static fd32_FILE fd32_imp_iob[3] = {
+  /* stdin  (fd32_imp_iob[0]) */
+  { NULL, 0, NULL, 0, 0, 0, 0 },
+  /* stdout (fd32_imp_iob[1]) */
+  { NULL, 0, NULL, 0, 1, 0, 0 },
+  /* stderr (fd32_imp_iob[3]) */
+  { NULL, 0, NULL, 0, 2, 0, 0 },
+};
+
+/* NOTE: Wrap newlib's standard File stream functions to avoid the conflict of different stdin, stdout, stderr */
+static FILE *newlib_stdfp(FILE *fp)
+{
+  if ((uint32_t)fp == (uint32_t)(fd32_imp_iob+0))
+    fp = stdin;
+  else if ((uint32_t)fp == (uint32_t)(fd32_imp_iob+1))
+    fp = stdout;
+  else if ((uint32_t)fp == (uint32_t)(fd32_imp_iob+2))
+    fp = stderr;
+  return fp;
+}
+
+static int fd32_imp$fflush (FILE *fp)
+{
+  return fflush(newlib_stdfp(fp));
+}
+
+static int fd32_imp$fprintf(FILE *fp, const char *fmt, ...)
+{
+  int ret;
+  va_list ap;
+
+  va_start(ap, fmt);
+  ret = vfprintf(newlib_stdfp(fp), fmt, ap);
+  va_end(ap);
+
+  return ret;
+}
+
+static int fd32_imp$fputc(int c, FILE *fp)
+{
+  return fputc(c, newlib_stdfp(fp));
+}
+
+static int fd32_imp$fputs(const char *s, FILE *fp)
+{
+  return fputs(s, newlib_stdfp(fp));
+}
+
+static size_t fd32_imp$fread(void *data, size_t size, size_t count, FILE *fp)
+{
+  return fread(data, size, count, newlib_stdfp(fp));
+}
+
+static size_t fd32_imp$fwrite(const void *data, size_t size, size_t count, FILE *fp)
+{
+  return fwrite(data, size, count, newlib_stdfp(fp));
+}
+
+static int fd32_imp$vfprintf(FILE *fp, const char *fmt, va_list ap)
+{
+  return vfprintf(newlib_stdfp(fp), fmt, ap);
+}
+
 /* from Newlib */
 extern int *__errno(void);
 extern int __srefill(FILE * fp);
 
-static int fd32_imp_filbuf(FILE * file)
+static int fd32_imp_filbuf(FILE * fp)
 {
-  int res = __srefill(file);
+  int res = __srefill(newlib_stdfp(fp));
   
   if (res != EOF)
-    res = getc(file);
+    res = getc(newlib_stdfp(fp));
   
   return res;
 }
@@ -320,83 +393,85 @@ static int fd32_imp_filbuf(FILE * file)
 static char msvcrt_name[] = "msvcrt.dll";
 static char msvcr7_name[] = "msvcr70.dll";
 static struct symbol msvcrt_symarray[] = {
-  {"__dllonexit",    (uint32_t)fd32_imp__dllonexit},
-  {"__getmainargs",  (uint32_t)fd32_imp__getmainargs},
-  {"__mb_cur_max",   (uint32_t)fd32_imp__mb_cur_max},
-  {"__p___argv",     (uint32_t)fd32_imp__p___argv},
-  {"__p___initenv",  (uint32_t)fd32_imp__p___initenv},
-  {"__p__commode",   (uint32_t)fd32_imp__p__commode},
-  {"__p__environ",   (uint32_t)fd32_imp__p__environ},
-  {"__p__fmode",     (uint32_t)fd32_imp__p__fmode},
-  {"__set_app_type", (uint32_t)fd32_imp__set_app_type},
-  {"__setusermatherr", (uint32_t)fd32_imp__setusermatherr},
-  {"_adjust_fdiv",   (uint32_t)&fd32_imp_adjust_fdiv},
-  {"_amsg_exit",     (uint32_t)fd32_imp_amsg_exit},
-  {"_controlfp",     (uint32_t)fd32_imp_controlfp},
-  {"_cexit",         (uint32_t)fd32_imp_cexit},
-  {"_except_handler3", (uint32_t)fd32_imp_except_handler3},
-  {"_filbuf",        (uint32_t)fd32_imp_filbuf},
-  {"_initterm",      (uint32_t)fd32_imp_initterm},
-  {"_iob",           (uint32_t)fd32_imp_iob},
-  {"_isctype",       (uint32_t)fd32_imp_isctype},
-  {"_onexit",        (uint32_t)fd32_imp_onexit},
-  {"_pctype",        (uint32_t)&fd32_imp_pctype},
-  {"_setmode",       (uint32_t)fd32_imp_setmode},
-  {"_XcptFilter",    (uint32_t)fd32_imp_XcptFilter},
+  {"__dllonexit",     (uint32_t)fd32_imp__dllonexit},
+  {"__getmainargs",   (uint32_t)fd32_imp__getmainargs},
+  {"__mb_cur_max",    (uint32_t)fd32_imp__mb_cur_max},
+  {"__p___argv",      (uint32_t)fd32_imp__p___argv},
+  {"__p___initenv",   (uint32_t)fd32_imp__p___initenv},
+  {"__p__commode",    (uint32_t)fd32_imp__p__commode},
+  {"__p__environ",    (uint32_t)fd32_imp__p__environ},
+  {"__p__fmode",      (uint32_t)fd32_imp__p__fmode},
+  {"__set_app_type",  (uint32_t)fd32_imp__set_app_type},
+  {"__setusermatherr",(uint32_t)fd32_imp__setusermatherr},
+  {"_adjust_fdiv",    (uint32_t)&fd32_imp_adjust_fdiv},
+  {"_amsg_exit",      (uint32_t)fd32_imp_amsg_exit},
+  {"_controlfp",      (uint32_t)fd32_imp_controlfp},
+  {"_cexit",          (uint32_t)fd32_imp_cexit},
+  {"_except_handler3",(uint32_t)fd32_imp_except_handler3},
+  {"_filbuf",         (uint32_t)fd32_imp_filbuf},
+  {"_initterm",       (uint32_t)fd32_imp_initterm},
+  {"_iob",            (uint32_t)fd32_imp_iob},
+  {"_isctype",        (uint32_t)fd32_imp_isctype},
+  {"_onexit",         (uint32_t)fd32_imp_onexit},
+  {"_pctype",         (uint32_t)&fd32_imp_pctype},
+  {"_setmode",        (uint32_t)fd32_imp_setmode},
+  {"_XcptFilter",     (uint32_t)fd32_imp_XcptFilter},
 
   /* from Newlib and libfd32 */
-  {"_access",  (uint32_t)access},
-  {"_close",   (uint32_t)close},
-  {"_errno",   (uint32_t)__errno},
-  {"_exit",    (uint32_t)exit},
-  {"_fdopen",  (uint32_t)fdopen},
-  {"_fstat",   (uint32_t)fstat},
-  {"_isatty",  (uint32_t)isatty},
-  {"_open",    (uint32_t)open},
-  {"_read",    (uint32_t)read},
+  {"_access",         (uint32_t)access},
+  {"_close",          (uint32_t)close},
+  {"_errno",          (uint32_t)__errno},
+  {"_exit",           (uint32_t)exit},
+  {"_fdopen",         (uint32_t)fdopen},
+  {"_fstat",          (uint32_t)fstat},
+  {"_isatty",         (uint32_t)isatty},
+  {"_open",           (uint32_t)open},
+  {"_read",           (uint32_t)read},
   /* {"_setmode",       (uint32_t)setmode}, */
-  {"_unlink",  (uint32_t)unlink},
-  {"_vsnprintf",     (uint32_t)vsnprintf},
-  {"_write",   (uint32_t)write},
-  {"abort",    (uint32_t)abort},
-  {"atexit",   (uint32_t)atexit},
-  {"calloc",   (uint32_t)calloc},
-  {"clearerr",       (uint32_t)clearerr},
-  {"exit",     (uint32_t)exit},
-  {"fclose",   (uint32_t)fclose},
-  {"fflush",   (uint32_t)fflush},
-  {"fopen",    (uint32_t)fopen},
-  {"fprintf",  (uint32_t)fprintf},
-  {"fputc",    (uint32_t)fputc},
-  {"fputs",    (uint32_t)fputs},
-  {"fread",    (uint32_t)fread},
-  {"free",     (uint32_t)free},
-  {"fseek",    (uint32_t)fseek},
-  {"ftell",    (uint32_t)ftell},
-  {"fwrite",   (uint32_t)fwrite},
-  {"getenv",   (uint32_t)getenv},
-  {"malloc",   (uint32_t)malloc},
-  {"memchr",   (uint32_t)memchr},
-  {"memcpy",   (uint32_t)memcpy},
-  {"memmove",  (uint32_t)memmove},
-  {"memset",   (uint32_t)memset},
-  {"perror",   (uint32_t)perror},
-  {"puts",     (uint32_t)puts},
-  {"printf",   (uint32_t)printf},
-  {"realloc",  (uint32_t)realloc},
-  {"rename",   (uint32_t)rename},
-  {"setlocale",      (uint32_t)setlocale},
-  {"signal",   (uint32_t)signal},
-  {"sprintf",  (uint32_t)sprintf},
-  {"strcat",   (uint32_t)strcat},
-  {"strchr",   (uint32_t)strchr},
-  {"strcpy",   (uint32_t)strcpy},
-  {"strlen",   (uint32_t)strlen},
-  {"strncmp",  (uint32_t)strncmp},
-  {"system",   (uint32_t)system},
-  {"tolower",  (uint32_t)tolower},
-  {"toupper",  (uint32_t)toupper},
-  {"vfprintf",       (uint32_t)vfprintf}
+  {"_unlink",         (uint32_t)unlink},
+  {"_vsnprintf",      (uint32_t)vsnprintf},
+  {"_write",          (uint32_t)write},
+  {"abort",           (uint32_t)abort},
+  {"atexit",          (uint32_t)atexit},
+  {"bsearch",         (uint32_t)bsearch},
+  {"calloc",          (uint32_t)calloc},
+  {"clearerr",        (uint32_t)clearerr},
+  {"exit",            (uint32_t)exit},
+  {"fclose",          (uint32_t)fclose},
+  {"fflush",          (uint32_t)fd32_imp$fflush},
+  {"fopen",           (uint32_t)fopen},
+  {"fprintf",         (uint32_t)fd32_imp$fprintf},
+  {"fputc",           (uint32_t)fd32_imp$fputc},
+  {"fputs",           (uint32_t)fd32_imp$fputs},
+  {"fread",           (uint32_t)fd32_imp$fread},
+  {"free",            (uint32_t)free},
+  {"fseek",           (uint32_t)fseek},
+  {"ftell",           (uint32_t)ftell},
+  {"fwrite",          (uint32_t)fd32_imp$fwrite},
+  {"getenv",          (uint32_t)getenv},
+  {"malloc",          (uint32_t)malloc},
+  {"memchr",          (uint32_t)memchr},
+  {"memcpy",          (uint32_t)memcpy},
+  {"memmove",         (uint32_t)memmove},
+  {"memset",          (uint32_t)memset},
+  {"perror",          (uint32_t)perror},
+  {"puts",            (uint32_t)puts},
+  {"printf",          (uint32_t)printf},
+  {"qsort",           (uint32_t)qsort},
+  {"realloc",         (uint32_t)realloc},
+  {"rename",          (uint32_t)rename},
+  {"setlocale",       (uint32_t)setlocale},
+  {"signal",          (uint32_t)signal},
+  {"sprintf",         (uint32_t)sprintf},
+  {"strcat",          (uint32_t)strcat},
+  {"strchr",          (uint32_t)strchr},
+  {"strcpy",          (uint32_t)strcpy},
+  {"strlen",          (uint32_t)strlen},
+  {"strncmp",         (uint32_t)strncmp},
+  {"system",          (uint32_t)system},
+  {"tolower",         (uint32_t)tolower},
+  {"toupper",         (uint32_t)toupper},
+  {"vfprintf",        (uint32_t)fd32_imp$vfprintf}
 };
 static uint32_t msvcrt_symnum = sizeof(msvcrt_symarray)/sizeof(struct symbol);
 
