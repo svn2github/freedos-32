@@ -10,7 +10,7 @@ endif
 
 BASE = $(FD32)/oslib
 
-include $(OSLIB)/config.mk
+include $(FD32)/mk/djgpp.mk
 
 DJGPP_TESTS = hello.out empty.out exctest.out get.out argtest.out filetest.out exectest.out
 NATIVE_TESTS = fstest.32 read.32
@@ -30,7 +30,7 @@ hello.out: hello.o main.o
 main.o: main.c
 	$(CC) -c $(C_OPT_1) main.c
 command.exe: command.c
-	$(CC) -Xlinker -Ttext -Xlinker 0x200000 command.c -o command.exe
+	$(CC) -O4 -Xlinker -Ttext -Xlinker 0x300000 command.c -s -o command.exe
 
 # Common rules
 %.32: %.c
