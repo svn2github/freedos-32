@@ -443,7 +443,11 @@ NoArgs:
 #define KEY_RIGHT        KEY_EXTM(0x4DE0)
 static unsigned short keyb_get_rawcode(void)
 {
-  return bioskey(GET_ENHANCED_KEYSTROKE);
+  unsigned short c = getch();
+
+  if (c == 0x00)
+    c = getch()<<8;
+  return c;
 }
 
 static unsigned short keyb_get_shift_states(void)
@@ -556,16 +560,13 @@ static void prompt_for_and_get_cmd(void)
     _setcursortype(_SOLIDCURSOR);
 
   do {
-    if (kbhit()) {
-      key = keyb_get_rawcode();
-      flag = keyb_get_shift_states();
-    } else {
-      key = 0; /* TODO: CPU Idle or multitasking time-slice release */
-    }
+    /* Wait and get raw key code */
+    key = keyb_get_rawcode();
+    flag = keyb_get_shift_states();
     
     if (KEY_ASCII(key) == KEY_EXT)
       key = KEY_EXTM(key);
-    else
+    else if (KEY_ASCII(key) != 0)
       key = KEY_ASCII(key);
     switch (key)
     {
