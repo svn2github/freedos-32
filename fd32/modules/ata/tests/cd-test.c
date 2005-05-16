@@ -60,7 +60,7 @@ int process()
             return 1;
         }
         ksprintf(filename, "%s.iso", dev_name);
-        fhandle = fd32_open(filename, FD32_OEXIST | FD32_OTRUNC | FD32_OCREAT | FD32_OWRITE, FD32_ANONE, 0, NULL);
+        fhandle = fd32_open(filename, O_CREAT | O_TRUNC | O_WRONLY, FD32_ANONE, 0, NULL);
         if(fhandle < 0)
         {
             fd32_message("Error: Unable to open file %s\n", filename);

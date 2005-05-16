@@ -23,7 +23,7 @@ int fat_test_init(void)
   int  hFile, Res, k;
 
   /* Open file. The FS volume is mounted on the first access */
-  hFile = fd32_open(FILENAME, FD32_OREAD | FD32_OEXIST, FD32_ANONE, 0, NULL);
+  hFile = fd32_open(FILENAME, O_RDONLY, FD32_ANONE, 0, NULL);
   if (hFile < 0)
   {
     message("Error %08xh while opening the file\n", hFile);

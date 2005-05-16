@@ -384,8 +384,8 @@ int fat_read(tFile *F, void *Buffer, int Size)
 
   LOG_PRINTF(("FAT: reading %i bytes\n", Size));
   /* Check if reading from file is allowed */
-  if (((F->Mode & FD32_OACCESS) != FD32_OREAD)
-   && ((F->Mode & FD32_OACCESS) != FD32_ORDWR)) return -EACCES;
+  if (((F->Mode & O_ACCMODE) != O_RDONLY)
+   && ((F->Mode & O_ACCMODE) != O_RDWR)) return -EACCES;
 
   for (k = 0; k < Size; k++)
   {
@@ -410,7 +410,7 @@ int fat_read(tFile *F, void *Buffer, int Size)
   }
   #ifdef FATWRITE
   /* Successful exit, whole Buffer read */
-  if (((F->Mode & FD32_OACCESS) != FD32_ORDNA) && (!(F->Mode & FD32_ODIR)))
+  if (!(F->Mode & O_NOATIME) && !(F->Mode & O_DIRECTORY))
   {
     fat_timestamps(NULL, &F->DirEntry.LstAccDate, NULL);
     if ((Res = fat_syncentry(F)) < 0) return Res;
@@ -530,10 +530,10 @@ static int truncate_or_extend(tFile *F)
     /* And finally set the new file size to where we've sought */
     F->DirEntry.FileSize = (DWORD) F->TargetPos;
   }
-  if (!(F->Mode & FD32_ODIR))
+  if (!(F->Mode & O_DIRECTORY))
   {
     fat_timestamps(&F->DirEntry.WrtTime, &F->DirEntry.WrtDate, NULL);
-    F->DirEntry.LstAccDate = F->DirEntry.WrtDate;
+    if (!(F->Mode & O_NOATIME)) F->DirEntry.LstAccDate = F->DirEntry.WrtDate;
     F->DirEntry.Attr      |= FD32_AARCHIV;
   }
   LOG_PRINTF(("File successfully truncated/extended at offset %lu\n",
@@ -557,8 +557,8 @@ int fat_write(tFile *F, void *Buffer, int Size)
   LOG_PRINTF(("FAT write: %i bytes\n", Size));
 
   /* Check if writing into the file is allowed */
-  if (((F->Mode & FD32_OACCESS) != FD32_OWRITE)
-   && ((F->Mode & FD32_OACCESS) != FD32_ORDWR)) return -EACCES;
+  if (((F->Mode & O_ACCMODE) != O_WRONLY)
+   && ((F->Mode & O_ACCMODE) != O_RDWR)) return -EACCES;
   if (F->DirEntry.Attr & FD32_ARDONLY) return -EACCES;
 
   /* Check if the file will fits into disk space after writing this block */
@@ -594,15 +594,15 @@ int fat_write(tFile *F, void *Buffer, int Size)
     F->TargetPos++;
   }
   /* Successful exit, whole Buffer written */
-  if (!(F->Mode & FD32_ODIR))
+  if (!(F->Mode & O_DIRECTORY))
   {
     fat_timestamps(&F->DirEntry.WrtTime, &F->DirEntry.WrtDate, NULL);
-    F->DirEntry.LstAccDate = F->DirEntry.WrtDate;
+    if (!(F->Mode & O_NOATIME)) F->DirEntry.LstAccDate = F->DirEntry.WrtDate;
     F->DirEntry.Attr      |= FD32_AARCHIV;
     F->DirEntryChanged = 1;
     if ((Res = fat_syncentry(F)) < 0) return Res;
   }
-  if (F->Mode & FD32_OCOMMIT)
+  if (F->Mode & O_SYNC)
     if ((Res = fat_flushall(F->V))) return Res;
   LOG_PRINTF(("%i bytes written.\n", k));
   return k;

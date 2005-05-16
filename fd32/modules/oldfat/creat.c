@@ -275,7 +275,7 @@ int fat_creat(tFile *Fp, tFile *Ff, char *Name, BYTE Attr, WORD AliasHint)
   D.WrtDate      = D.CrtDate;
 
   /* Switch the access mode to READWRITE for the following operation */
-  Fp->Mode = (Fp->Mode & ~FD32_OACCESS) | FD32_ORDWR;
+  Fp->Mode = (Fp->Mode & ~O_ACCMODE) | O_RDWR;
   #ifdef FATLFN
   Res = allocate_lfn_dir_entries(Fp, &D, Name, AliasHint);
   #else
@@ -305,7 +305,7 @@ int fat_creat(tFile *Fp, tFile *Ff, char *Name, BYTE Attr, WORD AliasHint)
   Ff->ByteInSector    = 0;
 
   /* The opening mode */
-  Fp->Mode &= ~FD32_OACCESS;
+  Fp->Mode &= ~O_ACCMODE;
   return 0;
 }
 
@@ -329,7 +329,7 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
   /* Open the source directory */
   /* TODO: Find a decent place for split_path... */
   fat_split_path(OldFullName, OldPath, OldName);
-  Res = fat_open(V, OldPath, FD32_ORDWR | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &SrcDir);
+  Res = fat_open(V, OldPath, O_RDWR | O_DIRECTORY, FD32_ANONE, 0, &SrcDir);
   if (Res < 0) return Res;
 
   /* Find the source name and get all its informations */
@@ -340,7 +340,7 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
     return Res;
   }
 
-  #ifdef FATSHARE
+  #if 1 //def FATSHARE
   Fid.V              = V;
   Fid.ParentFstClus  = FIRSTCLUSTER(SrcDir->DirEntry);
   Fid.DirEntryOffset = D.EntryOffset;
@@ -364,7 +364,7 @@ int fat_rename(tVolume *V, char *OldFullName, char *NewFullName)
 
   /* Open the destination directory */
   fat_split_path(NewFullName, NewPath, NewName);
-  Res = fat_open(V, NewPath, FD32_ORDWR | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &DstDir);
+  Res = fat_open(V, NewPath, O_RDWR | O_DIRECTORY, FD32_ANONE, 0, &DstDir);
   if (Res < 0) return Res;
   /* Check if the destination name already exists */
   Res = fat_find(DstDir, NewName, FD32_FRNONE | FAT_FANOVOLID, NULL);
@@ -430,7 +430,7 @@ int fat_unlink(tVolume *V, char *FileName, DWORD Flags)
   
   fat_split_path(FileName, Path, Name);
   LOG_PRINTF(("FAT unlink: file %s in directory %s\n", Name, Path));
-  Res = fat_open(V, Path, FD32_ORDWR | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &Dir);
+  Res = fat_open(V, Path, O_RDWR | O_DIRECTORY, FD32_ANONE, 0, &Dir);
   if (Res < 0) return Res;
 
   /* Repeat until no more matches are found */
@@ -450,7 +450,7 @@ int fat_unlink(tVolume *V, char *FileName, DWORD Flags)
     }
     if (D.SfnEntry.Attr & FD32_ARDONLY) return -EACCES;
 
-    #ifdef FATSHARE
+    #if 1 //def FATSHARE
     Fid.V              = V;
     Fid.ParentFstClus  = FIRSTCLUSTER(Dir->DirEntry);
     Fid.DirEntryOffset = D.EntryOffset;

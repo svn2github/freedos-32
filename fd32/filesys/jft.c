@@ -621,7 +621,7 @@ int fd32_lfn_findfirst(/*const*/ char *file_spec, DWORD flags, fd32_fs_lfnfind_t
 			struct Search *search = search_get();
 			if (!search) return -ENOMEM;
 			split_path(file_spec, path, name);
-			res = fs_open(path, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &request, &file);
+			res = fs_open(path, O_RDONLY | O_DIRECTORY, FD32_ANONE, 0, &request, &file);
 			if (res < 0)
 			{
 				search_put(search);

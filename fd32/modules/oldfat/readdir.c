@@ -286,7 +286,7 @@ int fat_findfirst(tVolume *v, const char *path, int attributes, fd32_fs_dosfind_
   fat_split_path(path, dir, name);
   res = fat_build_fcb_name(v->nls, find_data->SearchTemplate, name);
   if (res < 0) return res;
-  res = fat_open(v, dir, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, &f);
+  res = fat_open(v, dir, O_RDONLY | O_DIRECTORY, FD32_ANONE, 0, &f);
   if (res < 0) return res;
   return dos_find(f, find_data);
 }

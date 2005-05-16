@@ -68,7 +68,7 @@ int fat_creattest_init(void)
   Of.Size      = sizeof(fd32_openfile_t);
   Of.DeviceId  = M.FsDev; /* Returned by the FD32_MOUNT request */
   Of.FileName  = FILENAME;
-  Of.Mode      = FD32_OWRITE | FD32_OCREAT | FD32_OTRUNC;
+  Of.Mode      = O_WRONLY | O_CREAT | O_TRUNC;
   if ((Res = fat_request(FD32_OPENFILE, &Of)) < 0)
   {
     message("Error %08xh while opening the file\n", Res);

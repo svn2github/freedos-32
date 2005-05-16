@@ -73,7 +73,7 @@ int fat_readdirtest_init(void)
   Of.Size      = sizeof(fd32_openfile_t);
   Of.DeviceId  = M.FsDev; /* Returned by the FD32_MOUNT request */
   Of.FileName  = DIRNAME;
-  Of.Mode      = FD32_OREAD | FD32_OEXIST | FD32_ODIR;
+  Of.Mode      = O_RDONLY | O_DIRECTORY;
   if ((Res = fat_request(FD32_OPENFILE, &Of)) < 0)
   {
     message("Error %08xh while opening the directory\n", Res);

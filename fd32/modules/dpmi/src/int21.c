@@ -185,6 +185,22 @@ static void res2dos(int res, union rmregs *r)
 }
 
 
+/* Converts a DOS open action (see RBIL table 01770) to a libc mode. */
+static int parse_open_action(int dos_action)
+{
+	int action = 0;
+	if (dos_action & 0x10) action |= O_CREAT;
+	switch (dos_action & ~0x10)
+	{
+		case 0x00: action |= O_EXCL; break;
+		case 0x01: break;
+		case 0x02: action |= O_TRUNC; break;
+		default: action = -EINVAL;
+	}
+	return action;
+}
+
+
 /* Converts a path name from DOS API to UTF-8 using no more than "size" bytes.
  * Forward slashes '/' are converted to back slashes '\'.
  * Returns 0 on success, or a negative error.
@@ -321,9 +337,9 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 		res2dos(res, r);
 		return;
 	}
-	fd = fd32_open(fn, FD32_OREAD | FD32_OEXIST, FD32_ANONE, 0, NULL);
+	fd = fd32_open(fn, O_RDONLY, FD32_ANONE, 0, NULL);
 	if (fd < 0) /* It could be a directory... */
-		fd = fd32_open(fn, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, NULL);
+		fd = fd32_open(fn, O_RDONLY | O_DIRECTORY, FD32_ANONE, 0, NULL);
 	if (fd < 0)
 	{
 		res2dos(fd, r);
@@ -391,9 +407,9 @@ static inline void lfn_get_and_set_attributes(union rmregs *r)
 		res2dos(res, r);
 		return;
 	}
-	fd = fd32_open(fn, FD32_ORDWR | FD32_OEXIST, FD32_ANONE, 0, NULL);
+	fd = fd32_open(fn, O_RDWR, FD32_ANONE, 0, NULL);
 	if (fd < 0) /* It could be a directory... */
-		fd = fd32_open(fn, FD32_ORDWR | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, NULL);
+		fd = fd32_open(fn, O_RDWR | O_DIRECTORY, FD32_ANONE, 0, NULL);
 	if (fd < 0)
 	{
 		res2dos(res, r);
@@ -605,9 +621,12 @@ static inline void lfn_functions(union rmregs *r)
 		case 0x6C:
 		{
 			int action;
+			res = parse_open_action(r->x.dx);
+			if (res < 0) break;
+			action = res;
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
 			if (res < 0) break;
-			res = fd32_open(fn, ((DWORD) r->x.dx << 16) + (DWORD) r->x.bx, r->x.cx, r->x.di, &action);
+			res = fd32_open(fn, action | (DWORD) r->x.bx, r->x.cx, r->x.di, &action);
 			res2dos(res, r);
 			if (res >= 0)
 			{
@@ -812,7 +831,7 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 			LOG_PRINTF(("INT 21h - Creat \"%s\" with attr %04x\n", fn, r->x.cx));
 			if (res < 0) break;
-			res = fd32_open(fn, FD32_ORDWR | FD32_OCOMPAT | FD32_OTRUNC | FD32_OCREAT, r->x.cx, 0, NULL);
+			res = fd32_open(fn, O_RDWR | O_CREAT | O_TRUNC, r->x.cx, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
 			break;
@@ -823,7 +842,7 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 			LOG_PRINTF(("INT 21h - Open \"%s\" with mode %02x\n", fn, r->h.al));
 			if (res < 0) break;
-			res = fd32_open(fn, FD32_OEXIST | r->h.al, FD32_ANONE, 0, NULL);
+			res = fd32_open(fn, r->h.al, FD32_ANONE, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
 			break;
@@ -1026,7 +1045,7 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 			LOG_PRINTF(("INT 21h - Creating new file (AH=5Bh) \"%s\" with attr %04x\n", fn, r->x.cx));
 			if (res < 0) break;
-			res = fd32_open(fn, FD32_ORDWR | FD32_OCOMPAT | FD32_OCREAT, r->x.cx, 0, NULL);
+			res = fd32_open(fn, O_RDWR | O_CREAT | O_EXCL, r->x.cx, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
 			return;
@@ -1056,9 +1075,12 @@ void int21_handler(union rmregs *r)
 		case 0x6C:
 		{
 			int action;
+			res = parse_open_action(r->x.dx);
+			if (res < 0) break;
+			action = res;
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
 			if (res < 0) break;
-			res = fd32_open(fn, ((DWORD) r->x.dx << 16) + (DWORD) r->x.bx, r->x.cx, 0, &action);
+			res = fd32_open(fn, action | (DWORD) r->x.bx, r->x.cx, 0, &action);
 			LOG_PRINTF(("INT 21h - Extended open/create (AH=6Ch) \"%s\" res=%08xh\n", fn, res));
 			res2dos(res, r);
 			if (res >= 0)

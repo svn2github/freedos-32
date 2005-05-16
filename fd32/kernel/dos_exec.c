@@ -104,7 +104,7 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
   of.Size = sizeof(fd32_openfile_t);
   of.DeviceId = fs_device;
   of.FileName = pathname;
-  of.Mode = FD32_OREAD | FD32_OEXIST;
+  of.Mode = O_RDONLY;
   if (f.request(FD32_OPENFILE, &of) < 0) {
 #ifdef __DEBUG__
     fd32_log_printf("File not found!!\n");

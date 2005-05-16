@@ -42,6 +42,8 @@ typedef long long int off_t;
 #define FD32_SFNMAX  14  /* Max length for a short file name      */
 
 
+#include "fcntl.h"
+#if 0 /* Feel free to delete when the new O_* constants work */
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 /* OPEN system call - Flags for opening mode and action taken  */
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -74,6 +76,7 @@ typedef long long int off_t;
 #define FD32_OCREAT   (1 << 20) /* Create unexisting file         */
 #define FD32_ODIR     (1 << 24) /* Open a directory as a file     */
 #define FD32_OFILEID  (1 << 25) /* Interpret *FileName as a fileid */
+#endif
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * */

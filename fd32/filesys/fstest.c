@@ -37,8 +37,7 @@ int rajeev_test()
   {
     sprintf(wsfileName, "%s\\TestFile%d.txt", "d:", loopCount);
 
-    Handle = fd32_open(wsfileName, FD32_OPEN_ACCESS_WRITE |
-                       FD32_OPEN_NOTEXIST_CREATE, 0, 0, NULL);
+    Handle = fd32_open(wsfileName, O_WRONLY | O_CREAT | O_EXCL, 0, 0, NULL);
 
 /*    hDataLogFile = CreateFile(wsfileName,GENERIC_WRITE,0, NULL,
                               CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);*/
@@ -96,9 +95,7 @@ int main()
   /* Do something with the file system */
   //rajeev_test();
   #if 0
-  Handle = fd32_open("\\",
-                     FD32_OPEN_ACCESS_READ | FD32_OPEN_EXIST_OPEN
-                     | FD32_OPEN_DIRECTORY, 0, 0, NULL);
+  Handle = fd32_open("\\", O_RDONLY | O_DIRECTORY, 0, 0, NULL);
   printf("\nHandle is %i\n", Handle);
   if (Handle < 0) return Handle;
   Res = fd32_read(Handle, Buffer, sizeof(Buffer));
@@ -117,8 +114,7 @@ int main()
   #endif
 
   #if 0
-  Handle = fd32_open("root\\..\\logistica.doc",
-                     FD32_OPEN_ACCESS_READ | FD32_OPEN_EXIST_OPEN, 0, 0, NULL);
+  Handle = fd32_open("root\\..\\logistica.doc", O_RDONLY, 0, 0, NULL);
   printf("\nHandle is %i\n", Handle);
   if (Handle < 0) return Handle;
   Res = fd32_read(Handle, Buffer, sizeof(Buffer));
@@ -126,8 +122,7 @@ int main()
   Res = fd32_close(Handle);
   printf("File closed with result %i\n", Res);
 
-  Handle = fd32_open("root\\..\\logistica.pdf",
-                     FD32_OPEN_ACCESS_READ | FD32_OPEN_EXIST_OPEN, 0, 0, NULL);
+  Handle = fd32_open("root\\..\\logistica.pdf", O_RDONLY, 0, 0, NULL);
   printf("\nHandle is %i\n", Handle);
   if (Handle < 0) return Handle;
   Res = fd32_read(Handle, Buffer, sizeof(Buffer));

@@ -107,7 +107,7 @@ int fd32_create_subst(char *DriveAlias, char *Target)
     Of.Size     = sizeof(fd32_openfile_t);
     Of.DeviceId = DeviceId;
     Of.FileName = Path;
-    Of.Mode     = FD32_OREAD | FD32_OEXIST | FD32_ODIR;
+    Of.Mode     = O_RDONLY | O_DIRECTORY;
     /* Open file in Of.FileId */
     Res = request(FD32_OPENFILE, &Of);
     if (Res < 0)
@@ -192,7 +192,7 @@ int fd32_chdir(/*const */char *DirName)
     Of.Size     = sizeof(fd32_openfile_t);
     Of.DeviceId = DeviceId;
     Of.FileName = Path;
-    Of.Mode     = FD32_OREAD | FD32_OEXIST | FD32_ODIR;
+    Of.Mode     = O_RDONLY | O_DIRECTORY;
     Res = request(FD32_OPENFILE, &Of);
     if (Res == FD32_OROPEN) break;
     if (Res != -ENOTMOUNT) return Res;

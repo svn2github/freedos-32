@@ -318,7 +318,7 @@ static int process(char* args)
         }
         else
         {
-            fhandle = fd32_open(sdat.path, FD32_OEXIST, FD32_ANONE, 0, NULL);
+            fhandle = fd32_open(sdat.path, O_RDONLY, FD32_ANONE, 0, NULL);
             if(fhandle < 0)
             {
                 err_access_denied(sdat.path);

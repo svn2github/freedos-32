@@ -72,7 +72,7 @@ int init_dir_search( search_data* sd)
     }
     *p = '\0';
     /* Try to open directory to check that path exist */
-    handle = fd32_open(sd->path, FD32_OREAD | FD32_OEXIST | FD32_ODIR, FD32_ANONE, 0, NULL);
+    handle = fd32_open(sd->path, O_RDONLY | O_DIRECTORY, FD32_ANONE, 0, NULL);
     if(handle < 0)
     {
         sd->err_no = handle;

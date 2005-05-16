@@ -47,8 +47,7 @@ int fat_rmdir(tVolume *V, char *DirName)
 
   LOG_PRINTF(("FAT rmdir: %s\n", DirName));
   /* First we open the directory to see if removing it is a valid operation */
-  Res = fat_open(V, DirName, FD32_OREAD | FD32_ODIR | FD32_OEXIST,
-                 FD32_ANONE, 0, &F);
+  Res = fat_open(V, DirName, O_RDONLY | O_DIRECTORY, FD32_ANONE, 0, &F);
   if (Res < 0) return Res;
   
   /* Check if trying to remove the current directory */
@@ -94,8 +93,7 @@ int fat_mkdir(tVolume *V, char *DirName)
   int        Res;
 
   LOG_PRINTF(("FAT mkdir: %s\n", DirName));
-  Res = fat_open(V, DirName, FD32_ORDWR | FD32_ODIR | FD32_OCREAT,
-                 FD32_ADIR, 0, &F);
+  Res = fat_open(V, DirName, O_RDWR | O_DIRECTORY, FD32_ADIR, 0, &F);
   if (Res < 0) return Res;
 
   /* Set to zero the whole cluster and rewind */
