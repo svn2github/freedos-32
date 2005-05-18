@@ -516,7 +516,7 @@ static void cmdbuf_putch(char *cmd_buf, unsigned int buf_size, char ch, unsigned
     }
     /* Put into cmdline buffer */
     cmd_buf[cur++] = ch;
-    if (flag&KEYB_FLAG_INSERT || cur > tail)
+    if ((flag&KEYB_FLAG_INSERT && tail < buf_size) || cur > tail)
       tail++;
     /* Update the string on screen */
     for (i = cur-1; i < tail; i++)
