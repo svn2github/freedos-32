@@ -1,5 +1,5 @@
 --- ref/configure.host	2004-10-05 21:44:24.000000000 +0200
-+++ newlib/configure.host	2005-05-05 15:42:08.197473696 +0200
++++ newlib/configure.host	2005-05-22 02:46:49.000000000 +0200
 @@ -349,6 +349,9 @@
  	sys_dir=sysvi386
  	unix_dir=unix
@@ -16,7 +16,7 @@
  	;;
 +  i[34567]86-pc-fd32*)
 +	syscall_dir=syscalls
-+	newlib_cflags="${newlib_cflags} -DHAVE_GETTIMEOFDAY"
++	newlib_cflags="-I${newlib_basedir}/libc/sys/fd32/include ${newlib_cflags} -DHAVE_GETTIMEOFDAY"
 +	;;
    iq2000*)
  	syscall_dir=syscalls
