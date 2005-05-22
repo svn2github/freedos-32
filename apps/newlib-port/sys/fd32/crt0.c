@@ -1,7 +1,7 @@
-#include <ll/i386/hw-data.h>
-#include <kernel.h>
-#include <stubinfo.h>
+
 #include <stdlib.h>
+
+#include <syscalls.h>
 
 #define MAX_FILES 20
 static char **environ;

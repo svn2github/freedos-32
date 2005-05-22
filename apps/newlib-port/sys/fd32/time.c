@@ -1,5 +1,4 @@
-#include <ll/i386/hw-data.h>
-#include <fd32time.h>
+#include <syscalls.h>
 
 #include <sys/time.h>
 #include <sys/times.h>

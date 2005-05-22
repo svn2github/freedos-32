@@ -1,7 +1,6 @@
 #include <unistd.h>
 
-#include <ll/i386/hw-data.h>
-#include <kernel.h>
+#include <syscalls.h>
 
 int _execve(const char *name, char * const argv[], char * const env[])
 {

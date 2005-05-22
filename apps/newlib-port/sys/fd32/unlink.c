@@ -1,7 +1,6 @@
 #include <unistd.h>
 
-#include <ll/i386/hw-data.h>
-#include <filesys.h>
+#include <syscalls.h>
 
 int _unlink(const char *name)
 {

@@ -1,11 +1,7 @@
 #include <sys/stat.h>
 #include <sys/fcntl.h>
 
-#include <ll/i386/hw-data.h>
-#include <ll/i386/error.h>
-#include <ll/stdarg.h>
-#include <filesys.h>
-#include <kernel.h>
+#include <syscalls.h>
 
 
 ssize_t	_read(int fd, void *ptr, size_t len)

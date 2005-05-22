@@ -1,7 +1,7 @@
-#include <ll/i386/hw-data.h>
-#include <kernel.h>
 #include <stubinfo.h>
 #include <unistd.h>
+
+#include <syscalls.h>
 
 extern struct psp *current_psp;
 

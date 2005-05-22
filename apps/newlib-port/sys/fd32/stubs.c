@@ -1,4 +1,3 @@
-#include <ll/i386/error.h>
 #include <errno.h>
 #undef errno
 extern int errno;

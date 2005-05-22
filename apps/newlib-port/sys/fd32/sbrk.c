@@ -1,10 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#include <ll/i386/hw-data.h>
-#include <ll/i386/error.h>
-#include <kmem.h>
-#include <stubinfo.h>
+#include <syscalls.h>
 
 void *_sbrk(int incr)
 {
