@@ -1,0 +1,12 @@
+--- ref/config.sub	2004-11-16 02:18:39.000000000 +0100
++++ config.sub	2005-05-28 23:41:41.000000000 +0200
+@@ -1193,7 +1193,8 @@
+ 		;;
+ 	-sim | -es1800* | -hms* | -xray | -os68k* | -none* | -v88r* \
+ 	      | -windows* | -osx | -abug | -netware* | -os9* | -beos* \
+-	      | -macos* | -mpw* | -magic* | -mmixware* | -mon960* | -lnews*)
++	      | -macos* | -mpw* | -magic* | -mmixware* | -mon960* | -lnews* \
++	      | -fd32*)
+ 		;;
+ 	-mac*)
+ 		os=`echo $os | sed -e 's|mac|macos|'`
