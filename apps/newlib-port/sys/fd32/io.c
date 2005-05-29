@@ -1,7 +1,7 @@
 #include <sys/stat.h>
 #include <sys/fcntl.h>
 
-#include <syscalls.h>
+#include "sys/syscalls.h"
 
 
 ssize_t	_read(int fd, void *ptr, size_t len)
@@ -40,20 +40,24 @@ int _close(int fd)
   return fd32_close(fd);
 }
 
-int _open(const char *name, int flags, ...)
+//int _open(const char *name, int flags, ...)
+int _open(const char *name, int flags, int mode)
 {
-  int mode, res, action;
-  DWORD dosflags;
-  WORD dosattr;
-  va_list ap;
+  int /*mode,*/ res/*, action*/;
+//  uint32_t dosflags;
+  uint16_t dosattr;
+//  va_list ap;
   
+#if 0
   /* Get the mode */
   va_start (ap, flags);
   mode = va_arg (ap, int);
   va_end (ap);
+#endif
 
-  dosflags = 0;
+//  dosflags = 0;
   dosattr = 0;
+#if 0
   if (flags & O_WRONLY) {
     dosflags |= FD32_OWRITE;
   }
@@ -66,10 +70,12 @@ int _open(const char *name, int flags, ...)
   if (flags & O_TRUNC) {
     dosflags |= FD32_OTRUNC;
   }
+#endif
   if ((mode & S_IRUSR) && !(mode & S_IWUSR)) {
     dosattr |= FD32_ARDONLY;
   }
-#if 0	/* What about these ones? */
+#if 0
+	/* What about these ones? */
 #define	O_APPEND	_FAPPEND
 #define	O_EXCL		_FEXCL
 #define FD32_OEXIST   (1 << 16) /* Open existing file             */
@@ -78,8 +84,8 @@ int _open(const char *name, int flags, ...)
 #define FD32_OACCESS  0x0007    /* Bit mask for access type       */
 #endif
 
-  message("0x%x --> 0x%lx\n", flags, dosflags);
-  res = fd32_open(name, dosflags, dosattr/*mode*/, 0, &action);
+//  message("0x%x --> 0x%lx\n", flags, dosflags);
+  res = fd32_open(name, /*uint32_t(*/flags/*)*/, dosattr/*mode*/, 0, NULL /*&action*/);
 
   return res;
 }

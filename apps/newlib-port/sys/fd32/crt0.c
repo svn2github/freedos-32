@@ -1,13 +1,13 @@
 
 #include <stdlib.h>
 
-#include <syscalls.h>
+#include "sys/syscalls.h"
 
 #define MAX_FILES 20
 static char **environ;
 static char *__env[1] = {0};
 static char *argv[255];
-DWORD mem_limit;
+uint32_t mem_limit;
 extern struct psp *current_psp;
 
 extern int main(int argc,char **argv,char **envp);
@@ -46,6 +46,6 @@ void libc_init(struct process_info *pi)
   local_psp.jft = fd32_init_jft(MAX_FILES);
   local_psp.link = current_psp;
   current_psp = &local_psp;
-  exit(main(argc, argv, environ));
+  _exit(main(argc, argv, environ));
   /* FIXME: how do we restore the psp??? Simple: in exit.c!!! */
 }

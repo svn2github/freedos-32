@@ -1,0 +1,424 @@
+#!/bin/sh
+
+
+pb_cwd=`pwd`
+invoc_path=$0
+
+case "$invoc_path" in
+# absolute path
+/*)
+	;;
+# relative path
+*)
+	invoc_path="${pb_cwd}/$invoc_path" ;;
+esac
+
+if test ! -e "$invoc_path"
+then
+	echo "$invoc_path not found!"
+	# lets try pwd and hope for the best
+	pb_dir=$pb_cwd
+else
+	# remove trailing filename
+	pb_dir=`echo "$invoc_path" | sed 's/\/[^\/]*$/\//'`
+fi
+
+file_present1()
+{
+	if test ! -e "$1"
+	then
+		echo "Error: $1 not found"
+		exit 1
+	fi
+}
+
+# just to be sure...
+file_present1 "${pb_dir}/sys/fd32/Makefile.am"
+file_present1 "${pb_dir}/sys/fd32/sys/syscalls.h"
+file_present1 "${pb_dir}/diffs/configure.diff"
+
+
+
+arch_file=
+nl_src_dir=
+dest_dir=
+remove_tmp_dir="yes"
+config_newlib="yes"
+make_nelib="yes"
+patch_makef="no"
+second_pass="yes"
+pb_target="i586-pc-fd32"
+pb_help="\
+This script applies a port of newlib to FreeDOS/32 and builds.
+This script:
+1) copies (or unpacks a tar archive with) the original unported newlib
+sources into a temporary directory
+2) applies the port by copying files and using the \"patch\" utility
+3) builds the library
+4) copies the library and include files to the destination directory
+5) removes the temporary directory.
+Options:
+--source-dir=DIR	find the unported newlib sources in DIR
+			(The name of the directory is probably
+			\"newlib-1.13.0\" or simmilar.)
+--source-arch=FILE	find the unported newlib sources in tar archive FILE 
+			(The name of the file is probably 
+			\"newlib-1.13.0.tar.bz\" or simmilar.)
+--dest-dir=DIR		copy library files to DIR
+--no-remove		do not remove temporary directory
+--no-build		do not run configure or make
+--no-make		run configure but not make
+--patch-makefile	patch Makefile
+--make-once		do not patch and execute Makefile a second time to
+			to obtain libc without debug info
+--target=TARGET		buid for TARGET. (i586-pc-fd32 default)"
+
+# parse command line options
+for pb_option
+do
+
+	case "$pb_option" in
+	--source-arch=*)
+		arch_file=`echo "$pb_option" | sed 's/--source-arch=//'` ;;
+	--source-dir=*)
+		nl_src_dir=`echo "$pb_option" | sed 's/--source-dir=//'` ;;
+	--dest-dir=*)
+		dest_dir=`echo "$pb_option" | sed 's/--dest-dir=//'` ;;
+	--help | -help | help | -h)
+		echo "$pb_help"
+		exit 0
+		;;
+	--no-remove)
+		remove_tmp_dir="no" ;;
+	--no-build)
+		config_newlib="no"
+		make_newlib="no"
+		remove_tmp_dir="no"
+		;;
+	--no-make)
+		make_newlib="no"
+		remove_tmp_dir="no"
+		;;
+	--patch-makefile)
+		patch_makef="yes" ;;
+	--make-once)
+		second_pass="no" ;;
+	--target=*)
+		pb_target=`echo "$pb_option" | sed 's/--target=//'` ;;
+	*)
+		echo "Error: Syntax error in argument: $pb_option"
+		exit 1
+		;;
+	esac
+done
+
+# find newlib sources
+if test -n "$arch_file"
+then
+	case "$arch_file" in
+	*.tar.gz)
+		;;
+	*)
+		echo "Error: file must be a \".tar.gz\" file"
+		echo "Error: $arch_file"
+		exit 1
+		;;
+	esac
+	file_present1 "$arch_file"
+elif test -n "$nl_src_dir"
+then
+	if test ! -d "$nl_src_dir"
+	then
+		echo "Error: directory $nl_src_dir not found"
+		exit 1
+	fi
+	if test ! -e "${nl_src_dir}/newlib/configure.host"
+	then
+		if test -e "${nl_src_dir}/../newlib/configure.host"
+		then
+			nl_src_dir="${nl_src_dir}/.."
+		else
+			echo "Error: file "${nl_src_dir}/newlib/configure.host" not found"
+			exit 1
+		fi
+	fi
+else
+	for pb_test in "$pb_cwd ${pb_cwd}/.. $pb_dir ${pb_dir}/.."
+	do
+		pb_test2=`ls -1d ${pb_test}/newlib-?.*/ 2>/dev/null`
+		for pb_test3 in $pb_test2
+		do
+			if test -e "${pb_test3}/newlib/configure.host" -a -d "${pb_test3}/newlib/libc/sys"
+			then
+				nl_src_dir="${pb_test2}/${pb_test3}"
+				break 2
+			fi
+		done
+	done
+	if test -z "$nl_src_dir"
+	then
+		for pb_test in $pb_cwd ${pb_cwd}/.. $pb_dir ${pb_dir}/..
+		do
+			pb_test2=`ls -1 ${pb_test}/newlib-?.*.tar.gz 2>/dev/null`
+			pb_test3=`echo "$pb_test2" | wc -l`
+			if test "$pb_test3" -eq 1
+			then
+				arch_file="${pb_test2}"
+				# sanity check
+				file_present1 "$arch_file"
+				break
+			fi
+			if test "$pb_test3" -ge 2
+			then
+				echo "Ambiguety: more than one archive present"
+				exit 1
+			fi
+		done
+	fi
+fi
+
+if test -z "$nl_src_dir" -a -z "$arch_file"
+then
+	echo "Newlib sourches not found"
+	exit 1
+fi
+
+change_dir()
+{
+	if ! cd $1
+	then
+		echo "Error: unable to cd $1"
+		exit 1
+	fi
+}
+
+make_dir()
+{
+	if test -d "$1"
+	then
+		echo "Warning: temporary directory $1 already exist"
+	else
+		if ! mkdir $1
+		then
+			echo "Unable to create directory $1"
+			exit 1
+		fi
+	fi
+}
+
+
+echo "Creating temporary directories"
+pb_tmpd="${pb_dir}/pb_tmp"
+make_dir $pb_tmpd
+pb_tnl="${pb_tmpd}/newlib-s"
+make_dir "$pb_tnl"
+
+# extract arcive if present
+if test -n "$arch_file"
+then
+	change_dir $pb_tnl
+	if tar -xzf $arch_file --strip-path=1
+	then
+		echo "newlib sourches extracted to $pb_tnl"
+		change_dir $pb_cwd
+	else
+		echo "Error: extraction failed!"
+		cd $pb_cwd
+		exit 1
+	fi
+else
+	if cp -r ${nl_src_dir}/* ${pb_tnl}/
+	then
+		echo "newlib sourches copied to $pb_tnl"
+	else
+		echo "Error: copying failed!"
+		exit 1
+	fi
+fi
+
+# a check...
+file_present1 "${pb_tnl}/configure"
+file_present1 "${pb_tnl}/newlib/configure.host"
+file_present1 "${pb_tnl}/newlib/libc/include/stdlib.h"
+
+# apply port
+if cp -r ${pb_dir}/sys/* ${pb_tnl}/newlib/libc/sys
+then
+	echo "System specific files copied to newlib-s/newlib/libc/sys"
+else
+	echo "Error: failed to copy files from ${pb_dir}/sys/"
+	exit 1
+fi
+
+patch_file()
+{
+	if patch -p0 <${pb_dir}/diffs/$1
+	then
+		echo "Diff applied to $2"
+	else
+		echo "Error: patch failed!"
+		cd $pb_cwd
+		exit 1
+	fi
+}
+
+change_dir $pb_tnl
+patch_file configure.diff configure.host
+patch_file config2.diff config.sub
+
+if [ $config_newlib == "no" ]
+then
+	exit 0
+fi
+
+
+if [ $patch_makef == "no" ]
+then
+	make_dir ${pb_tmpd}/bin
+	if ln -s /usr/bin/ar ${pb_tmpd}/bin/${pb_target}-ar && \
+	ln -s /usr/bin/as ${pb_tmpd}/bin/${pb_target}-as && \
+	ln -s /usr/bin/gcc ${pb_tmpd}/bin/${pb_target}-gcc && \
+	ln -s /usr/bin/ld ${pb_tmpd}/bin/${pb_target}-ld && \
+	ln -s /usr/bin/nm ${pb_tmpd}/bin/${pb_target}-nm && \
+	ln -s /usr/bin/objdump ${pb_tmpd}/bin/${pb_target}-objdump && \
+	ln -s /usr/bin/ranlib ${pb_tmpd}/bin/${pb_target}-ranlib
+	then
+		echo "Links created in ${pb_tmpd}/bin"
+	else
+		echo "Error creating links"
+		exit 1
+	fi	
+	export PATH=${PATH}:${pb_tmpd}/bin
+fi
+
+pb_tbld="${pb_tmpd}/tbld"
+make_dir $pb_tbld
+change_dir $pb_tbld
+
+build_newlib()
+{
+	echo "================================================="
+	echo "      *** RUNNIG CONFIGURATION SCRIPT: ***"
+	echo "================================================="
+	
+	if ${pb_tnl}/configure --target=${pb_target} # --prefix=
+	then
+		echo "================================================="
+		echo "***Configuration script completed successfully***"
+		echo "================================================="
+	else
+		echo "Error: configuration script failed"
+		exit 1
+	fi
+	
+	if [ $patch_makef == "yes" ]
+	then
+		patch_file $1 Makefile
+	fi
+	
+	
+	
+	if [ "$make_newlib" == "no" ]
+	then
+		exit 0
+	fi
+	
+	echo "================================================="
+	echo "           *** RUNNING MAKE: ***"
+	echo "================================================="
+	
+	if make
+	then
+		echo "================================================="
+		echo "       ***make completed successfully***"
+		echo "================================================="
+	
+	else
+		echo "Error: make failed"
+		exit 1
+	fi
+
+}
+
+build_newlib mkf1.diff
+
+file_present1 ${pb_tbld}/${pb_target}/newlib/libc.a
+file_present1 ${pb_tbld}/${pb_target}/newlib/libg.a
+file_present1 ${pb_tbld}/${pb_target}/newlib/libm.a
+
+change_dir $pb_cwd
+
+if test -z $dest_dir
+then
+	dest_dir=${pb_dir}
+fi
+
+if ! mkdir -p ${dest_dir}/lib
+then
+	echo "Error: failed to created directory ${dest_dir}/lib"
+	exit 1
+fi
+
+if cp ${pb_tbld}/${pb_target}/newlib/lib*.a ${dest_dir}/lib
+then
+	echo "Library files copied to ${dest_dir}/lib"
+else
+	echo "Error: failed to copy files to ${dest_dir}/lib"
+	exit 1
+fi
+
+make_dir ${dest_dir}/include
+
+if cp -r ${pb_tnl}/newlib/libc/include/* ${dest_dir}/include && cp -r ${pb_dir}/sys/fd32/include/* ${dest_dir}/include
+then
+	echo "Header files copied to ${dest_dir}/include"
+else
+	echo "Error: failed to copy files to ${dest_dir}/include"
+	exit 1
+fi
+
+#
+# TODO
+# Copy math library header files!
+#
+
+if [ $second_pass == "yes" ]
+then
+	echo "Patching Makefile and executing make again"
+	pb_tbld2="${pb_tmpd}/tbld2"
+	make_dir $pb_tbld2
+	change_dir $pb_tbld2
+	#rm -rf ${pb_tbld}/${pb_target}/*
+	patch_makef="yes"
+	#change_dir $pb_tbld
+	build_newlib mkf2.diff
+	#if ! make clean
+	#then
+	#	"Error: \"make clean\" failed"
+	#	exit 1
+	#fi
+	#patch_file mkf2.diff Makefile
+	#if make
+	#then
+	#	echo "make completed successfully"
+	#else
+	#	echo "Error: make failed"
+	#	exit 1
+	#fi
+	if cp ${pb_tbld2}/${pb_target}/newlib/libc.a ${dest_dir}/lib
+	then
+		echo "New libc.a copied to ${dest_dir}/lib"
+	else
+		echo "Error: failed to copy libc.a to ${dest_dir}/lib"
+		exit 1
+	fi
+fi
+
+if [ "$remove_tmp_dir" == "no" ]
+then
+	exit 0
+fi
+
+rm -rf ${pb_dir}/pb_tmp/*
+
+exit 0

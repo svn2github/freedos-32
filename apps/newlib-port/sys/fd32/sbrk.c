@@ -1,13 +1,13 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#include <syscalls.h>
+#include "sys/syscalls.h"
 
 void *_sbrk(int incr)
 {
   char *prev_heap_end = NULL;
   int res;
-  extern DWORD mem_limit;
+  extern uint32_t mem_limit;
 
   if (mem_limit != 0) {
     prev_heap_end = (char *)mem_limit;

@@ -1,0 +1,83 @@
+--- Makefile~	2005-05-24 12:23:44.000000000 +0200
++++ Makefile	2005-05-24 12:39:24.000000000 +0200
+@@ -356,7 +356,7 @@
+ FLAGS_FOR_TARGET =  -B$$r/$(TARGET_SUBDIR)/newlib/ -isystem $$r/$(TARGET_SUBDIR)/newlib/targ-include -isystem $$s/newlib/libc/include
+ 
+ AR_FOR_TARGET=$(USUAL_AR_FOR_TARGET)
+-CONFIGURED_AR_FOR_TARGET=i586-pc-fd32-ar
++CONFIGURED_AR_FOR_TARGET=ar
+ USUAL_AR_FOR_TARGET = ` \
+   if [ -f $$r/binutils/ar ] ; then \
+     echo $$r/binutils/ar ; \
+@@ -369,7 +369,7 @@
+   fi`
+ 
+ AS_FOR_TARGET=$(USUAL_AS_FOR_TARGET)
+-CONFIGURED_AS_FOR_TARGET=i586-pc-fd32-as
++CONFIGURED_AS_FOR_TARGET=as
+ USUAL_AS_FOR_TARGET = ` \
+   if [ -f $$r/gas/as-new ] ; then \
+     echo $$r/gas/as-new ; \
+@@ -383,7 +383,7 @@
+     fi; \
+   fi`
+ 
+-CC_FOR_TARGET = $(STAGE_CC_WRAPPER) i586-pc-fd32-gcc $(FLAGS_FOR_TARGET)
++CC_FOR_TARGET = $(STAGE_CC_WRAPPER) gcc $(FLAGS_FOR_TARGET)
+ # During gcc bootstrap, if we use some random cc for stage1 then
+ # CFLAGS will be just -g.  We want to ensure that TARGET libraries
+ # (which we know are built with gcc) are built with optimizations so
+@@ -397,15 +397,15 @@
+ USUAL_GCC_FOR_TARGET = $(STAGE_CC_WRAPPER) $$r/gcc/xgcc -B$$r/gcc/ $(FLAGS_FOR_TARGET)
+ LIBCFLAGS_FOR_TARGET = $(CFLAGS_FOR_TARGET)
+ 
+-CXX_FOR_TARGET = $(STAGE_CC_WRAPPER) i586-pc-fd32-c++ $(FLAGS_FOR_TARGET)
+-RAW_CXX_FOR_TARGET = $(STAGE_CC_WRAPPER) i586-pc-fd32-c++ $(FLAGS_FOR_TARGET)
+-CXX_FOR_TARGET_FOR_RECURSIVE_MAKE = $(STAGE_CC_WRAPPER) i586-pc-fd32-c++ $(FLAGS_FOR_TARGET)
+-RAW_CXX_FOR_TARGET_FOR_RECURSIVE_MAKE = $(STAGE_CC_WRAPPER) i586-pc-fd32-c++ $(FLAGS_FOR_TARGET)
++CXX_FOR_TARGET = $(STAGE_CC_WRAPPER) c++ $(FLAGS_FOR_TARGET)
++RAW_CXX_FOR_TARGET = $(STAGE_CC_WRAPPER) c++ $(FLAGS_FOR_TARGET)
++CXX_FOR_TARGET_FOR_RECURSIVE_MAKE = $(STAGE_CC_WRAPPER) c++ $(FLAGS_FOR_TARGET)
++RAW_CXX_FOR_TARGET_FOR_RECURSIVE_MAKE = $(STAGE_CC_WRAPPER) c++ $(FLAGS_FOR_TARGET)
+ CXXFLAGS_FOR_TARGET = $(CXXFLAGS)
+ LIBCXXFLAGS_FOR_TARGET = $(CXXFLAGS_FOR_TARGET) -fno-implicit-templates
+ 
+ DLLTOOL_FOR_TARGET=$(USUAL_DLLTOOL_FOR_TARGET)
+-CONFIGURED_DLLTOOL_FOR_TARGET=i586-pc-fd32-dlltool
++CONFIGURED_DLLTOOL_FOR_TARGET=dlltool
+ USUAL_DLLTOOL_FOR_TARGET = ` \
+   if [ -f $$r/binutils/dlltool ] ; then \
+     echo $$r/binutils/dlltool ; \
+@@ -417,11 +417,11 @@
+     fi; \
+   fi`
+ 
+-GCJ_FOR_TARGET = $(STAGE_CC_WRAPPER) i586-pc-fd32-gcj $(FLAGS_FOR_TARGET)
+-GFORTRAN_FOR_TARGET = $(STAGE_CC_WRAPPER) i586-pc-fd32-gfortran $(FLAGS_FOR_TARGET)
++GCJ_FOR_TARGET = $(STAGE_CC_WRAPPER) gcj $(FLAGS_FOR_TARGET)
++GFORTRAN_FOR_TARGET = $(STAGE_CC_WRAPPER) gfortran $(FLAGS_FOR_TARGET)
+ 
+ LD_FOR_TARGET=$(USUAL_LD_FOR_TARGET)
+-CONFIGURED_LD_FOR_TARGET=i586-pc-fd32-ld
++CONFIGURED_LD_FOR_TARGET=ld
+ USUAL_LD_FOR_TARGET = ` \
+   if [ -f $$r/ld/ld-new ] ; then \
+     echo $$r/ld/ld-new ; \
+@@ -438,7 +438,7 @@
+ LDFLAGS_FOR_TARGET = 
+ 
+ NM_FOR_TARGET=$(USUAL_NM_FOR_TARGET)
+-CONFIGURED_NM_FOR_TARGET=i586-pc-fd32-nm
++CONFIGURED_NM_FOR_TARGET=nm
+ USUAL_NM_FOR_TARGET = ` \
+   if [ -f $$r/binutils/nm-new ] ; then \
+     echo $$r/binutils/nm-new ; \
+@@ -470,7 +470,7 @@
+   fi`
+ 
+ WINDRES_FOR_TARGET=$(USUAL_WINDRES_FOR_TARGET)
+-CONFIGURED_WINDRES_FOR_TARGET=i586-pc-fd32-windres
++CONFIGURED_WINDRES_FOR_TARGET=windres
+ USUAL_WINDRES_FOR_TARGET = ` \
+   if [ -f $$r/binutils/windres ] ; then \
+     echo $$r/binutils/windres ; \

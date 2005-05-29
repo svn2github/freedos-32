@@ -1,10 +1,10 @@
 #include <unistd.h>
 
-#include <syscalls.h>
+#include "sys/syscalls.h"
 
 int _execve(const char *name, char * const argv[], char * const env[])
 {
-  WORD retcode;
+  uint16_t retcode;
   int res;
 
   res = dos_exec(name, env, argv, 0, 0, &retcode);

@@ -1,0 +1,43 @@
+--- ref/Makefile	2005-05-29 16:25:38.000000000 +0200
++++ Makefile	2005-05-29 16:46:30.000000000 +0200
+@@ -242,7 +242,7 @@
+ # compilers to use to create programs which must be run in the build
+ # environment.
+ CC_FOR_BUILD = $(CC)
+-CFLAGS_FOR_BUILD = -g -O2 
++CFLAGS_FOR_BUILD = -O2 
+ 
+ CXX_FOR_BUILD = $(CXX)
+ 
+@@ -253,7 +253,7 @@
+ 
+ # Flags to pass to stage2 and later makes.  They are defined
+ # here so that they can be overridden by Makefile fragments.
+-BOOT_CFLAGS= -g -O2
++BOOT_CFLAGS= -O2
+ 
+ CONFIGURED_BISON = bison
+ BISON = `if [ -f $$r/$(BUILD_SUBDIR)/bison/tests/bison ] ; then \
+@@ -325,11 +325,11 @@
+ AR_FLAGS = rc
+ 
+ CC = gcc
+-CFLAGS = -g -O2 
++CFLAGS = -O2 
+ LIBCFLAGS = $(CFLAGS)
+ 
+ CXX = c++
+-CXXFLAGS = -g -O2
++CXXFLAGS = -O2
+ LIBCXXFLAGS = $(CXXFLAGS) -fno-implicit-templates
+ 
+ DLLTOOL = dlltool
+@@ -498,7 +498,7 @@
+ 
+ 
+ # Add -fomit-frame-pointer to the usual BOOT_CFLAGS to speed up the compiler.
+-BOOT_CFLAGS = -O2 -g -fomit-frame-pointer
++BOOT_CFLAGS = -O2 -fomit-frame-pointer
+ ###
+ 
+ # Flags to pass down to all sub-makes.
