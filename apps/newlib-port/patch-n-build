@@ -16,8 +16,8 @@ fix_path()
 	*)
 		local_p="${pb_cwd}/$local_p" ;;
 	esac
-	$local_p=`echo "$local_p" | sed 's/\/\//\//g; s/\/\.\//\//g; s/\/[^\/]*\/\.\.\//\//g'`
-	eval $1=\$local_p
+	local_p=`echo "$local_p" | sed 's/\/\//\//g; s/\/\.\//\//g; s/\/[^\/]*\/\.\.\//\//g'`
+	eval $1=$local_p
 }
 
 fix_path invoc_path
@@ -35,9 +35,9 @@ fi
 
 file_present1()
 {
-	if test ! -e "$1"
+	if test ! -f "$1"
 	then
-		echo "[pb]Error: file $1 not found"
+		echo "[pb]Error: file \"$1\" not found"
 		exit 1
 	fi
 }
@@ -156,7 +156,7 @@ then
 		then
 			nl_src_dir="${nl_src_dir}/.."
 		else
-			echo "[pb]Error: file "${nl_src_dir}/newlib/configure.host" not found"
+			echo "[pb]Error: file \"${nl_src_dir}/newlib/configure.host\" not found"
 			exit 1
 		fi
 	fi
@@ -179,6 +179,10 @@ else
 		for pb_test in $pb_cwd ${pb_cwd}/.. $pb_dir ${pb_dir}/..
 		do
 			pb_test2=`ls -1 ${pb_test}/newlib-?.*.tar.gz 2>/dev/null`
+			if test -z "${pb_test2}"
+			then
+				continue
+			fi
 			pb_test3=`echo "$pb_test2" | wc -l`
 			if test "$pb_test3" -eq 1
 			then
