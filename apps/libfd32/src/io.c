@@ -3,17 +3,8 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/error.h>
 #include <ll/stdarg.h>
-/*#define O_ACCMODE FD32_O_APPEND
-#define O_RDONLY  FD32_O_RDONLY
-#define O_WRONLY  FD32_O_WRONLY
-#define O_RDWR    FD32_O_RDWR
-#define O_SYNC    FD32_O_SYNC
-#define O_CREAT   FD32_O_CREAT
-#define O_EXCL    FD32_O_EXCL
-#define O_TRUNC   FD32_O_TRUNC
-#define O_APPEND  FD32_O_APPEND*/
 #include <filesys.h>
-#define FD32_O_ACCMODE O_APPEND
+#define FD32_O_ACCMODE O_ACCMODE
 #define FD32_O_RDONLY  O_RDONLY
 #define FD32_O_WRONLY  O_WRONLY
 #define FD32_O_RDWR    O_RDWR
