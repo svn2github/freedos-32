@@ -13,7 +13,7 @@ endif
 
 include $(FDOS)/config.mk
 
-INCL   = -I$(FDOS)/include -I$(NEWLIBC)/include -I$(LIBFD32)/include -I.
+INCL   = -I$(NEWLIBC)/include -I$(LIBFD32)/include -I$(FDOS)/include -I.
 LIB_PATH = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 

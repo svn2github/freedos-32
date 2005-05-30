@@ -20,6 +20,19 @@ and you already have compiled them
 cd /tmp
 
 tar xvzf newlib-1.13.0.tar.gz
+
+Change the following lines starting @160
+in /tmp/newlib-1.13.0/newlib/libc/include/sys/types.h:
+-typedef long		off_t;
++#ifndef	_OFF_T_
++#define	_OFF_T_
++typedef long long int off_t;
++#endif	/* Not _OFF_T_ */
+Change the following line @14 in
+in /tmp/newlib-1.13.0/newlib/libc/include/sys/_types.h:
+-typedef long _off_t;
++typedef long long _off_t;
+
 mkdir bin
 ln -s /usr/bin/ar /tmp/bin/i586-pc-elf-ar
 ln -s /usr/bin/as /tmp/bin/i586-pc-elf-as
@@ -38,6 +51,7 @@ make; make install
 
 cd ../apps/libfd32
 cp -r /usr/lib/gcc-lib/i386-linux/2.95.4/include include
+  (replace with the include directory of your compiler as needed)
 cp /tmp/fd32/drivers/winb/stdint.h include
 cp mk/elf.mk config.mk
 OSLIB=/tmp/oslib FD32=/tmp/fd32 NEWLIBC=/tmp/libc/i586-pc-elf make
