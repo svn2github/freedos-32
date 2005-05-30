@@ -40,8 +40,9 @@
 *
 ***/
 
-/* WARNING: This is not the original version.     */
-/* Slightly modified for FreeDOS32 by Salvo Isaja */
+/* WARNING: This is not the original version.
+ * Slightly modified for FreeDOS-32 by Salvo Isaja and Hanzac Chen
+ */
 
 #include <dir.h>
 #include <dos.h>
