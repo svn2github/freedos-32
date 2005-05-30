@@ -1,3 +1,8 @@
+Note by Salvo, 2005-05-30:
+due to the changes in the kernel, the diff by Hanzac must be applied
+before compiling newlib, or you will get an error about off_t.
+--------------------------------------------------------------------
+
 Some short notes about how to compile native applications for FD/32
 
 I am currently using newlib (version 1.13.0), and I've been able to

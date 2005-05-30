@@ -1,11 +1,39 @@
 #include <sys/stat.h>
-#include <sys/fcntl.h>
 
 #include <ll/i386/hw-data.h>
 #include <ll/i386/error.h>
 #include <ll/stdarg.h>
+/*#define O_ACCMODE FD32_O_APPEND
+#define O_RDONLY  FD32_O_RDONLY
+#define O_WRONLY  FD32_O_WRONLY
+#define O_RDWR    FD32_O_RDWR
+#define O_SYNC    FD32_O_SYNC
+#define O_CREAT   FD32_O_CREAT
+#define O_EXCL    FD32_O_EXCL
+#define O_TRUNC   FD32_O_TRUNC
+#define O_APPEND  FD32_O_APPEND*/
 #include <filesys.h>
+#define FD32_O_ACCMODE O_APPEND
+#define FD32_O_RDONLY  O_RDONLY
+#define FD32_O_WRONLY  O_WRONLY
+#define FD32_O_RDWR    O_RDWR
+#define FD32_O_SYNC    O_SYNC
+#define FD32_O_CREAT   O_CREAT
+#define FD32_O_EXCL    O_EXCL
+#define FD32_O_TRUNC   O_TRUNC
+#define FD32_O_APPEND  O_APPEND
+#undef O_ACCMODE
+#undef O_RDONLY
+#undef O_WRONLY
+#undef O_RDWR
+#undef O_SYNC
+#undef O_CREAT
+#undef O_EXCL
+#undef O_TRUNC
+#undef O_APPEND
 #include <kernel.h>
+
+#include <sys/fcntl.h>
 
 
 ssize_t	read(int fd, void *ptr, size_t len)
@@ -34,7 +62,7 @@ ssize_t	write(int fd, const void *ptr, size_t len)
 {
   int res;
   
-  res = fd32_write(fd, ptr, len);
+  res = fd32_write(fd, (void *) ptr, len);
 
   return res;
 }
@@ -58,32 +86,20 @@ int open(const char *name, int flags, ...)
 
   dosflags = 0;
   dosattr = 0;
-  if (flags & O_WRONLY) {
-    dosflags |= FD32_OWRITE;
+  switch (flags & O_ACCMODE)
+  {
+    case O_RDONLY: dosflags |= FD32_O_RDONLY; break;
+    case O_WRONLY: dosflags |= FD32_O_WRONLY; break;
+    case O_RDWR  : dosflags |= FD32_O_RDWR;   break;
   }
-  if (flags & O_RDWR) {
-    dosflags |= FD32_ORDWR;
-  }
-  if (flags & O_CREAT) {
-    dosflags |= FD32_OCREAT;
-  }
-  if (flags & O_TRUNC) {
-    dosflags |= FD32_OTRUNC;
-  }
-  if ((mode & S_IRUSR) && !(mode & S_IWUSR)) {
-    dosattr |= FD32_ARDONLY;
-  }
-#if 0	/* What about these ones? */
-#define	O_APPEND	_FAPPEND
-#define	O_EXCL		_FEXCL
-#define FD32_OEXIST   (1 << 16) /* Open existing file             */
-#define FD32_ODIR     (1 << 24) /* Open a directory as a file     */
-#define FD32_OFILEID  (1 << 25) /* Interpret *FileName as a fileid */
-#define FD32_OACCESS  0x0007    /* Bit mask for access type       */
-#endif
-
-  message("0x%x --> 0x%lx\n", flags, dosflags);
-  res = fd32_open(name, dosflags, dosattr/*mode*/, 0, &action);
+  if (flags & O_CREAT)  dosflags |= FD32_O_CREAT;
+  if (flags & O_TRUNC)  dosflags |= FD32_O_TRUNC;
+  if (flags & O_EXCL)   dosflags |= FD32_O_EXCL;
+  if (flags & O_APPEND) dosflags |= FD32_O_APPEND;
+  if (flags & O_SYNC)   dosflags |= FD32_O_SYNC;
+  if ((mode & S_IRUSR) && !(mode & S_IWUSR)) dosattr |= FD32_ARDONLY;
+  message("0x%08xh --> 0x%08lxh\n", flags, dosflags);
+  res = fd32_open((char *) name, dosflags, dosattr/*mode*/, 0, &action);
 
   return res;
 }
