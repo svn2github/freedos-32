@@ -87,6 +87,7 @@ static int utf16to8(const WORD *restrict source, char *restrict dest)
 		if (res < 0) return res;
 		dest += res;
 	}
+	*dest = 0;
 	return 0;
 }
 
@@ -303,12 +304,14 @@ int fat_findnext(tVolume *v, fd32_fs_dosfind_t *find_data)
 
 
 /* TODO: enable search attributes/flags  */
-int fat_findfile(tFile *f, const char *name, fd32_fs_lfnfind_t *find_data)
+int fat_findfile(tFile *f, const char *name, int flags, fd32_fs_lfnfind_t *find_data)
 {
   int res;
+  int allowable_attr = (flags & 0x00FF) | FD32_AARCHIV | FD32_ARDONLY;
+  int required_attr  = (flags & 0xFF00) >> 16;
   while ((res = fat_readdir(f, find_data)) == 0)
-//    if (((AllowableAttr | FindData->Attr) == AllowableAttr)
-//     && ((RequiredAttr & FindData->Attr) == RequiredAttr))
+    if (((allowable_attr | find_data->Attr) == allowable_attr)
+     && ((required_attr & find_data->Attr)  == required_attr))
       if ((fat_fnameicmp(find_data->LongName, name) == 0)
        || (fat_fnameicmp(find_data->ShortName, name) == 0))
         return 0;

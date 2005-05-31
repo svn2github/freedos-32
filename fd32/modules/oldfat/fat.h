@@ -407,7 +407,7 @@ int fat_find     (tFile *F, char *FileSpec, DWORD Flags, tFatFind *FindData);
 int fat_readdir  (tFile *P, fd32_fs_lfnfind_t *Entry);
 int fat_findfirst(tVolume *v, const char *path, int attributes, fd32_fs_dosfind_t *find_data);
 int fat_findnext (tVolume *v, fd32_fs_dosfind_t *find_data);
-int fat_findfile (tFile *f, const char *name, fd32_fs_lfnfind_t *find_data);
+int fat_findfile (tFile *f, const char *name, int flags, fd32_fs_lfnfind_t *find_data);
 
 
 /* READWRIT.C - Write a block of data into a file truncating or extending it */

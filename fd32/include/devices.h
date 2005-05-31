@@ -333,6 +333,7 @@ struct fd32_findfile
 {
 	void *dir;        /* Opaque handle of the directory */
 	const char *name; /* File name to lookup */
+	int flags;        /* Mask of allowable and required DOS attributes */
 	void *find_data;  /* OUT: LFN finddata structure */
 };
 

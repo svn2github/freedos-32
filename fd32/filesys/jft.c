@@ -629,6 +629,7 @@ int fd32_lfn_findfirst(/*const*/ char *file_spec, DWORD flags, fd32_fs_lfnfind_t
 			}
 			p.dir       = file;
 			p.name      = name;
+			p.flags     = flags;
 			p.find_data = (void *) find_data;
 			LOG_PRINTF(("fd32_lfn_findfirst: Searching for \"%s\"\n", p.name));
 			res = request(FD32_FINDFILE, &p);
@@ -662,6 +663,7 @@ int fd32_lfn_findnext(int fd, DWORD flags, fd32_fs_lfnfind_t *find_data)
 		struct fd32_findfile p;
 		p.dir       = j->file;
 		p.name      = j->search->name;
+		p.flags     = flags;
 		p.find_data = (void *) find_data;
 		res = j->request(FD32_FINDFILE, &p);
 	}

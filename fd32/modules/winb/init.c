@@ -151,7 +151,7 @@ int isnan(double x)
 void winbase_init(void)
 {
   message("Initing WINB module ...\n");
-  message("Current time: %ld\n", time(NULL));
+  //message("Current time: %ld\n", time(NULL));
   install_kernel32();
   install_user32();
   install_advapi32();

@@ -148,7 +148,7 @@ int fat_request(DWORD Function, void *Params)
       #ifdef FATREMOVABLE
       if ((Res = fat_mediachange(f->V)) < 0) return Res;
       #endif
-      return fat_findfile(f, p->name, (fd32_fs_lfnfind_t *) p->find_data);
+      return fat_findfile(f, p->name, p->flags, (fd32_fs_lfnfind_t *) p->find_data);
     }
     case FD32_FFLUSH:
     {
