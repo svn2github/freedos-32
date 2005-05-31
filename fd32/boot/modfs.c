@@ -11,9 +11,10 @@
 #include "format.h"
 #include "mods.h"
 
-DWORD start[10];
-DWORD end[10];
-DWORD pointer[10];
+/* TODO: Don't put a hard limit on the number of modules */
+DWORD start[32];
+DWORD end[32];
+DWORD pointer[32];
 int n = 0;
 
 static int modfs_read(int file, void *buff, int size)
