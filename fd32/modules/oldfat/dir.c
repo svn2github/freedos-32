@@ -93,7 +93,7 @@ int fat_mkdir(tVolume *V, char *DirName)
   int        Res;
 
   LOG_PRINTF(("FAT mkdir: %s\n", DirName));
-  Res = fat_open(V, DirName, O_RDWR | O_DIRECTORY, FD32_ADIR, 0, &F);
+  Res = fat_open(V, DirName, O_RDWR | O_DIRECTORY | O_CREAT, FD32_ADIR, 0, &F);
   if (Res < 0) return Res;
 
   /* Set to zero the whole cluster and rewind */

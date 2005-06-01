@@ -244,7 +244,7 @@ static void rewind_file(tFile *F)
 /* Called by open_existing, descend_path, fat_open and reopen_dir. */
 static int set_opening_mode(tFile *F, DWORD Mode)
 {
-  #ifdef FATSHARE
+  #if 0 //def FATSHARE
   tFile   *F1;  /* F1 is used for other instances of F */
   int      k;
   int      FShare, F1Share; /* SharingBehaviour matrix indices */
@@ -274,7 +274,7 @@ static int set_opening_mode(tFile *F, DWORD Mode)
   }
   F->Mode = Mode;
 
-  #ifdef FATSHARE
+  #if 0 //def FATSHARE
   /* Check if reopening a file is a valid operation, according to its  */
   /* access and sharing modes and access and sharing modes of other    */
   /* instances of the file. DOS 7 sharing behaviour is used.           */
@@ -476,7 +476,7 @@ static int validate_open_arguments(DWORD Mode)
     case O_RDWR: break;
     default: return -EINVAL;
   }
-  #ifdef FATSHARE
+  #if 0 //def FATSHARE
   switch (Mode & FD32_OSHARE)
   {
     case FD32_OCOMPAT:

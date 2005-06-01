@@ -377,8 +377,8 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 				res = -EACCES;
 				break;
 			}
-			a.Attr = r->x.cx;
 			if (a.Attr & FD32_ADIR) a.Attr = r->x.cx | FD32_ADIR;
+			                   else a.Attr = r->x.cx;
 			res = fd32_set_attributes(fd, &a);
 			break;
 		/* Invalid subfunctions */

@@ -41,7 +41,7 @@
 #define FATBUFFERS   /* Uncomment this to use the buffered I/O        */
 #define FATLFN       /* Define this to use Long File Names            */
 #define FATWRITE     /* Define this to enable writing facilities      */
-//#define FATSHARE     /* Define this to enable sharing support         */
+#define FATSHARE     /* Define this to enable sharing support         */
 //#define FATNAMECACHE /* Define this to enable the opening name cache  */
 #define FATREMOVABLE /* Define this to enable removable media support */
 #define FAT_FD32DEV  /* Define this to enable FD32 devices support    */
