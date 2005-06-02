@@ -16,7 +16,7 @@
  	;;
 +  i[34567]86-pc-fd32*)
 +	syscall_dir=syscalls
-+	newlib_cflags="-I${newlib_basedir}/libc/sys/fd32/include ${newlib_cflags} -DHAVE_GETTIMEOFDAY"
++	newlib_cflags="-I${newlib_basedir}/libc/sys/fd32/include ${newlib_cflags} -D__fd32__ -DHAVE_GETTIMEOFDAY"
 +	;;
    iq2000*)
  	syscall_dir=syscalls
