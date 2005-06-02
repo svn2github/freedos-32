@@ -532,6 +532,7 @@ struct Search
 {
 	DWORD flags;
 	char name[FD32_LFNMAX];
+	struct Search *prev;
 	struct Search *next;
 };
 
@@ -543,17 +544,17 @@ struct Search
 #define SEARCHES_PER_TABLE ((PAGE_SIZE - sizeof(struct SearchTable *)) / sizeof(struct Search))
 struct SearchTable
 {
-	struct Search s[SEARCHES_PER_TABLE];
+	struct Search item[SEARCHES_PER_TABLE];
 	struct SearchTable *next;
 };
-struct SearchTable *search_table = NULL;
-struct Search *search_used = NULL;
-struct Search *search_free = NULL;
+struct SearchTable *searches_pool = NULL;
+struct Search *searches_used = NULL;
+struct Search *searches_free = NULL;
 
 
 static struct Search *search_get(void)
 {
-	struct Search *p = search_free;
+	struct Search *p = searches_free;
 	if (!p)
 	{
 		unsigned k;
@@ -561,15 +562,17 @@ static struct Search *search_get(void)
 		if (!table) return NULL;
 		memset(table, 0, PAGE_SIZE);
 		for (k = 0; k < SEARCHES_PER_TABLE - 1; k++)
-			table->s[k].next = &table->s[k + 1];
-		search_free = &table->s[0];
-		table->next = search_table;
-		search_table = table;
-		p = search_free;
+			table->item[k].next = &table->item[k + 1];
+		searches_free = &table->item[0];
+		table->next   = searches_pool;
+		searches_pool = table;
+		p = searches_free;
 	}
-	search_free = p->next;
-	p->next = search_used;
-	search_used = p;
+	searches_free = p->next;
+	p->prev = NULL;
+	p->next = searches_used;
+	if (p->next) p->next->prev = p;
+	searches_used = p;
 	return p;
 }
 
@@ -579,9 +582,10 @@ static void search_put(struct Search *p)
 	//assert(p->refs);
 	//if (--p->refs == 0)
 	//{
-		search_used = p->next;
-		p->next = search_free;
-		search_free = p;
+		if (p->prev) p->prev->next = p->next;
+		else searches_used = p->next;
+		p->next = searches_free;
+		searches_free = p;
 	//}
 }
 
@@ -654,6 +658,7 @@ int fd32_lfn_findfirst(/*const*/ char *file_spec, DWORD flags, fd32_fs_lfnfind_t
 /* Finds the next file (or device?) that matches with the name specified */
 /* by a previous LFN style FINDFIRST system call.                        */
 /* Returns 0 on success, or a negative error code on failure.            */
+/* FIXME: the passed flags are currently ignored, the stored one are used */
 int fd32_lfn_findnext(int fd, DWORD flags, fd32_fs_lfnfind_t *find_data)
 {
 	int res = -EBADF;
@@ -663,7 +668,7 @@ int fd32_lfn_findnext(int fd, DWORD flags, fd32_fs_lfnfind_t *find_data)
 		struct fd32_findfile p;
 		p.dir       = j->file;
 		p.name      = j->search->name;
-		p.flags     = flags;
+		p.flags     = j->search->flags;
 		p.find_data = (void *) find_data;
 		res = j->request(FD32_FINDFILE, &p);
 	}
