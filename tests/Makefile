@@ -12,7 +12,7 @@ BASE = $(FD32)/oslib
 
 include $(FD32)/mk/djgpp.mk
 
-DJGPP_TESTS = hello.out empty.out exctest.out get.out argtest.out filetest.out exectest.out
+DJGPP_TESTS = hello.out empty.out exctest.out get.out argtest.out filetest.out exectest.out vgatest.out
 NATIVE_TESTS = fstest.32 read.32
 
 all: $(DJGPP_TESTS) $(NATIVE_TESTS)
