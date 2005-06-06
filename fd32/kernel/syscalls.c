@@ -108,6 +108,7 @@ static struct symbol syscall_table[] = {
   { "GDT_base",  (DWORD) (&GDT_base) },
   { "gdt_read",  (DWORD) gdt_read    },
   /* Symbols for libc functions */
+  { "strchr",  (DWORD) strchr  },
   { "strcpy",  (DWORD) strcpy  },
   { "strncpy", (DWORD) strncpy },
   { "strlen",  (DWORD) strlen  },
