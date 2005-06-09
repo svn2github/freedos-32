@@ -173,7 +173,7 @@ static const BYTE errno2dos[] = {
  */
 static void res2dos(int res, union rmregs *r)
 {
-	LOG_PRINTF(("INT 21h - res=%i\n", res));
+	//LOG_PRINTF(("INT 21h - res=%i\n", res));
 	RMREGS_CLEAR_CARRY;
 	if (res < 0)
 	{
@@ -245,6 +245,7 @@ static inline void get_and_set_time_stamps(union rmregs *r)
 {
 	fd32_fs_attr_t a;
 	int res;
+	LOG_PRINTF(("[DPMI] INT 21h: get_and_set_time_stamps, al=%02xh\n", r->h.al));
 	a.Size = sizeof(fd32_fs_attr_t);
 	switch (r->h.al)
 	{
@@ -332,6 +333,7 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 	fd32_fs_attr_t a;
 	int fd;
 	int res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+	LOG_PRINTF(("[DPMI] INT 21h: get_and_set_attributes, fn=%s, al=%02xh\n", fn, r->h.al));
 	if (res < 0)
 	{
 		res2dos(res, r);
@@ -350,7 +352,6 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 	{
 		/* Get file attributes */
 		case 0x00:
-			LOG_PRINTF(("INT 21h - Getting attributes of \"%s\"\n", fn));
 			res = fd32_get_attributes(fd, &a);
 			if (res >= 0)
 			{
@@ -365,7 +366,6 @@ static inline void dos_get_and_set_attributes(union rmregs *r)
 			 *        the file is currently open.
 			 * Mah! Would that be true with the new things? Mah...
 			 */
-			LOG_PRINTF(("INT 21h - Setting attributes of \"%s\" to %04x\n", fn, r->x.cx));
 			res = fd32_get_attributes(fd, &a);
 			if (res < 0) break;
 			/* Volume label and directory attributes cannot be changed.
@@ -402,6 +402,7 @@ static inline void lfn_get_and_set_attributes(union rmregs *r)
 	fd32_fs_attr_t a;
 	int fd;
 	int res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+	LOG_PRINTF(("[DPMI] INT 21h: lfn_get_and_set_attributes, fn=%s, bl=%02xh\n", fn, r->h.bl));
 	if (res < 0)
 	{
 		res2dos(res, r);
@@ -509,6 +510,7 @@ static inline void lfn_functions(union rmregs *r)
 {
 	char fn[FD32_LFNPMAX];
 	int res;
+	LOG_PRINTF(("[DPMI] INT 21h: lfn_functions, al=%02xh\n", r->h.al));
 	switch (r->h.al)
 	{
 		/* Make directory (DS:DX->ASCIZ directory name) */
@@ -676,12 +678,14 @@ void int21_handler(union rmregs *r)
 	int res;
 	long long int res64;
 	char fn[FD32_LFNPMAX];
+	LOG_PRINTF(("[DPMI] INT 21h AX=%04xh BX=%04xh CX=%04xh DX=%04xh\n", r->x.ax, r->x.bx, r->x.cx, r->x.dx));
 	switch (r->h.ah)
 	{
 		/* DOS 1+ - Direct character input, without echo */
 		case 0x07:
 		{
 			int tmp;
+			LOG_PRINTF(("[DPMI] INT 21h: Direct char input, no echo\n"));
 			/* Perform 1-byte read from the stdin, file handle 0.
 			   1. Save the old mode of stdin
 			   2. Set the stdin to the raw mode without echo
@@ -705,7 +709,7 @@ void int21_handler(union rmregs *r)
 		}
 		/* DOS 1+ - Set default drive (DL=drive, 0=A, etc.) */
 		case 0x0E:
-			LOG_PRINTF(("INT 21h - Set default drive to %02x\n", r->h.dl));
+			LOG_PRINTF(("[DPMI] INT 21h: Set default drive to %02xh\n", r->h.dl));
 			res = fd32_set_default_drive(r->h.dl + 'A');
 			if (res >= 0) return; 
 			{
@@ -718,18 +722,19 @@ void int21_handler(union rmregs *r)
 		/* DOS 1+ - Get default drive (in AL, 0=A, etc.) */
 		case 0x19:
 			r->h.al = fd32_get_default_drive() - 'A';
-			LOG_PRINTF(("INT 21h - Get default drive: %02x\n", r->h.al));
+			LOG_PRINTF(("[DPMI] INT 21h: Get default drive: %02xh\n", r->h.al));
 			RMREGS_CLEAR_CARRY;
 			return;
 		/* DOS 1+ - Set Disk Transfer Area address (DS:DX->new DTA) */
 		case 0x1A:
-			LOG_PRINTF(("INT 21h - Set Disk Transfer Area Address: %04x:%04x\n", r->x.ds, r->x.dx));
+			LOG_PRINTF(("[DPMI] INT 21h: Set Disk Transfer Area Address: %04xh:%04xh\n", r->x.ds, r->x.dx));
 			current_psp->dta = (void *) FAR2ADDR(r->x.ds, r->x.dx);
 			return;
 		/* DOS 1+ - GET SYSTEM DATE */
 		case 0x2A:
 		{
 			fd32_date_t d;
+			LOG_PRINTF(("[DPMI] INT 21h: Get system date\n"));
 			fd32_get_date(&d);
 			r->x.cx = d.Year;
 			r->h.dh = d.Mon;
@@ -742,6 +747,7 @@ void int21_handler(union rmregs *r)
 		case 0x2C:
 		{
 			fd32_time_t t;
+			LOG_PRINTF(("[DPMI] INT 21h: Get system time\n"));
 			fd32_get_time(&t);
 			r->h.ch = t.Hour;
 			r->h.cl = t.Min;
@@ -754,14 +760,14 @@ void int21_handler(union rmregs *r)
 		case 0x2F:
 			r->x.es = (DWORD) current_psp->dta >> 4;
 			r->x.bx = (DWORD) current_psp->dta & 0xF;
-			LOG_PRINTF(("INT 21h - Get Disk Transfer Area Address: %04x:%04x\n", r->x.es, r->x.bx));
+			LOG_PRINTF(("[DPMI] INT 21h: Get Disk Transfer Area Address: %04xh:%04xh\n", r->x.es, r->x.bx));
 			return;
 
 		/* DOS 2+ - Get DOS version, subject to modification by SETVER
 		 * (AL=what to return in BH: 0=OEM number, 1=version flag).
 		 */
 		case 0x30:
-			LOG_PRINTF(("INT 21h - Get DOS version\n"));
+			LOG_PRINTF(("[DPMI] INT 21h: Get DOS version, al=%02xh\n", r->h.al));
 			if (r->h.al) r->h.bh = 0x00; /* DOS is not in ROM (bit 3) */
 			        else r->h.bh = 0xFD; /* We claim to be FreeDOS */
 			/* Set the 24-bit User Serial Number to zero as we don't use it */
@@ -772,7 +778,7 @@ void int21_handler(union rmregs *r)
 			return;
 		/* DOS 2+ AL=06h - Get ture DOS version */
 		case 0x33:
-			LOG_PRINTF(("INT 21h - Get true DOS version\n"));
+			LOG_PRINTF(("[DPMI] INT 21h: Get true DOS version, al=%02xh\n", r->h.al));
 			if (r->h.al == 0x06)
 			{
 				r->x.bx = 0x0A07; /* We claim to be 7.10 */
@@ -792,8 +798,8 @@ void int21_handler(union rmregs *r)
 			if (r->h.dl) drive[0] = r->h.dl + 'A' - 1;
 			fsfree.Size = sizeof(fd32_getfsfree_t);
 			res = fd32_get_fsfree(drive, &fsfree);
-			LOG_PRINTF(("INT 21h - Get free disk space for \"%s\", returns %08x\n", drive, res));
-			LOG_PRINTF(("          Got: %lu secperclus, %lu availclus, %lu bytspersec, %lu totclus\n",
+			LOG_PRINTF(("[DPMI] INT 21h: Get free disk space for \"%s\", returns %08x\n", drive, res));
+			LOG_PRINTF(("                Got: %lu secperclus, %lu availclus, %lu bytspersec, %lu totclus\n",
 			            fsfree.SecPerClus, fsfree.AvailClus, fsfree.BytesPerSec, fsfree.TotalClus));
 			if (res < 0)
 			{
@@ -809,19 +815,19 @@ void int21_handler(union rmregs *r)
 		/* DOS 2+ - "MKDIR" - Create subdirectory (DS:DX->ASCIZ directory name) */
 		case 0x39:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Make directory \"%s\"\n", fn));
+			LOG_PRINTF(("[DPMI] INT 21h: Make directory \"%s\"\n", fn));
 			if (res >= 0) res = fd32_mkdir(fn);
 			break;
 		/* DOS 2+ - "RMDIR" - Remove subdirectory (DS:DX->ASCIZ directory name) */
 		case 0x3A:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Remove directory \"%s\"\n", fn));
+			LOG_PRINTF(("[DPMI] INT 21h: Remove directory \"%s\"\n", fn));
 			if (res >= 0) res = fd32_rmdir(fn);
 			break;
 		/* DOS 2+ - "CHDIR" - Set current directory (DS:DX->ASCIZ directory name) */
 		case 0x3B:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Change directory to \"%s\"\n", fn));
+			LOG_PRINTF(("[DPMI] INT 21h: Change directory to \"%s\"\n", fn));
 			if (res >= 0) res = fd32_chdir(fn);
 			break;
 		/* DOS 2+ - "CREAT" - Create or truncate file (DS:DX->ASCIZ file name,
@@ -829,26 +835,26 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x3C:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Creat \"%s\" with attr %04x\n", fn, r->x.cx));
+			LOG_PRINTF(("[DPMI] INT 21h: Creat \"%s\" with attr %04x\n", fn, r->x.cx));
 			if (res < 0) break;
 			res = fd32_open(fn, O_RDWR | O_CREAT | O_TRUNC, r->x.cx, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
-			break;
+			return;
 		/* DOS 2+ - "OPEN" - Open existing file (DS:DX->ASCIZ file name,
 		 * AL=opening mode, CL=search attributes for server call).
 		 */
 		case 0x3D:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Open \"%s\" with mode %02x\n", fn, r->h.al));
+			LOG_PRINTF(("[DPMI] INT 21h: Open \"%s\" with mode %02x\n", fn, r->h.al));
 			if (res < 0) break;
 			res = fd32_open(fn, r->h.al, FD32_ANONE, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
-			break;
+			return;
 		/* DOS 2+ - "CLOSE" - Close file (BX=file handle) */
 		case 0x3E:
-			LOG_PRINTF(("INT 21h - Close handle %04x\n", r->x.bx));
+			LOG_PRINTF(("[DPMI] INT 21h: Close handle %04x\n", r->x.bx));
 			res = fd32_close(r->x.bx);
 			break; /* Recent DOSes preserve AH, we are OK with this */
 		/* DOS 2+ - "READ" - Read from file or device (BX=file handle,
@@ -856,7 +862,7 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x3F:
 			res = fd32_read(r->x.bx, (void *) FAR2ADDR(r->x.ds, r->x.dx), r->x.cx);
-			//LOG_PRINTF(("INT 21h - Read (AH=3Fh) from handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, res));
+			//LOG_PRINTF(("[DPMI] INT 21h: Read (AH=3Fh) from handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, res));
 			if (res < 0) break;
 			#if 0 /* FIXME: Can this be removed now? */
 			/* This is a quick'n'dirty hack to return \n after \r from stdin.  */
@@ -877,7 +883,7 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x40:
 			res = fd32_write(r->x.bx, (/*const*/ void *) FAR2ADDR(r->x.ds, r->x.dx), r->x.cx);
-			//LOG_PRINTF(("INT 21h - Write (AH=40h) to handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, res));
+			//LOG_PRINTF(("[DPMI] INT 21h: Write (AH=40h) to handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, res));
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* bytes written */
 			return;
@@ -886,7 +892,7 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x41:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Delete file \"%s\"\n", fn));
+			LOG_PRINTF(("[DPMI] INT 21h: Delete file \"%s\"\n", fn));
 			if (res >= 0) res = fd32_unlink(fn, FD32_FAALL | FD32_FRNONE);
 			break;
 		/* DOS 2+ - "LSEEK" - Set current file position (BX=file handle,
@@ -894,7 +900,8 @@ void int21_handler(union rmregs *r)
 		 * FIXME: Replace with off_t
 		 */
 		case 0x42:
-			res = fd32_lseek(r->x.bx, ((long long) r->x.cx << 8) + (long long) r->x.dx, r->h.al, &res64);
+			LOG_PRINTF(("[DPMI] INT 21h: lseek handle %04xh to %04xh:%04xh from %02xh\n", r->x.bx, r->x.cx, r->x.dx, r->h.al));
+			res = fd32_lseek(r->x.bx, ((long long) r->x.cx << 16) + (long long) r->x.dx, r->h.al, &res64);
 			res2dos(res, r);
 			if (res >= 0)
 			{
@@ -910,6 +917,7 @@ void int21_handler(union rmregs *r)
 		 * TODO: They should be done... one day
 		 */
 		case 0x44:
+			LOG_PRINTF(("[DPMI] INT 21h: IOCTL handle %04xh\n", r->x.bx));
 			res = fd32_get_dev_info(r->x.bx);
 			if (res < 0)
 			{
@@ -925,7 +933,7 @@ void int21_handler(union rmregs *r)
 			return;
 		/* DOS 2+ - "DUP" - Duplicate file handle (BX=file handle) */
 		case 0x45:
-			/* BX file handle */
+			LOG_PRINTF(("[DPMI] INT 21h: dup handle %04xh\n", r->x.bx));
 			res = fd32_dup(r->x.bx);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* new handle */
@@ -934,6 +942,7 @@ void int21_handler(union rmregs *r)
 		 * (BX=file handle, CX=new handle).
 		 */
 		case 0x46:
+			LOG_PRINTF(("[DPMI] INT 21h: dup2, handle %04xh to %04xh\n", r->x.bx, r->x.cx));
 			res = fd32_forcedup(r->x.bx, r->x.cx);
 			break;
 		/* DOS 2+ - "CWD" - Get current directory (DL=drive number, 0=default
@@ -944,20 +953,20 @@ void int21_handler(union rmregs *r)
 			char  drive[2] = "A";
 			char *c;
 			char *dest = (char *) FAR2ADDR(r->x.ds, r->x.si);
-			LOG_PRINTF(("INT 21h - Get current dir of drive %02x\n", r->h.dl));
+			LOG_PRINTF(("[DPMI] INT 21h: Get current dir of drive %02x\n", r->h.dl));
 			drive[0] = fd32_get_default_drive();
 			if (r->h.dl) drive[0] = r->h.dl + 'A' - 1;
 			res = fd32_getcwd(drive, fn);
 			if (res < 0) break;
-			LOG_PRINTF(("After getcwd:\"%s\"\n", fn));
+			//LOG_PRINTF(("After getcwd:\"%s\"\n", fn));
 			/* Convert all component to 8.3 */
 			res = fd32_sfn_truename(fn, fn);
 			if (res < 0) break;
-			LOG_PRINTF(("After sfn_truename:\"%s\"\n", fn));
+			//LOG_PRINTF(("After sfn_truename:\"%s\"\n", fn));
 			/* Skip drive specification and initial backslash as required from DOS */
 			for (c = fn; *c != '\\'; c++);
 			strcpy(dest, c + 1);
-			LOG_PRINTF(("Returned CWD:\"%s\"\n", dest));
+			//LOG_PRINTF(("Returned CWD:\"%s\"\n", dest));
 			r->x.ax = 0x0100; /* Undocumented success return value */
 			RMREGS_CLEAR_CARRY;
 			/* TODO: Convert from UTF-8 to OEM */
@@ -969,8 +978,9 @@ void int21_handler(union rmregs *r)
 			ExecParams *pb;
 			char *args, *p, c[128];
 			int cnt, i;
+			LOG_PRINTF(("[DPMI] INT 21h: Load and Execute, al=%02xh\n", r->h.al));
 			pb = (ExecParams *) FAR2ADDR(r->x.es, r->x.bx);
-			/* Only AH = 0x00 - Load and Execute - is currently supported */
+			/* Only AL = 0x00 - Load and Execute - is currently supported */
 			if (r->h.al != 0)
 			{
 				r->h.al = 0xFF; /* Invalid subfunction */
@@ -983,18 +993,19 @@ void int21_handler(union rmregs *r)
 				args = NULL;
 			} else {
 				for (i = 0; i < cnt; i++) {
-				c[i] = *p++;
+					c[i] = *p++;
 				}
 				c[i] = 0;
 				args = c;
 			}
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Load and Execute \"%s\"\n", fn));
+			LOG_PRINTF(("                dos_exec: \"%s\"\n", fn));
 			if (res >= 0) res = dos_exec(fn, pb->Env, args, pb->Fcb1, pb->Fcb2, &dos_return_code);
 			break;
 		}
 		/* DOS 2+ - Get return code */
 		case 0x4D:
+			LOG_PRINTF(("[DPMI] INT 21h: Get return code: %02xh\n", dos_return_code));
 			RMREGS_CLEAR_CARRY;
 			r->h.ah = 0; /* Only normal termination, for now... */
 			r->h.al = dos_return_code;
@@ -1006,18 +1017,15 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x4E:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Findfirst \"%s\" with attr %04x\n", fn, r->x.cx));
+			LOG_PRINTF(("[DPMI] INT 21h: Findfirst \"%s\" with attr %04xh\n", fn, r->x.cx));
 			if (res < 0) break;
 			res = fd32_dos_findfirst(fn, r->x.cx, current_psp->dta);
-			LOG_PRINTF(("a\n"));
 			res2dos(res, r);
-			LOG_PRINTF(("b\n"));
 			if (res == -ENOENT) r->x.ax = DOS_ENOMOREF;
-			LOG_PRINTF(("c\n"));
 			return;
 		/* DOS 2+ - "FINDNEXT" - Find next matching file */
 		case 0x4F:
-			LOG_PRINTF(("INT 21h - Findnext\n"));
+			LOG_PRINTF(("[DPMI] INT 21h: Findnext\n"));
 			res = fd32_dos_findnext(current_psp->dta);
 			res2dos(res, r);
 			if (res == -ENOENT) r->x.ax = DOS_ENOMOREF;
@@ -1032,7 +1040,7 @@ void int21_handler(union rmregs *r)
 			if (res < 0) break;
 			res = fix_path(newfn, (const char *) FAR2ADDR(r->x.es, r->x.di), sizeof(newfn));
 			if (res < 0) break;
-			LOG_PRINTF(("INT 21h - Renaming \"%s\" to \"%s\"\n", fn, newfn));
+			LOG_PRINTF(("[DPMI] INT 21h: Renaming \"%s\" to \"%s\"\n", fn, newfn));
 			res = fd32_rename(fn, newfn);
 			break;
 		}
@@ -1043,7 +1051,7 @@ void int21_handler(union rmregs *r)
 		/* DOS 3.0+ - Create new file (DS:DX->ASCIZ file name, CX=attributes) */
 		case 0x5B:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("INT 21h - Creating new file (AH=5Bh) \"%s\" with attr %04x\n", fn, r->x.cx));
+			LOG_PRINTF(("[DPMI] INT 21h: Creating new file (AH=5Bh) \"%s\" with attr %04x\n", fn, r->x.cx));
 			if (res < 0) break;
 			res = fd32_open(fn, O_RDWR | O_CREAT | O_EXCL, r->x.cx, 0, NULL);
 			res2dos(res, r);
@@ -1051,7 +1059,7 @@ void int21_handler(union rmregs *r)
 			return;
 		/* DOS 3.0+ - Get current PSP address */
 		case 0x62:
-			LOG_PRINTF(("INT 21h - Get current PSP address\n"));
+			LOG_PRINTF(("[DPMI] INT 21h: Get current PSP address\n"));
 			r->x.bx = (DWORD) current_psp >> 4;
 			return;
 		/* DOS 3.3+ - "FFLUSH" - Commit file
@@ -1059,13 +1067,13 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x68:
 		case 0x6A:
-			LOG_PRINTF(("INT 21h - fflush\n"));
+			LOG_PRINTF(("[DPMI] INT 21h: fflush\n"));
 			/* BX file handle */
 			res = fd32_fflush(r->x.bx);
 			break;
 		/* DOS 5+ Undocumented - Null function */
 		case 0x6B:
-			LOG_PRINTF(("INT 21h - Null function. Hey, somebody calls it!\n"));
+			LOG_PRINTF(("[DPMI] INT 21h: Null function. Hey, somebody calls it!\n"));
 			r->h.al = 0;
 			RMREGS_CLEAR_CARRY;
 			return;
@@ -1081,7 +1089,7 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
 			if (res < 0) break;
 			res = fd32_open(fn, action | (DWORD) r->x.bx, r->x.cx, 0, &action);
-			LOG_PRINTF(("INT 21h - Extended open/create (AH=6Ch) \"%s\" res=%08xh\n", fn, res));
+			LOG_PRINTF(("[DPMI] INT 21h: Extended open/create (AH=6Ch) \"%s\" res=%08xh\n", fn, res));
 			res2dos(res, r);
 			if (res >= 0)
 			{
@@ -1103,6 +1111,7 @@ void int21_handler(union rmregs *r)
 		* _Guessing_ that BX is the directory handle.
 		*/
 		case 0x72:
+			LOG_PRINTF(("[DPMI] INT 21h: Win95 beta FindClose\n"));
 			res = fd32_lfn_findclose(r->x.bx);
 			break;
 		/* Windows 95 FAT32 services.
@@ -1112,7 +1121,7 @@ void int21_handler(union rmregs *r)
 		{
 			ExtDiskFree *edf;
 			fd32_getfsfree_t fsfree;
-			LOG_PRINTF(("INT 21h - FAT32 service %02x issued\n", r->h.al));
+			LOG_PRINTF(("[DPMI] INT 21h: FAT32 service %02x issued\n", r->h.al));
 			if (r->h.al != 0x03)
 			{
 				r->h.al = 0xFF; /* Unimplemented subfunction */
