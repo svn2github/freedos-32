@@ -225,11 +225,16 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
     unsigned long max_wait;
     int use_48bit = FALSE;
     int max_per_irq;
+    DWORD tmp;
 
     if(b == NULL || d == NULL)
     {
         return -1;
     }
+    if(start >= d->total_blocks)
+	    return 0;
+    if(start + count > d->total_blocks)
+	    count = d->total_blocks - start;
     if(d->flags & (DEV_FLG_ST_TIMER_ACTIVE | DEV_FLG_STANDBY))
     {
         /* TODO: check timer (and DRDY?) first */
@@ -237,8 +242,6 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
     }
     else
         max_wait = MAX_WAIT_1;
-    if(start + count > d->total_blocks)
-        return ATA_ERANGE;
     start += d->first_sector;
     if((start + count - 1) & 0xF0000000)
     {
@@ -261,6 +264,7 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
             command = ATA_CMD_READ_SECTORS;
         max_per_irq = 256;
     }
+    tmp = count;
     while(count)
     {
         if(count >= max_per_irq)
@@ -281,7 +285,7 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
         }
     }
     d->flags &= ~DEV_FLG_STANDBY;
-    return 0;
+    return tmp;
 }
 
 
@@ -375,11 +379,16 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
     unsigned long max_wait;
     int use_48bit = FALSE;
     int max_per_irq;
+    DWORD tmp;
 
     if(b == NULL || d == NULL)
     {
         return -1;
     }
+    if(start >= d->total_blocks)
+	    return 0;
+    if(start + count > d->total_blocks)
+	    count = d->total_blocks - start;
     if(d->flags & (DEV_FLG_ST_TIMER_ACTIVE | DEV_FLG_STANDBY))
     {
         /* TODO: check timer (and DRDY?) first */
@@ -387,8 +396,6 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
     }
     else
         max_wait = MAX_WAIT_1;
-    if(start + count > d->total_blocks)
-        return ATA_ERANGE;
     start += d->first_sector;
     if((start + count - 1) & 0xF0000000)
     {
@@ -411,6 +418,7 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
             command = ATA_CMD_WRITE_SECTORS;
         max_per_irq = 256;
     }
+    tmp = count;
     while(count)
     {
         if(count >= max_per_irq)
@@ -430,7 +438,7 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
         }
     }
     d->flags &= ~DEV_FLG_STANDBY;
-    return 0;
+    return tmp;
 }
 
 
