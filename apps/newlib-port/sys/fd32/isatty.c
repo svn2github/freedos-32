@@ -2,7 +2,7 @@
 
 #include "sys/syscalls.h"
 
-int _isatty(int fd)
+int isatty(int fd)
 {
   int res;
 
