@@ -53,6 +53,7 @@ arch_file=
 nl_src_dir=
 dest_dir=
 temp_dir=
+tool_dir=
 remove_tmp_dir="yes"
 config_newlib="yes"
 make_nelib="yes"
@@ -77,6 +78,7 @@ Options:
 			\"newlib-1.13.0.tar.bz\" or simmilar.)
 --dest-dir=DIR		copy library files to DIR
 --temp-dir=DIR		where to place temporary directory
+--tool-dir=DIR		link tools in DIR [/usr/bin]
 --no-remove		do not remove temporary directory
 --no-build		do not run configure or make
 --no-make		run configure but not make
@@ -98,6 +100,8 @@ do
 		dest_dir=`echo "$pb_option" | sed 's/--dest-dir=//'` ;;
 	--temp-dir=*)
 		temp_dir=`echo "$pb_option" | sed 's/--temp-dir=//'` ;;
+	--tool-dir=*)
+		tool_dir=`echo "$pb_option" | sed 's/--tool-dir=//'` ;;
 	--help | -help | help | -h)
 		echo "$pb_help"
 		exit 0
@@ -306,14 +310,31 @@ fi
 
 if [ $patch_makef == "no" ]
 then
+	if test -n "$tool_dir"
+	then
+		fix_path tool_dir
+	else
+		if test -e "/usr/bin/gcc"
+		then
+			tool_dir="/usr/bin"
+		else
+			if test -e "/bin/gcc"
+			then
+				tool_dir="/bin"
+			else
+				echo "[pb] gcc not found in default directories!"
+				exit 1
+			fi
+		fi
+	fi
 	make_dir ${pb_tmpd}/bin
-	if ln -s /usr/bin/ar ${pb_tmpd}/bin/${pb_target}-ar && \
-	ln -s /usr/bin/as ${pb_tmpd}/bin/${pb_target}-as && \
-	ln -s /usr/bin/gcc ${pb_tmpd}/bin/${pb_target}-gcc && \
-	ln -s /usr/bin/ld ${pb_tmpd}/bin/${pb_target}-ld && \
-	ln -s /usr/bin/nm ${pb_tmpd}/bin/${pb_target}-nm && \
-	ln -s /usr/bin/objdump ${pb_tmpd}/bin/${pb_target}-objdump && \
-	ln -s /usr/bin/ranlib ${pb_tmpd}/bin/${pb_target}-ranlib
+	if ln -s ${tool_dir}/gcc ${pb_tmpd}/bin/${pb_target}-gcc && \
+	   ln -s ${tool_dir}/ar ${pb_tmpd}/bin/${pb_target}-ar && \
+	   ln -s ${tool_dir}/as ${pb_tmpd}/bin/${pb_target}-as && \
+	   ln -s ${tool_dir}/ld ${pb_tmpd}/bin/${pb_target}-ld && \
+	   ln -s ${tool_dir}/nm ${pb_tmpd}/bin/${pb_target}-nm && \
+	   ln -s ${tool_dir}/objdump ${pb_tmpd}/bin/${pb_target}-objdump && \
+	   ln -s ${tool_dir}/ranlib ${pb_tmpd}/bin/${pb_target}-ranlib
 	then
 		echo "[pb]Links created in ${pb_tmpd}/bin"
 	else
@@ -380,6 +401,7 @@ make_newlib
 file_present1 ${pb_tbld}/${pb_target}/newlib/libc.a
 file_present1 ${pb_tbld}/${pb_target}/newlib/libg.a
 file_present1 ${pb_tbld}/${pb_target}/newlib/libm.a
+file_present1 ${pb_tbld}/${pb_target}/newlib/crt0.o
 
 change_dir $pb_cwd
 
@@ -396,11 +418,12 @@ then
 	exit 1
 fi
 
-if cp ${pb_tbld}/${pb_target}/newlib/lib*.a ${dest_dir}/lib
+if cp ${pb_tbld}/${pb_target}/newlib/lib*.a ${dest_dir}/lib && \
+   cp ${pb_tbld}/${pb_target}/newlib/crt0.o ${dest_dir}/lib
 then
 	echo "[pb]Library files copied to ${dest_dir}/lib"
 else
-	echo "[pb]Error: failed to copy files to ${dest_dir}/lib"
+	echo "[pb]Error: failed to copy file(s) to ${dest_dir}/lib"
 	exit 1
 fi
 
@@ -432,11 +455,15 @@ then
 		sed 's/ -g / /g' <Makefile >Makefile || exit 1
 	fi
 	make_newlib
-	if cp ${pb_tbld2}/${pb_target}/newlib/libc.a ${dest_dir}/lib
+	if cp ${pb_tbld2}/${pb_target}/newlib/libc.a ${dest_dir}/lib && \
+	   cp ${dest_dir}/lib/crt0.o ${dest_dir}/lib/crt0g.o && \
+	   cp ${pb_tbld2}/${pb_target}/newlib/crt0.o ${dest_dir}/lib && \
+	   cp ${dest_dir}/lib/libm.a ${dest_dir}/lib/libmg.a && \
+	   cp ${pb_tbld2}/${pb_target}/newlib/libm.a ${dest_dir}/lib
 	then
-		echo "[pb]New libc.a copied to ${dest_dir}/lib"
+		echo "[pb]New libc.a, libm.a and crt0.o copied to ${dest_dir}/lib"
 	else
-		echo "[pb]Error: failed to copy libc.a to ${dest_dir}/lib"
+		echo "[pb]Error: failed to copy file(s) to ${dest_dir}/lib"
 		exit 1
 	fi
 fi
