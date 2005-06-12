@@ -21,10 +21,10 @@ void libc_init(struct process_info *pi)
   environ = __env;
 
   /* Set up args... */
-  args = args_get(pi);
-  mem_limit = maxmem_get(pi);
+  args = pi->args;
+  mem_limit = pi->memlimit;
   argc = 1;
-  argv[0] = name_get(pi);
+  argv[0] = pi->name;
   p = args;
   if (p != NULL) {
     while (*p != 0) {

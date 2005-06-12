@@ -50,6 +50,11 @@ typedef struct fd32_time
 }
 fd32_time_t;
 
+struct process_info {
+  char *args;
+  uint32_t memlimit;
+  char *name;
+};
 
 
 int  message(char *fmt,...) __attribute__((format(printf,1,2)));
