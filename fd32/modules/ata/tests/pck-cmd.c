@@ -39,14 +39,14 @@ static int cd_request_sense(struct cd_device* d, struct cd_sense* s)
     pcp.MaxWait = 1 * 1000 * 1000; /* this is relatively arbitrary */
     pcp.PacketSize = d->cmd_size;
     pcp.Buffer = (WORD*)s;
-    pcp.BufferSize = 8;
-    pcp.MaxCount = 8;
+    pcp.BufferSize = sizeof(struct cd_sense);
+    pcp.MaxCount = sizeof(struct cd_sense);
     pcp.TotalBytes = &tb;
     pcp.Packet = (WORD*)&packet;
     /* Prepare command packet */
     memset((void*)packet, 0, 16);
     packet[0] = 0x03;
-    packet[4] = 18; /* allocation length */
+    packet[4] = sizeof(struct cd_sense); /* allocation length */
     res = d->req(FD32_ATAPI_PACKET, (void*)&pcp);
 #ifdef _DEBUG_
 
