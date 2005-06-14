@@ -224,7 +224,7 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
     WORD* buff = (WORD*)b;
     unsigned long max_wait;
     int use_48bit = FALSE;
-    int max_per_irq;
+    int max_per_cmd;
     DWORD tmp;
 
     if(b == NULL || d == NULL)
@@ -253,7 +253,7 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
             command = ATA_CMD_READ_MULTIPLE_EXT;
         else
             command = ATA_CMD_READ_SECTORS_EXT;
-        max_per_irq = 256 * 256;
+        max_per_cmd = 256 * 256;
 
     }
     else
@@ -262,17 +262,17 @@ int ata_read(struct ata_device *d, DWORD start, DWORD count, void *b)
             command = ATA_CMD_READ_MULTIPLE;
         else
             command = ATA_CMD_READ_SECTORS;
-        max_per_irq = 256;
+        max_per_cmd = 256;
     }
     tmp = count;
     while(count)
     {
-        if(count >= max_per_irq)
+        if(count >= max_per_cmd)
         {
             /* When we ask for 0 sectors, then we mean 256 sectors */
             res = pio_data_in(max_wait, 0, start, (void*)buff, d, command, use_48bit);
-            count -= max_per_irq;
-            buff += max_per_irq;
+            count -= max_per_cmd;
+            buff += max_per_cmd * 256;
         }
         else
         {
@@ -378,7 +378,7 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
     WORD* buff = (WORD*)b;
     unsigned long max_wait;
     int use_48bit = FALSE;
-    int max_per_irq;
+    int max_per_cmd;
     DWORD tmp;
 
     if(b == NULL || d == NULL)
@@ -407,7 +407,7 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
             command = ATA_CMD_WRITE_MULTIPLE_EXT;
         else
             command = ATA_CMD_WRITE_SECTORS_EXT;
-        max_per_irq = 256 * 256;
+        max_per_cmd = 256 * 256;
 
     }
     else
@@ -416,16 +416,16 @@ int ata_write(struct ata_device *d, DWORD start, DWORD count, const void *b)
             command = ATA_CMD_WRITE_MULTIPLE;
         else
             command = ATA_CMD_WRITE_SECTORS;
-        max_per_irq = 256;
+        max_per_cmd = 256;
     }
     tmp = count;
     while(count)
     {
-        if(count >= max_per_irq)
+        if(count >= max_per_cmd)
         {
             res = pio_data_out(max_wait, 0, start, (void*)buff, d, command, use_48bit);
-            count -= max_per_irq;
-            buff += max_per_irq;
+            count -= max_per_cmd;
+            buff += max_per_cmd * 256;
         }
         else
         {
