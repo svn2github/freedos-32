@@ -1,0 +1,18 @@
+OBJS    = alloc.o dir.o dos.o file.o open.o volume.o test.o
+BIN     = fat2
+CC      = gcc
+#CFLAGS  = -Wall -O3 -I.
+CFLAGS  = -Wall -g3 -I.
+
+.PHONY: all clean
+
+all: $(BIN)
+
+clean:
+	rm -f $(BIN) $(OBJS)
+
+$(BIN): $(OBJS)
+	$(CC) -o $(BIN) $(OBJS) nls/nls.o unicode/unicode.o
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $<
