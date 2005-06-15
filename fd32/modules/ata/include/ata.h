@@ -32,7 +32,7 @@ struct ide_interface
 #define CMD_COMMAND 7
 #define CMD_PI_COUNT_L 4
 #define CMD_PI_COUNT_H 5
-#define CMD_PI_INTERRUPT_REASON 3
+#define CMD_PI_INTERRUPT_REASON 2
 
 /* Bits in the above registers and the control register */
 #define ATA_STATUS_DRQ 0x08
