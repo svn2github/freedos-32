@@ -1,30 +1,28 @@
-/**************************************************************************
- * FreeDOS 32 BIOSDisk Driver                                             *
- * Disk drive support via BIOS                                            *
- * by Salvo Isaja                                                         *
- *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
- *                                                                        *
- * This is "partscan.c" - Hard disk partitions scanner                    *
- *                                                                        *
- *                                                                        *
- * This file is part of the FreeDOS32 BIOSDisk Driver.                    *
- *                                                                        *
- * The FreeDOS32 BIOSDisk Driver is free software; you can redistribute   *
- * it and/or modify it under the terms of the GNU General Public License  *
- * as published by the Free Software Foundation; either version 2 of the  *
- * License, or (at your option) any later version.                        *
- *                                                                        *
- * The FreeDOS32 BIOSDisk Driver is distributed in the hope that it will  *
- * be useful, but WITHOUT ANY WARRANTY; without even the implied warranty *
- * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the       *
- * GNU General Public License for more details.                           *
- *                                                                        *
- * You should have received a copy of the GNU General Public License      *
- * along with the FreeDOS32 BIOSDisk Driver; see the file COPYING;        *
- * if not, write to the Free Software Foundation, Inc.,                   *
- * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
- **************************************************************************/
+/* The FreeDOS-32 BIOSDisk Driver
+ * a block device driver using the BIOS disk services.
+ * Copyright (C) 2001-2005  Salvatore ISAJA
+ *
+ * This file "partscan.c" is part of the FreeDOS-32 BIOSDisk Driver (the Program).
+ *
+ * The Program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * The Program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with the Program; see the file GPL.txt; if not, write to
+ * the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+/** \file
+ * Hard disk partitions scanner.
+ * \todo Make this general, independent from the BIOSDisk driver itself.
+ */
 
 #include <errno.h>
 #include "biosdisk.h"
@@ -147,6 +145,9 @@ static int add_partition(const Disk *d, const char *name, unsigned part, PartTab
         new_d->total_blocks = lba_end - lba_start + 1;
         new_d->type         = type;
         new_d->multiboot_id = (d->multiboot_id & 0xFF00FFFF) | ((part - 1) << 24);
+        new_d->tb_selector  = fd32_dosmem_get(new_d->block_size, &new_d->tb_segment, &new_d->tb_offset);
+        if (d->ap_selector) new_d->ap_selector = fd32_dosmem_get(16, &new_d->ap_segment, &new_d->ap_offset);
+        /* FIXME: Check for fd32_dosmem_get failure */
 
         #ifdef BIOSDISK_FD32DEV
         /* Register the new device to the FD32 kernel */

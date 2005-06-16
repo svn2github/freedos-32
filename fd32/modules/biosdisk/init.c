@@ -35,8 +35,6 @@
 
 #define VM86_STACK_SIZE 10000
 
-extern void biosdisk_timer(void *p);
-extern void biosdisk_reflect(unsigned intnum, BYTE dummy);
 
 void biosdisk_init(struct process_info *p)
 {

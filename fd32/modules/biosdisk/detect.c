@@ -1,30 +1,27 @@
-/**************************************************************************
- * FreeDOS 32 BIOSDisk Driver                                             *
- * Disk drive support via BIOS                                            *
- * by Salvo Isaja                                                         *
- *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
- *                                                                        *
- * This is "detect.c" - Detection and initialization of disk devices      *
- *                                                                        *
- *                                                                        *
- * This file is part of the FreeDOS32 BIOSDisk Driver.                    *
- *                                                                        *
- * The FreeDOS32 BIOSDisk Driver is free software; you can redistribute   *
- * it and/or modify it under the terms of the GNU General Public License  *
- * as published by the Free Software Foundation; either version 2 of the  *
- * License, or (at your option) any later version.                        *
- *                                                                        *
- * The FreeDOS32 BIOSDisk Driver is distributed in the hope that it will  *
- * be useful, but WITHOUT ANY WARRANTY; without even the implied warranty *
- * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the       *
- * GNU General Public License for more details.                           *
- *                                                                        *
- * You should have received a copy of the GNU General Public License      *
- * along with the FreeDOS32 BIOSDisk Driver; see the file COPYING;        *
- * if not, write to the Free Software Foundation, Inc.,                   *
- * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
- **************************************************************************/
+/* The FreeDOS-32 BIOSDisk Driver
+ * a block device driver using the BIOS disk services.
+ * Copyright (C) 2001-2005  Salvatore ISAJA
+ *
+ * This file "detect.c" is part of the FreeDOS-32 BIOSDisk Driver (the Program).
+ *
+ * The Program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * The Program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with the Program; see the file GPL.txt; if not, write to
+ * the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+/** \file
+ * Detection and initialization of disk devices.
+ */
 
 #include <errno.h>
 #include "biosdisk.h"
@@ -226,6 +223,9 @@ static int ext_driveinfo(unsigned drive, Disk *d)
     d->phys_s       = ext.phys_s;
     d->block_size   = ext.bytes_per_sector;
     d->total_blocks = ext.total_sectors;
+    d->xfer         = biosdisk_ext_xfer;
+    /* FIXME: Check for fd32_dosmem_get failure */
+    d->ap_selector  = fd32_dosmem_get(16, &d->ap_segment, &d->ap_offset);
 
     /* Check if Device Parameter Table Extension is available (RBIL #00278) */
     if ((chk.version >= 0x20) && (chk.api_support & 0x04)
@@ -302,6 +302,10 @@ static int biosdisk_detect_fd(void)
         d->total_blocks = std.cylinders * std.heads * std.sectors;
         d->type         = FD32_BIFLO;
         d->multiboot_id = 0x00FFFFFF | (disk << 24);
+        d->xfer         = biosdisk_std_xfer;
+        d->tb_selector  = fd32_dosmem_get(d->block_size, &d->tb_segment, &d->tb_offset);
+        d->ap_selector  = 0; /* No address packet for standard services */
+        /* FIXME: Check for fd32_dosmem_get failure */
 
         /* Initialize and add removable block operations */
         res = get_disk_type(std.bios_number);
@@ -379,6 +383,10 @@ static int biosdisk_detect_hd(void)
         d->bios_s       = std.sectors;
         d->type         = FD32_BIGEN;
         d->multiboot_id = 0x00FFFFFF | (disk << 24);
+        d->xfer         = biosdisk_std_xfer;
+        /* FIXME: Check for fd32_dosmem_get failure */
+        d->tb_selector  = fd32_dosmem_get(d->block_size, &d->tb_segment, &d->tb_offset);
+        d->ap_selector  = 0; /* No address packet for standard services */
         if (ext_driveinfo(disk, d))
         {
             /* If extensions are not available, use standard BIOS values */
@@ -440,15 +448,14 @@ static int biosdisk_detect_hd(void)
 
 int biosdisk_detect(int fd, int hd)
 {
-//    int res;
-//    if ((res = detect_floppies()) < 0) return res;
-//    if ((res = detect_harddisks()) < 0) return res;
-    if (fd) {
-message("Detecting FD\n");
+    if (fd)
+    {
+        message("[BIOSDISK] Detecting FD\n");
         biosdisk_detect_fd();
     }
-    if (hd) {
-message("Detecting HD\n");
+    if (hd)
+    {
+        message("[BIOSDISK] Detecting HD\n");
         biosdisk_detect_hd();
     }
 

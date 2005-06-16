@@ -16,8 +16,7 @@ ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
 
 
-OBJS = common.o detect.o extdisk.o partscan.o request.o stddisk.o\
-	reflect.o init.o
+OBJS = common.o detect.o init.o partscan.o reflect.o request.o
 
 all: biosdisk.o
 
@@ -34,4 +33,3 @@ biosdisk.o: $(OBJS)
 	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -S $<
 %.o : %.s
 	$(CC) $(ASM_OPT) -c $<
-

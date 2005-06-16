@@ -12,7 +12,7 @@ C_OPT = -Wall -O3 -I$(FD32)/include -I../include/djgpp
 ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
 
-OBJS = common.o detect.o extdisk.o partscan.o request.o stddisk.o
+OBJS = common.o detect.o partscan.o request.o
 
 all: biosdisk.o
 
@@ -29,4 +29,3 @@ biosdisk.o: $(OBJS)
 	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -S $<
 %.o : %.s
 	$(CC) $(ASM_OPT) -c $<
-

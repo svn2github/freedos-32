@@ -1,30 +1,27 @@
-/**************************************************************************
- * FreeDOS 32 BIOSDisk Driver                                             *
- * Disk drive support via BIOS                                            *
- * by Salvo Isaja                                                         *
- *                                                                        *
- * Copyright (C) 2001-2003, Salvatore Isaja                               *
- *                                                                        *
- * This is "biosdisk.h" - Defines and declarations                        *
- *                                                                        *
- *                                                                        *
- * This file is part of the FreeDOS32 BIOSDisk Driver.                    *
- *                                                                        *
- * The FreeDOS32 BIOSDisk Driver is free software; you can redistribute   *
- * it and/or modify it under the terms of the GNU General Public License  *
- * as published by the Free Software Foundation; either version 2 of the  *
- * License, or (at your option) any later version.                        *
- *                                                                        *
- * The FreeDOS32 BIOSDisk Driver is distributed in the hope that it will  *
- * be useful, but WITHOUT ANY WARRANTY; without even the implied warranty *
- * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the       *
- * GNU General Public License for more details.                           *
- *                                                                        *
- * You should have received a copy of the GNU General Public License      *
- * along with the FreeDOS32 BIOSDisk Driver; see the file COPYING;        *
- * if not, write to the Free Software Foundation, Inc.,                   *
- * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
- **************************************************************************/
+/* The FreeDOS-32 BIOSDisk Driver
+ * a block device driver using the BIOS disk services.
+ * Copyright (C) 2001-2005  Salvatore ISAJA
+ *
+ * This file "biosdisk.h" is part of the FreeDOS-32 BIOSDisk Driver (the Program).
+ *
+ * The Program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * The Program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with the Program; see the file GPL.txt; if not, write to
+ * the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+/** \file
+ * Defines and declarations.
+ */
 
 #ifndef __FD32_BIOSDISK_H
 #define __FD32_BIOSDISK_H
@@ -49,7 +46,8 @@ enum
 };
 
 /* BIOSDisk device structure */
-typedef struct
+typedef struct Disk Disk;
+struct Disk
 {
     unsigned open_count;
     DWORD    first_sector;
@@ -61,30 +59,30 @@ typedef struct
     DWORD    total_blocks; /* As defined in FD32_BLOCKINFO */
     DWORD    type;         /* As defined in FD32_BLOCKINFO */
     DWORD    multiboot_id; /* As defined in FD32_BLOCKINFO */
-}
-Disk;
+    /* Wrapper function for the BIOS transfer services */
+    int (*xfer)(int operation, const Disk *d, DWORD lba, unsigned num_sectors);
+    /* Sector-sized transfer buffer allocated in low memory */
+    LOWMEM_ADDR tb_selector;
+    WORD        tb_segment, tb_offset;
+    /* 16-byte address packet allocated in low memory */
+    LOWMEM_ADDR ap_selector;
+    WORD        ap_segment, ap_offset;
+};
 
-/* Standard BIOS disk functions */
-int biosdisk_stdread (const Disk *d, DWORD start, DWORD count, void *buffer);
-int biosdisk_stdwrite(const Disk *d, DWORD start, DWORD count, const void *buffer);
-
-/* IBM/MS Extended BIOS disk functions */
-int biosdisk_extread (const Disk *d, DWORD start, DWORD count, void *buffer);
-int biosdisk_extwrite(const Disk *d, DWORD start, DWORD count, const void *buffer);
-
-/* Operations common to Standard and IBM/MS Extended BIOSes */
+/* common.c */
+int biosdisk_std_xfer   (int operation, const Disk *d, DWORD lba, unsigned num_sectors);
+int biosdisk_ext_xfer   (int operation, const Disk *d, DWORD lba, unsigned num_sectors);
 int biosdisk_read       (const Disk *d, DWORD start, DWORD count, void *buffer);
 int biosdisk_write      (const Disk *d, DWORD start, DWORD count, const void *buffer);
-int biosdisk_devopen    (Disk *d);
-int biosdisk_devclose   (Disk *d);
 int biosdisk_mediachange(const Disk *d);
-
-/* Initialization functions */
-int biosdisk_detect(int floppy, int hd);
-int biosdisk_scanpart(const Disk *d, const char *dev_name);
-
-/* Driver request function */
+/* detect.c */
+int biosdisk_detect     (int floppy, int hd);
+/* partscan.c */
+int  biosdisk_scanpart  (const Disk *d, const char *dev_name);
+void biosdisk_timer     (void *p);
+/* reflect.c */
+void biosdisk_reflect   (unsigned intnum, BYTE dummy);
+/* request.c */
 fd32_request_t biosdisk_request;
 
 #endif /* #ifndef __FD32_BIOSDISK_H */
-
