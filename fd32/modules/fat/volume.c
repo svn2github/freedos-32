@@ -462,7 +462,7 @@ int fat_mount(const char *blk_name, Volume **volume)
 		struct fat_fsinfo *fsi;
 		Buffer *b = NULL;
 		res = -EFTYPE;
-		if (!bpb32->fs_version) ABORT_MOUNT(("[FAT2] Unknown FAT32 version in BPB: %04xh\n", bpb32->fs_version));
+		if (bpb32->fs_version) ABORT_MOUNT(("[FAT2] Unknown FAT32 version in BPB: %04xh\n", bpb32->fs_version));
 		res = fat_readbuf(v, bpb32->fsinfo_sector, &b, false);
 		if (res < 0) ABORT_MOUNT(("[FAT2] Error reading the FAT32 FSInfo sector\n"));
 		fsi = (struct fat_fsinfo *) &b->data[res];

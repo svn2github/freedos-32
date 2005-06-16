@@ -24,6 +24,7 @@
 #include "fat.h"
 
 
+#if FAT_CONFIG_WRITE
 static void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_hund)
 {
 	#if FAT_CONFIG_FD32
@@ -44,6 +45,7 @@ static void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_
 	if (dos_hund) *dos_hund = 0;
 	#endif
 }
+#endif
 
 
 /* Backend for the "lseek" system call */
