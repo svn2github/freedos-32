@@ -25,6 +25,17 @@
 #include "pck-cmd.h"
 
 #define _DEBUG_
+#define LOG_MSG fd32_log_printf
+
+DWORD endianness4(DWORD n)
+{
+    return (n & 0x00FF0000)>>8 | (n & 0x0000FF00)<<8 | n<<24 | n>>24;
+}
+
+WORD endianness2(WORD n)
+{
+    return n<<8 | n>>8;
+}
 
 /* Retrieve error information from the device */
 static int cd_request_sense(struct cd_device* d, struct cd_sense* s)
@@ -51,7 +62,7 @@ static int cd_request_sense(struct cd_device* d, struct cd_sense* s)
 #ifdef _DEBUG_
 
     if(res<0)
-        fd32_log_printf("REQUEST SENSE cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
+        LOG_MSG("REQUEST SENSE cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
                         res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
 #endif
 
@@ -72,7 +83,7 @@ static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
         *result = CD_ERR_FATAL;
 #ifdef _DEBUG_
 
-        fd32_log_printf("SENSE failed, returning %i\n", res);
+        LOG_MSG("SENSE failed, returning %i\n", res);
 #endif
 
         return 0;
@@ -96,7 +107,7 @@ static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
 
     }
 #ifdef _DEBUG_
-    fd32_log_printf("SENSE: k=0x%x,asc=0x%x,q=0x%x,ec=0x%x\n", s->sense_key, s->asc, s->asc_q, s->error_code);
+    LOG_MSG("SENSE: k=0x%x,asc=0x%x,q=0x%x,ec=0x%x\n", s->sense_key, s->asc, s->asc_q, s->error_code);
 #endif
 
     switch (s->sense_key & 0x0F)
@@ -274,7 +285,7 @@ static int cd_err_handl_1(struct cd_device* d, struct packet_error* err, int err
         if(res1<0)
         {
 #ifdef _DEBUG_
-            fd32_log_printf("Error unhandled\n");
+            LOG_MSG("Error unhandled\n");
 #endif
 
             return CD_ERR_GENERAL;
@@ -286,7 +297,7 @@ static int cd_err_handl_1(struct cd_device* d, struct packet_error* err, int err
     {
         /* ?? */
 #ifdef _DEBUG_
-        fd32_log_printf("No check condition\n");
+        LOG_MSG("No check condition\n");
 #endif
 
         return -1;
@@ -314,8 +325,8 @@ static int cd_read10(struct cd_device* d, DWORD start, WORD blocks, char* buffer
     pcp.Packet = (WORD*)&packet;
     /* Prepare command packet */
     packet.opcode = 0x28;
-    packet.lba = start;
-    packet.transfer_length = blocks;
+    packet.lba = endianness4(start);
+    packet.transfer_length = endianness2(blocks);
     packet.res = 0;
     packet.pad1 = 0;
     packet.pad2 = 0;
@@ -325,7 +336,7 @@ static int cd_read10(struct cd_device* d, DWORD start, WORD blocks, char* buffer
     if(res<0)
     {
 #ifdef _DEBUG_
-        fd32_log_printf("READ(10) cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
+        LOG_MSG("READ(10) cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
                         res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
 #endif
 
@@ -376,7 +387,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
         if(res<0)
         {
 #ifdef _DEBUG_
-            fd32_log_printf("READ10 failed, returning %i, flags=0x%x\n", res, (unsigned)d->flags);
+            LOG_MSG("READ10 failed, returning %i, flags=0x%x\n", res, (unsigned)d->flags);
 #endif
 
             if( d->flags & CD_FLAG_RETRY)
@@ -437,7 +448,7 @@ static int cd_read_capacity(struct cd_device* d, DWORD* lba, DWORD* block_size)
     if(res<0)
     {
 #ifdef _DEBUG_
-        fd32_log_printf("READ CAPACITY cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
+        LOG_MSG("READ CAPACITY cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
                         res, packet[1], packet[2], packet[3]);
 #endif
 
@@ -450,9 +461,9 @@ static int cd_read_capacity(struct cd_device* d, DWORD* lba, DWORD* block_size)
             return res2;
     }
     if(lba != NULL)
-        *lba = buffer[0];
+        *lba = endianness4(buffer[0]);
     if(block_size != NULL)
-        *block_size = buffer[1];
+        *block_size = endianness4(buffer[1]);
     return 0;
 }
 
@@ -466,13 +477,13 @@ int cd_premount( struct cd_device* d )
 
 #ifdef _DEBUG_
 
-    fd32_log_printf("Entering premount\n");
+    LOG_MSG("Entering premount\n");
 #endif
 
     if(d->flags & CD_FLAG_FATAL_ERROR)
     {
 #ifdef _DEBUG_
-        fd32_log_printf("Soft reset!\n");
+        LOG_MSG("Soft reset!\n");
 #endif
 
         p.Size = sizeof(ata_dev_parm_t);
@@ -481,14 +492,14 @@ int cd_premount( struct cd_device* d )
         if(res1 < 0)
         {
 #ifdef _DEBUG_
-            fd32_log_printf("Device reset failed!");
+            LOG_MSG("Device reset failed!");
 #endif
 
             res1 = d->req(FD32_ATA_SRESET, (void*)&p);
             if(res1 < 0)
             {
 #ifdef _DEBUG_
-                fd32_log_printf("Software reset failed!!! Returned %i\n", res1);
+                LOG_MSG("Software reset failed!!! Returned %i\n", res1);
 #endif
 
                 return -1;
@@ -511,14 +522,14 @@ int cd_premount( struct cd_device* d )
             break;
     }
 #ifdef _DEBUG_
-    fd32_log_printf("Reading capacity...");
+    LOG_MSG("Reading capacity...");
 #endif
 
     res1 = cd_read_capacity(d, &(d->total_blocks), &(d->bytes_per_sector));
     if(res1 < 0)
     {
 #ifdef _DEBUG_
-        fd32_log_printf("failed returning %i\n", res1);
+        LOG_MSG("failed returning %i\n", res1);
 #endif
 
         return -1;
@@ -526,7 +537,7 @@ int cd_premount( struct cd_device* d )
     else
     {
 #ifdef _DEBUG_
-        fd32_log_printf("blocks=%lu bytes/sect=%lu\n", d->total_blocks, d->bytes_per_sector);
+        LOG_MSG("blocks=%lu bytes/sect=%lu\n", d->total_blocks, d->bytes_per_sector);
 #endif
 
         d->flags |= CD_FLAG_MOUNTED;
