@@ -18,54 +18,32 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
  
- 
-/* Unspecified error */
-#define CD_ERR_GENERAL -1
-/* End of medium */
-#define CD_ERR_END -2
-#define CD_ERR_LENGTH -3
-/* Media may have changed */
-#define CD_ERR_MEDIA_CHANGE -4
-/* Device is not available before premount is called */
-#define CD_ERR_UNMOUNTED -5
-/* Device is in progress of becoming ready */
-#define CD_ERR_NR_PROGRESS -6
-/* Not ready, initializing command requiered */
-#define CD_ERR_NR_INIT_REQ -7
-/* Not ready, manual intervention needed */
-#define CD_ERR_NR_MANUAL_INTERV_REQ -8
-/* Not ready, some form of operation in progress */
-#define CD_ERR_NR_OP_IN_PROGR -9
-/* Not ready */
-#define CD_ERR_NR -10
-/* Address (LBA etc) out of range */
-#define CD_ERR_ADDR_RANGE -11
-/* No reference position, medium may be upside down */
-#define CD_ERR_NO_REF_POS -12
-/* Invalid request, unspecified */
-#define CD_ERR_INVALID_REQ -13
-/* Fatal error, software reset may be needed */
-#define CD_ERR_FATAL -14
-/* Incompatible or unknown format */
-#define CD_ERR_MEDIUM_FORMAT -15
-/* Hardware failure in the device */
-#define CD_ERR_HARDWARE_FAILURE -16
-/* No medium present */
-#define CD_ERR_NO_MEDIUM -17
-/* Medium error, unrecovered read error */
-#define CD_ERR_UNREC_READ -18
-/* Medium error, defect list */
-#define CD_ERR_DEFECT_LIST -19
-/* Medium error */
-#define CD_ERR_MEDIUM -20
-/* Device has been reset */
-#define CD_ERR_RESET -21
-/* Device has entered low power mode */ 
-#define CD_ERR_POWER_MODE -22
-/* Unspecified unit attention condition */
-#define CD_ERR_UNIT_ATTENTION -23
-/* Command was aborted */
-#define CD_ERR_ABORTED_CDM -24
+#define CD_EOFF -3000
+
+#define CD_ERR_GENERAL		CD_EOFF-1	/* Unspecified error */
+#define CD_ERR_END		CD_EOFF-2	/* End of medium */
+#define CD_ERR_LENGTH		CD_EOFF-3
+#define CD_ERR_MEDIA_CHANGE	CD_EOFF-4	/* Media may have changed */
+#define CD_ERR_UNMOUNTED	CD_EOFF-5	/* Device is not available before premount is called */
+#define CD_ERR_NR_PROGRESS	CD_EOFF-6	/* Device is in progress of becoming ready */
+#define CD_ERR_NR_INIT_REQ	CD_EOFF-7	/* Not ready, initializing command requiered */
+#define CD_ERR_NR_MANUAL_INTERV_REQ CD_EOFF-8	/* Not ready, manual intervention needed */
+#define CD_ERR_NR_OP_IN_PROGR	CD_EOFF-9	/* Not ready, some form of operation in progress */
+#define CD_ERR_NR		CD_EOFF-10	/* Not ready */
+#define CD_ERR_ADDR_RANGE 	CD_EOFF-11	/* Address (LBA etc) out of range */
+#define CD_ERR_NO_REF_POS 	CD_EOFF-12	/* No reference position, medium may be upside down */
+#define CD_ERR_INVALID_REQ 	CD_EOFF-13	/* Invalid request, unspecified */
+#define CD_ERR_FATAL 		CD_EOFF-14	/* Fatal error, software reset may be needed */
+#define CD_ERR_MEDIUM_FORMAT 	CD_EOFF-15	/* Incompatible or unknown format */
+#define CD_ERR_HARDWARE_FAILURE CD_EOFF-16 	/* Hardware failure in the device */
+#define CD_ERR_NO_MEDIUM 	CD_EOFF-17	/* No medium present */
+#define CD_ERR_UNREC_READ 	CD_EOFF-18	/* Medium error, unrecovered read error */
+#define CD_ERR_DEFECT_LIST 	CD_EOFF-19	/* Medium error, defect list */
+#define CD_ERR_MEDIUM 		CD_EOFF-20	/* Medium error */
+#define CD_ERR_RESET 		CD_EOFF-21	/* Device has been reset */
+#define CD_ERR_POWER_MODE 	CD_EOFF-22	/* Device has entered low power mode */
+#define CD_ERR_UNIT_ATTENTION 	CD_EOFF-23 	/* Unspecified unit attention condition */
+#define CD_ERR_ABORTED_CDM 	CD_EOFF-24	/* Command was aborted */
 
 
 #define CD_FLAG_MOUNTED 1
