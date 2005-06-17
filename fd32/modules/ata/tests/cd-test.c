@@ -48,7 +48,7 @@ int process()
         }
         inf.Size = sizeof(fd32_blockinfo_t);
         inf.DeviceId = cd_devid;
-        res = req(FD32_BLOCKINFO, (void*)&prm);
+        res = req(FD32_BLOCKINFO, (void*)&inf);
         if(res < 0)
         {
             fd32_message("Error: Block info failed for device %s\nReturned %i\n", dev_name, res);
