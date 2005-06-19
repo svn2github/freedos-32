@@ -424,7 +424,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
 }
 
 /* Get medium capacity */
-static int cd_read_capacity(struct cd_device* d, DWORD* lba, DWORD* block_size)
+static int cd_read_capacity(struct cd_device* d, DWORD* blocks, DWORD* block_size)
 {
     atapi_pc_parm_t pcp;
     BYTE packet[16];
@@ -460,8 +460,8 @@ static int cd_read_capacity(struct cd_device* d, DWORD* lba, DWORD* block_size)
         else
             return res2;
     }
-    if(lba != NULL)
-        *lba = endianness4(buffer[0]);
+    if(*blocks != NULL)
+        *blocks = endianness4(buffer[0]) + 1;
     if(block_size != NULL)
         *block_size = endianness4(buffer[1]);
     return 0;
