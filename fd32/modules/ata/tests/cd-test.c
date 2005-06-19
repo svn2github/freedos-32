@@ -6,6 +6,7 @@
 #include "cd-interf.h"
 
 static char buffer[2048];
+unsigned long sectors_to_read;
 
 int process()
 {
@@ -59,7 +60,17 @@ int process()
             fd32_message("Error: Strange sector size %lu\n", inf.BlockSize);
             return 1;
         }
-        ksprintf(filename, "%s.iso", dev_name);
+        fd32_message("Disk contains %lu sectors\n", sectors_to_read);
+        if(sectors_to_read >= inf.TotalBlocks)
+        {
+            ksprintf(filename, "%s.iso", dev_name);
+            sectors_to_read = inf.TotalBlocks;
+        }
+        else
+        {
+            ksprintf(filename, "%s.dat", dev_name);
+        }
+        fd32_message("Going to write %lu bytes to file %s...\n", sectors_to_read * 2048, filename);
         fhandle = fd32_open(filename, O_CREAT | O_TRUNC | O_WRONLY, FD32_ANONE, 0, NULL);
         if(fhandle < 0)
         {
@@ -70,7 +81,7 @@ int process()
         r.DeviceId = cd_devid;
         r.Buffer = buffer;
         r.NumBlocks = 1;
-        for(n=0; n < inf.TotalBlocks; n++)
+        for(n=0; n < sectors_to_read; n++)
         {
             r.Start = n;
             res = req(FD32_BLOCKREAD, (void*)&r);
@@ -90,7 +101,7 @@ int process()
 
         }
         fd32_close(fhandle);
-        fd32_message("%lu sectors written to file %s\n", inf.TotalBlocks, filename);
+        fd32_message("%lu sectors written to file %s\n", sectors_to_read, filename);
     }
     return 0;
 }
@@ -104,6 +115,31 @@ static struct psp local_psp;
 void cd_test_init(struct process_info *pi)
 {
     int res;
+    char* args;
+    char c;
+
+    sectors_to_read = 0;
+    args = args_get(pi);
+    while(*args == ' ')
+        args++;
+    if(args[0] == '-' && args[1] == 'a')
+        sectors_to_read = 0xFFFFFFFF;
+    else
+    {
+        while(!(*args < '0' || *args > '9'))
+        {
+            c = *args;
+            c -= '0';
+            sectors_to_read *= 10;
+            sectors_to_read += c;
+            args++;
+        }
+    }
+    if(sectors_to_read == 0)
+    {
+        fd32_message("Error:  Numer of sectors to read per drive must be specified, or \"-a\" for all.\n");
+        return;
+    }
     local_psp.jft_size = 6;
     local_psp.jft = fd32_init_jft(6);
     local_psp.link = current_psp;
