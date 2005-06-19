@@ -60,7 +60,7 @@ int process()
             fd32_message("Error: Strange sector size %lu\n", inf.BlockSize);
             return 1;
         }
-        fd32_message("Disk contains %lu sectors\n", sectors_to_read);
+        fd32_message("Disk contains %lu sectors\n", inf.TotalBlocks);
         if(sectors_to_read >= inf.TotalBlocks)
         {
             ksprintf(filename, "%s.iso", dev_name);
