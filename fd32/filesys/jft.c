@@ -27,6 +27,8 @@
 #include <errno.h>
 #include <devices.h>
 #include <filesys.h>
+#include <slabmem.h>
+#include <list.h>
 
 
 /* Define the __DEBUG__ symbol in order to activate log output */
@@ -527,52 +529,33 @@ int fd32_dos_findnext(fd32_fs_dosfind_t *find_data)
  *
  ******************************************************************************/
 
-
+/* TODO: Under DOS 7 the long file name search functions seem to use a
+ *       different set of handles than the usual file handles. They are of
+ *       the type "0x40??" and seems to be common to any process in a DOS session.
+ */
+ 
 struct Search
 {
-	DWORD flags;
-	char name[FD32_LFNMAX];
 	struct Search *prev;
 	struct Search *next;
+	DWORD flags;
+	char name[FD32_LFNMAX];
 };
 
-
-/* Organize Search structs in a linked list of page-sized tables */
-#ifndef PAGE_SIZE
- #define PAGE_SIZE 4096
-#endif
-#define SEARCHES_PER_TABLE ((PAGE_SIZE - sizeof(struct SearchTable *)) / sizeof(struct Search))
-struct SearchTable
+static slabmem_t searches_cache =
 {
-	struct Search item[SEARCHES_PER_TABLE];
-	struct SearchTable *next;
+	.pages     = NULL,
+	.obj_size  = sizeof(struct Search),
+	.free_objs = NULL
 };
-struct SearchTable *searches_pool = NULL;
-struct Search *searches_used = NULL;
-struct Search *searches_free = NULL;
+
+static struct Search *searches_open = NULL;
 
 
 static struct Search *search_get(void)
 {
-	struct Search *p = searches_free;
-	if (!p)
-	{
-		unsigned k;
-		struct SearchTable *table = (struct SearchTable *) mem_get(PAGE_SIZE);
-		if (!table) return NULL;
-		memset(table, 0, PAGE_SIZE);
-		for (k = 0; k < SEARCHES_PER_TABLE - 1; k++)
-			table->item[k].next = &table->item[k + 1];
-		searches_free = &table->item[0];
-		table->next   = searches_pool;
-		searches_pool = table;
-		p = searches_free;
-	}
-	searches_free = p->next;
-	p->prev = NULL;
-	p->next = searches_used;
-	if (p->next) p->next->prev = p;
-	searches_used = p;
+	struct Search *p = (struct Search *) slabmem_alloc(&searches_cache);
+	list_push_front((ListItem **) &searches_open, (ListItem *) p);
 	return p;
 }
 
@@ -582,10 +565,8 @@ static void search_put(struct Search *p)
 	//assert(p->refs);
 	//if (--p->refs == 0)
 	//{
-		if (p->prev) p->prev->next = p->next;
-		else searches_used = p->next;
-		p->next = searches_free;
-		searches_free = p;
+		list_erase((ListItem **) &searches_open, (ListItem *) p);
+		slabmem_free(&searches_cache, p);
 	//}
 }
 

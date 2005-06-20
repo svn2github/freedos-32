@@ -37,7 +37,7 @@ typedef long long int off_t;
 /* File and path names limits, in bytes, including the NULL terminator */
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 #define FD32_LFNPMAX 260 /* Max length for a long file name path  */
-#define FD32_LFNMAX  255 /* Max length for a long file name       */
+#define FD32_LFNMAX  256 /* Max length for a long file name       */
 #define FD32_SFNPMAX 64  /* Max length for a short file name path */
 #define FD32_SFNMAX  14  /* Max length for a short file name      */
 
