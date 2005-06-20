@@ -28,6 +28,7 @@
 #include "devices.h"
 #include "filesys.h"
 #include "fd32time.h"
+#include <slabmem.h>
 
 /* "not used" extern DWORD ll_exc_table[16]; */
 extern struct handler exc_table[32];
@@ -63,6 +64,9 @@ static void fake_get_time(fd32_time_t *T)
   memset(T, 0, sizeof(fd32_time_t));
 }
 
+/* TODO: Rename misleading "syscall_table" and make it dynamic
+ *       using the Slab Memory Allocator. --Salvo
+ */
 static struct symbol syscall_table[] = {
   { "cputc", (DWORD)cputc },
   { "cputs", (DWORD)cputs },
@@ -81,6 +85,12 @@ static struct symbol syscall_table[] = {
   { "mem_get", (DWORD)mem_get },
   { "mem_get_region", (DWORD)mem_get_region },
   { "mem_free", (DWORD)mem_free },
+  /* Slab Memory Allocator */
+  { "slabmem_alloc",   (DWORD) slabmem_alloc   },
+  { "slabmem_free",    (DWORD) slabmem_free    },
+  { "slabmem_create",  (DWORD) slabmem_create  },
+  { "slabmem_destroy", (DWORD) slabmem_destroy },
+  
   { "current_psp", (DWORD)(&current_psp) },
   { "rm_irq_table", (DWORD)(&rm_irq_table) },
   { "exc_table", (DWORD)(&exc_table) },
