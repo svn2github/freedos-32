@@ -70,8 +70,9 @@ typedef enum { false = 0, true = !false } bool;
 #include <nls/nls.h>
 #include <unicode/unicode.h>
 #include <filesys.h>
+#include <list.h>
+#include <slabmem.h>
 #include "ondisk.h"
-#include "list.h"
 
 /* The character to use as path component separator */
 /* TODO: Replace the backslash with a forward slash for internal operation. Use backslash as a quotation character. */
@@ -95,8 +96,6 @@ typedef struct Buffer       Buffer;
 typedef struct Volume       Volume;
 typedef struct File         File;
 typedef struct Channel      Channel;
-typedef struct FileTable    FileTable;
-typedef struct ChannelTable ChannelTable;
 
 
 /* Lookup data block for the internal "readdir" function */
@@ -183,12 +182,10 @@ struct Volume
 	Buffer   *buffer_mru;
 
 	/* Files */
-	FileTable *files;
-	File *files_open;
-	File *files_free;
-	ChannelTable *channels;
-	Channel *channels_open;
-	Channel *channels_free;
+	slabmem_t files;
+	slabmem_t channels;
+	File     *files_open;
+	Channel  *channels_open;
 
 	/* A per-volume LookupData to avoid using too much stack */
 	LookupData lud;
@@ -222,24 +219,6 @@ struct Channel
 	unsigned  references;    /* Number of times this instance is open */
 	Cluster   cluster_index; /* Cached cluster position */
 	Cluster   cluster;       /* Cached cluster address */
-};
-
-
-/* Organize open instances of files in a linked list of page-sized tables */
-#define CHANNELS_PER_TABLE ((4096 - sizeof(void *)) / sizeof(Channel))
-struct ChannelTable
-{
-	Channel item[CHANNELS_PER_TABLE];
-	ChannelTable *next;
-};
-
-
-/* Organize open physical files in a linked list of page-sized tables */
-#define FILES_PER_TABLE ((4096 - sizeof(void *)) / sizeof(File))
-struct FileTable
-{
-	File item[FILES_PER_TABLE];
-	FileTable *next;
 };
 
 

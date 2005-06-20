@@ -43,21 +43,7 @@ static File *file_is_open(const Volume *v, Cluster first_cluster, Sector de_sect
 /* Gets and initialize a struct File */
 static File *file_get(Volume *v, const struct fat_direntry *de, Sector de_sector, unsigned de_secoff)
 {
-	File *f = v->files_free;
-	if (!f)
-	{
-		unsigned k;
-		FileTable *table = (FileTable *) malloc(4096);
-		if (!table) return NULL;
-		memset(table, 0, 4096);
-		for (k = 0; k < FILES_PER_TABLE - 1; k++)
-			table->item[k].next = &table->item[k + 1];
-		v->files_free = &table->item[0];
-		table->next   = v->files;
-		v->files      = table;
-		f = v->files_free;
-	}
-	list_erase((ListItem **) &v->files_free, (ListItem *) f);
+	File *f = slabmem_alloc(&v->files);
 	list_push_front((ListItem **) &v->files_open, (ListItem *) f);
 	memcpy(&f->de, de, sizeof(struct fat_direntry));
 	f->de_changed    = false;
@@ -93,7 +79,7 @@ static int file_put(File *f)
 		}
 		#endif
 		list_erase((ListItem **) &v->files_open, (ListItem *) f);
-		list_push_front((ListItem **) &v->files_free, (ListItem *) f);
+		slabmem_free(&v->files, f);
 	}
 	return f->references;
 }
@@ -102,23 +88,8 @@ static int file_put(File *f)
 /* Gets and initialize a struct Channel */
 static Channel *channel_get(File *f, int flags)
 {
-	Volume  *v = f->v;
-	Channel *c = v->channels_free;
-	if (!c)
-	{
-		unsigned k;
-		ChannelTable *table = (ChannelTable *) malloc(4096);
-		if (!table) return NULL;
-		memset(table, 0, 4096);
-		for (k = 0; k < CHANNELS_PER_TABLE - 1; k++)
-			table->item[k].next = &table->item[k + 1];
-		v->channels_free = &table->item[0];
-		table->next      = v->channels;
-		v->channels      = table;
-		c = v->channels_free;
-	}
-	list_erase((ListItem **) &v->channels_free, (ListItem *) c);
-	list_push_front((ListItem **) &v->channels_open, (ListItem *) c);
+	Channel *c = slabmem_alloc(&f->v->channels);
+	list_push_front((ListItem **) &f->v->channels_open, (ListItem *) c);
 	c->file_pointer   = 0;
 	c->f              = f;
 	c->magic          = FAT_CHANNEL_MAGIC;
@@ -316,7 +287,7 @@ int fat_close(Channel *c)
 		if (res < 0) return res;
 		c->magic = 0;
 		list_erase((ListItem **) &v->channels_open, (ListItem *) c);
-		list_push_front((ListItem **) &v->channels_free, (ListItem *) c);
+		slabmem_free(&v->channels, c);
 	}
 	#if FAT_CONFIG_DEBUG
 	LOG_PRINTF(("[FAT2] fat_flose. Volume buffers: %u hits, %u misses on %u\n",

@@ -240,29 +240,13 @@ static void free_volume(Volume *v)
 {
 	if (v)
 	{
+		slabmem_destroy(&v->files);
+		slabmem_destroy(&v->channels);
 		if (v->buffers)
 		{
 			if (v->buffer_data)
 				mfree(v->buffer_data, v->bytes_per_sector * v->sectors_per_buffer * v->num_buffers);
 			mfree(v->buffers, sizeof(Buffer) * v->num_buffers);
-		}
-		if (v->files)
-		{
-			FileTable *table, *next;
-			for (table = v->files; table; table = next)
-			{
-				next = table->next;
-				mfree(table, 4096);
-			}
-		}
-		if (v->channels)
-		{
-			ChannelTable *table, *next;
-			for (table = v->channels; table; table = next)
-			{
-				next = table->next;
-				mfree(table, 4096);
-			}
 		}
 		if (v->nls) v->nls->release();
 		v->magic = 0; /* Invalidate signature against bad pointers */
@@ -319,6 +303,10 @@ int fat_mount(const char *blk_name, Volume **volume)
 	if (!v) return -ENOMEM;
 	memset(v, 0, sizeof(Volume));
 	v->magic = FAT_VOL_MAGIC;
+
+	/* Initialize files */
+	slabmem_create(&v->files, sizeof(File));
+	slabmem_create(&v->channels, sizeof(Channel));
 
 	#if FAT_CONFIG_FD32
 	res = fd32_dev_get(blk_handle, &v->blk_request, &v->blk_devid, blk_name, 19);
