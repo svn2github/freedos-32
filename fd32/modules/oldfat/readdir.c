@@ -142,7 +142,7 @@ static int readdir(tFile *Dir, tFatFind *Ff)
     NumRead = fat_read(Dir, &Buffer[BufferPos], 32);
     if (NumRead < 0) return NumRead;
   } /* while (NumRead > 0) */
-  return -ENOENT;
+  return -ENMFILE;
 }
 
 
@@ -289,7 +289,9 @@ int fat_findfirst(tVolume *v, const char *path, int attributes, fd32_fs_dosfind_
   if (res < 0) return res;
   res = fat_open(v, dir, O_RDONLY | O_DIRECTORY, FD32_ANONE, 0, &f);
   if (res < 0) return res;
-  return dos_find(f, find_data);
+  res = dos_find(f, find_data);
+  if (res == -ENMFILE) res = -ENOENT; /* Yet another convention */
+  return res;
 }
 
 

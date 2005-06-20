@@ -620,6 +620,7 @@ int fd32_lfn_findfirst(/*const*/ char *file_spec, DWORD flags, fd32_fs_lfnfind_t
 			res = request(FD32_FINDFILE, &p);
 			if (res < 0)
 			{
+				if (res == -ENMFILE) res = -ENOENT; /* Yet another convention */
 				search_put(search);
 				fs_close(request, file);
 				return res;

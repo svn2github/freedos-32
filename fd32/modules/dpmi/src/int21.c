@@ -112,7 +112,7 @@ __attribute__ ((packed)) ExtDiskFree;
 #define DOS_EDATA     0x0D /* data invalid */
 #define DOS_ENOTBLK   0x0F /* invalid drive */
 #define DOS_EXDEV     0x11 /* not same device */
-#define DOS_ENOMOREF  0x12 /* no more files */
+#define DOS_ENMFILE   0x12 /* no more files */
 #define DOS_EROFS     0x13 /* disk write-protected */
 #define DOS_EUNIT     0x14 /* unknown unit */
 #define DOS_ENOMEDIUM 0x15 /* drive not ready */
@@ -150,7 +150,7 @@ static const BYTE errno2dos[] = {
 /*  76 */ DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EFTYPE,
 /*  80 */ DOS_EUNKNOWN, DOS_EBADF,    DOS_EUNKNOWN, DOS_EUNKNOWN,
 /*  84 */ DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EUNKNOWN,
-/*  88 */ DOS_ENOTSUP,  DOS_EMFILE,   DOS_EACCES,   DOS_EBUFSMALL,
+/*  88 */ DOS_ENOTSUP,  DOS_ENMFILE,  DOS_EACCES,   DOS_EBUFSMALL,
 /*  92 */ DOS_EACCES,   DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_ENOTSUP,
 /*  96 */ DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EUNKNOWN,
 /* 100 */ DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EUNKNOWN, DOS_EUNKNOWN,
@@ -580,7 +580,6 @@ static inline void lfn_functions(union rmregs *r)
 				 */
 				r->x.cx = 0; 
 			}
-			else if (res == -ENOENT) r->x.ax = DOS_ENOMOREF;
 			return;
 		/* Find next matching file (ES:DI->find data record, BX=directory handle,
 		 * SI=date/time format [0=Windows time, 1=DOS time]).
@@ -590,7 +589,6 @@ static inline void lfn_functions(union rmregs *r)
 			res = fd32_lfn_findnext(r->x.bx, 0, (fd32_fs_lfnfind_t *) FAR2ADDR(r->x.es, r->x.di));
 			res2dos(res, r);
 			if (res >= 0) r->x.cx = 0;
-			else if (res == -ENOENT) r->x.ax = DOS_ENOMOREF;
 			return;
 		/* Rename of move file (DS:DX->ASCIZ old name, ES:DI->ASCIZ new name) */
 		case 0x56:
@@ -1021,14 +1019,12 @@ void int21_handler(union rmregs *r)
 			if (res < 0) break;
 			res = fd32_dos_findfirst(fn, r->x.cx, current_psp->dta);
 			res2dos(res, r);
-			if (res == -ENOENT) r->x.ax = DOS_ENOMOREF;
 			return;
 		/* DOS 2+ - "FINDNEXT" - Find next matching file */
 		case 0x4F:
 			LOG_PRINTF(("[DPMI] INT 21h: Findnext\n"));
 			res = fd32_dos_findnext(current_psp->dta);
 			res2dos(res, r);
-			if (res == -ENOENT) r->x.ax = DOS_ENOMOREF;
 			return;
 		/* DOS 2+ - "RENAME" - Rename or move file (DS:DX->old name,
 		 * ES:DI->new name, CL=attributes for server call).
