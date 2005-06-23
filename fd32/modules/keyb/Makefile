@@ -1,5 +1,5 @@
 ifndef FD32
-FD32 = ../../fd32
+FD32 = ../..
 endif
 
 include $(FD32)/config.mk

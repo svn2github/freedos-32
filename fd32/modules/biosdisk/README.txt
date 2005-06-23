@@ -13,7 +13,7 @@ to access media greater than 8.4 GB, with Large Block Addressing (LBA).
 
 The FreeDOS-32 BIOSDisk driver is released under the terms of the GNU General
 Public License. A copy of the license is available in the file "GPL.txt" stored
-in the "drivers" directory.
+in the top directory of the FreeDOS-32 sources.
 
 _______________________________________________________________________________
 How to compile for FreeDOS-32

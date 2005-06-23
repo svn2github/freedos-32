@@ -5,10 +5,10 @@
 # See README.txt for informations, and COPYING.txt licensing terms.
 
 ifndef FD32
-FD32 = ../../fd32
+FD32 = ../..
 endif
 ifndef OSLIB
-OSLIB = ../../oslib
+OSLIB = ../../../oslib
 endif
 ifndef PORTAB
 PORTAB = ../include/fd32

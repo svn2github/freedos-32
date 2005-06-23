@@ -2,10 +2,10 @@
 # Makefile for the FreeDOS-32 target
 
 ifndef FD32
-FD32 = ../../fd32
+FD32 = ../..
 endif
 ifndef OSLIB
-OSLIB = ../../oslib
+OSLIB = ../../../oslib
 endif
 ifndef PORTAB
 PORTAB = ../include/fd32

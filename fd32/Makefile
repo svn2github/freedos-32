@@ -11,25 +11,24 @@ INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-#OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
-#	kernel/kernel.o nls/cp437.o unicode/unicode.o cons/cons.o
 OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
 	kernel/kernel.o cons/cons.o
 
-KERNEL_DIRS = $(OSLIB) boot devices dynalink filesys kernel cons
+KERNEL_DIRS = $(OSLIB) boot cons devices dynalink filesys kernel
 
-all: fd32.bin drv_subdir
+.PHONY: all modules kern_subdirs clean allclean
 
-clean : $(OSLIB)/config.mk
+all: fd32.bin modules
+
+clean: $(OSLIB)/config.mk
 	$(RM) fd32.bin
 	make -C boot clean
+	make -C cons clean
 	make -C devices clean
 	make -C dynalink clean
 	make -C filesys clean
 	make -C kernel clean
-	make -C drivers/dpmi clean
-	make -C drivers/wrapper clean
-	make -C cons clean
+	make -C modules clean
 
 allclean: clean
 	make -C $(OSLIB) clean
@@ -41,8 +40,9 @@ kern_subdirs: $(patsubst %, _dir_%, $(KERNEL_DIRS))
 
 $(patsubst %, _dir_%, $(KERNEL_DIRS)): $(OSLIB)/config.mk
 	$(MAKE) -C $(patsubst _dir_%, %, $@)
-drv_subdir: $(OSLIB)/config.mk
-	$(MAKE) -C drivers
+
+modules: $(OSLIB)/config.mk
+	$(MAKE) -C modules
 
 $(LIB_PATH)/%.a: $(OSLIB)/config.mk
 	make install -C $(OSLIB)

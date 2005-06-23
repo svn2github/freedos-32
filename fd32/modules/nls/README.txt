@@ -12,4 +12,4 @@ format. You can generate on-line documentation, such as HTML, using Doxygen.
 
 The FreeDOS-32 NLS is released under the terms of the GNU General Public
 License. A copy of the license is available in the file "GPL.txt" stored in
-the "drivers" directory.
+the top directory of the FreeDOS-32 sources.

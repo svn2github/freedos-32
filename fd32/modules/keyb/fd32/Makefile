@@ -1,8 +1,8 @@
 ifndef FDOS 
-FDOS = ../../../fd32
+FDOS = ../../..
 endif
 ifndef OSLIB
-OSLIB = ../../../oslib
+OSLIB = ../../../../oslib
 endif
 
 include $(FDOS)/config.mk

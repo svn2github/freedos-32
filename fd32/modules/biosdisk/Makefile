@@ -1,17 +1,17 @@
-ifndef FDOS 
-FDOS = ../../fd32
+ifndef KERNEL
+KERNEL = ../..
 endif
 ifndef OSLIB
-OSLIB = ../../oslib
+OSLIB = ../../../oslib
 endif
 
-include $(FDOS)/config.mk
+include $(KERNEL)/config.mk
 
 INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-C_OPT += -I$(FDOS)/include -I ../include/fd32
+C_OPT += -I$(KERNEL)/include -I ../include/fd32
 ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
 

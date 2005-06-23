@@ -1,8 +1,8 @@
 ifndef FD32
-FD32 = ../../fd32
+FD32 = ../..
 endif
 ifndef OSLIB
-OSLIB = ../../oslib
+OSLIB = ../../../oslib
 endif
 
 include $(FD32)/config.mk

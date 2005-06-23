@@ -1,11 +1,11 @@
 ifndef KERNEL
-KERNEL = ../../fd32
+KERNEL = ../..
 endif
 ifndef OSLIB
-OSLIB = ../../oslib
+OSLIB = ../../../oslib
 endif
-ifndef DRIVERS
-DRIVERS = ..
+ifndef MODULES
+MODULES = ..
 endif
 ifndef PORTAB
 PORTAB = ../include/fd32
@@ -17,7 +17,7 @@ INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-C_OPT += -I$(KERNEL)/include -I$(DRIVERS) -I$(PORTAB)
+C_OPT += -I$(KERNEL)/include -I$(MODULES) -I$(PORTAB)
 ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
 

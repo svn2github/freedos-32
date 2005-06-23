@@ -1,7 +1,7 @@
 # Makefile to build BIOSDisk for the DOS target, using DJGPP.
 
 ifndef FD32
-FD32 = ../../fd32
+FD32 = ../..
 endif
 
 CC  = gcc
