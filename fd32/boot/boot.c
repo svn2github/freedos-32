@@ -60,6 +60,17 @@ void args_parse(int argc, char *argv[])
       } else {
 	message("Error: otpion \"--tick\" needs an argument; ignoring it\n");
       }
+    } else if (strncmp(argv[i], "--coff=", 7) == 0) {
+      /* Select COFF object type: --coff=djcoff or --coff=pecoff
+       *   Default is djcoff, defined in dynalink/coff.c
+       */
+      #define DjCOFF 0
+      #define PECOFF 1
+      extern int coff_type;
+      if (strcmp(argv[i]+7, "djcoff") == 0)
+        coff_type = DjCOFF;
+      else if (strcmp(argv[i]+7, "pecoff") == 0)
+        coff_type = PECOFF;
     }
 
     i++;

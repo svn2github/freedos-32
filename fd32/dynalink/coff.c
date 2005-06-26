@@ -14,6 +14,14 @@
 #include "coff.h"
 #include "symbol.h"
 
+#if defined(__MINGW32__)
+int coff_type = PECOFF;
+#elif defined(__DJGPP__)
+int coff_type = DjCOFF;
+#else
+int coff_type = DjCOFF;
+#endif
+
 DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 {
   DWORD entry;
@@ -110,10 +118,6 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
     tables->flags |= NEED_LOAD_RELOCATABLE;
     tables->flags |= NEED_SECTION_RELOCATION;
   }
-  /* Fix the MingW COFF modules loading problem */
-  if (header.f_flags & F_AR32WR) {
-    tables->flags |= NEED_AR32WR_RELOCATION;
-  }
   
   return entry;
 }
@@ -177,10 +181,7 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
         /* HACKME!!! Unify the relocation types... */
         scndata[i].reloc[j].type = rel.r_type;
         if (rel.r_type == 6){
-          if (tables->flags & NEED_AR32WR_RELOCATION)
-            scndata[i].reloc[j].type = REL_TYPE_COFF32_ABSOLUTE;
-          else
-            scndata[i].reloc[j].type = REL_TYPE_COFF_ABSOLUTE;
+          scndata[i].reloc[j].type = REL_TYPE_COFF_ABSOLUTE;
         } else if (rel.r_type == 20) {
           scndata[i].reloc[j].type = REL_TYPE_RELATIVE;
         }

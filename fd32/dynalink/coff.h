@@ -8,6 +8,11 @@
 #ifndef __COFF_HDR__
 #define __COFF_HDR__
 
+/* COFF types */
+#define DjCOFF 0
+#define PECOFF 1
+extern int coff_type;
+
 struct external_filehdr {
   WORD f_magic;		/* magic number			*/
   WORD f_nscns;		/* number of sections		*/

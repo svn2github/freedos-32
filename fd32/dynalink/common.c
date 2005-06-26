@@ -12,6 +12,7 @@ char *strstr(const char *haystack, const char *needle); /* FIXME: Place this in 
 
 #include "format.h"
 #include "common.h"
+#include "coff.h"
 
 int common_relocate_section(struct kern_funcs *kf,DWORD base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
@@ -83,7 +84,7 @@ int common_relocate_section(struct kern_funcs *kf,DWORD base, DWORD bssbase, str
         kf->message("Symbol %s not found\n", syms[idx].name);
         return -1;
       }
-      if ((rel[i].type == REL_TYPE_COFF32_ABSOLUTE) || (rel[i].type == REL_TYPE_COFF_ABSOLUTE) || (rel[i].type == REL_TYPE_ELF_ABSOLUTE)) {
+      if ((rel[i].type == REL_TYPE_COFF_ABSOLUTE) || (rel[i].type == REL_TYPE_ELF_ABSOLUTE)) {
 	/* Do something here!!! */
 #if 0
 	address += /* ??? */ base;
@@ -124,10 +125,9 @@ address += *((DWORD *)destination);
       }
 #endif
       /* Non-extermal symbols: only REL32 is supported */
-      if ((rel[i].type != REL_TYPE_COFF32_ABSOLUTE) &&
-          (rel[i].type != REL_TYPE_COFF_ABSOLUTE) &&
-		      (rel[i].type != REL_TYPE_ELF_ABSOLUTE) &&
-		      (rel[i].type != REL_TYPE_RELATIVE)) {
+      if ((rel[i].type != REL_TYPE_COFF_ABSOLUTE) &&
+          (rel[i].type != REL_TYPE_ELF_ABSOLUTE) &&
+          (rel[i].type != REL_TYPE_RELATIVE)) {
         kf->error("Unsupported relocation\n");
         kf->message("Relocation Type: %d\n", rel[i].type);
         return -1;
@@ -135,12 +135,19 @@ address += *((DWORD *)destination);
 #ifdef __COFF_DEBUG__
       kf->log("%p ---> 0x%lx\n", (DWORD *)(rel[i].offset + base), address);
 #endif
-      if (rel[i].type == REL_TYPE_COFF32_ABSOLUTE) {
-        address += base;
-        destination = rel[i].offset + base;
-      } else if (rel[i].type == REL_TYPE_COFF_ABSOLUTE) {
-        address += syms[idx].offset + s[syms[idx].section].base + base;
-        destination = rel[i].offset + base;
+      if (rel[i].type == REL_TYPE_COFF_ABSOLUTE) {
+        if (coff_type == DjCOFF) {
+          address += base;
+          destination = rel[i].offset + base;
+        } else if (coff_type == PECOFF) {
+          address += syms[idx].offset + s[syms[idx].section].base + base;
+          destination = rel[i].offset + base;
+        } else {
+          kf->error("COFF type not specified!! Regard as DjCOFF\n");
+          /* NOTE: incomplete COFF types */
+          address += base;
+          destination = rel[i].offset + base;
+        }
       } else if (rel[i].type == REL_TYPE_ELF_ABSOLUTE) {
 #if 1
         address = *(DWORD *)destination;
