@@ -11,28 +11,24 @@
 #include "format.h"
 #include "mods.h"
 
-/* TODO: Don't put a hard limit on the number of modules */
-DWORD start[32];
-DWORD end[32];
-DWORD pointer[32];
-int n = 0;
+/* TODO: need a modfs_close? */
+static DWORD start;
+static DWORD end;
+static DWORD pointer;
+static int n = 0;
 
 static int modfs_read(int file, void *buff, int size)
 {
   int len;
 
-  if (file > n) {
-    return 0;
-  }
-
   len = size;
-  if (pointer[file] + len > end[file]) {
-    len = end[file] - pointer[file];
+  if (pointer + len > end) {
+    len = end - pointer;
   }
 
-  memcpy(buff, (void *)pointer[file], len);
+  memcpy(buff, (void *)pointer, len);
 
-  pointer[file] += len;
+  pointer += len;
 
   return len;
 }
@@ -41,28 +37,24 @@ static int modfs_seek(int file, int pos, int wence)
 {
   int res;
 
-  if (file > n) {
-    return 0;
-  }
-
   if (wence == 0) {
     res = pos;
   } else if (wence == 1) {
-    res = pointer[file] + pos - start[file];
+    res = pointer + pos - start;
   } else if (wence == 2) {
-    if (end[file] - start[file] < pos) {
+    if (end - start < pos) {
       res = 0;
     } else {
-      res = end[file] - start[file] - pos;
+      res = end - start - pos;
     }
   } else {
-    res = pointer[file] - start[file];
+    res = pointer - start;
   }
 
-  if (start[file] + res > end[file]) {
-    res = end[file] - start[file];
+  if (start + res > end) {
+    res = end - start;
   }
-  pointer[file] = start[file] + res;
+  pointer = start + res;
   
   return res;
 }
@@ -71,27 +63,19 @@ static int modfs_size(int file)
 {
   int res;
 
-  if (file > n) {
-    return 0;
-  }
-
-  res = end[file] - start[file];
+  res = end - start;
   return res;
+}
+
+void modfs_open(DWORD addr, int mod_index)
+{
+  module_address(addr, mod_index, &start, &end);
+  pointer = start;
 }
 
 void modfs_init(struct kern_funcs *kf, DWORD addr, int count)
 {
-  int i;
-  DWORD modstart, modend;
- 
   n = count;
-
-  for (i = 0 ; i < count; i++) {
-    module_address(addr, i, &modstart, &modend);
-    start[i] = modstart;
-    end[i] = modend;
-    pointer[i] = modstart;
-  }
 
   kf->file_seek = modfs_seek;
   kf->file_read = modfs_read;

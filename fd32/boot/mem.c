@@ -47,10 +47,11 @@ static void mem_init2(DWORD ks, DWORD ke, DWORD mstart, int mnum)
 	start = ms;
     }
   }
+
 #ifdef __MEM_DEBUG__
   message("Removing %lx - %lx:\n", start, end);
 #endif
-  pmm_remove_region(&high_mem_pool, start, end - start + 1);
+  pmm_remove_region(&high_mem_pool, start, end - start);
 }
 
 static void mem_init_from_mmap(DWORD mmap_addr, WORD mmap_size)
@@ -106,12 +107,12 @@ void mem_init(void *p)
 {
   struct multiboot_info *mbp;
   extern DWORD _start;
-  extern DWORD end;
   DWORD lsize, hsize, hbase;
   int mnum;
   DWORD mstart;
 
   mbp = p;
+
   if (mbp->flags & MB_INFO_MEM_MAP) {
 #ifdef __MEM_DEBUG__
     message("\tMemory map provided\n");
@@ -158,8 +159,8 @@ void mem_init(void *p)
     mnum = 0;
     mstart = 0;
   }
-
-  mem_init2((DWORD)(&_start), (DWORD)(&end), mstart, mnum);
+  
+  mem_init2((DWORD)(&_start), mbp->mods_addr /* TODO: Modify the os.x and Get the real kernel end */, mstart, mnum);
 }
     
 void mem_release_module(DWORD mstart, int m, int mnum)

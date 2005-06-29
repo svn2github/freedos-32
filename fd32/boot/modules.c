@@ -182,7 +182,7 @@ void process_modules(int mods_count, DWORD mods_addr)
   modfs_init(&kf, mods_addr, mods_count);
   /* Now module #n is accesible as file n... */
  
-/*
+ /*
   kf.file_read = mod_read;
   kf.file_seek = mod_seek;
   */
@@ -201,6 +201,8 @@ void process_modules(int mods_count, DWORD mods_addr)
     fd32_log_printf("[BOOT] Processing module #%d\n", i);
 #endif
     message("Processing module #%d ", i);
+    /* Pseudo-FS open */
+    modfs_open(mods_addr, i);
     command_line = module_cl(mods_addr, i);
 
     kf.file_offset = 0;
