@@ -134,7 +134,7 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #ifdef __DEBUG__
   fd32_log_printf("Module type: %d\n", mod_type);
 #endif
-  if ((mod_type == 2) || (mod_type == 3)) {
+  if ((mod_type == MOD_COFF) || (mod_type == MOD_ELF)) {
     entry_point = load_process(&p, (int)(&f), &parser, &exec_base, &base, &size);
     cr.Size = sizeof(fd32_close_t);
     cr.DeviceId = f.file_id;
@@ -185,7 +185,7 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
     mem_free(exec_base, size);
   }
 
-  if (mod_type == 4) {
+  if (mod_type == MOD_MZ) {
     process_dos_module(&p, (int)(&f), &parser, filename, args);
     cr.Size = sizeof(fd32_close_t);
     cr.DeviceId = f.file_id;

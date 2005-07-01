@@ -23,6 +23,8 @@
 
 #define DISK_TEST 1
 
+#include "params.h"
+#include "format.h"
 #include "logger.h"
 #include "init.h"
 #include "mods.h"
@@ -39,41 +41,59 @@ extern void biosdisk_init(void);
 static int timer_mode = LL_PERIODIC;
 static int timer_period = 1000;
 
+static void Timer_set(char *value)
+{
+  int p;
+  
+  if (value != NULL) {
+    p = atoi(value);
+    if ((p > 0) && (p <= 50000)) {
+      message("Setting Tick = %d\n", p);
+      timer_period = p;
+    } else {
+      message("Wrong Tick value %d; ignoring it\n", p);
+    }
+  } else {
+    message("Warning: option \"--tick\" needs an argument; ignoring it\n");
+  }
+}
+
 void args_parse(int argc, char *argv[])
 {
-  int i;
+  char *name, *value = NULL;
+  int i, j;
 
-  i = 1;
-  while (i < argc) {
-    if (strcmp(argv[i], "--tick") == 0) {
-      int p;
-      
-      i++;
-      if (i < argc) {
-        p = atoi(argv[i]);
-        if ((p > 0) && (p <= 50000)) {
-	  message("Setting Tick = %d\n", p);
-	  timer_period = p;
-        } else {
-	  message("Wrong Tick value %d; ignoring it\n", p);
+  set_param("coff", NULL, COFF_set_type);
+  set_param("tick", NULL, Timer_set);
+
+  for (i = 1; i < argc; i++) {
+    /* kernel parameters ...
+     *    --paramname=paramval
+     * or --paramname paramval
+     */
+    if (*((WORD *)argv[i]) == *((WORD *)"--")) {
+      /* Get the param name and value */
+      name = argv[i]+2;
+      for (j = 2 ; argv[i][j] != '='; j++) {
+        if (argv[i][j] == 0) {
+          i++;
+          if (i < argc) {
+            value = argv[i];
+            break;
+          } else {
+            set_param(name, NULL, NULL);
+            return;
+          }
         }
-      } else {
-	message("Error: otpion \"--tick\" needs an argument; ignoring it\n");
       }
-    } else if (strncmp(argv[i], "--coff=", 7) == 0) {
-      /* Select COFF object type: --coff=djcoff or --coff=pecoff
-       *   Default is djcoff, defined in dynalink/coff.c
-       */
-      #define DjCOFF 0
-      #define PECOFF 1
-      extern int coff_type;
-      if (strcmp(argv[i]+7, "djcoff") == 0)
-        coff_type = DjCOFF;
-      else if (strcmp(argv[i]+7, "pecoff") == 0)
-        coff_type = PECOFF;
+      if (value == NULL) {
+        argv[i][j] = 0;
+        value = argv[i]+j+1;
+      }
+      /* Set the param */
+      set_param(name, value, NULL);
+      value = NULL;
     }
-
-    i++;
   }
 }
 

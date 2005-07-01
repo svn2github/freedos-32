@@ -21,6 +21,14 @@
 #define NO_ENTRY		16
 #define DLL_WITH_STDCALL	32
 
+/* module formats */
+#define MOD_ASCII   1
+#define MOD_COFF    2
+#define MOD_ELF     3
+#define MOD_MZ      4
+#define MOD_UNKNOWN 5
+#define MOD_PECOFF  6
+
 struct symbol_info {
   char *name;
   DWORD offset;
@@ -147,6 +155,8 @@ struct read_funcs {
 int isPECOFF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 int isCOFF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 int isELF(struct kern_funcs *kf, int f, struct read_funcs *rf);
+
+void COFF_set_type(char *value);
 
 #define LOCAL_BSS 64 * 1024
 

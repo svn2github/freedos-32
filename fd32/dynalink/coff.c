@@ -334,6 +334,17 @@ void COFF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct s
   }
 }
 
+void COFF_set_type(char *value)
+{
+  /* Select COFF object type: --coff=djcoff or --coff=pecoff
+   *   Default is djcoff, defined in dynalink/coff.c
+   */
+  if (strcmp(value, "djcoff") == 0)
+    coff_type = DjCOFF;
+  else if (strcmp(value, "pecoff") == 0)
+    coff_type = PECOFF;
+}
+
 int isCOFF(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
   WORD magic;

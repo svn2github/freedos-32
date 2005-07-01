@@ -22,13 +22,6 @@
 #include "exec.h"
 #include "logger.h"
 
-#define MOD_ASCII   1
-#define MOD_COFF    2
-#define MOD_ELF     3
-#define MOD_MZ      4
-#define MOD_UNKNOWN 5
-
-
 DWORD global_SP;
 
 struct kern_funcs kf;
@@ -88,21 +81,21 @@ int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser)
   }
   
   if (1) {
-  	DWORD nt_sgn;
-  	struct dos_header hdr;
+    DWORD nt_sgn;
+    struct dos_header hdr;
   	
-  	p->file_seek(file, 0, 0);
-  	p->file_read(file, &hdr, sizeof(struct dos_header));
+    p->file_seek(file, 0, 0);
+    p->file_read(file, &hdr, sizeof(struct dos_header));
     p->file_seek(file, hdr.e_lfanew, 0);
     p->file_read(file, &nt_sgn, 4);
     
     if (nt_sgn == 0x00004550) {
-    if (isPECOFF(p, file, parser)) {
+      if (isPECOFF(p, file, parser)) {
 #ifdef __MOD_DEBUG__
-      fd32_log_printf("It seems to be an NT PE\n");
+        fd32_log_printf("It seems to be an NT PE\n");
 #endif
-      return 6; /* MOD_PECOFF */
-    }
+        return MOD_PECOFF;
+      }
     }
   }
   
