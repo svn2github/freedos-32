@@ -19,7 +19,7 @@ int main()
 	//res = fat_read(c, buf, sizeof(buf));
 	//printf("Read: %i (%s)\n", res, strerror(-res));
 	//for (k = 0; k < res; k++) fputc(buf[k], stdout);
-	const char *fn = ".*";
+	const char *fn = "*.*";
 	fd32_fs_lfnfind_t lfnfind;
 	for (;;)
 	{

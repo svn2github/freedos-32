@@ -18,8 +18,9 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/** \file
- * Facilities to open and close files.
+/**
+ * \file
+ * \brief Facilities to open and close files.
  */
 #include "fat.h"
 
@@ -70,9 +71,9 @@ static int file_put(File *f)
 		if (f->de_changed && f->de_sector)
 		{
 			Buffer *b = NULL;
-			int res = fat_readbuf(v, f->de_sector, &b);
+			int res = fat_readbuf(v, f->de_sector, &b, false);
 			if (res < 0) return res;
-			memcpy(b->data + res + f->de_secofs, &f->de, sizeof(struct fat_direntry));
+			memcpy(b->data + res + f->de_secoff, &f->de, sizeof(struct fat_direntry));
 			f->de_changed = false;
 			res = fat_dirtybuf(b, false);
 			if (res < 0) return res;

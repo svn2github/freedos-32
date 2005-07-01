@@ -18,8 +18,9 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/** \file
- * FreeDOS-32 specific part of the driver: initialization and requests.
+/**
+ * \file
+ * \brief FreeDOS-32 specific part of the driver: initialization and requests.
  */
 #include "fat.h"
 #include <kernel.h>

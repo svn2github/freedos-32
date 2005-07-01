@@ -18,31 +18,38 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/** \file
- * The part of the driver that manages allocation of clusters
- * and the File Allocation Table.
+/**
+ * \file
+ * \brief Manages allocation of clusters and the File Allocation Table.
  */
 #include "fat.h"
 
 
-/* Gets the address of the "sector_index"-th sector of
- * the specified file in "sector".
- * Returns 0 on success, >0 on EOF, or a negative error.
+/**
+ * \brief   Gets the address of a sector of a file.
+ * \param   c            the channel to get the sector of;
+ * \param   sector_index index of the sector of the file to get the address of;
+ * \param   sector       to receive the address of the sector corresponding to \c sector_index;
+ * \return  0 on success, >0 on EOF, or a negative error.
+ * \remarks \c c->cluster_index and \c c->cluster are updated to cache the address of the last
+ *          cluster of the file reached by this function. On EOF, they relate to the last
+ *          cluster of the file, if any.
  */
 int fat_get_file_sector(Channel *c, Sector sector_index, Sector *sector)
 {
 	int res = 0;
 	File   *f = c->f;
 	Volume *v = f->v;
-	if (!f->de_sector && !f->first_cluster)
+	if (!f->de_sector && !f->first_cluster) /* FAT12/FAT16 root directory */
 	{
+		if (sector_index >= v->root_size) return 1;
 		*sector = sector_index + v->root_sector;
-		if (sector_index >= v->root_size) res = 1;
 	}
-	else
+	else /* File/directory with linked allocation */
 	{
 		Cluster  cluster_index     = sector_index >> v->log_sectors_per_cluster;
 		unsigned sector_in_cluster = sector_index & (v->sectors_per_cluster - 1);
+		if (!f->first_cluster) return 1;
 		if (!c->cluster_index || (cluster_index < c->cluster_index))
 		{
 			c->cluster_index = 0;
@@ -62,6 +69,126 @@ int fat_get_file_sector(Channel *c, Sector sector_index, Sector *sector)
 	}
 	return res;
 }
+
+
+#if FAT_CONFIG_WRITE
+/**
+ * \brief  Searches for a free cluster from "from" (included) to "to" (excluded).
+ * \retval >0 the address of the first free cluster, \c v->next_free updated accordingly;
+ * \retval -ENOSPC no free clusters in the specified range;
+ * \retval <0 other errors.
+ */
+static int32_t find_free_cluster_in_range(Volume *v, Cluster from, Cluster to)
+{
+	Cluster k;
+	int32_t res;
+	for (k = from; k < to; k++)
+	{
+		res = v->fat_read(v, k, v->active_fat);
+		if (res < 0) return res;
+		if (!res)
+		{
+			v->next_free = (Cluster) res;
+			return res;
+		}
+	}
+	return -ENOSPC;
+}
+
+
+/**
+ * \brief   Searches a volume for a free cluster.
+ * \retval  >0 the address of the first free cluster, \c v->next_free updated accordingly;
+ * \retval  -ENOSPC no free clusters in the volume;
+ * \retval  <0 other errors.
+ * \remarks \c v->next_free is used as a hint, assuming that a free cluster
+ *          may be located near to that cluster number.
+ */
+static int32_t find_free_cluster(Volume *v)
+{
+	int32_t res;
+	Cluster hint = v->next_free;
+	if ((hint == FAT_FSI_NA) || (hint < 2) || (hint > v->data_clusters + 1)) hint = 2;
+	res = find_free_cluster_in_range(v, hint, v->data_clusters + 2);
+	if (res != -ENOSPC) return res;
+	res = find_free_cluster_in_range(v, 2, hint);
+	if (res != -ENOSPC) return res;
+	v->next_free = FAT_FSI_NA;
+	return -ENOSPC;
+}
+
+
+/**
+ * \brief   Allocates a new cluster and append it to a file.
+ * \param   c the open instance of the file to append the cluster to.
+ * \return  The address of the new cluster, or a negative error.
+ * \remarks This function must be called on write when #fat_get_file_sector reports
+ *          EOF and the file needs to be extended. The cached cluster position is
+ *          assumed to refer to the last cluster of the file.
+ */
+int32_t fat_append_cluster(Channel *c)
+{
+	File   *f = c->f;
+	Volume *v = f->v;
+	int32_t cluster;
+	int res;
+	unsigned k;
+
+	if (!f->de_sector && !f->first_cluster) return -EFBIG; /* FAT12/FAT16 root directory */
+	cluster = find_free_cluster(v);
+	if (cluster < 0) return cluster;
+	if (!f->first_cluster)
+	{
+		f->first_cluster = cluster;
+		f->de.first_cluster_hi = (uint16_t) (cluster >> 16);
+		f->de.first_cluster_lo = (uint16_t) cluster;
+	}
+	else for (k = 0; k < v->num_fats; k++)
+	{
+		res = v->fat_write(v, c->cluster, k, cluster);
+		if (res < 0) return res;
+	}
+	v->free_clusters--;
+	for (k = 0; k < v->num_fats; k++)
+	{
+		res = v->fat_write(v, cluster, k, FAT_EOC);
+		if (res < 0) return res;
+	}
+	return cluster;
+}
+
+
+#if 0
+/* Deletes the last clusters of the file "f" making it "new_clusters_count"
+ * clusters long. The clusters (either data and indirect) are deleted by
+ * marking them as free in the bitmap.
+ */
+int fat_delete_clusters(struct File *f, uint32_t new_clusters_count)
+{
+	assert(f);
+	uint32_t index, cluster;
+	int res;
+	struct PFile *pf = f->pf;
+	struct Volume *v = pf->v;
+
+	for (index = new_clusters_count; index < pf->inode.clusters_count; index++)
+	{
+		res = leanfs_get_file_cluster(f, index, &cluster);
+		if (res < 0) return res;
+		assert(!f->icluster_first || (f->icluster_first > MAX_DIRECT_CLUSTER));
+		res = leanfs_bitmap_set(v, cluster, false);
+		if (res < 0) return res;
+		if (index && (index == f->icluster_first))
+		{
+			res = leanfs_bitmap_set(v, f->icluster, false);
+			if (res < 0) return res;
+		}
+	}
+	pf->inode.clusters_count = new_clusters_count;
+	return 0;
+}
+#endif
+#endif /* #if FAT_CONFIG_WRITE */
 
 
 /******************************************************************************

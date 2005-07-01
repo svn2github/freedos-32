@@ -18,10 +18,9 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/** \file
- * This is the lowest level part of the driver, that deals with
- * the hosting block device, providing buffered access to it and
- * mounting and unmounting FAT volumes.
+/**
+ * \file
+ * \brief Low level part of the driver dealing with the hosting block device.
  */
 #include "fat.h"
 
@@ -37,7 +36,7 @@ enum
 /* Searches for a volume buffer contaning the specified sector.
  * Returns the buffer address on success, or NULL on failure.
  */
-static Buffer *search_for_buffer(Volume *v, Sector sector)
+static Buffer *find_buffer(Volume *v, Sector sector)
 {
 	unsigned k;
 	Buffer *b;
@@ -59,14 +58,20 @@ static int flush_buffer(Buffer *b)
 {
 	if (b->flags & (BUF_VALID | BUF_DIRTY))
 	{
-		#if FAT_CONFIG_TEST
-		fseek(b->v->dev_priv, b->sector * b->v->sector_bytes, SEEK_SET);
-		size_t res = fwrite(b->data, b->v->sector_bytes, b->v->sectors_per_bufferr, b->v->dev_priv);
+		const Volume *v = b->v;
+		#if FAT_CONFIG_FD32
+		fd32_blockwrite_t p;
+		p.Size      = sizeof(fd32_blockwrite_t);
+		p.DeviceId  = v->blk_devid;
+		p.Start     = b->sector;
+		p.Buffer    = b->data;
+		p.NumBlocks = b->count;
+		res = v->blk_request(FD32_BLOCKWRITE, &p);
 		#else
-		ssize_t res = b->v->bop->write(b->v->dev_priv, b->data, b->sector, b->v->sectors_per_buffer);
-		if (res < 0) return res;
+		fseek(v->blk, b->sector * v->bytes_per_sector, SEEK_SET);
+		ssize_t res = fwrite(b->data, v->bytes_per_sector, b->count, v->blk);
 		#endif
-		if ((unsigned) res != b->v->sectors_per_buffer) return -EIO;
+		if ((res < 0) || (res != b->count)) return -EIO;
 		b->flags &= ~BUF_DIRTY;
 	}
 	return 0;
@@ -80,14 +85,24 @@ int fat_sync(Volume *v)
 	int res;
 	Buffer *b = NULL;
 
+	#if 0
+  /* Update FSI_Free_Count and FSI_Nxt_Free in the FAT32 FSInfo sector */
+  if (V->FatType == FAT32)
+  {
+    if ((Res = fat_readbuf(V, 1)) < 0) return Res;
+    ((tFSInfo *) V->Buffers[Res].Data)->Free_Count = V->FSI_Free_Count;
+    ((tFSInfo *) V->Buffers[Res].Data)->Nxt_Free   = V->FSI_Nxt_Free;
+    if ((Res = fat_writebuf(V, Res)) < 0) return Res;
+  }
+
 	/* Update the superblock */
-	#if FAT_CONFIG_TEST
+	#if FAT_CONFIG_FD32
+	res = v->bop->write(v->dev_priv, v->sb_buf, 1, 1);
+	if (res < 0) return res;
+	#else
 	fseek(v->dev_priv, 1 * v->sector_bytes, SEEK_SET);
 	res = fwrite(v->sb_buf, v->sector_bytes, 1, v->dev_priv);
 	if (res != 1) return -EIO;
-	#else
-	res = v->bop->write(v->dev_priv, v->sb_buf, 1, 1);
-	if (res < 0) return res;
 	#endif
 
 	/* Update the superblock backup */
@@ -96,6 +111,7 @@ int fat_sync(Volume *v)
 	memcpy(b->data, v->sb_buf, sizeof(struct SuperBlock));
 	res = lean_dirtybuf(b, false);
 	if (res < 0) return res;
+	#endif
 
 	/* Flush all buffers */
 	for (k = 0; k < v->num_buffers; k++)
@@ -157,7 +173,7 @@ int fat_readbuf(Volume *v, Sector sector, Buffer **buffer, bool read_through)
 	Buffer *b;
 
 	v->buf_hit++;
-	b = search_for_buffer(v, sector);
+	b = find_buffer(v, sector);
 	if (!b)
 	{
 		#if FAT_CONFIG_FD32
@@ -184,7 +200,6 @@ int fat_readbuf(Volume *v, Sector sector, Buffer **buffer, bool read_through)
 		p.Buffer    = b->data;
 		p.NumBlocks = v->sectors_per_buffer;
 		res = v->blk_request(FD32_BLOCKREAD, &p);
-		if (res < 0) return res;
 		#else
 		fseek(v->blk, b->sector * v->bytes_per_sector, SEEK_SET);
 		ssize_t res = fread(b->data, v->bytes_per_sector, v->sectors_per_buffer, v->blk);
@@ -506,10 +521,11 @@ abort_mount:
 
 
 #if FAT_CONFIG_REMOVABLE && FAT_CONFIG_FD32
-/* Checks if the medium hosting a FAT volume has been changed.
- * If it has been changed, but there are open files, returns -EBUSY.
- * If there are not open files the volume is unmounted and -ENOTMOUNT is
- * returned. If the medium has not been changed, returns 0.
+/** Checks if the medium hosting a FAT volume has been changed.
+ * \retval 0 medium not changed;
+ * \retval 1 medium changed, no open files (safe to unmount)
+ * \retval -EBUSY medium changed, there are open files
+ * \retval <0 other error
  */
 int fat_mediachange(Volume *v)
 {
@@ -556,8 +572,12 @@ int fat_mediachange(Volume *v)
 	if ((v->serial_number != serial_number) || memcmp(v->volume_label, volume_label, 11))
 	{
 		if (v->channels_open) return -EBUSY;
+		#if 1
 		fat_unmount(v);
 		return -ENOTMOUNT;
+		#else
+		return 1;
+		#endif
 	}
 	res = 0;
 	if (!v->channels_open) if (fat_trashbuf(v) < 0) res = -EBUSY;

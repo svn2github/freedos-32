@@ -18,8 +18,9 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/** \file
- * Declarations of the facilities provided by the FAT driver.
+/**
+ * \file
+ * \brief Declarations of the facilities provided by the FAT driver.
  */
 #ifndef __FD32_FAT_DRIVER_H
 #define __FD32_FAT_DRIVER_H
@@ -42,6 +43,7 @@
  #define EFTYPE  2000
  #define ENMFILE 2001
  #define __USE_GNU
+ #define O_NOATIME (1 << 31)
  #include <string.h>
  #include <fcntl.h>
  #include <stdint.h>
@@ -228,6 +230,7 @@ int32_t fat12_read(Volume *v, Cluster n, unsigned fat_num);
 int32_t fat16_read(Volume *v, Cluster n, unsigned fat_num);
 int32_t fat32_read(Volume *v, Cluster n, unsigned fat_num);
 #if FAT_CONFIG_WRITE
+int32_t fat_append_cluster(Channel *c);
 int fat12_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 int fat16_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 int fat32_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);

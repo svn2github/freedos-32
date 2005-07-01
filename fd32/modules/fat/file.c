@@ -18,13 +18,20 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/** \file
- * Facilities to access open files.
+/**
+ * \file
+ * \brief Facilities to access open files.
  */
 #include "fat.h"
 
 
 #if FAT_CONFIG_WRITE
+/**
+ * \brief Formats the passed DOS timestamps from the current date and time.
+ * \param dos_time word to receive the system time in DOS format;
+ * \param dos_date word to receive the system date in DOS format;
+ * \param dos_hund byte to receive the hundredths of seconds past the time in \c dos_time.
+ */
 static void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_hund)
 {
 	#if FAT_CONFIG_FD32
@@ -48,7 +55,15 @@ static void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_
 #endif
 
 
-/* Backend for the "lseek" system call */
+/**
+ * \brief  Backend for the "lseek" system call.
+ * \param  c      the file instance to seek into;
+ * \param  offset new byte offset for the file pointer according to \c whence;
+ * \param  whence can be \c SEEK_SET, \c SEEK_CUR or \c SEEK_END; the latter
+ *                is not allowed for directories.
+ * \return On success, the new byte offset from the beginning of the file,
+ *         or a negative error.
+ */
 off_t fat_lseek(Channel *c, off_t offset, int whence)
 {
 	off_t res = -EINVAL;
@@ -69,7 +84,13 @@ off_t fat_lseek(Channel *c, off_t offset, int whence)
 }
 
 
-/* Backend for the "read" system call */
+/**
+ * \brief  Backend for the "read" system call.
+ * \param  c      the file instance to read from;
+ * \param  buffer pointer to a buffer to receive the data;
+ * \param  size   the number of bytes to read;
+ * \return The number of bytes read on success (may be less than \c size), or a negative error.
+ */
 ssize_t fat_read(Channel *c, void *buffer, size_t size)
 {
 	off_t    offset;
@@ -127,120 +148,150 @@ ssize_t fat_read(Channel *c, void *buffer, size_t size)
 
 
 #if FAT_CONFIG_WRITE
-/* Performs the underlying work for the "write" and "ftruncate" services.
- * If "buffer" is NULL zeroes are written into the file.
- * The "offset" must be *less or equal* than the file size (not past EOF).
- * Returns the number of bytes written on success, or a negative error.
+/**
+ * \brief  Performs the underlying work for the "write" and "ftruncate" services.
+ * \param  c      the file instance to write to;
+ * \param  buffer pointer to the data to be written, or NULL to write zeroes;
+ * \param  size   the number of bytes to write;
+ * \param  offset the file offset where to write, that must be less or equal
+ *                than the file size (not past EOF).
+ * \return The number of bytes written on success (may be less than \c size), or a negative error.
  */
 static ssize_t do_write(Channel *c, const void *buffer, size_t size, off_t offset)
 {
-	unsigned       byte_in_cluster;
-	size_t         k = 0, count;
-	int            res;
-	lean_cluster_t cluster, cluster_index;
+	unsigned byte_in_sector;
+	size_t  k = 0, count;
+	int  res;
+	Sector sector, sector_index;
 	Buffer *b = NULL;
 	File   *f = c->f;
 	Volume *v = f->v;
 
-	if (size == 0) return 0;
-	assert((offset >= 0) && (offset <= pf->inode.file_size));
+	if (!size) return 0;
+	assert(offset >= 0);
 	while (k < size)
 	{
-		/* Locate the current cluster and byte in cluster position.            */
-		/* Here the file position may be equal to the file size, but not more. */
-		/* In this case, we need to allocate a new cluster for the file.       */
-		cluster_index = (offset + sizeof(struct lean_inode)) >> v->log_cluster_bytes; /* / v->cluster_bytes */
-		assert(cluster_index <= pf->inode.clusters_count);
-		if (cluster_index < pf->inode.clusters_count)
-			res = lean_get_file_cluster(f, cluster_index, &cluster);
-		else
-			res = lean_append_cluster(f, &cluster);
+		/* Locate the current sector and byte in sector position.
+		 * Here the file position may be at, but not beyond, EOF.
+		 * In this case, we need to allocate a new cluster for the file. */
+		sector_index = offset >> v->log_bytes_per_sector;
+		res = fat_get_file_sector(c, sector_index, &sector);
+		if (res > 0) /* EOF */
+		{
+			res = fat_append_cluster(c);
+			if (res < 0) return res;
+			res = fat_get_file_sector(c, sector_index, &sector);
+		}
 		if (res < 0) return res;
-		byte_in_cluster = (offset + sizeof(struct lean_inode)) & (v->cluster_bytes - 1); /* % v->cluster_bytes */
+		byte_in_sector = offset & (v->bytes_per_sector - 1);
 
-		/* Write as much as we can in that cluster with a single operation. */
-		/* However, don't write more than "size" bytes. Extend the file up  */
-		/* to the end of that cluster if needed.                            */
-		count = v->cluster_bytes - byte_in_cluster;
+		/* Write as much as we can in that cluster with a single operation.
+		 * However, don't write more than "size" bytes. Extend the file up
+		 * to the end of that cluster if needed. */
+		count = v->bytes_per_sector - byte_in_sector;
 		if (k + count > size) count = size - k;
-		if (offset + count >= pf->inode.file_size)
-			pf->inode.file_size = offset + count;
+		if (!(f->de.attr & FAT_ADIR) && (offset + count >= f->de.file_size))
+			f->de.file_size = offset + count;
 
-		/* Fetch the cluster, write data, commit and continue */
-		res = lean_readbuf(v, cluster, pf, &b);
+		/* Fetch the sector, write data, commit and continue */
+		res = fat_readbuf(v, sector, &b, false);
 		if (res < 0) return res;
 		if (buffer)
-			memcpy(b->data + byte_in_cluster, (const uint8_t *) buffer + k, count);
+			memcpy(b->data + res + byte_in_sector, (const uint8_t *) buffer + k, count);
 		else
-			memset(b->data + byte_in_cluster, 0, count);
-		res = lean_dirtybuf(b, f->flags & O_FSYNC);
+			memset(b->data + res + byte_in_sector, 0, count);
+		res = fat_dirtybuf(b, c->flags & O_FSYNC);
 		if (res < 0) return res;
 		offset += count;
 		k      += count;
 	}
-	/* Successful exit, update file time-stamps */
-	pf->inode.mod_time = (uint32_t) time(NULL);
-	pf->inode.acc_time = pf->inode.mod_time;
+	/* Successful exit, update time-stamps if required */
+	if (!(f->de.attr & FAT_ADIR))
+	{
+		fat_timestamps(&f->de.mod_time, &f->de.mod_date, NULL);
+		if (!(c->flags & O_NOATIME)) f->de.acc_date = f->de.mod_date;
+		f->de.attr |= FAT_AARCHIV;
+		f->de_changed = true;
+	}
+	if (c->flags & O_SYNC)
+	{
+		res = fat_sync(v);
+		if (res < 0) return res;
+	}
 	return (ssize_t) k;
 }
 
 
-/* Backend for the "write" system call.
- * Due to the FAT file system design, O_APPEND can't work for directories.
+/**
+ * \brief  Backend for the "write" system call.
+ * \param  c      the file instance to write to;
+ * \param  buffer pointer to the data to be written;
+ * \param  size   the number of bytes to write.
+ * \return The number of bytes written on success (may be less than \c size), or a negative error.
+ * \note   Due to the FAT file system design, O_APPEND is ignored for directories.
  */
-ssize_t fat_write(struct File *f, const void *buffer, size_t size)
+ssize_t fat_write(Channel *c, const void *buffer, size_t size)
 {
 	ssize_t res, num_written = 0;
+	File *f;
 
-	if (!f || !buffer) return -EINVAL;
-	if (f->magic != FAT_FILE_MAGIC) return -EBADF;
-	assert(f->file_pointer >= 0);
-	if (((f->flags & O_ACCMODE) != O_WRONLY) && ((f->flags & O_ACCMODE) != O_RDWR))
+	if (!c || !buffer) return -EFAULT;
+	if (c->magic != FAT_CHANNEL_MAGIC) return -EBADF;
+	assert(c->file_pointer >= 0);
+	if (((c->flags & O_ACCMODE) != O_WRONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
 		return -EBADF;
 	if (!size) return 0;
+	f = c->f;
 
-	if (!(f->pf->de.attr & FAT_ADIR) && (f->flags & O_APPEND))
-		f->file_pointer = f->pf->de.file_size;
+	if (!(f->de.attr & FAT_ADIR) && (c->flags & O_APPEND))
+		c->file_pointer = f->de.file_size;
 	/* If the file pointer is past the EOF, zero pad until the file pointer.
 	 * Note that the file pointer *at* EOF is allowed and needs no padding. */
-	if (f->file_pointer > f->pf->inode.file_size)
+	if (c->file_pointer > f->de.file_size)
 	{
-		res = do_write(f, NULL, f->file_pointer - f->pf->de.file_size, f->pf->de.file_size);
-		if (res < f->file_pointer - f->pf->de.file_size) return res;
+		res = do_write(c, NULL, c->file_pointer - f->de.file_size, f->de.file_size);
+		if (res < c->file_pointer - f->de.file_size) return res;
 		num_written = res;
 	}
 	/* Now write the buffer */
-	res = do_write(f, buffer, size, f->file_pointer);
+	res = do_write(c, buffer, size, c->file_pointer);
 	if (res < 0) return res;
-	f->file_pointer += res;
+	c->file_pointer += res;
 	num_written     += res;
 	return num_written;
 }
 
 
-/* Backend for the "ftruncate" system call.
- * Truncate or extends (by zero padding) a file to the specified length.
- * Returns 0 on success, or a negative error
+#if 0
+/**
+ * \brief  Backend for the "ftruncate" system call.
+ * \param  c      the file instance to truncate or extend;
+ * \param  length the desired new length for the file;
+ * \return 0 on success, or a negative error.
+ * \note   If \c length is greater than the file size, the file is extended
+ *         by zero padding. If it is smaller it is truncated to the specified
+ *         size. If \c length is equal to the file size, this is a no-op.
+ * \note   Due to the FAT file system design, this is illegal for directories.
  */
-int leanfs_ftruncate(struct File *f, off_t length)
+int fat_ftruncate(Channel *c, off_t length)
 {
-	struct PFile *pf;
-	if (!f || (length < 0)) return -EINVAL;
-	if (((f->flags & O_ACCMODE) != O_WRONLY) && ((f->flags & O_ACCMODE) != O_RDWR))
+	File *f;
+	if (!c || (length < 0)) return -EINVAL;
+	if (((c->flags & O_ACCMODE) != O_WRONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
 		return -EBADF;
-
-	pf = f->pf;
-	if (length < pf->inode.file_size)
+	f = c->f;
+	if (f->de.attr & FAT_ADIR) return -EBADF;
+	if (length < f->de.file_size)
 	{
-		lean_cluster_t new_clusters_count = (length + sizeof(struct lean_inode) + pf->v->cluster_bytes - 1)
-		                                  >> pf->v->log_cluster_bytes;
-		int res = leanfs_delete_clusters(f, new_clusters_count);
-		if (res < 0) return res;
-		pf->inode.file_size = length;
-		/* Syncronizes the cached file position of all open instances of a file.
-		 * Used to avoid access past the end of file when an instance is truncated. */
-		Volume *v = c->f->v;
 		Channel *d;
+		Volume *v = f->v;
+		/* TODO: MISSING CLUSTER_BYTES */
+		Cluster new_clusters_count = (length + v->cluster_bytes - 1) >> v->log_cluster_bytes;
+		int res = fat_delete_clusters(f, new_clusters_count);
+		if (res < 0) return res;
+		f->de.file_size = length;
+		/* Syncronize the cached file position of all open instances of a file */
+		/* TODO: NONSENSE */
 		for (d = v->channels_open; d; d = d->next)
 			if ((d->f == c->f) && (d->file_pointer > c->file_pointer))
 			{
@@ -248,10 +299,11 @@ int leanfs_ftruncate(struct File *f, off_t length)
 				d->cluster = c->cluster;
 			}
 	}
-	else if (length > pf->inode.file_size)
-		return do_write(f, NULL, length - pf->inode.file_size, pf->inode.file_size);
+	else if (length > f->de.file_size)
+		return do_write(f, NULL, length - f->de.file_size, f->de.file_size);
 	return 0;
 }
+#endif
 #endif /* #if FAT_CONFIG_WRITE */
 
 
@@ -281,7 +333,12 @@ int fat_fstat(struct File *file, struct stat *buf)
 #endif
 
 
-/* Backend for the "get attributes" system call */
+/**
+ * \brief  Backend for the "get attributes" system call.
+ * \param  c the file instance;
+ * \param  a buffer to receive the attributes.
+ * \return 0 on success, or a negative error.
+ */
 int fat_get_attr(Channel *c, fd32_fs_attr_t *a)
 {
 	File *f;
@@ -300,7 +357,12 @@ int fat_get_attr(Channel *c, fd32_fs_attr_t *a)
 
 
 #if FAT_CONFIG_WRITE
-/* Backend for the "set attributes" system call */
+/**
+ * \brief  Backend for the "set attributes" system call.
+ * \param  c the file instance;
+ * \param  a buffer containing the new attributes.
+ * \return 0 on success, or a negative error.
+ */
 int fat_set_attr(Channel *c, const fd32_fs_attr_t *a)
 {
 	File *f = c->f;
