@@ -292,7 +292,7 @@ int fat_findfile(Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_l
 {
 	int res;
 	int unallowed_attr = ~((flags & 0x00FF) | FD32_AARCHIV | FD32_ARDONLY);
-	int required_attr  = (flags & 0xFF00) >> 16;
+	int required_attr  = (flags & 0xFF00) >> 8;
 	LookupData *lud = &c->f->v->lud;
 	while ((res = fat_do_readdir(c, lud)) == 0)
 	{

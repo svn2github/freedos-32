@@ -310,7 +310,7 @@ int fat_findfile(tFile *f, const char *name, int flags, fd32_fs_lfnfind_t *find_
 {
   int res;
   int allowable_attr = (flags & 0x00FF) | FD32_AARCHIV | FD32_ARDONLY;
-  int required_attr  = (flags & 0xFF00) >> 16;
+  int required_attr  = (flags & 0xFF00) >> 8;
   while ((res = fat_readdir(f, find_data)) == 0)
     if (((allowable_attr | find_data->Attr) == allowable_attr)
      && ((required_attr & find_data->Attr)  == required_attr))
