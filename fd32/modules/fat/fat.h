@@ -27,13 +27,13 @@
 
 /* Compile time options for the FAT driver */
 #define FAT_CONFIG_LFN       1 /* Enable Long File Names */
-#define FAT_CONFIG_WRITE     0 /* Enable write facilities */
+#define FAT_CONFIG_WRITE     1 /* Enable write facilities */
 #define FAT_CONFIG_REMOVABLE 1 /* Enable support for media change */
 #define FAT_CONFIG_FD32      1 /* Enable FD32 devices */
 #define FAT_CONFIG_DEBUG     0 /* Enable log output */
 
 #if FAT_CONFIG_WRITE
- #error The FAT driver 2.0 is not yet ready for write support!
+ //#error The FAT driver 2.0 is not yet ready for write support!
 #endif
 
 #if !FAT_CONFIG_FD32
@@ -47,6 +47,9 @@
  #include <string.h>
  #include <fcntl.h>
  #include <stdint.h>
+ #include <time.h>
+ #include <sys/time.h>
+ #include <sys/stat.h>
  #define mfree(p, size) free(p)
  #define FD32_OROPEN  1
  #define FD32_ORCREAT 2
@@ -219,21 +222,22 @@ struct Channel
 	uint32_t  magic;         /* FAT_CHANNEL_MAGIC */
 	int       flags;         /* Opening flags of this file instance */
 	unsigned  references;    /* Number of times this instance is open */
-	Cluster   cluster_index; /* Cached cluster position */
-	Cluster   cluster;       /* Cached cluster address */
+	Cluster   cluster_index; /* Cached cluster position (0 = N/A) */
+	Cluster   cluster;       /* Cached cluster address (undefined if cluster_index==0) */
 };
 
 
 /* alloc.c */
-int fat_get_file_sector(Channel *c, Sector sector_index, Sector *sector);
+int     fat_get_file_sector(Channel *c, Sector sector_index, Sector *sector);
 int32_t fat12_read(Volume *v, Cluster n, unsigned fat_num);
 int32_t fat16_read(Volume *v, Cluster n, unsigned fat_num);
 int32_t fat32_read(Volume *v, Cluster n, unsigned fat_num);
 #if FAT_CONFIG_WRITE
 int32_t fat_append_cluster(Channel *c);
-int fat12_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
-int fat16_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
-int fat32_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
+int     fat_delete_clusters(const File *f, Cluster new_last_cluster);
+int     fat12_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
+int     fat16_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
+int     fat32_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 #endif
 
 /* dir.c */
@@ -264,6 +268,9 @@ int     fat_set_attr (Channel *c, const fd32_fs_attr_t *a);
 /* open.c */
 int fat_open      (Volume *v, const char *file_name, const char *fn_stop, int flags, mode_t mode, Channel **channel);
 int fat_reopen_dir(Volume *v, Cluster first_cluster, unsigned entry_count, Channel **channel);
+#if FAT_CONFIG_WRITE
+int fat_fflush    (Channel *c);
+#endif
 int fat_close     (Channel *c);
 
 /* volume.c */

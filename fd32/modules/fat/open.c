@@ -119,7 +119,8 @@ static int fat_open1(Channel *restrict parent, Channel **restrict channel, const
 	if (!parent || !channel || !name) return -EFAULT;
 	v = parent->f->v;
 	res = fat_lookup(parent, name, name_size, &v->lud);
-	#if FAT_CONFIG_WRITE
+	/* TODO: Implement file creation */
+	#if 0 //FAT_CONFIG_WRITE
 	if ((res == -ENOENT) && (flags & O_CREAT))
 	{
 		int attr = fat_mode_to_attributes(mode);
@@ -177,7 +178,7 @@ static int fat_open1(Channel *restrict parent, Channel **restrict channel, const
 	if (flags & O_TRUNC)
 	{
 		if (existing) res = FD32_ORTRUNC;
-		ftruncate(c);
+		fat_ftruncate(c, 0);
 	}
 	#endif
 	*channel = c;
@@ -210,7 +211,7 @@ static int fat_open_dot(Channel *restrict parent, Channel **restrict channel, in
 	#if FAT_CONFIG_WRITE
 	if (flags & O_TRUNC)
 	{
-		ftruncate(c);
+		fat_ftruncate(c, 0);
 		return FD32_ORTRUNC;
 	}
 	#endif

@@ -61,6 +61,7 @@ static int flush_buffer(Buffer *b)
 		const Volume *v = b->v;
 		#if FAT_CONFIG_FD32
 		fd32_blockwrite_t p;
+		int res;
 		p.Size      = sizeof(fd32_blockwrite_t);
 		p.DeviceId  = v->blk_devid;
 		p.Start     = b->sector;
@@ -84,36 +85,16 @@ int fat_sync(Volume *v)
 	unsigned k;
 	int res;
 	Buffer *b = NULL;
-
-	#if 0
-  /* Update FSI_Free_Count and FSI_Nxt_Free in the FAT32 FSInfo sector */
-  if (V->FatType == FAT32)
-  {
-    if ((Res = fat_readbuf(V, 1)) < 0) return Res;
-    ((tFSInfo *) V->Buffers[Res].Data)->Free_Count = V->FSI_Free_Count;
-    ((tFSInfo *) V->Buffers[Res].Data)->Nxt_Free   = V->FSI_Nxt_Free;
-    if ((Res = fat_writebuf(V, Res)) < 0) return Res;
-  }
-
-	/* Update the superblock */
-	#if FAT_CONFIG_FD32
-	res = v->bop->write(v->dev_priv, v->sb_buf, 1, 1);
-	if (res < 0) return res;
-	#else
-	fseek(v->dev_priv, 1 * v->sector_bytes, SEEK_SET);
-	res = fwrite(v->sb_buf, v->sector_bytes, 1, v->dev_priv);
-	if (res != 1) return -EIO;
-	#endif
-
-	/* Update the superblock backup */
-	res = lean_readbuf(v, v->sb->backup_super, NULL, &b);
-	if (res < 0) return res;
-	memcpy(b->data, v->sb_buf, sizeof(struct SuperBlock));
-	res = lean_dirtybuf(b, false);
-	if (res < 0) return res;
-	#endif
-
-	/* Flush all buffers */
+	if (v->fat_type == FAT32)
+	{
+		struct fat_fsinfo *fsi;
+		res = fat_readbuf(v, 1, &b, false);
+		if (res < 0) return res;
+		fsi = (struct fat_fsinfo *) b->data + res;
+		fsi->free_clusters = v->free_clusters;
+		fsi->next_free = v->next_free;
+		res = fat_dirtybuf(b, false);
+	}
 	for (k = 0; k < v->num_buffers; k++)
 	{
 		res = flush_buffer(&v->buffers[k]);
@@ -264,6 +245,9 @@ static void free_volume(Volume *v)
 			mfree(v->buffers, sizeof(Buffer) * v->num_buffers);
 		}
 		if (v->nls) v->nls->release();
+		#if !FAT_CONFIG_FD32
+		if (v->blk) fclose(v->blk);
+		#endif
 		v->magic = 0; /* Invalidate signature against bad pointers */
 		mfree(v, sizeof(Volume));
 	}

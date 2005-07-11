@@ -173,7 +173,7 @@ int fat_request(DWORD function, void *params)
 		case FD32_SETATTR:
 		{
 			fd32_setattr_t *p = (fd32_setattr_t *) params;
-			Channel *c = (Chanel *) p->FileId;
+			Channel *c = (Channel *) p->FileId;
 			LOG_PRINTF(("[FAT2] FD32_SETATTR\n"));
 			if (c->magic != FAT_CHANNEL_MAGIC) return -EBADF;
 			#if FAT_CONFIG_REMOVABLE
@@ -182,6 +182,7 @@ int fat_request(DWORD function, void *params)
 			#endif
 			return fat_set_attr(c, (const fd32_fs_attr_t *) p->Attr);
 		}
+	#if 0
 		case FD32_UNLINK:
 		{
 			fd32_unlink_t *p = (fd32_unlink_t *) params;
@@ -226,6 +227,7 @@ int fat_request(DWORD function, void *params)
 			#endif
 			return fat_rmdir(v, p->DirName);
 		}
+	#endif
 		#endif /* FAT_CONFIG_WRITE */
 		case FD32_MOUNT:
 		{

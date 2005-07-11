@@ -89,7 +89,7 @@ static int32_t find_free_cluster_in_range(Volume *v, Cluster from, Cluster to)
 		if (!res)
 		{
 			v->next_free = (Cluster) res;
-			return res;
+			return (int32_t) k;
 		}
 	}
 	return -ENOSPC;
@@ -158,36 +158,50 @@ int32_t fat_append_cluster(Channel *c)
 }
 
 
-#if 0
-/* Deletes the last clusters of the file "f" making it "new_clusters_count"
- * clusters long. The clusters (either data and indirect) are deleted by
- * marking them as free in the bitmap.
+/**
+ * \brief Deletes all cluster of a chain starting from a specified cluster.
+ * \param f the file to delete clusters from;
+ * \param new_last_cluster the address of the cluster to become the last cluster of the file,
+ *                         or zero to delete all clusters;
+ * \note  After deletion if the file size is not zero the last cluster is marked with EOC.
  */
-int fat_delete_clusters(struct File *f, uint32_t new_clusters_count)
+int fat_delete_clusters(const File *f, Cluster new_last_cluster)
 {
-	assert(f);
-	uint32_t index, cluster;
-	int res;
-	struct PFile *pf = f->pf;
-	struct Volume *v = pf->v;
+	int32_t  next;
+	int      res;
+	unsigned k;
+	Volume  *v = f->v;
 
-	for (index = new_clusters_count; index < pf->inode.clusters_count; index++)
+	assert(f->de_sector || f->first_cluster); /* Not a FAT12/FAT16 root directory */
+	/* Mark the last cluster if needed */
+	next = (int32_t) f->first_cluster;
+	if (new_last_cluster)
 	{
-		res = leanfs_get_file_cluster(f, index, &cluster);
-		if (res < 0) return res;
-		assert(!f->icluster_first || (f->icluster_first > MAX_DIRECT_CLUSTER));
-		res = leanfs_bitmap_set(v, cluster, false);
-		if (res < 0) return res;
-		if (index && (index == f->icluster_first))
+		next = v->fat_read(v, new_last_cluster, v->active_fat);
+		if (next < 0) return next;
+		for (k = 0; k < v->num_fats; k++)
 		{
-			res = leanfs_bitmap_set(v, f->icluster, false);
+			res = v->fat_write(v, new_last_cluster, k, FAT_EOC);
 			if (res < 0) return res;
 		}
 	}
-	pf->inode.clusters_count = new_clusters_count;
+	new_last_cluster = (Cluster) next;
+	/* Delete the cluster chain */
+	do
+	{
+		next = v->fat_read(v, new_last_cluster, v->active_fat);
+		if (next < 0) return next;
+		for (k = 0; k < v->num_fats; k++)
+		{
+			res = v->fat_write(v, new_last_cluster, k, 0);
+			if (res < 0) return res;
+		}
+		v->free_clusters++;
+		new_last_cluster = (Cluster) next;
+	}
+	while (next != FAT_EOC);
 	return 0;
 }
-#endif
 #endif /* #if FAT_CONFIG_WRITE */
 
 

@@ -24,6 +24,48 @@
  */
 #include "fat.h"
 
+#if 1 /* Old-style, zero-based access modes (O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2) */
+ #define IS_NOT_READABLE(c)  (((c->flags & O_ACCMODE) != O_RDONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
+ #define IS_NOT_WRITEABLE(c) (((c->flags & O_ACCMODE) != O_RDWR) && ((c->flags & O_ACCMODE) != O_WRONLY))
+#else /* New-style, bitwise-distinct access modes (O_RDWR = O_RDONLY | O_WRONLY) */
+ #define IS_NOT_READABLE(c)  (!(c->flags & O_RDONLY))
+ #define IS_NOT_WRITEABLE(c) (!(c->flags & O_WRONLY))
+#endif
+
+
+#if !FAT_CONFIG_FD32
+/// Converts a broken-down time to a 16-bit DOS date
+static int pack_dos_date(const struct tm *tm)
+{
+	assert((tm->tm_mday >= 1)  && (tm->tm_mday <= 31));
+	assert((tm->tm_mon  >= 0)  && (tm->tm_mon  <= 11));
+	assert((tm->tm_year >= 80) && (tm->tm_mon  <= 207));
+	return tm->tm_mday | ((tm->tm_mon + 1) << 5) | ((tm->tm_year - 80) << 9);
+}
+
+
+/// Converts a broken-down time to a 16-bit DOS time
+static int pack_dos_time(const struct tm *tm)
+{
+	assert((tm->tm_sec  >= 0) && (tm->tm_sec  <= 60));
+	assert((tm->tm_min  >= 0) && (tm->tm_min  <= 59));
+	assert((tm->tm_hour >= 0) && (tm->tm_hour <= 23));
+	return (tm->tm_sec >> 1) | (tm->tm_min << 5) | (tm->tm_hour << 11);
+}
+
+
+/// Converts a DOS date and time to a broken-down time
+static void unpack_dos_time_stamps(int dos_date, int dos_time, int dos_hundreths, struct tm *tm)
+{
+	tm->tm_mday = dos_date & 0x1F;
+	tm->tm_mon  = ((dos_date >> 5) & 0x0F) - 1;
+	tm->tm_year = (dos_date >> 9) & 0x7F;
+	tm->tm_sec  = (dos_time & 0x1F) + dos_hundreths / 100;
+	tm->tm_min  = (dos_time >> 5) & 0x3F;
+	tm->tm_hour = (dos_time >> 11) & 0x1F;
+}
+#endif
+
 
 #if FAT_CONFIG_WRITE
 /**
@@ -47,9 +89,13 @@ static void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_
 	if (dos_time)
 		*dos_time = ((cur_time.Sec / 2) & 0x1F) + ((cur_time.Min  & 0x3F) << 5) + ((cur_time.Hour & 0x1F) << 11);
 	#else
-	if (dos_date) *dos_date = 0;
-	if (dos_time) *dos_time = 0;
-	if (dos_hund) *dos_hund = 0;
+	struct tm tm;
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	localtime_r(&tv.tv_sec, &tm);
+	if (dos_date) *dos_date = pack_dos_date(&tm);
+	if (dos_time) *dos_time = pack_dos_time(&tm);
+	if (dos_hund) *dos_hund = (tm.tm_sec & 1) * 100 + tv.tv_usec / 10000;
 	#endif
 }
 #endif
@@ -105,8 +151,7 @@ ssize_t fat_read(Channel *c, void *buffer, size_t size)
 	if (!c || !buffer) return -EFAULT;
 	if (c->magic != FAT_CHANNEL_MAGIC) return -EBADF;
 	assert(c->file_pointer >= 0);
-	if (((c->flags & O_ACCMODE) != O_RDONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
-		return -EBADF;
+	if (IS_NOT_READABLE(c)) return -EBADF;
 	offset = c->file_pointer;
 
 	while (k < size)
@@ -157,37 +202,46 @@ ssize_t fat_read(Channel *c, void *buffer, size_t size)
  *                than the file size (not past EOF).
  * \return The number of bytes written on success (may be less than \c size), or a negative error.
  */
-static ssize_t do_write(Channel *c, const void *buffer, size_t size, off_t offset)
+ssize_t fat_do_write(Channel *c, const void *buffer, size_t size, off_t offset)
 {
 	unsigned byte_in_sector;
-	size_t  k = 0, count;
-	int  res;
-	Sector sector, sector_index;
-	Buffer *b = NULL;
-	File   *f = c->f;
-	Volume *v = f->v;
+	size_t   k = 0, count;
+	int      res;
+	Sector   sector, sector_index;
+	Buffer  *b = NULL;
+	File    *f = c->f;
+	Volume  *v = f->v;
 
+	if (offset < 0) return -EINVAL;
 	if (!size) return 0;
-	assert(offset >= 0);
+	if (f->de.attr & FAT_ADIR)
+	{
+		if (offset + size > UINT16_MAX * sizeof(struct fat_direntry)) return -EFBIG;
+	}
+	else
+	{
+		if ((int64_t) offset + (int64_t) size > (int64_t) UINT32_MAX) return -EFBIG;
+	}
 	while (k < size)
 	{
 		/* Locate the current sector and byte in sector position.
-		 * Here the file position may be at, but not beyond, EOF.
-		 * In this case, we need to allocate a new cluster for the file. */
+		 * While the file offset is at or beyond EOF, a new cluster is appended
+		 * to the file, its content is undefined. */
 		sector_index = offset >> v->log_bytes_per_sector;
 		res = fat_get_file_sector(c, sector_index, &sector);
 		if (res > 0) /* EOF */
 		{
 			res = fat_append_cluster(c);
+			if ((res == -ENOSPC) && k) break;
 			if (res < 0) return res;
-			res = fat_get_file_sector(c, sector_index, &sector);
+			continue;
 		}
 		if (res < 0) return res;
 		byte_in_sector = offset & (v->bytes_per_sector - 1);
 
-		/* Write as much as we can in that cluster with a single operation.
+		/* Write as much as we can in that sector with a single operation.
 		 * However, don't write more than "size" bytes. Extend the file up
-		 * to the end of that cluster if needed. */
+		 * to the end of that sector if needed. */
 		count = v->bytes_per_sector - byte_in_sector;
 		if (k + count > size) count = size - k;
 		if (!(f->de.attr & FAT_ADIR) && (offset + count >= f->de.file_size))
@@ -224,11 +278,10 @@ static ssize_t do_write(Channel *c, const void *buffer, size_t size, off_t offse
 
 /**
  * \brief  Backend for the "write" system call.
- * \param  c      the file instance to write to;
+ * \param  c      the regular file (not a directory) instance to write to;
  * \param  buffer pointer to the data to be written;
  * \param  size   the number of bytes to write.
  * \return The number of bytes written on success (may be less than \c size), or a negative error.
- * \note   Due to the FAT file system design, O_APPEND is ignored for directories.
  */
 ssize_t fat_write(Channel *c, const void *buffer, size_t size)
 {
@@ -237,24 +290,22 @@ ssize_t fat_write(Channel *c, const void *buffer, size_t size)
 
 	if (!c || !buffer) return -EFAULT;
 	if (c->magic != FAT_CHANNEL_MAGIC) return -EBADF;
-	assert(c->file_pointer >= 0);
-	if (((c->flags & O_ACCMODE) != O_WRONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
-		return -EBADF;
-	if (!size) return 0;
 	f = c->f;
-
-	if (!(f->de.attr & FAT_ADIR) && (c->flags & O_APPEND))
-		c->file_pointer = f->de.file_size;
+	assert(c->file_pointer >= 0);
+	if (IS_NOT_WRITEABLE(c)) return -EBADF;
+	if (f->de.attr & FAT_ADIR) return -EBADF;
+	if (!size) return 0;
+	if (c->flags & O_APPEND) c->file_pointer = f->de.file_size;
 	/* If the file pointer is past the EOF, zero pad until the file pointer.
 	 * Note that the file pointer *at* EOF is allowed and needs no padding. */
 	if (c->file_pointer > f->de.file_size)
 	{
-		res = do_write(c, NULL, c->file_pointer - f->de.file_size, f->de.file_size);
-		if (res < c->file_pointer - f->de.file_size) return res;
+		res = fat_do_write(c, NULL, c->file_pointer - f->de.file_size, f->de.file_size);
+		if (res < c->file_pointer - f->de.file_size) return res; /* includes res < 0 */
 		num_written = res;
 	}
 	/* Now write the buffer */
-	res = do_write(c, buffer, size, c->file_pointer);
+	res = fat_do_write(c, buffer, size, c->file_pointer);
 	if (res < 0) return res;
 	c->file_pointer += res;
 	num_written     += res;
@@ -262,72 +313,88 @@ ssize_t fat_write(Channel *c, const void *buffer, size_t size)
 }
 
 
-#if 0
 /**
  * \brief  Backend for the "ftruncate" system call.
- * \param  c      the file instance to truncate or extend;
+ * \param  c      the regular file (not a directory) instance to truncate or extend;
  * \param  length the desired new length for the file;
  * \return 0 on success, or a negative error.
  * \note   If \c length is greater than the file size, the file is extended
  *         by zero padding. If it is smaller it is truncated to the specified
  *         size. If \c length is equal to the file size, this is a no-op.
- * \note   Due to the FAT file system design, this is illegal for directories.
  */
 int fat_ftruncate(Channel *c, off_t length)
 {
 	File *f;
 	if (!c || (length < 0)) return -EINVAL;
-	if (((c->flags & O_ACCMODE) != O_WRONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
-		return -EBADF;
+	if (IS_NOT_WRITEABLE(c)) return -EBADF;
 	f = c->f;
 	if (f->de.attr & FAT_ADIR) return -EBADF;
 	if (length < f->de.file_size)
 	{
-		Channel *d;
-		Volume *v = f->v;
-		/* TODO: MISSING CLUSTER_BYTES */
-		Cluster new_clusters_count = (length + v->cluster_bytes - 1) >> v->log_cluster_bytes;
-		int res = fat_delete_clusters(f, new_clusters_count);
+		int res;
+		Cluster new_last_cluster = 0;
+		Sector unused;
+		if (length)
+		{
+			/* Find the cluster containing the last byte with the new length */
+			res = fat_get_file_sector(c, (length - 1) >> f->v->log_bytes_per_sector, &unused);
+			if (res < 0) return res;
+			if (res > 0) return -EIO; /* EOF: file size not matched by the cluster chain */
+			new_last_cluster = c->cluster;
+		}
+		res = fat_delete_clusters(f, new_last_cluster);
 		if (res < 0) return res;
+		fat_timestamps(&f->de.mod_time, &f->de.mod_date, NULL);
+		if (!(c->flags & O_NOATIME)) f->de.acc_date = f->de.mod_date;
 		f->de.file_size = length;
-		/* Syncronize the cached file position of all open instances of a file */
-		/* TODO: NONSENSE */
-		for (d = v->channels_open; d; d = d->next)
-			if ((d->f == c->f) && (d->file_pointer > c->file_pointer))
-			{
-				d->cluster_index = c->cluster_index;
-				d->cluster = c->cluster;
-			}
+		f->de.attr |= FAT_AARCHIV;
+		f->de_changed = true;
+		if (c->flags & O_SYNC)
+		{
+			res = fat_sync(f->v);
+			if (res < 0) return res;
+		}
+		/* Reset the cached cluster address for all open instances of the file */
+		for (c = f->v->channels_open; c; c = c->next)
+			if (c->f == f) c->cluster_index = 0;
 	}
 	else if (length > f->de.file_size)
-		return do_write(f, NULL, length - f->de.file_size, f->de.file_size);
+		return fat_do_write(c, NULL, length - f->de.file_size, f->de.file_size);
 	return 0;
 }
-#endif
 #endif /* #if FAT_CONFIG_WRITE */
 
 
-#if 0
-int fat_fstat(struct File *file, struct stat *buf)
+#if !FAT_CONFIG_FD32
+int fat_fstat(Channel *c, struct stat *buf)
 {
-	if (!file || !buf) return -EINVAL;
-	struct PFile *pf = file->pf;
-	buf->st_mode = (mode_t) 0; //TODO: Convert attributes to mode
-	buf->st_ino = (ino_t) pf->first_cluster;
-	buf->st_dev = (dev_t) pf->v;
-	buf->st_nlink = (nlink_t) pf->inode.links_count;
-	buf->st_uid = (uid_t) 0; //pf->inode.uid;
-	buf->st_gid = (gid_t) 0; //pf->inode.gid;
-	buf->st_size = (off_t) pf->inode.file_size;
-	buf->st_atim.tv_sec = (time_t) pf->inode.acc_time;
-	buf->st_atim.tv_nsec = (unsigned long int) 0;
-	buf->st_mtim.tv_sec = (time_t) pf->inode.mod_time;
-	buf->st_mtim.tv_nsec = (unsigned long int) 0;
-	buf->st_ctim.tv_sec = (time_t) pf->inode.cre_time;
-	buf->st_ctim.tv_nsec = (unsigned long int) 0;
-	buf->st_blocks = (blkcnt_t) pf->inode.clusters_count
-	               << (pf->v->sb->log_sectors_per_cluster + pf->v->sb->log_bytes_per_sector - 9);
-	buf->st_blksize = (unsigned int) pf->v->cluster_bytes;
+	struct tm tm;
+	File *f;
+	if (!c || !buf) return -EFAULT;
+	f = c->f;
+	buf->st_mode  = 0; //TODO: Convert attributes to mode
+	buf->st_ino   = (ino_t) f->first_cluster;
+	buf->st_dev   = (dev_t) f->v;
+	buf->st_nlink = 0;
+	buf->st_uid   = 0;
+	buf->st_gid   = 0;
+	buf->st_size  = 0;
+	unpack_dos_time_stamps(f->de.acc_date, 0, 0, &tm);
+	buf->st_atim.tv_sec  = mktime(&tm);
+	buf->st_atim.tv_nsec = 0;
+	unpack_dos_time_stamps(f->de.mod_date, f->de.mod_time, 0, &tm);
+	buf->st_mtim.tv_sec  = mktime(&tm);
+	buf->st_mtim.tv_nsec = 0;
+	unpack_dos_time_stamps(f->de.cre_date, f->de.cre_time, f->de.cre_time_hund, &tm);
+	buf->st_ctim.tv_sec  = mktime(&tm);
+	buf->st_ctim.tv_nsec = (f->de.cre_time_hund % 100) * 10000000;
+	buf->st_blocks  = 0;
+	buf->st_blksize = f->v->bytes_per_sector;
+	if (!(f->de.attr & FAT_ADIR))
+	{
+		buf->st_blocks = (f->de.file_size + 511) >> 9;
+		buf->st_size  = (off_t) f->de.file_size;
+	}
 	return 0;
 }
 #endif
