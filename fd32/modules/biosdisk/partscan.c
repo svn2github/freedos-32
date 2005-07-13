@@ -114,7 +114,7 @@ static int add_partition(const Disk *d, const char *name, unsigned part, PartTab
     DWORD  type;
     char   new_name[256];
     Disk  *new_d;
-    
+
     if ((p->type != PART_EMPTY)
      && (p->type != PART_EXT_DOS)
      && (p->type != PART_EXT_WIN)
@@ -169,7 +169,7 @@ int biosdisk_scanpart(const Disk *d, const char *dev_name)
     int       res;
     BYTE      buffer[d->block_size];
     DWORD     ext_start = 0, ext_start1 = 0;
-    
+
     if (d->total_blocks / (d->bios_h * d->bios_s) > 1024)
     {
         fd32_message("Media is too big to be addressed using CHS (has more than 1024 cylinders).\n");
@@ -184,7 +184,7 @@ int biosdisk_scanpart(const Disk *d, const char *dev_name)
     /* Read the MBR and copy the partition table in the tbl array */
     res = biosdisk_read(d, 0, 1, buffer);
     if (res < 0) return res;
-    memcpy(tbl, buffer + 446, 64);
+    memcpy(tbl, buffer + 446, sizeof(PartTabl)*4);
 
     /* If there are no active partitions, mark the first primary as active */
     for (k = 0; k < 4; k++) if (tbl[k].active) break;
@@ -223,7 +223,7 @@ int biosdisk_scanpart(const Disk *d, const char *dev_name)
     if (!ext_start) return 0;
     for (;;)
     {
-        memcpy(tbl, buffer + 446, 64);
+        memcpy(tbl, buffer + 446, sizeof(PartTabl)*4);
         for (k = 0; k < 4; k++)
         {
             if ((tbl[k].type != PART_EMPTY)
