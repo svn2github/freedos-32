@@ -247,7 +247,6 @@ static int fetch_lfn(const Channel *c, LookupData *lud)
 			lud->lfn_length = lfn_length;
 			break;
 		}
-		order++;
 	}
 	return 0;
 }
