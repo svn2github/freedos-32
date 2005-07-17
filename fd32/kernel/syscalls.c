@@ -50,7 +50,7 @@ extern int identify_module(struct kern_funcs *p, int file, struct read_funcs *pa
 extern void process_dos_module(struct kern_funcs *p, int file,
 	struct read_funcs *parser, char *cmdline);
 int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num,
-		struct symbol *symbol_array);
+	struct symbol *symbol_array);
 
 static void fake_get_date(fd32_date_t *D)
 {
@@ -62,6 +62,46 @@ static void fake_get_date(fd32_date_t *D)
 static void fake_get_time(fd32_time_t *T)
 {
   memset(T, 0, sizeof(fd32_time_t));
+}
+
+static void *memcpy2(void *dest, const void *src, size_t size)
+{
+  size_t i, j, m, n = size>>3;
+  BYTE *src_p8 = (BYTE *)src;
+  BYTE *dest_p8 = (BYTE *)dest;
+#ifdef __MMX__
+  #include <mmintrin.h>
+  __m64 *src_p64 = (__m64 *)src;
+  __m64 *dest_p64 = (__m64 *)dest;
+#else
+  QWORD *src_p64 = (QWORD *)src;
+  QWORD *dest_p64 = (QWORD *)dest;
+#endif
+
+  /* Copy 8 uint64_t one time */
+  m = n>>3;
+  for (i = 0; i < m; i ++)
+  {
+    j = i<<3;
+    dest_p64[j+0] = src_p64[j+0];
+    dest_p64[j+1] = src_p64[j+1];
+    dest_p64[j+2] = src_p64[j+2];
+    dest_p64[j+3] = src_p64[j+3];
+    dest_p64[j+4] = src_p64[j+4];
+    dest_p64[j+5] = src_p64[j+5];
+    dest_p64[j+6] = src_p64[j+6];
+    dest_p64[j+7] = src_p64[j+7];
+  }
+
+  /* Remainder 1 */
+  for (i = n&(~0x07); i < n; i++)
+    dest_p64[i] = src_p64[i];
+
+  /* Remainder 2 */
+  for (i = size&(~0x07); i < size; i++)
+    dest_p8[i] = src_p8[i];
+
+  return dest;
 }
 
 /* TODO: Rename misleading "syscall_table" and make it dynamic
@@ -118,6 +158,7 @@ static struct symbol syscall_table[] = {
   { "GDT_base",  (DWORD) (&GDT_base) },
   { "gdt_read",  (DWORD) gdt_read    },
   /* Symbols for libc functions */
+  { "memcpy",  (DWORD) memcpy2 },
   { "strchr",  (DWORD) strchr  },
   { "strcpy",  (DWORD) strcpy  },
   { "strncpy", (DWORD) strncpy },
@@ -296,11 +337,11 @@ int add_call(char *name, DWORD address, int mode)
     } else {
       i = 0;
       while (syscall_table[i].name != 0) {
-	i++;
+        i++;
       }
       
       if (syscall_table[i].address != 0xFFFFFFFF) {
-	return -1;
+        return -1;
       }
       res = 1;
       syscall_table[i].name = name;

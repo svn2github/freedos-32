@@ -25,7 +25,7 @@ clean :
 	$(RM) *.o
 
 clockdrv.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -o clockdrv.o
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o clockdrv.o
 
 # Common rules
 %.o : %.c
