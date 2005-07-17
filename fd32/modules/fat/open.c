@@ -32,7 +32,7 @@
 static File *file_is_open(const Volume *v, Cluster first_cluster, Sector de_sector, unsigned de_secoff)
 {
 	File *f;
-	for (f = v->files_open; f; f = f->next)
+	for (f = (File *) v->files_open.begin; f; f = f->next)
 	{
 		if (first_cluster && (f->first_cluster == first_cluster)) return f;
 		if (!first_cluster && (f->de_sector == de_sector) && (f->de_secoff == de_secoff)) return f;
@@ -44,8 +44,8 @@ static File *file_is_open(const Volume *v, Cluster first_cluster, Sector de_sect
 /* Gets and initialize a struct File */
 static File *file_get(Volume *v, const struct fat_direntry *de, Sector de_sector, unsigned de_secoff)
 {
-	File *f = slabmem_alloc(&v->files);
-	list_push_front((ListItem **) &v->files_open, (ListItem *) f);
+	File *f = slabmem_alloc(&v->files_slab);
+	list_push_front(&v->files_open, (ListItem *) f);
 	memcpy(&f->de, de, sizeof(struct fat_direntry));
 	f->de_changed    = false;
 	f->de_sector     = de_sector;
@@ -79,8 +79,8 @@ static int file_put(File *f)
 			if (res < 0) return res;
 		}
 		#endif
-		list_erase((ListItem **) &v->files_open, (ListItem *) f);
-		slabmem_free(&v->files, f);
+		list_erase(&v->files_open, (ListItem *) f);
+		slabmem_free(&v->files_slab, f);
 	}
 	return f->references;
 }
@@ -89,8 +89,8 @@ static int file_put(File *f)
 /* Gets and initialize a struct Channel */
 static Channel *channel_get(File *f, int flags)
 {
-	Channel *c = slabmem_alloc(&f->v->channels);
-	list_push_front((ListItem **) &f->v->channels_open, (ListItem *) c);
+	Channel *c = slabmem_alloc(&f->v->channels_slab);
+	list_push_front(&f->v->channels_open, (ListItem *) c);
 	c->file_pointer   = 0;
 	c->f              = f;
 	c->magic          = FAT_CHANNEL_MAGIC;
@@ -288,19 +288,13 @@ int fat_close(Channel *c)
 		res = file_put(c->f);
 		if (res < 0) return res;
 		c->magic = 0;
-		list_erase((ListItem **) &v->channels_open, (ListItem *) c);
-		slabmem_free(&v->channels, c);
+		list_erase(&v->channels_open, (ListItem *) c);
+		slabmem_free(&v->channels_slab, c);
 	}
 	#if FAT_CONFIG_DEBUG
 	LOG_PRINTF(("[FAT2] fat_flose. Volume buffers: %u hits, %u misses on %u\n",
 	            v->buf_hit, v->buf_miss, v->buf_access));
-	unsigned k;
-	Channel *d;
-	File *e;
-	for (k = 0, d = v->channels_open; d; d = d->next, k++);
-	LOG_PRINTF(("[FAT2] %u channels open, ", k));
-	for (k = 0, e = v->files_open; e; e = e->next, k++);
-	LOG_PRINTF(("%u files open.\n", k));
+	LOG_PRINTF(("[FAT2] %u channels open, %u files open.\n", v->channels_open.size, v->files_open.size));
 	#endif
 	return 0;
 }

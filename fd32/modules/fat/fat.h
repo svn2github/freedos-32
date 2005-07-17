@@ -27,13 +27,13 @@
 
 /* Compile time options for the FAT driver */
 #define FAT_CONFIG_LFN       1 /* Enable Long File Names */
-#define FAT_CONFIG_WRITE     1 /* Enable write facilities */
+#define FAT_CONFIG_WRITE     0 /* Enable write facilities */
 #define FAT_CONFIG_REMOVABLE 1 /* Enable support for media change */
 #define FAT_CONFIG_FD32      1 /* Enable FD32 devices */
 #define FAT_CONFIG_DEBUG     0 /* Enable log output */
 
 #if FAT_CONFIG_WRITE
- //#error The FAT driver 2.0 is not yet ready for write support!
+ #error The FAT driver 2.0 is not yet ready for write support!
 #endif
 
 #if !FAT_CONFIG_FD32
@@ -126,8 +126,9 @@ struct LookupData
 /* A buffer containing one or more contiguous sectors */
 struct Buffer
 {
+	Buffer *prev; /* from ListItem */
+	Buffer *next; /* from ListItem */
 	const Volume *v;
-	Buffer  *next;
 	Sector   sector; /* First sector of this buffer */
 	unsigned count;  /* Sectors in this buffer */
 	int      flags;
@@ -183,14 +184,13 @@ struct Volume
 	unsigned  num_buffers;
 	Buffer   *buffers;
 	uint8_t  *buffer_data;
-	Buffer   *buffer_lru;
-	Buffer   *buffer_mru;
+	List      buffers_lru;
 
 	/* Files */
-	slabmem_t files;
-	slabmem_t channels;
-	File     *files_open;
-	Channel  *channels_open;
+	slabmem_t files_slab;
+	slabmem_t channels_slab;
+	List      files_open;
+	List      channels_open;
 
 	/* A per-volume LookupData to avoid using too much stack */
 	LookupData lud;
@@ -244,6 +244,9 @@ int     fat32_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 int fat_build_fcb_name(const struct nls_operations *nls, uint8_t *dest, const char *source, bool wildcards);
 int fat_do_readdir(Channel *c, LookupData *lud);
 int fat_lookup(Channel *c, const char *fn, size_t fnsize, LookupData *lud);
+#if FAT_CONFIG_WRITE
+int fat_link(Channel *c, const char *fn, size_t fnsize, int attr, LookupData *lud);
+#endif
 
 /* dos.c */
 int fat_findfirst(Volume *v, const char *fn, int attr, fd32_fs_dosfind_t *df);
@@ -260,6 +263,7 @@ off_t   fat_lseek    (Channel *c, off_t offset, int whence);
 ssize_t fat_read     (Channel *c, void *buffer, size_t size);
 int     fat_get_attr (Channel *c, fd32_fs_attr_t *a);
 #if FAT_CONFIG_WRITE
+ssize_t fat_do_write (Channel *c, const void *buffer, size_t size, off_t offset);
 ssize_t fat_write    (Channel *c, const void *buffer, size_t size);
 int     fat_ftruncate(Channel *c, off_t length);
 int     fat_set_attr (Channel *c, const fd32_fs_attr_t *a);

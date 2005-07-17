@@ -34,11 +34,18 @@
 static const char *invalid_sfn_characters = "\"+,./:;<=>[\\]|*"; /* '?' handled separately */
 
 
-/* Converts a part (the name or the extension) of a file name in UTF-8 to
- * the FCB format, allowing wildcards if required.
- * The source string may be not null terminated, the converted string is not.
- * Returns: 0 success; >0 success, some inconvertable characters replaced with '_'
- *          or name truncated due to "dest_size"; <0 error.
+/**
+ * \brief Converts a part (the name or the extension) of a file name to the FCB format.
+ * \param nls       NLS operations to use for character set conversion;
+ * \param dest      array to hold the converted part in a national code page, not null terminated;
+ * \param dest_size size in bytes of \c dest;
+ * \param src       array holding the part to convert in UTF-8, not null terminated;
+ * \param src_size  size in bytes of \c src;
+ * \param wildcards \c true to allow \c '*' and \c '?' wildcards, false otherwise.
+ * \retval 0  success;
+ * \retval >0 success, some inconvertable characters replaced with \c '_' or name
+ *            truncated due to \c dest_size;
+ * \retval <0 error.
  */
 static int build_fcb_name_part(const struct nls_operations *nls, uint8_t *dest, size_t dest_size,
                                const char *src, size_t src_size, bool wildcards)
@@ -58,9 +65,7 @@ static int build_fcb_name_part(const struct nls_operations *nls, uint8_t *dest, 
 			break;
 		}
 		skip = nls->wctomb(dest, wc, dest_size);
-		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size);
-		if (skip == -ENAMETOOLONG) return 1;
-		else
+		if (skip > 0)
 		{
 			const char *c;
 			assert(skip > 0);
@@ -69,9 +74,12 @@ static int build_fcb_name_part(const struct nls_operations *nls, uint8_t *dest, 
 			for (c = invalid_sfn_characters; *c; c++)
 				if (*dest == *c) return -EINVAL;
 			*dest = nls->toupper(*dest);
-			dest_size -= skip;
-			dest += skip;
 		}
+		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size), res = 1;
+		if (skip == -ENAMETOOLONG) return 1;
+		if (skip < 0) return skip;
+		dest_size -= skip;
+		dest += skip;
 	}
 	return res;
 }
@@ -177,12 +185,11 @@ static const unsigned lfn_chars[LFN_CHARS_PER_SLOT] =
 /* Computes and returns the 8-bit checksum for a LFN from the
  * corresponding short name directory entry.
  */
-static uint8_t lfn_checksum(const struct fat_direntry *de)
+static int lfn_checksum(const uint8_t *name)
 {
-	uint8_t sum = 0;
-	size_t i;
-	for (i = 0; i < sizeof(de->name); i++)
-		sum = (((sum & 1) << 7) | ((sum & 0xFE) >> 1)) + de->name[i];
+	int sum = 0;
+	unsigned k = 11;
+	while (k--) sum = (((sum & 1) << 7) | ((sum & 0xFE) >> 1)) + *name++;
 	return sum;
 }
 
@@ -200,7 +207,7 @@ static int fetch_lfn(const Channel *c, LookupData *lud)
 	unsigned k, j, order;
 	bool semi = false;
 	wchar_t wc = 0; /* avoid warning */
-	uint8_t checksum = lfn_checksum(&lud->cde[lud->cde_pos]);
+	uint8_t checksum = lfn_checksum(lud->cde[lud->cde_pos].name);
 	lud->lfn_entries = 0;
 	lud->lfn_length = 0;
 	for (order = 1, k = lud->cde_pos; ; order++)
@@ -250,7 +257,239 @@ static int fetch_lfn(const Channel *c, LookupData *lud)
 	}
 	return 0;
 }
-#endif /* if FAT_CONFIG_LFN */
+
+
+#if FAT_CONFIG_WRITE
+/* Splits the long file name in the string LongName to fit in up to 20 */
+/* LFN slots, using the short name of the dir entry D to compute the   */
+/* short name checksum.                                                */
+/* On success, returns 0 and fills the Slot array with LFN entries and */
+/* NumSlots with the number of entries occupied.                       */
+/* On failure, returns a negative error code.                          */
+/* Called by allocate_lfn_dir_entries.                                 */
+static int split_lfn(const char *fn, size_t fn_size, unsigned checksum, LookupData *lud)
+{
+	unsigned name_pos = 0;
+	unsigned slot_pos = 0;
+	unsigned order    = 0;
+	uint16_t utf16[2];
+	wchar_t  wc;
+	int      res, k;
+	struct fat_lfnentry *slot = (struct fat_lfnentry *) &lud->cde[LFN_FETCH_SLOTS - 2];
+
+	for (;;)
+	{
+		res = unicode_utf8towc(&wc, fn, fn_size);
+		if (res < 0) return res;
+		if (!wc) break;
+		fn += res;
+		fn_size -= res;
+		res = unicode_wctoutf16(utf16, wc, sizeof(utf16));
+		if (res < 0) return res;
+		for (k = 0; k < res; k++)
+		{
+			if (slot_pos == LFN_CHARS_PER_SLOT) slot_pos = 0, slot--;
+			if (!slot_pos)
+			{
+				order++; /* 1-based numeration */
+				slot->order    = order;
+				slot->attr     = FAT_ALFN;
+				slot->reserved = 0;
+				slot->checksum = (uint8_t) checksum;
+				slot->first_cluster = 0;
+			}
+			*((uint16_t *) ((uint8_t *) slot + lfn_chars[slot_pos])) = utf16[k];
+			if (++name_pos == FAT_LFN_MAX) return -ENAMETOOLONG;
+		}
+	}
+	slot->order |= 0x40; /* last slot */
+	/* Insert a 16-bit NULL terminator, only if it fits into the slots */
+	if (slot_pos < LFN_CHARS_PER_SLOT)
+		*((uint16_t *) ((uint8_t *) slot + lfn_chars[slot_pos])) = 0x0000;
+	/* Pad the remaining 16-bit characters of the slot with FFFFh */
+	while (slot_pos < LFN_CHARS_PER_SLOT)
+		*((uint16_t *) ((uint8_t *) slot + lfn_chars[slot_pos])) = 0xFFFF;
+	lud->lfn_entries = order;
+	return 0;
+
+#if 0
+	wchar_t  sfn[FAT_SFN_MAX];
+	unsigned sfn_length;
+	#if FAT_CONFIG_LFN
+	struct fat_direntry cde[21]; /* Cached directory entries */
+	wchar_t  lfn[FAT_LFN_MAX];
+	unsigned cde_pos;
+	unsigned lfn_length;
+	#else
+	struct fat_direntry cde;
+	#endif
+	Sector   de_sector;
+	unsigned de_secofs;
+	off_t    de_dirofs;
+#endif
+}
+
+
+/// Characters allowed in long file names but not in short names.
+static const wchar_t valid_lfn_characters[] = { 0x2B, 0x2C, 0x3B, 0x3D, 0x5B, 0x5D, 0 }; /* +,;=[] */
+
+/**
+ * \brief   Generates a part of a short file name alias for a long file name.
+ * \param   nls       NLS operations to use for character set conversion;
+ * \param   dest      array to hold the converted part in a national code page, not null terminated;
+ * \param   dest_size size in bytes of \c dest;
+ * \param   src       array holding the part to convert in UTF-8, may be not null terminated;
+ * \param   src_size  size in bytes of \c src;
+ * \retval   0 success, the name fitted in the short namespace;
+ * \retval  >0 success, the name did not fit in the short namespace;
+ * \retval  <0 error.
+ * \remarks Spaces and dots are removed, inconvertable characters are replaced with
+ *          \c '_', all characters are converted to upper case and the name may be
+ *          truncated due to \c dest_size.
+ * \sa      build_fcb_name_part()
+ */
+static int gen_short_fname_part(const struct nls_operations *nls, uint8_t *dest, size_t dest_size,
+                                const char *src, size_t src_size)
+{
+	int res = 0;
+	int skip;
+	wchar_t wc;
+	const wchar_t *wcp;
+	while (*src && src_size)
+	{
+		skip = unicode_utf8towc(&wc, src, src_size);
+		if (skip < 0) return skip;
+		src_size -= skip;
+		src += skip;
+		if ((wc == ' ') || (wc == '.'))
+		{
+			res = 1;
+			continue;
+		}
+		for (wcp = valid_lfn_characters; *wcp; wcp++)
+			if (wc == *wcp)
+			{
+				wc = '_';
+				res = 1;
+				break;
+			}
+		skip = nls->wctomb(dest, wc, dest_size);
+		if (skip > 0)
+		{
+			const char *c;
+			assert(skip > 0);
+			if (*dest < 0x20) return -EINVAL;
+			for (c = invalid_sfn_characters; *c; c++)
+				if (*dest == *c) return -EINVAL;
+			skip = nls->toupper(*dest);
+			if (skip != *dest) res = 1;
+			*dest = skip;
+		}
+		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size), res = 1;
+		if (skip == -ENAMETOOLONG) return 1;
+		if (skip < 0) return skip;
+		dest_size -= skip;
+		dest += skip;
+	}
+	return res;
+}
+
+
+/* Generates a valid 8.3 file name from a valid long file name. */
+/* The generated short name has not a numeric tail.             */
+/* Returns 0 on success, or a negative error code on failure.   */
+static int gen_short_fname1(const struct nls_operations *nls, uint8_t *dest, const char *src, size_t src_size)
+{
+	int res1, res2 = 0;
+	const char *dot = NULL; /* Position of the last embedded dot in Source */
+	const char *s;
+
+	memset(dest, 0x20, 11);
+	/* If source is "." or ".." build ".          " or "..         " */
+	if (*src == '.')
+	{
+		if (*(src + 1) == 0)
+		{
+			*dest = '.';
+			return 0;
+		}
+		if ((*(src + 1) == '.') && (*(src + 2) == 0))
+		{
+			*dest++ = '.';
+			*dest = '.';
+			return 0;
+		}
+	}
+
+	/* Not "." nor "..". Find the last embedded dot, if present */
+	for (s = src + 1; *s; s++)
+		if ((*s == '.') && (*(s - 1) != '.') && (*(s + 1) != '.') && *(s + 1))
+			dot = s;
+
+	res1 = gen_short_fname_part(nls, dest, 8, src, dot ? dot - src : (size_t) -1);
+	if (res1 < 0) return res1;
+	if (dot)
+	{
+		res2 = gen_short_fname_part(nls, dest + 8, 3, dot + 1, (size_t) -1);
+		if (res2 < 0) return res2;
+	}
+	if (*dest == ' ') return -EINVAL;
+	if (*dest == FAT_FREEENT) *dest = 0x05;
+	return res1 || res2;
+
+}
+
+
+/* Generate a valid 8.3 file name for a long file name, and makes sure */
+/* the generated name is unique in the specified directory appending a */
+/* "~Counter" if necessary.                                            */
+/* Returns 0 if the passed long name is already a valid 8.3 file name  */
+/* (including upper case), thus no extra directory entry is required.  */
+/* Returns a positive number on successful generation of a short name  */
+/* alias for a long file name which is not a valid 8.3 name.           */
+/* Returns a negative error code on failure.                           */
+/* Called by allocate_lfn_dir_entries (direntry.c).                    */
+static int gen_short_fname(Channel *c, uint8_t *dest, const char *src, unsigned hint)
+{
+	struct fat_direntry de;
+	char     strcounter[7]; /* "~65535" */
+	uint8_t  aux[11];
+	Volume  *v = c->f->v;
+	unsigned counter;
+	int      res;
+
+	res = gen_short_fname1(v->nls, dest, src, strlen(src));
+	if (res <= 0) return res;
+	for (counter = hint; counter <= UINT16_MAX; counter++)
+	{
+		int k;
+		uint8_t *b = aux;
+		int len = snprintf(strcounter, sizeof(strcounter), "~%d", counter);
+		if (len >= sizeof(strcounter)) break;
+		for (k = 8 - len; k && (*b != ' '); k -= res, b += res)
+			res = v->nls->mblen(b, k);
+		strcpy(b, strcounter);
+		/* Search for the generated name */
+		c->file_pointer = 0;
+		for (;;)
+		{
+			res = fat_read(c, &de, sizeof(struct fat_direntry));
+			if (!res || (de.name[0] == FAT_ENDOFDIR))
+			{
+				memcpy(dest, aux, sizeof(aux));
+				return 1;
+			}
+			if (res < 0) return res;
+			if (res != sizeof(struct fat_direntry)) return -EIO; /* malformed directory */
+			if ((de.name[0] != FAT_FREEENT)
+			 && (!(de.attr & FAT_AVOLID) || (de.attr == FAT_AVOLID))
+			 && !memcmp(de.name, aux, sizeof(aux))) break; /* name collision */
+		}
+	}
+	return -EEXIST;
+}
+#endif /* #if FAT_CONFIG_WRITE */
+#endif /* #if FAT_CONFIG_LFN */
 
 
 /*****************************************************************************
@@ -387,3 +626,132 @@ int fat_lookup(Channel *c, const char *fn, size_t fnsize, LookupData *lud)
 	if (res == -ENMFILE) res = -ENOENT;
 	return res;
 }
+
+
+#if FAT_CONFIG_WRITE
+/**
+ * \brief  Marks as free the specified directory entries.
+ * \param  c     the open directory to free entries in;
+ * \param  from  byte offset of the first entry to delete;
+ * \param  count number of adjacent entries to delete;
+ * \return 0 on success, or a negative error.
+ */
+static int delete_entries(Channel *c, off_t from, size_t count)
+{
+	uint8_t b = FAT_FREEENT;
+	ssize_t res;
+	while (count--)
+	{
+		res = fat_do_write(c, &b, 1, from);
+		if (res < 0) return res;
+		if (res != 1) return -EIO;
+		from += sizeof(struct fat_direntry);
+	}
+	return 0;
+}
+
+
+/**
+ * \brief   Searches an open directory for free adjacent entries.
+ * \param   c the directory to search into;
+ * \param   num_entries number of free adjacent entries to find;
+ * \return  The not negative byte offset of the first free entry, or a negative error.
+ * \remarks The directory is extended, if possible, to find free entries.
+ */
+static int find_free_entries(Channel *c, unsigned num_entries)
+{
+	struct fat_direntry de;
+	unsigned found = 0;
+	int      entry_offset = 0;
+	ssize_t  res;
+	
+	c->file_pointer = 0;
+	for (;;)
+	{
+		res = fat_read(c, &de, sizeof(struct fat_direntry));
+		if (res != sizeof(struct fat_direntry)) break;
+		if ((de.name[0] = FAT_FREEENT) || (de.name[0] == FAT_ENDOFDIR))
+		{
+			if (found > 0) found++;
+			else
+			{
+				found        = 1;
+				entry_offset = c->file_pointer - res;
+			}
+		}
+		else found = 0;
+		if (found == num_entries) return entry_offset;
+	}
+	if (res)
+	{
+		if (res < 0) return res;
+		if (res != sizeof(struct fat_direntry)) return -EIO; /* malformed directory */
+	}
+	/* Here the directory is at EOF, hence we try to extend it by writing
+	 * a whole cluster filled with zeroes, finding free directory entries
+	 * at the beginning of that cluster. */
+	entry_offset = c->file_pointer;
+	found = 1 << (c->f->v->log_bytes_per_sector + c->f->v->log_sectors_per_cluster); /* bytes per cluster */
+	res = fat_do_write(c, NULL, found, c->file_pointer);
+	if (res < 0) return res;
+	if (res != found) return -EIO; /* malformed directory */
+	return entry_offset;
+}
+
+
+/* Allocates 32-bytes directory entries of the specified open directory */
+/* to store a long file name, using D as directory entry for the short  */
+/* name alias.                                                          */
+/* On success, returns the byte offset of the short name entry.         */
+/* On failure, returns a negative error code.                           */
+/* Called fat_creat and fat_rename.                                     */
+int fat_link(Channel *c, const char *fn, size_t fn_size, int attr, unsigned hint, LookupData *lud)
+{
+	int res;
+	unsigned k;
+	Volume *v = c->f->v;
+	#if FAT_CONFIG_LFN
+	struct fat_direntry *de = lud->cde[LFN_FETCH_SLOTS - 1];
+	lud->cde_pos = LFN_FETCH_SLOTS - 1;
+	lud->lfn_entries = 0;
+	res = gen_short_fname(c, file_name, de->name, hint);
+	if (res < 0) return res;
+	if (res)
+	{
+		res = split_lfn(fn, fn_size, lfn_checksum(de->name), lud);
+		if (res < 0) return res;
+	}
+	res = find_free_entries(c, lud->lfn_entries + 1);
+	#else
+	struct fat_direntry *de = &lud->cde;
+	res = fat_build_fcb_name(v->nls, de->name, fn, false);
+	if (res < 0) return res;
+	res = find_free_entries(c, 1);
+	#endif
+	if (res < 0) return res;
+	/* Write the new directory entries into the free entries */
+	c->file_pointer = res;
+	#if FAT_CONFIG_LFN
+	de -= lud->lfn_entries;
+	for (k = 0; k < lud->lfn_entries; k++, de++)
+	{
+	#endif
+		res = fat_do_write(c, de, sizeof(struct fat_direntry), c->file_pointer);
+		if (res < 0) return res;
+		if (res != sizeof(struct fat_direntry)) return -EIO; /* malformed directory */
+		c->file_pointer += res;
+	#if FAT_CONFIG_LFN
+	}
+	#endif
+	/* Compute the location of the directory entry */
+	lud->de_dirofs = c->file_pointer - res;
+	lud->de_sector = lud->de_dirofs >> v->log_bytes_per_sector;
+	if (!f->de_sector && !f->first_cluster)
+		lud->de_sector += v->root_sector;
+	else
+		lud->de_sector = (lud->de_sector & (v->sectors_per_cluster - 1))
+	                       + ((c->cluster - 2) << v->log_sectors_per_cluster) + v->data_start;
+	lud->de_secofs = lud->de_dirofs & (v->bytes_per_sector - 1);
+	return 0;
+}
+#endif /* #if FAT_CONFIG_WRITE */

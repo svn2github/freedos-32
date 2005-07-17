@@ -549,13 +549,18 @@ static slabmem_t searches_cache =
 	.free_objs = NULL
 };
 
-static struct Search *searches_open = NULL;
+static List searches_open =
+{
+	.begin = NULL,
+	.end   = NULL,
+	.size  = 0
+};
 
 
 static struct Search *search_get(void)
 {
 	struct Search *p = (struct Search *) slabmem_alloc(&searches_cache);
-	list_push_front((ListItem **) &searches_open, (ListItem *) p);
+	list_push_front(&searches_open, (ListItem *) p);
 	return p;
 }
 
@@ -565,7 +570,7 @@ static void search_put(struct Search *p)
 	//assert(p->refs);
 	//if (--p->refs == 0)
 	//{
-		list_erase((ListItem **) &searches_open, (ListItem *) p);
+		list_erase(&searches_open, (ListItem *) p);
 		slabmem_free(&searches_cache, p);
 	//}
 }

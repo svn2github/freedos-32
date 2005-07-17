@@ -12,7 +12,7 @@ int main()
 	nls_init();
 	res = fat_mount("../img/floppy.img", &v);
 	printf("Mount: %i (%s)\n", res, strerror(-res));
-	#if 1
+	#if 0
 	res = fat_open(v, "\\autoexec.bat", NULL, O_RDWR, 0, &c);
 	printf("Open: %i (%s)\n", res, strerror(-res));
 	#if 0 /* write */
@@ -52,7 +52,7 @@ int main()
 	#endif
 	#if 0
 	fd32_fs_dosfind_t df;
-	res = fat_findfirst(v, "\\grub\\menu.lst", FAT_ANOVOLID, &df);
+	res = fat_findfirst(v, "\\provo\\*.*", FAT_ANOVOLID, &df);
 	if (res >= 0) printf("'%s'\n", df.Name);
 	do
 	{
@@ -61,5 +61,47 @@ int main()
 	}
 	while (res >= 0);
 	#endif
+	#if 1
+	fd32_fs_lfnfind_t f;
+	res = fat_open(v, "\\provo", NULL, O_RDONLY | O_DIRECTORY, 0, &c);
+	printf("Open: %i (%s)\n", res, strerror(-res));
+	while ((res = fat_findfile(c, "*", strlen("*"), FD32_ANOVOLID, &f)) == 0)
+		printf("find: %i (%s) '%s'\n", res, strerror(-res), f.LongName);
+	res = fat_close(c);
+	printf("Close: %i (%s)\n", res, strerror(-res));
+	//res = fat_unmount(v);
+	//printf("Unmount: %i (%s)\n", res, strerror(-res));
+	#endif
+	#if 1
+	fd32_fs_dosfind_t df;
+	res = fat_findfirst(v, "\\provo\\*.*", FAT_ANOVOLID, &df);
+	if (res >= 0) printf("'%s'\n", df.Name);
+	do
+	{
+		res = fat_findnext(v, &df);
+		if (res >= 0) printf("'%s'\n", df.Name);
+	}
+	while (res >= 0);
+	#endif
+	res = fat_open(v, "\\provo", NULL, O_RDONLY | O_DIRECTORY, 0, &c);
+	printf("Open: %i (%s)\n", res, strerror(-res));
+	while ((res = fat_findfile(c, "*", strlen("*"), FD32_ANOVOLID, &f)) == 0)
+		printf("find: %i (%s) '%s'\n", res, strerror(-res), f.LongName);
+	res = fat_close(c);
+	printf("Close: %i (%s)\n", res, strerror(-res));
+	res = fat_open(v, "\\provo", NULL, O_RDONLY | O_DIRECTORY, 0, &c);
+	printf("Open: %i (%s)\n", res, strerror(-res));
+	while ((res = fat_findfile(c, "*", strlen("*"), FD32_ANOVOLID, &f)) == 0)
+		printf("find: %i (%s) '%s'\n", res, strerror(-res), f.LongName);
+	res = fat_close(c);
+	printf("Close: %i (%s)\n", res, strerror(-res));
+	res = fat_findfirst(v, "\\provo\\*.*", FAT_ANOVOLID, &df);
+	if (res >= 0) printf("'%s'\n", df.Name);
+	do
+	{
+		res = fat_findnext(v, &df);
+		if (res >= 0) printf("'%s'\n", df.Name);
+	}
+	while (res >= 0);
 	return 0;
 }

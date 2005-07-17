@@ -38,13 +38,12 @@ enum
  */
 static Buffer *find_buffer(Volume *v, Sector sector)
 {
-	unsigned k;
-	Buffer *b;
-	for (k = 0; k < v->num_buffers; k++)
+	unsigned k = v->num_buffers;
+	Buffer  *b = v->buffers;
+	for (; k--; b++)
 	{
-		b = &v->buffers[k];
 		if ((b->flags & BUF_VALID) && (sector >= b->sector) && (sector < b->sector + b->count))
-			return &v->buffers[k];
+			return b;
 	}
 	return NULL;
 }
@@ -125,8 +124,9 @@ int fat_dirtybuf(Buffer *b, bool write_through)
  */
 int fat_trashbuf(Volume *v)
 {
-	Buffer *b;
-	for (b = v->buffer_lru; b; b = b->next)
+	unsigned k = v->num_buffers;
+	Buffer  *b = v->buffers;
+	for (; k--; b++)
 	{
 		if (b->flags & BUF_DIRTY) return -1;
 		b->flags = 0;
@@ -163,11 +163,7 @@ int fat_readbuf(Volume *v, Sector sector, Buffer **buffer, bool read_through)
 		v->buf_hit--;
 		v->buf_miss++;
 		b = *buffer;
-		if (!b)
-		{
-			b = v->buffer_lru;
-			v->buffer_lru = b->next;
-		}
+		if (!b) b = (Buffer *) v->buffers_lru.begin;
 		#if FAT_CONFIG_WRITE
 		res = flush_buffer(b);
 		if (res < 0) return res;
@@ -190,9 +186,8 @@ int fat_readbuf(Volume *v, Sector sector, Buffer **buffer, bool read_through)
 		b->flags = BUF_VALID;
 	}
 	v->buf_access++;
-	v->buffer_mru->next = b;
-	v->buffer_mru = b;
-	b->next = NULL;
+	list_erase(&v->buffers_lru, (ListItem *) b);
+	list_push_back(&v->buffers_lru, (ListItem *) b);
 	*buffer = b;
 	return (sector - b->sector) << v->log_bytes_per_sector;
 }
@@ -236,8 +231,8 @@ static void free_volume(Volume *v)
 {
 	if (v)
 	{
-		slabmem_destroy(&v->files);
-		slabmem_destroy(&v->channels);
+		slabmem_destroy(&v->files_slab);
+		slabmem_destroy(&v->channels_slab);
 		if (v->buffers)
 		{
 			if (v->buffer_data)
@@ -261,7 +256,7 @@ int fat_unmount(Volume *v)
 	#if FAT_CONFIG_FD32
 	int res;
 	#endif
-	if (v->channels_open) return -EBUSY;
+	if (v->channels_open.size) return -EBUSY;
 	#if FAT_CONFIG_FD32
 	/* Restore the original device data for the hosting block device */
 	res = fd32_dev_replace(v->blk_handle, v->blk_request, v->blk_devid);
@@ -304,8 +299,8 @@ int fat_mount(const char *blk_name, Volume **volume)
 	v->magic = FAT_VOL_MAGIC;
 
 	/* Initialize files */
-	slabmem_create(&v->files, sizeof(File));
-	slabmem_create(&v->channels, sizeof(Channel));
+	slabmem_create(&v->files_slab, sizeof(File));
+	slabmem_create(&v->channels_slab, sizeof(Channel));
 
 	#if FAT_CONFIG_FD32
 	res = fd32_dev_get(blk_handle, &v->blk_request, &v->blk_devid, blk_name, 19);
@@ -432,11 +427,9 @@ int fat_mount(const char *blk_name, Volume **volume)
 	for (k = 0, p = v->buffer_data; k < v->num_buffers; k++, p += v->bytes_per_sector * v->sectors_per_buffer)
 	{
 		v->buffers[k].v = v;
-		if (k < v->num_buffers - 1) v->buffers[k].next = &v->buffers[k + 1];
 		v->buffers[k].data = p;
+		list_push_back(&v->buffers_lru, (ListItem *) &v->buffers[k]);
 	}
-	v->buffer_lru = &v->buffers[0];
-	v->buffer_mru = &v->buffers[v->num_buffers - 1];
 
 	/* More pracalcs if FAT32 */
 	v->serial_number = bpb->serial_number;
@@ -555,7 +548,7 @@ int fat_mediachange(Volume *v)
 	mfree(secbuf, bi.BlockSize);
 	if ((v->serial_number != serial_number) || memcmp(v->volume_label, volume_label, 11))
 	{
-		if (v->channels_open) return -EBUSY;
+		if (v->channels_open.size) return -EBUSY;
 		#if 1
 		fat_unmount(v);
 		return -ENOTMOUNT;
@@ -564,7 +557,7 @@ int fat_mediachange(Volume *v)
 		#endif
 	}
 	res = 0;
-	if (!v->channels_open) if (fat_trashbuf(v) < 0) res = -EBUSY;
+	if (!v->channels_open.size) if (fat_trashbuf(v) < 0) res = -EBUSY;
 	return res;
 }
 #endif
