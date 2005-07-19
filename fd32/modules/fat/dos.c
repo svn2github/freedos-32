@@ -140,7 +140,7 @@ int fat_findfirst(Volume *v, const char *fn, int attr, fd32_fs_dosfind_t *df)
 	int res;
 	Channel *c;
 	df->SearchAttr = attr;
-	res = fat_build_fcb_name(v->nls, df->SearchTemplate, bname, true);
+	res = fat_build_fcb_name(v->nls, df->SearchTemplate, bname, strlen(bname), true);
 	if (res < 0) return res;
 	if (res > 0) return -ENOENT; /* Can't exist in the short names namespace */
 	res = fat_open(v, fn, bname, O_RDONLY | O_DIRECTORY, 0, &c);
@@ -302,8 +302,11 @@ int fat_findfile(Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_l
 		struct fat_direntry *de = &lud->cde;
 		#endif
 		if (!(de->attr & unallowed_attr) && ((de->attr & required_attr) == required_attr))
-			if ((lud->lfn_length && !compare_with_wildcards_compat(fn, fnsize, lud->lfn, lud->lfn_length))
-			 || !compare_with_wildcards_compat(fn, fnsize, lud->sfn, lud->sfn_length))
+			if (
+			#if FAT_CONFIG_LFN
+			    (lud->lfn_length && !compare_with_wildcards_compat(fn, fnsize, lud->lfn, lud->lfn_length)) ||
+			#endif
+			    !compare_with_wildcards_compat(fn, fnsize, lud->sfn, lud->sfn_length))
 			{
 				lfnfind->Attr   = (DWORD) de->attr;
 				lfnfind->CTime  = (QWORD) de->cre_time | ((QWORD) de->cre_date << 16);
@@ -312,9 +315,11 @@ int fat_findfile(Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_l
 				lfnfind->SizeHi = 0;
 				lfnfind->SizeLo = de->file_size;
 				/* TODO: Should convert to the code page used by the DPMI driver */
+				#if FAT_CONFIG_LFN
 				if (lud->lfn_length)
 					res = wchar_string_to_utf8(lfnfind->LongName, sizeof(lfnfind->LongName), lud->lfn, lud->lfn_length);
 				else
+				#endif
 					res = wchar_string_to_utf8(lfnfind->LongName, sizeof(lfnfind->LongName), lud->sfn, lud->sfn_length);
 				if (res < 0) return res;
 				/* NOTE: the Windows documentation reports that the returned

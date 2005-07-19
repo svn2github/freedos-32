@@ -74,7 +74,7 @@ static void unpack_dos_time_stamps(int dos_date, int dos_time, int dos_hundreths
  * \param dos_date word to receive the system date in DOS format;
  * \param dos_hund byte to receive the hundredths of seconds past the time in \c dos_time.
  */
-static void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_hund)
+void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_hund)
 {
 	#if FAT_CONFIG_FD32
 	fd32_date_t cur_date;
@@ -355,7 +355,7 @@ int fat_ftruncate(Channel *c, off_t length)
 			if (res < 0) return res;
 		}
 		/* Reset the cached cluster address for all open instances of the file */
-		for (c = f->v->channels_open; c; c = c->next)
+		for (c = (Channel *) f->v->channels_open.begin; c; c = c->next)
 			if (c->f == f) c->cluster_index = 0;
 	}
 	else if (length > f->de.file_size)

@@ -33,7 +33,7 @@
 #define FAT_CONFIG_DEBUG     0 /* Enable log output */
 
 #if FAT_CONFIG_WRITE
- #error The FAT driver 2.0 is not yet ready for write support!
+ //#error The FAT driver 2.0 is not yet ready for write support!
 #endif
 
 #if !FAT_CONFIG_FD32
@@ -228,6 +228,7 @@ struct Channel
 
 
 /* alloc.c */
+void    fat_direntry_location(const Channel *c, LookupData *lud);
 int     fat_get_file_sector(Channel *c, Sector sector_index, Sector *sector);
 int32_t fat12_read(Volume *v, Cluster n, unsigned fat_num);
 int32_t fat16_read(Volume *v, Cluster n, unsigned fat_num);
@@ -241,11 +242,11 @@ int     fat32_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 #endif
 
 /* dir.c */
-int fat_build_fcb_name(const struct nls_operations *nls, uint8_t *dest, const char *source, bool wildcards);
+int fat_build_fcb_name(const struct nls_operations *nls, uint8_t *dest, const char *src, size_t src_size, bool wildcards);
 int fat_do_readdir(Channel *c, LookupData *lud);
 int fat_lookup(Channel *c, const char *fn, size_t fnsize, LookupData *lud);
 #if FAT_CONFIG_WRITE
-int fat_link(Channel *c, const char *fn, size_t fnsize, int attr, LookupData *lud);
+int fat_link(Channel *c, const char *fn, size_t fnsize, int attr, unsigned hint, LookupData *lud);
 #endif
 
 /* dos.c */
@@ -263,6 +264,7 @@ off_t   fat_lseek    (Channel *c, off_t offset, int whence);
 ssize_t fat_read     (Channel *c, void *buffer, size_t size);
 int     fat_get_attr (Channel *c, fd32_fs_attr_t *a);
 #if FAT_CONFIG_WRITE
+void    fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_hund);
 ssize_t fat_do_write (Channel *c, const void *buffer, size_t size, off_t offset);
 ssize_t fat_write    (Channel *c, const void *buffer, size_t size);
 int     fat_ftruncate(Channel *c, off_t length);

@@ -26,6 +26,29 @@
 
 
 /**
+ * \brief   Computes the location of a directory entry.
+ * \param   c   the directory containing the directory entry to locate;
+ * \param   lud LookupData structure to update with the directory entry location.
+ * \remarks It is assumed that this function is called right after reading or
+ *          writing the directory entry. Updates the \c de_dirofs,
+ *          \c de_sector and \c de_secofs fields of \c lud.
+ */
+void fat_direntry_location(const Channel *c, LookupData *lud)
+{
+	const File   *f = c->f;
+	const Volume *v = f->v;
+	lud->de_dirofs = c->file_pointer - sizeof(struct fat_direntry);
+	lud->de_sector = lud->de_dirofs >> v->log_bytes_per_sector;
+	if (!f->de_sector && !f->first_cluster)
+		lud->de_sector += v->root_sector;
+	else
+		lud->de_sector = (lud->de_sector & (v->sectors_per_cluster - 1))
+	                       + ((c->cluster - 2) << v->log_sectors_per_cluster) + v->data_start;
+	lud->de_secofs = lud->de_dirofs & (v->bytes_per_sector - 1);
+}
+
+
+/**
  * \brief   Gets the address of a sector of a file.
  * \param   c            the channel to get the sector of;
  * \param   sector_index index of the sector of the file to get the address of;

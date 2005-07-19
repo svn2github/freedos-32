@@ -119,12 +119,11 @@ static int fat_open1(Channel *restrict parent, Channel **restrict channel, const
 	if (!parent || !channel || !name) return -EFAULT;
 	v = parent->f->v;
 	res = fat_lookup(parent, name, name_size, &v->lud);
-	/* TODO: Implement file creation */
-	#if 0 //FAT_CONFIG_WRITE
+	#if FAT_CONFIG_WRITE
 	if ((res == -ENOENT) && (flags & O_CREAT))
 	{
 		int attr = fat_mode_to_attributes(mode);
-		res = fat_link(parent, name, attr, &v->lud);
+		res = fat_link(parent, name, name_size, attr, 1, &v->lud);
 		if (res < 0) return res;
 		existing = false;
 	}
