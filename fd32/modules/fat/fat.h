@@ -27,7 +27,7 @@
 
 /* Compile time options for the FAT driver */
 #define FAT_CONFIG_LFN       1 /* Enable Long File Names */
-#define FAT_CONFIG_WRITE     0 /* Enable write facilities */
+#define FAT_CONFIG_WRITE     1 /* Enable write facilities */
 #define FAT_CONFIG_REMOVABLE 1 /* Enable support for media change */
 #define FAT_CONFIG_FD32      1 /* Enable FD32 devices */
 #define FAT_CONFIG_DEBUG     0 /* Enable log output */

@@ -55,7 +55,7 @@ static Buffer *find_buffer(Volume *v, Sector sector)
  */
 static int flush_buffer(Buffer *b)
 {
-	if (b->flags & (BUF_VALID | BUF_DIRTY))
+	if ((b->flags & (BUF_VALID | BUF_DIRTY)) == (BUF_VALID | BUF_DIRTY))
 	{
 		const Volume *v = b->v;
 		#if FAT_CONFIG_FD32
