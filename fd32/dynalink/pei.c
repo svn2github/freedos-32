@@ -1,6 +1,6 @@
 /* Dynalynk
  * Portable dynamic linker for object files
- * PE COFF parser part
+ * PEI (Portable Executable Image format) parser part
  * by Hanzac Chen
  * 
  * This is free software; see GPL.txt
@@ -15,11 +15,11 @@ char *strstr(const char *haystack, const char *needle); /* FIXME: Place this in 
 #include "format.h"
 #include "common.h"
 #include "coff.h"
-#include "pecoff.h"
+#include "pei.h"
 
-/* #define __PECOFF_DEBUG__ */
+/* #define __PEI_DEBUG__ */
 
-struct pecoff_extra_info {
+struct pei_extra_info {
   DWORD export_symbol;
   DWORD export_symbol_size;
   DWORD import_symbol;
@@ -31,12 +31,12 @@ struct pecoff_extra_info {
 };
 
 
-DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
+DWORD pei_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 {
   DWORD entry;
   struct external_filehdr header;
   struct pe_aouthdr optheader;
-  struct pecoff_extra_info *pee_info = (struct pecoff_extra_info *)kf->mem_alloc(sizeof(struct pecoff_extra_info));
+  struct pei_extra_info *pee_info = (struct pei_extra_info *)kf->mem_alloc(sizeof(struct pei_extra_info));
   kf->file_seek(f, kf->file_offset, 0);
   kf->file_read(f, &header, sizeof(struct external_filehdr));
   
@@ -46,7 +46,7 @@ DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *table
     kf->message("[PECOFF] Target machine not supported or wrong magic: 0x%x!!!\n", header.f_magic);
     return 0;
   }
-  #ifdef __PECOFF_DEBUG__
+  #ifdef __PEI_DEBUG__
   kf->log("[PECOFF] Number of sections: %d\n", header.f_nscns);
   kf->log("[PECOFF] Flags: %x\n", header.f_flags);
   #endif
@@ -89,14 +89,14 @@ DWORD PECOFF_read_headers(struct kern_funcs *kf, int f, struct table_info *table
   return entry;
 }
 
-int PECOFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *tables, struct section_info *s)
+int pei_read_section_headers(struct kern_funcs *kf, int f, struct table_info *tables, struct section_info *s)
 {
   int i, n;
   char name[9];
   int e_section = -1;
   struct pe_scnhdr h;
-  struct pecoff_extra_info *pee_info;
-  pee_info = (struct pecoff_extra_info *)tables->private_info;
+  struct pei_extra_info *pee_info;
+  pee_info = (struct pei_extra_info *)tables->private_info;
 
   kf->file_seek(f, tables->section_header, 0);
   n = tables->num_sections;
@@ -106,7 +106,7 @@ int PECOFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info 
 
     memcpy(name, h.s_name, 8);
     name[8] = 0;
-    #ifdef __PECOFF_DEBUG__
+    #ifdef __PEI_DEBUG__
     kf->log("[%s]: <0x%lx:0x%lx> (0x%lx)\n", name, h.s_vaddr, h.s_vaddr+h.s_vsize, h.s_paddr);
     #endif
     s[i].base = h.s_vaddr;
@@ -131,7 +131,7 @@ int PECOFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info 
     struct exp_dir edir;
     kf->file_seek(f, s[e_section].fileptr+pee_info->export_symbol-s[e_section].base, 0);
     kf->file_read(f, (void *)&edir, sizeof(struct exp_dir));
-    #ifdef __PECOFF_DEBUG__
+    #ifdef __pei_DEBUG__
     kf->log("Export symbol number: %d\n", edir.func_num);
     #endif
     tables->num_symbols = edir.func_num;
@@ -141,7 +141,7 @@ int PECOFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info 
   return -1;
 }
 
-DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, struct section_info *s, int *size)
+DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, struct section_info *s, int *size)
 {
   int res;
   int i, j;
@@ -149,13 +149,13 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   DWORD image_memory_size;
   DWORD image_memory_start;
   DWORD section_memory_start;
-  struct pecoff_extra_info *pee_info;
+  struct pei_extra_info *pee_info;
   DWORD image_base = tables->image_base;
-  pee_info = (struct pecoff_extra_info *)tables->private_info;
+  pee_info = (struct pei_extra_info *)tables->private_info;
 
   /* Load this sections to process the symbols and reloc info */
   image_memory_size = s[n - 1].base + s[n - 1].filesize;
-  #ifdef __PECOFF_DEBUG__
+  #ifdef __PEI_DEBUG__
   kf->log("Allocate %lx to load the PE image ...\n", image_memory_size);
   #endif
   image_memory_start = image_base;
@@ -166,7 +166,7 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
     image_memory_start = (DWORD)(kf->mem_alloc(image_memory_size));
     reloc_offset = image_memory_start-image_base;
     image_base = image_memory_start;
-    #ifdef __PECOFF_DEBUG__
+    #ifdef __pei_DEBUG__
     kf->log("Relocated to: %lx\n", image_memory_start);
     kf->log("Relocated offset: %lx\n", reloc_offset);
     #endif
@@ -206,13 +206,13 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   /* .text & .data section & other sections */
   for (i = 0; i < n; i++) {
     section_memory_start = image_base+s[i].base;
-    #ifdef __PECOFF_DEBUG__
+    #ifdef __PEI_DEBUG__
     kf->log("Loaded section %d at 0x%lx [file offset %x]\n", i, section_memory_start, s[i].fileptr);
     #endif
     if (s[i].fileptr != 0) {
       kf->file_seek(f, s[i].fileptr, 0);
       kf->file_read(f, (void *)section_memory_start, s[i].filesize);
-      #ifdef __PECOFF_DEBUG__
+      #ifdef __pei_DEBUG__
       kf->log("The first binary: %x section size: %x\n\n", ((DWORD *)section_memory_start)[0], s[i].size);
       #endif
     }
@@ -238,7 +238,7 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
       dll_name = (char *)image_base+desc->name;
       hint = (DWORD *)(image_base+desc->orithunk);
       entry = image_base+desc->thunk;
-      #ifdef __PECOFF_DEBUG__
+      #ifdef __PEI_DEBUG__
       kf->log("Find and Link DLL %s ...\n", dll_name);
       #endif
       for(i = 0; hint[i] != 0; i++, entry += 4)
@@ -273,12 +273,12 @@ DWORD PECOFF_load(struct kern_funcs *kf, int f, struct table_info *tables, int n
   return image_base;
 }
 
-int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables, struct symbol_info *syms)
+int pei_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables, struct symbol_info *syms)
 {
   int i;
-  struct pecoff_extra_info *pee_info;
+  struct pei_extra_info *pee_info;
   DWORD image_base = tables->image_base;
-  pee_info = (struct pecoff_extra_info *)tables->private_info;
+  pee_info = (struct pei_extra_info *)tables->private_info;
   
   /* Process the export symbols : anyway we read export symbols here */
   if(tables->num_symbols != 0)
@@ -288,7 +288,7 @@ int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
     DWORD *edir_funcname = (DWORD *)(image_base+edir->name_addr);
     DWORD *edir_funcaddr = (DWORD *)(image_base+edir->func_addr);
     DWORD handle = image_base;
-#ifdef __PECOFF_DEBUG__
+#ifdef __PEI_DEBUG__
     kf->log("[PECOFF] DLL name: %s symbol number: %x\n", image_base+edir->name, edir->func_num);
 #endif
     symbol_array = (struct symbol *)kf->mem_alloc(sizeof(struct symbol)*edir->func_num);
@@ -300,7 +300,7 @@ int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
       syms[i].section = 0;
       symbol_array[i].name = (char *)image_base+edir_funcname[i];
       symbol_array[i].address = image_base+edir_funcaddr[i];
-      #ifdef __PECOFF_DEBUG__
+      #ifdef __pei_DEBUG__
       kf->log("[PECOFF] Symbol name: %s\taddress: 0x%08x RVA 0x%08x\n", symbol_array[i].name, symbol_array[i].address, edir_funcaddr[i]);
       #endif
     }
@@ -310,7 +310,7 @@ int PECOFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
   return 1;
 }
 
-DWORD PECOFF_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *syms, char *name, int *sect)
+DWORD pei_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *syms, char *name, int *sect)
 {
   int i;
   
@@ -325,7 +325,7 @@ DWORD PECOFF_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *sym
   return 0;
 }
 
-int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
+int pei_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
   int i;
   /* DWORD image_base = base-s[0].base; */
@@ -360,7 +360,7 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssba
       flag = 1;
     } else if(reloc_memory_first_start == reloc_memory_start)
       break;
-    #ifdef __PECOFF_DEBUG__
+    #ifdef __PEI_DEBUG__
     kf->log("[PECOFF] RELOC vaddr: %x, block size: %x\n", reloc->vaddr, reloc->block_size);
     #endif
     for(i = 0; i < reloc_number; i++)
@@ -396,12 +396,12 @@ int PECOFF_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssba
   return 1;
 }
 
-void PECOFF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
+void pei_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
 {
-  struct pecoff_extra_info *pee_info;
-  pee_info = (struct pecoff_extra_info *)tables->private_info;
+  struct pei_extra_info *pee_info;
+  pee_info = (struct pei_extra_info *)tables->private_info;
   
-  mem_free((DWORD)pee_info, sizeof(struct pecoff_extra_info));
+  mem_free((DWORD)pee_info, sizeof(struct pei_extra_info));
   if(scndata[0].reloc != NULL)
     mem_free((DWORD)scndata[0].reloc, sizeof(struct pe_reloc_info));
   mem_free((DWORD)scndata, sizeof(struct section_info)*tables->num_sections);
@@ -409,7 +409,7 @@ void PECOFF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct
     mem_free((DWORD)syms, sizeof(struct symbol_info)*tables->num_symbols);
 }
 
-int isPECOFF(struct kern_funcs *kf, int f, struct read_funcs *rf)
+int isPEI(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
   WORD magic;
 
@@ -421,16 +421,16 @@ int isPECOFF(struct kern_funcs *kf, int f, struct read_funcs *rf)
     return 0;
   }
   
-  rf->read_headers = PECOFF_read_headers;
-  rf->read_section_headers = PECOFF_read_section_headers;
-  rf->read_symbols = PECOFF_read_symbols;
+  rf->read_headers = pei_read_headers;
+  rf->read_section_headers = pei_read_section_headers;
+  rf->read_symbols = pei_read_symbols;
   /* we use the common load */
-  rf->load_executable = PECOFF_load;
-  rf->load_relocatable = PECOFF_load;
+  rf->load_executable = pei_load;
+  rf->load_relocatable = pei_load;
   
-  rf->relocate_section = PECOFF_relocate_section;
-  rf->import_symbol = PECOFF_import_symbol;
-  rf->free_tables = PECOFF_free_tables;
+  rf->relocate_section = pei_relocate_section;
+  rf->import_symbol = pei_import_symbol;
+  rf->free_tables = pei_free_tables;
   
   return 1;
 }

@@ -90,7 +90,7 @@ int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser)
     p->file_read(file, &nt_sgn, 4);
     
     if (nt_sgn == 0x00004550) {
-      if (isPECOFF(p, file, parser)) {
+      if (isPEI(p, file, parser)) {
 #ifdef __MOD_DEBUG__
         fd32_log_printf("It seems to be an NT PE\n");
 #endif
@@ -152,7 +152,7 @@ void process_dos_module(struct kern_funcs *p, int file,
   
   message("The magic : %lx\n", nt_sgn);
   if (nt_sgn == 0x00004550) {
-    if (isPECOFF(p, file, parser)) {
+    if (isPEI(p, file, parser)) {
 #ifdef __MOD_DEBUG__
       fd32_log_printf("It seems to be an NT PE\n");
 #endif

@@ -1,13 +1,13 @@
 /* Dynalynk
  * Portable dynamic linker for object files
- * PE COFF parser part
+ * PEI (Portable Executable Image format) parser part
  * by Hanzac Chen
  * 
  * This is free software; see GPL.txt
  */
 
-#ifndef __PECOFF_HDR__
-#define __PECOFF_HDR__
+#ifndef __PEI_HDR__
+#define __PEI_HDR__
 
 /* from w32api/include/winnt.h */
 #define IMAGE_SIZEOF_FILE_HEADER        20
