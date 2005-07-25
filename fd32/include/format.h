@@ -101,25 +101,17 @@ struct dll_table
 struct kern_funcs {
     int (*file_read)(int file, void *buffer, int len);
     int (*file_seek)(int file, int position, int wence);
-#if 0
-    DWORD (*mem_alloc)(int size);
-    DWORD (*mem_alloc_region)(DWORD address, int size);
-    void (*mem_free)(DWORD address, int size);
-#else
     DWORD (*mem_alloc)(DWORD size);
     int (*mem_alloc_region)(DWORD address, DWORD size);
     int (*mem_free)(DWORD address, DWORD size);
-#endif
     int (*error)(char *fmt, ...);
     int (*message)(char *fmt, ...);
     int (*log)(char *fmt, ...);
 
-
     int (*add_dll_table)(char *dll_name, DWORD handle, DWORD symbol_num,
-		    struct symbol *symbol_array);
+			struct symbol *symbol_array);
     struct dll_table *(*get_dll_table)(char *dll_name);
 
-    
     int seek_set;
     int seek_cur;
 
@@ -152,10 +144,24 @@ struct read_funcs {
 		  struct section_info *scndata);
 };
   
-int isPECOFF(struct kern_funcs *kf, int f, struct read_funcs *rf);
+int isPEI(struct kern_funcs *kf, int f, struct read_funcs *rf);
 int isCOFF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 int isELF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 
+typedef int (*check_func_t)(struct kern_funcs *kf, int f, struct read_funcs *rf);
+
+struct bin_format {
+  char name[8];
+  /* check the file, return TRUE or FALSE */
+  check_func_t check;
+  struct kern_funcs *kf;
+  struct read_funcs *rf;
+  /* sub_binfmt used for embedded object support
+     e.g. MZ can embed COFF/LE/NE/PE */
+  struct bin_format *sub_binfmt;
+};
+
+/* Select COFF object type: "djcoff" or "pecoff" */
 void COFF_set_type(char *value);
 
 #define LOCAL_BSS 64 * 1024
