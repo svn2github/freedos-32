@@ -43,6 +43,8 @@ char *strchr(char *s,int c);
 char *strupr(char *s);
 char *strlwr(char *s);
 char *strcat(char *dst,char *src);
+char *strstr(const char *haystack, const char *needle);
+
 
 END_DEF
 
