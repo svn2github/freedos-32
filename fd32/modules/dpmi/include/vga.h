@@ -1,10 +1,6 @@
 /* DPMI Driver for FD32: VGA calls
- * by Hanzac Chen
  *
- * Ref: http://www.nongnu.org/vgabios
  * Copyright (C) 2001,2002 the LGPL VGABios developers Team
- *
- * This is free software; see GPL.txt
  */
 
 #ifndef __VGA_H__
