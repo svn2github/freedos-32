@@ -345,6 +345,23 @@ int fd32_set_segment_base_address(WORD Selector, DWORD BaseAddress)
 }
 
 
+int fd32_get_segment_limit(WORD Selector, DWORD *Limit)
+{
+  WORD i;
+  int  ErrorCode;
+
+  ErrorCode = sel_to_ldt_index(Selector, &i);
+  if (ErrorCode < 0) {
+    return ErrorCode;
+  }
+  
+  /* TODO: Page aligned limits */
+  *Limit = ((DESCRIPTOR_TABLE(i).gran&0x000F)<<16)+DESCRIPTOR_TABLE(i).lim_lo;
+
+  return NO_ERROR;
+}
+
+
 /* fd32_set_segment_limit - Implementation of DPMI 0.9 service 0008h
  *                          "Set Segment Limit"
  *

@@ -15,6 +15,8 @@
 #include "int31_05.h"
 #include <logger.h>
 
+/* #define __DEBUG__ */
+
 void int31_0501(union regs *r)
 {
   DWORD blocksize;
@@ -48,11 +50,14 @@ void int31_0501(union regs *r)
    * It must be translated to the user data segment (remember: we
    * have the user DS in the stack)
    */
+  /* Disable it 'cause it should be linear address, and Dj LibC also
+     compares it with the segment base, see DJ src/libc/crt0/crt0.S
   user_base = gdt_read(r->x.ds, NULL, NULL, NULL);
 #ifdef __DPMIMEM_DEBUG__
   fd32_log_printf("User Base[0x%x] = 0x%lx\n", r->x.ds, user_base);
 #endif
   base -= user_base;
+  */
   
   CLEAR_CARRY;
   r->x.ax = 0;

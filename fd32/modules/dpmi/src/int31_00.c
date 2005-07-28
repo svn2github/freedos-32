@@ -183,7 +183,6 @@ void int31_0009(union regs *r)
     CLEAR_CARRY;
     return;
   }
-  
   ErrorCode = fd32_set_descriptor_access_rights((WORD) r->d.ebx,
 						(WORD) r->d.ecx);
 

@@ -2,6 +2,10 @@
 #define __FD32_DPMI_H
 
 
+/* VM86 extended */
+#define VM86_EXT 1
+
+
 /* Carry Flag set/clear macros */
 #define SET_CARRY   r->d.flags |= 0x0001
 #define CLEAR_CARRY r->d.flags &= 0xFFFFFFFE
@@ -30,6 +34,14 @@ union regs {
     DWORD eip;
     DWORD ecs;
     DWORD flags;
+#ifdef VM86_EXT
+    DWORD vm86_esp;
+    DWORD vm86_ss;
+    DWORD vm86_es;
+    DWORD vm86_ds;
+    DWORD vm86_fs;
+    DWORD vm86_gs;
+#endif
   } d;
   struct {
     DWORD dummy0_1;

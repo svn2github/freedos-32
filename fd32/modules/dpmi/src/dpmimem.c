@@ -18,8 +18,6 @@
 #define __DPMIMEM_DEBUG__
 */
 
-extern struct psp *current_psp;
-
 struct dpmimem_info {
   DWORD signature;
   DWORD size;
@@ -55,25 +53,9 @@ DWORD dpmi_alloc(DWORD size, DWORD *base)
 #ifdef __DPMIMEM_DEBUG__
   fd32_log_printf("DPMI Alloc 0x%lx\n", size);
 #endif
-  if (current_psp != 0) {
-#ifdef __DPMIMEM_DEBUG__
-    fd32_log_printf("Current PSP: 0x%lx --- MemLimit: 0x%lx\n",
-	    current_psp, current_psp->memlimit);
-#endif
-    res = mem_get_region(current_psp->memlimit,
-			 size + sizeof(struct dpmimem_info));
-    if (res == -1) {
-      return 0;
-    }
-    area = current_psp->memlimit;
-    current_psp->memlimit += (size + sizeof(struct dpmimem_info));
-  } else {
-    area = mem_get(size + sizeof(struct dpmimem_info));
-  }
   
-  /*
+  /* NOTE: Use a normal mem_get 'cause Dj libc can support memory anywhere */
   area = mem_get(size + sizeof(struct dpmimem_info));
-  */
   if (area == 0) {
     return 0;
   }

@@ -29,10 +29,10 @@
 #include <kernel.h>
 #include <filesys.h>
 #include <errno.h>
-#include <stubinfo.h>
 #include <logger.h>
 #include <fd32time.h>
 #include "rmint.h"
+#include "dos_exec.h"
 
 #define DOS_API_INPUT_IS_UTF8 1
 #if !DOS_API_INPUT_IS_UTF8
@@ -46,7 +46,7 @@
 #endif
 
 /* Define the __DEBUG__ symbol in order to activate log output */
-//#define __DEBUG__
+/* #define __DEBUG__ */
 #ifdef __DEBUG__
  #define LOG_PRINTF(s) fd32_log_printf s
 #else
@@ -679,6 +679,14 @@ void int21_handler(union rmregs *r)
 	LOG_PRINTF(("[DPMI] INT 21h AX=%04xh BX=%04xh CX=%04xh DX=%04xh\n", r->x.ax, r->x.bx, r->x.cx, r->x.dx));
 	switch (r->h.ah)
 	{
+		case 0x02:
+		{
+			static char last;
+			cputc(r->h.dl);
+			r->h.al = last;
+			last = r->h.dl;
+			return;
+		}
 		/* DOS 1+ - Direct character input, without echo */
 		case 0x07:
 		{
@@ -844,7 +852,7 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x3D:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("[DPMI] INT 21h: Open \"%s\" with mode %02x\n", fn, r->h.al));
+			LOG_PRINTF(("[DPMI] INT 21h %x %x : Open \"%s\" with mode %02x\n", r->x.ds, r->x.dx, fn, r->h.al));
 			if (res < 0) break;
 			res = fd32_open(fn, r->h.al, FD32_ANONE, 0, NULL);
 			res2dos(res, r);
@@ -860,7 +868,7 @@ void int21_handler(union rmregs *r)
 		 */
 		case 0x3F:
 			res = fd32_read(r->x.bx, (void *) FAR2ADDR(r->x.ds, r->x.dx), r->x.cx);
-			//LOG_PRINTF(("[DPMI] INT 21h: Read (AH=3Fh) from handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, res));
+			LOG_PRINTF(("[DPMI] INT 21h: Read (AH=3Fh) from handle %04x (%d bytes). Res=%08xh\n", r->x.bx, r->x.cx, res));
 			if (res < 0) break;
 			#if 0 /* FIXME: Can this be removed now? */
 			/* This is a quick'n'dirty hack to return \n after \r from stdin.  */
@@ -970,6 +978,11 @@ void int21_handler(union rmregs *r)
 			/* TODO: Convert from UTF-8 to OEM */
 			return;
 		}
+		case 0x4A:
+		{
+			LOG_PRINTF(("[DPMI] INT 21h: Resize Memory Block, BX=0x%x, ES=0x%x\n", r->x.bx, r->x.es));
+			return;
+		}
 		/* DOS 2+ - "EXEC" - Load and/or Execute program */
 		case 0x4B:
 		{
@@ -1044,6 +1057,12 @@ void int21_handler(union rmregs *r)
 		case 0x57:
 			get_and_set_time_stamps(r);
 			return;
+		/* DOS 2+ - Get and set memory allocation strategy & UMB link state */
+		case 0x58:
+		{
+			LOG_PRINTF(("[DPMI] INT 21h: Set and get mem stategy AL=0x%x\n", r->h.al));
+			return;
+		}
 		/* DOS 3.0+ - Create new file (DS:DX->ASCIZ file name, CX=attributes) */
 		case 0x5B:
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));

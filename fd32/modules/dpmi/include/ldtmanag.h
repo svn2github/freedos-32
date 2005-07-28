@@ -38,6 +38,8 @@ int fd32_get_segment_base_address(WORD Selector, DWORD *BaseAddress);
 /* Implementation of DPMI 0.9 service 0007h "Set Segment Base Address" */
 int fd32_set_segment_base_address(WORD Selector, DWORD BaseAddress);
 
+int fd32_get_segment_limit(WORD Selector, DWORD *Limit);
+
 /* Implementation of DPMI 0.9 service 0008h "Set Segment Limit" */
 int fd32_set_segment_limit(WORD Selector, DWORD Limit);
 
