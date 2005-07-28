@@ -23,17 +23,24 @@
 
 FILE(strchr);
 
-char *strrchr(const char *s, int c)
+/* The following was copied (and modified) from Linux 2.6.12 by Nils Labugt Jul 28 2005 */
+/* see string.c */
+
+/**
+ * strrchr - Find the last occurrence of a character in a string
+ * @s: The string to be searched
+ * @c: The character to search for
+ */
+char * strrchr(const char * s, int c)
 {
-	char *save;
-
-	for (save = NULL; *s != 0; s++)
-		if (*s == c)
-			save = (char *)s;
-
-	if (c == 0) {
-	  return s;
-	}
-
-	return save;
+#ifndef __HAVE_ARCH_STRRCHR
+       const char *p = s + strlen(s);
+       do {
+           if (*p == (char)c)
+               return (char *)p;
+       } while (--p >= s);
+       return NULL;
+#else
+	return __strrchr(s, c);
+#endif
 }

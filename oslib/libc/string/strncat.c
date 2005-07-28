@@ -23,24 +23,36 @@
 
 FILE(strncat);
 
-/*
- * Concatenate src on the end of dst.  At most strlen(dst)+n+1 bytes
- * are written at dst (at most n+1 bytes being appended).  Return dst.
- */
-char *strncat(char *dest, const char *src, int n)
-{
-	if (n != 0) {
-		char *d = dest;
-		const char *s = src;
+/* The following was copied from Linux 2.6.12 by Nils Labugt Jul 28 2005 */
+/* see string.c */
 
-		while (*d != 0)
-			d++;
-		do {
-			if ((*d = *s++) == 0)
+/**
+ * strncat - Append a length-limited, %NUL-terminated string to another
+ * @dest: The string to be appended to
+ * @src: The string to append to it
+ * @count: The maximum numbers of bytes to copy
+ *
+ * Note that in contrast to strncpy, strncat ensures the result is
+ * terminated.
+ */
+char * strncat(char *dest, const char *src, size_t count)
+{
+#ifndef __HAVE_ARCH_STRNCAT
+	char *tmp = dest;
+
+	if (count) {
+		while (*dest)
+			dest++;
+		while ((*dest++ = *src++) != 0) {
+			if (--count == 0) {
+				*dest = '\0';
 				break;
-			d++;
-		} while (--n != 0);
-		*d = 0;
+			}
+		}
 	}
-	return (dest);
+
+	return tmp;
+#else
+	return __strncat(dest, src, count);
+#endif
 }
