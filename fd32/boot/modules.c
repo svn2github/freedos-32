@@ -14,17 +14,13 @@
 
 #include "kmem.h"
 #include "mods.h"
+#include "modfs.h"
 #include "format.h"
 #include "kernel.h"
-#include "modfs.h"
-#include "doshdr.h"
-#include "format.h"
-#include "exec.h"
 #include "logger.h"
 
-DWORD global_SP;
 
-struct kern_funcs kf;
+static struct kern_funcs kf;
 
 struct mods_struct {
   void *mod_start;
@@ -59,53 +55,6 @@ int istext(struct kern_funcs *kf, int file)
   return !done;
 }
 
-
-int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser)
-{
-  char signature[4];
-  
-  /* Ok, the file is not ELF nor COFF... do something else... */
-  p->file_read(file, signature, 4);
-  p->file_seek(file, p->file_offset, p->seek_set);
-
-  if (memcmp(signature,"MZ", 2) == 0) {
-    return MOD_MZ;
-  }
-
-  if (isCOFF(p, file, parser)) {
-    return MOD_COFF;
-  }
-
-  if (isELF(p, file, parser)) {
-    return MOD_ELF;
-  }
-  
-  if (1) {
-    DWORD nt_sgn;
-    struct dos_header hdr;
-  	
-    p->file_seek(file, 0, 0);
-    p->file_read(file, &hdr, sizeof(struct dos_header));
-    p->file_seek(file, hdr.e_lfanew, 0);
-    p->file_read(file, &nt_sgn, 4);
-    
-    if (nt_sgn == 0x00004550) {
-      if (isPEI(p, file, parser)) {
-#ifdef __MOD_DEBUG__
-        fd32_log_printf("It seems to be an NT PE\n");
-#endif
-        return MOD_PECOFF;
-      }
-    }
-  }
-  
-  if (istext(p, file)) {
-    return MOD_ASCII;
-  }
-
-  return MOD_UNKNOWN;
-}
-
 void process_ascii_module(struct kern_funcs *p, int file)
 {
   char c[256];
@@ -119,56 +68,12 @@ void process_ascii_module(struct kern_funcs *p, int file)
   }
 }
 
-void process_dos_module(struct kern_funcs *p, int file,
-	struct read_funcs *parser, char *cmdline, char *args)
-{
-  struct dos_header hdr;
-  DWORD nt_sgn;
-  DWORD dj_header_start;
-
-#ifdef __MOD_DEBUG__
-  fd32_log_printf("    Seems to be a DOS file...\n");
-  fd32_log_printf("    Perhaps a PE? Only them are supported...\n");
-#endif
-
-  p->file_read(file, &hdr, sizeof(struct dos_header));
-
-  dj_header_start = hdr.e_cp * 512L;
-  if (hdr.e_cblp) {
-    dj_header_start -= (512L - hdr.e_cblp);
-  }
-  p->file_offset = dj_header_start;
-  p->file_seek(file, dj_header_start, p->seek_set);
-  
-  if (identify_module(p, file, parser) == MOD_COFF) {
-#ifdef __MOD_DEBUG__
-    fd32_log_printf("    DJGPP COFF File\n");
-#endif
-    exec_process(p, file, parser, cmdline, args);
-    return;
-  }
-  p->file_seek(file, hdr.e_lfanew, p->seek_set);
-  p->file_read(file, &nt_sgn, 4);
-  
-  message("The magic : %lx\n", nt_sgn);
-  if (nt_sgn == 0x00004550) {
-    if (isPEI(p, file, parser)) {
-#ifdef __MOD_DEBUG__
-      fd32_log_printf("It seems to be an NT PE\n");
-#endif
-      exec_process(p, file, parser, cmdline, args);
-    }
-  }
-
-  return;
-}
-
 void process_modules(int mods_count, DWORD mods_addr)
 {
-  int i, mod_type;
-  struct read_funcs parser;
+  DWORD i, j;
+  struct read_funcs rf;
+  struct bin_format *binfmt;
   char *command_line;
-  void mem_release_module(DWORD mstart, int m, int mnum);	/* FIXME! */
   char *args;
 
   /* Initialize the Modules Pseudo-FS... */
@@ -189,17 +94,20 @@ void process_modules(int mods_count, DWORD mods_addr)
   kf.add_dll_table = add_dll_table;
   kf.seek_set = 0;
   kf.seek_cur = 1;
+
+  /* Get the binary format object table, ending with NULL name */
+  binfmt = fd32_get_binfmt();
   for (i = 0; i < mods_count; i++) {
 #ifdef __MOD_DEBUG__
     fd32_log_printf("[BOOT] Processing module #%d\n", i);
 #endif
-    message("Processing module #%d ", i);
+    message("Processing module #%d\n", (int)i);
     /* Pseudo-FS open */
     modfs_open(mods_addr, i);
     command_line = module_cl(mods_addr, i);
 
+    /* Reset the file status in kf */
     kf.file_offset = 0;
-    mod_type = identify_module(&kf, i, &parser);
 
     args = command_line;
     while ((*args != 0) && (*args != ' ')) {
@@ -212,31 +120,21 @@ void process_modules(int mods_count, DWORD mods_addr)
       args = NULL;
     }
 
-    switch(mod_type) {
-    case MOD_ASCII:
-      
-      process_ascii_module(&kf, i);
-      break;
-    case MOD_ELF:
-#ifdef __MOD_DEBUG__
-      fd32_log_printf("    ELF Module\n");
-#endif
-      message("going to exec ELF...\n");
-      exec_process(&kf, i, &parser, command_line, args);
-      break;
-    case MOD_COFF:
-#ifdef __MOD_DEBUG__
-      fd32_log_printf("    COFF Module\n");
-#endif
-      message("going to exec COFF...\n");
-      exec_process(&kf, i, &parser, command_line, args);
-      break;
-    case MOD_MZ:
-      process_dos_module(&kf, i, &parser, command_line, args);
-      break;
-    default:
-      message("Unknown module type\n");
+    /* Load different modules in various binary format */
+    for (j = 0; binfmt[j].name != NULL; j++)
+    {
+      if (binfmt[j].check(&kf, i, &rf)) {
+        binfmt[j].exec(&kf, i, &rf, command_line, args);
+        break;
+      } else {
+        fd32_log_printf("[MOD] Not '%s' format\n", binfmt[j].name);
+      }
+      /* p->file_seek(file, p->file_offset, p->seek_set); */
     }
+
+    if (binfmt[j].name == NULL && istext(&kf, i))
+      process_ascii_module(&kf, i);
+
     mem_release_module(mods_addr, i, mods_count);
   }
 }

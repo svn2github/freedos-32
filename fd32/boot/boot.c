@@ -20,7 +20,7 @@
 
 /* #define STATIC_DPMI */
 /* #define STATIC_BIOSDISK */
-
+#define __BOOT_DEBUG__
 #define DISK_TEST 1
 
 #include "params.h"
@@ -173,7 +173,7 @@ int main (int argc, char *argv[])
   if (mbi->flags & MB_INFO_BOOTDEV) {
     fd32_set_boot_device(mbi->boot_device);
 #ifdef __BOOT_DEBUG__
-    message("    Boot device set: %u %u %u %u %08x\n", b[0], b[1], b[2], b[3], mbi->boot_device);
+    message("    Boot device set: %08x\n", mbi->boot_device);
 #endif
   }
   
