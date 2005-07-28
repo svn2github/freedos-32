@@ -178,7 +178,6 @@ static struct symbol syscall_table[] = {
   { "strncat",  (DWORD) strncat },
   { "strlcat",  (DWORD) strlcat },
   { "strncmp",  (DWORD) strncmp },
-  { "strnicmp",  (DWORD) strnicmp },
   { "strnchr",  (DWORD) strnchr },
   { "strrchr",  (DWORD) strrchr },
   { "strstr",  (DWORD) strstr },
