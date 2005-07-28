@@ -254,10 +254,10 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
         imp = (struct imp_name *)(image_base+hint[i]);
         /* TODO: QSORT and QSEARCH? */
         for(j = 0; j < dylt->symbol_num; j++)
-          if(strcmp(dylt->symbol_array[j].name, imp->name) == 0)
+          if(strcmp(dylt->symbol_table[j].name, imp->name) == 0)
           {
             func = (DWORD *)entry;
-            *func = dylt->symbol_array[j].address;
+            *func = dylt->symbol_table[j].address;
             break;
           }
         if(j == dylt->symbol_num)

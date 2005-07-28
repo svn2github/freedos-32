@@ -7,7 +7,12 @@
 #ifndef __EXEC_H__
 #define __EXEC_H__
 
-int exec_process(struct kern_funcs *p, int file, struct read_funcs *parser,
+#include "format.h"
+int dos_exec(char *filename, DWORD env_segment, char * args, DWORD fcb1, DWORD fcb2, WORD *return_value);
+int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf,
 		char *cmdline, char *args);
+/* NOTE: Move these funtion here, Correct? */
+WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle, char *filename, char *args);
+DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *e_s, DWORD *image_base, int *s);
 
 #endif

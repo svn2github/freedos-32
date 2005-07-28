@@ -108,11 +108,9 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
       tables->image_base = optheader.text_start;
     }
   }
-#if 0
-  tables->section_header = fd->tell(f);
-#else
+
   tables->section_header = kf->file_seek(f, 0, kf->seek_cur);
-#endif
+
   if (entry == 0) {
     tables->flags |= NO_ENTRY;
     tables->flags |= NEED_LOAD_RELOCATABLE;
@@ -145,10 +143,9 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
       bss = i;
     }
   
-    /* FIXME! */
-    /* If it's executable we get the section's size from calculate the
-     * space between two adjacent setions,
-     * The last section's virtual size should always be set to the default size
+    /* NOTE: If it's executable we get the section's size from calculate
+     *       the space between two adjacent setions, The last section's
+     *       virtual size should always be set to the default size
      */
     scndata[i].size = h.s_size;
     if (((tables->flags & NO_ENTRY) == 0) && (i != 0)) {
@@ -185,12 +182,6 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
         } else if (rel.r_type == 20) {
           scndata[i].reloc[j].type = REL_TYPE_RELATIVE;
         }
-#if 0
-kf->log("Relocate 0x%lx: symbol %d type %d\n",
-scndata[i].reloc[j].offset,
-scndata[i].reloc[j].symbol,
-scndata[i].reloc[j].type);
-#endif
       }
       kf->file_seek(f, pos, kf->seek_set);
     } else {
@@ -240,9 +231,6 @@ int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
 
   numinlined = 0;
 
-#if 0
-kf->log("Reading %ld symbols\n", tables->num_symbols);
-#endif
   symbol = (void *)kf->mem_alloc(tables->num_symbols * sizeof(struct coff_symbol_info));
   kf->file_seek(f, kf->file_offset + tables->symbol, kf->seek_set);
   for (i = 0; i < tables->num_symbols; i++) {
@@ -291,9 +279,7 @@ kf->log("Reading %ld symbols\n", tables->num_symbols);
     }
     syms[i].offset = symbol[i].e_value;
     syms[i].section = symbol[i].e_scnum;
-#if 0
-kf->log("Symbol %d: %s @ %d:0x%lx\n", i, syms[i].name, syms[i].section, syms[i].offset);
-#endif
+
     if (syms[i].section == 0) {
       if (syms[i].offset == 0) {
         /* extern symbol */

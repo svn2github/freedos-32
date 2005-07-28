@@ -7,6 +7,8 @@
 #ifndef __KERNEL_H__
 #define __KERNEL_H__
 
+#include "format.h"
+
 struct process_info {
   char *args;
   DWORD memlimit;
@@ -25,33 +27,20 @@ static inline DWORD maxmem_get(struct process_info *p)
   return p->memlimit;
 }
 
-int dos_exec(char *filename, DWORD env_segment, char * args,
-	DWORD fcb1, DWORD fcb2, WORD *return_value);
-
 void create_dll(DWORD entry, DWORD base, DWORD size);
 int create_process(DWORD entry, DWORD base, DWORD size, char *name, char *args);
 void fd32_abort(void);
 void fd32_reboot(void);
 void kernel_init();
+void fd32_cpu_idle(void);
 
 #define SUBSTITUTE 1
 #define ADD 0
 void *get_syscall_table(void);
 int add_call(char *name, DWORD address, int mode);
-void fd32_cpu_idle(void);
 
-struct symbol;
-int add_dll_table(char *dll_name, DWORD handle,
-		DWORD symbol_num, struct symbol *symbol_array);
+int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol *symbol_table);
 struct dll_table *get_dll_table(char *dll_name);
-
-
-/* FIXME: Move these guys somewhere else? */
-WORD stubinfo_init(DWORD base, DWORD image_end, DWORD mem_handle,
-		char *filename, char *args);
-struct read_funcs;
-struct kern_funcs;
-DWORD load_process(struct kern_funcs *p, int file, struct read_funcs *parser, DWORD *e_s, DWORD *image_base, int *s);
 
 extern void *fd32_init_jft(int JftSize); /* Implemented in filesys\jft.c */
 void fd32_free_jft(void *p, int jft_size); /* idem */

@@ -8,9 +8,9 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/mem.h>
 #include <ll/i386/string.h>
-char *strstr(const char *haystack, const char *needle); /* FIXME: Place this in oslib/ll/i386/string.h */
 
 #include "format.h"
+#include "exec.h"
 #include "common.h"
 #include "coff.h"
 
@@ -176,22 +176,6 @@ address += *((DWORD *)destination);
     kf->log("0x%lx <--- 0x%lx\n", (DWORD *)(destination), address);
 #endif
     *((DWORD *)destination) = address;
-#if 0
-      if (ISNON(s[idx].e_type)) {
-        kf->log("        ");
-      }
-      if (ISPTR(s[idx].e_type)) {
-        kf->log("        Pointer to ");
-      }
-      if (ISFCN(s[idx].e_type)) {
-        kf->log("        Function returning ");
-      }
-      if (ISARY(s[idx].e_type)) {
-        kf->log("        Array of ");
-      }
-      kf->log("%s    ", type[BTYPE(s[idx].e_type)]);
-      kf->log("%u\n", s[idx].e_type);
-#endif
   }
 
   return 1;
@@ -358,4 +342,43 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *
 
   *size = needed_mem /*+ LOCAL_BSS*/;
   return (DWORD)mem_space;
+}
+
+/* Binary format management routines */
+static struct bin_format binfmt[0x08] = {
+  /* {"mz", NULL, fd32_exec_process}, */
+  {"coff", isCOFF, fd32_exec_process},
+  {"elf", isELF, fd32_exec_process},
+  {"pei", isPEI, fd32_exec_process},
+  {NULL}
+};
+
+struct bin_format *fd32_get_binfmt(void)
+{
+  return binfmt;
+}
+
+int fd32_set_binfmt(const char *name, check_func_t check, exec_func_t exec)
+{
+  DWORD i;
+
+  for (i = 0; binfmt[i].name != NULL; i++)
+  {
+    if (strcmp(binfmt[i].name, name) == 0)
+    {
+      binfmt[i].check = check;
+      binfmt[i].exec = exec;
+      return 1;
+    }
+  }
+  
+  /* Not exist */
+  if (i < 0x08) {
+    binfmt[i].name = name;
+    binfmt[i].check = check;
+    binfmt[i].exec = exec;
+    return 1;
+  } else {
+    return 0;
+  }
 }

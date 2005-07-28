@@ -22,12 +22,15 @@
 #define DLL_WITH_STDCALL	32
 
 /* module formats */
+/*
 #define MOD_ASCII   1
 #define MOD_COFF    2
 #define MOD_ELF     3
 #define MOD_MZ      4
 #define MOD_UNKNOWN 5
 #define MOD_PECOFF  6
+
+*/
 
 struct symbol_info {
   char *name;
@@ -85,15 +88,17 @@ struct symbol {
   DWORD address;
 };
 
+/** \struct dll_table */
 struct dll_table
 {
-  char *name;                  /* identify the dll name */
-  DWORD symbol_num;
-  struct symbol *symbol_array; /* symbols' infomation */
-  /* Note that all the symbols should have an ordinal number
-   * Because sometimes an application just want to use the
-   * ordinal number to search for a function entry.
-   * Or maybe we can just use the array index as the ordinal */
+  char *name;                  /***< DLL name */
+  DWORD symbol_num;            /***< symbols' number */
+  struct symbol *symbol_table; /***< symbols' list */
+  /** \note All the symbols should have an ordinal number
+   *        because sometimes an application just want to use
+   *        the ordinal number to search for a function entry.
+   *        Or maybe we can just use the array index as the ordinal
+   */
 };
 
 
@@ -109,7 +114,7 @@ struct kern_funcs {
     int (*log)(char *fmt, ...);
 
     int (*add_dll_table)(char *dll_name, DWORD handle, DWORD symbol_num,
-			struct symbol *symbol_array);
+			struct symbol *symbol_table);
     struct dll_table *(*get_dll_table)(char *dll_name);
 
     int seek_set;
@@ -149,19 +154,27 @@ int isCOFF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 int isELF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 
 typedef int (*check_func_t)(struct kern_funcs *kf, int f, struct read_funcs *rf);
+typedef int (*exec_func_t)(struct kern_funcs *kf, int f, struct read_funcs *rf, char *cmdline, char *args);
 
+/** \struct bin_format */
 struct bin_format {
-  char name[8];
-  /* check the file, return TRUE or FALSE */
-  check_func_t check;
-  struct kern_funcs *kf;
-  struct read_funcs *rf;
-  /* sub_binfmt used for embedded object support
-     e.g. MZ can embed COFF/LE/NE/PE */
-  struct bin_format *sub_binfmt;
+  const char *name;   /***< binary format name */
+  check_func_t check; /***< check the file, return TRUE or FALSE */
+  exec_func_t exec;   /***< exec the file, return value from the program */
+  /* struct kern_funcs *kf; */
+  /* struct read_funcs *rf; */
+
+  /* struct bin_format *sub_binfmt; */ /***< used for embedded object support, e.g. MZ can embed COFF/LE/NE/PE */
 };
 
-/* Select COFF object type: "djcoff" or "pecoff" */
+/** \brief Binary format management functions */
+
+/** \brief return the pointer of a format object array, NULL is the last element */
+struct bin_format *fd32_get_binfmt(void);
+/** \brief Set a new/old format, return TRUE(1) or FALSE(0) */
+int fd32_set_binfmt(const char *name, check_func_t check, exec_func_t exec);
+
+/** \brief Select COFF object type: "djcoff" or "pecoff" */
 void COFF_set_type(char *value);
 
 #define LOCAL_BSS 64 * 1024
