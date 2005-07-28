@@ -11,8 +11,6 @@
 #include "biosdisk.h"
 
 
-/* This is implemented in oslib/xlib/ctx.s */
-extern CONTEXT context_save(void);
 
 void biosdisk_reflect(unsigned intnum, BYTE dummy)
 {
@@ -40,7 +38,7 @@ void biosdisk_reflect(unsigned intnum, BYTE dummy)
 		  r->x.ax, r->x.bx, r->x.cx, r->x.dx,
 		  r->x.si, r->x.di, r->x.ds, r->x.es);
 #endif
-  ctx = context_save();
+  ctx = ll_context_save();
 
   if (ctx == X_VM86_TSS) {
 #ifdef __REFLECT_DEBUG__
@@ -141,7 +139,7 @@ void biosdisk_timer(void *p)
   res = event_post(ts, biosdisk_timer, NULL);
  
   /* Here, we must trigger a vm86 interrupt... */
-  ctx = context_save();
+  ctx = ll_context_save();
   if (ctx == X_VM86_TSS) {
     biosdisk_reflect(PIC1_BASE, 0); /* Second parameter is unneeded, here... */
   } else {

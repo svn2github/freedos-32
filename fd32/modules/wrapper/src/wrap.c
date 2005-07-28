@@ -1,6 +1,7 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/hw-func.h>
 #include <ll/i386/error.h>
+#include <ll/i386/string.h>
 #include <ll/stdlib.h>
 
 #include "devices.h"
@@ -19,8 +20,6 @@ DWORD pgm_mem_base = 0x400000;
 DWORD pgm_mem_step = 0x100000;
 #define PGM_MEM_LIMIT 0x4000000
 
-/* from fd32/boot/modules.c */
-int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
 /* from fd32/kernel/exec.c */
 int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline);
 
@@ -174,31 +173,35 @@ static int my_seek(int id, int pos, int w)
   return (int) ls.Offset;
 }
 
-static void my_process_dos_module(struct kern_funcs *p, int file,
-	struct read_funcs *parser, char *cmdline)
+static void my_process_dos_module(struct kern_funcs *kf, int file,
+		struct read_funcs *rf, char *cmdline)
 {
   struct dos_header hdr;
+  struct bin_format *binfmt = fd32_get_binfmt();
   DWORD dj_header_start;
-  int res;
+  DWORD i;
 
-  p->file_seek(file, 0, p->seek_set);
-  p->file_read(file, &hdr, sizeof(struct dos_header));
+  kf->file_seek(file, 0, kf->seek_set);
+  kf->file_read(file, &hdr, sizeof(struct dos_header));
 
   dj_header_start = hdr.e_cp * 512L;
   if (hdr.e_cblp) {
     dj_header_start -= (512L - hdr.e_cblp);
   }
-  p->file_offset = dj_header_start;
-  p->file_seek(file, dj_header_start, p->seek_set);
+  kf->file_offset = dj_header_start;
+  kf->file_seek(file, dj_header_start, kf->seek_set);
 
-  res = identify_module(p, file, parser);
-  if (res == 2 /* MOD_COFF */) {
-    my_exec_process(p, file, parser, cmdline);
-    
-    return;
+  for (i = 0; binfmt[i].name != NULL; i++)
+  {
+    if (strcmp(binfmt[i].name, "coff") == 0) {
+      if (binfmt[i].check(kf, file, rf)) {
+        my_exec_process(kf, file, rf, cmdline);
+        return;
+      }
+    }
   }
 
-  message("Wrapper: Unsupported esecutable %d", res);
+  message("Wrapper: Unsupported executable!\n");
 }
 
 
@@ -209,18 +212,15 @@ int wrap_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
 int wrap_exec(char *filename, char *args)
 #endif
 {
-  struct kern_funcs p;
-  int mod_type;
-  DWORD entry_point;
-  struct read_funcs parser;
-  DWORD exec_base;
-  int size;
+  struct kern_funcs kf;
+  struct read_funcs rf;
   struct funky_file f;
   void *fs_device;
   char *pathname;
   fd32_openfile_t of;
   fd32_close_t cr;
-int res;
+  int res;
+  WORD magic;
 
   if (fd32_get_drive(filename, &f.request, &fs_device, &pathname) < 0) {
 #ifdef __DEBUG__
@@ -246,32 +246,26 @@ int res;
 #ifdef __DEBUG__
   fd32_log_printf("FileId = 0x%lx (0x%lx)\n", (DWORD)f.file_id, (DWORD)&f);
 #endif
-  p.file_read = my_read;
-  p.file_seek = my_seek;
-  p.file_offset = 0; /* Reflect the changes in identify_module */
-  p.mem_alloc = funkymem_get;
-  p.mem_alloc_region = funkymem_get_region;
-  p.mem_free = funkymem_free;
-  p.message = message;
-  p.log = fd32_log_printf;
-  p.error = message;
-  p.seek_set = FD32_SEEKSET;
-  p.seek_cur = FD32_SEEKCUR;
+  kf.file_read = my_read;
+  kf.file_seek = my_seek;
+  kf.file_offset = 0; /* Reflect the changes in identify_module */
+  kf.mem_alloc = funkymem_get;
+  kf.mem_alloc_region = funkymem_get_region;
+  kf.mem_free = funkymem_free;
+  kf.message = message;
+  kf.log = fd32_log_printf;
+  kf.error = message;
+  kf.seek_set = FD32_SEEKSET;
+  kf.seek_cur = FD32_SEEKCUR;
 
-  mod_type = identify_module(&p, (int)(&f), &parser);
-#ifdef __DEBUG__
-  fd32_log_printf("Module type: %d\n", mod_type);
-#endif
-  if (mod_type == 2) {
-  }
-
-  if (mod_type == 4) {
-    my_process_dos_module(&p, (int)(&f), &parser, args);
+  kf.file_read((int)(&f), &magic, 2);
+  if (magic != 0x5A4D) { /* "MZ" */
+    my_process_dos_module(&kf, (int)(&f), &rf, args);
   }
   
   cr.Size = sizeof(fd32_close_t);
   cr.DeviceId = f.file_id;
-  message("Closing %d\n", f.file_id);
+  message("Closing %d\n", (int)f.file_id);
   res = f.request(FD32_CLOSE, &cr);
   message("Returned %d\n", res);
   return 1;
@@ -361,19 +355,9 @@ int wrap_init(struct process_info *pi)
   char *file, *arglist;
 
   arglist = args_get(pi);
-#if 0
-  done = 0;
-  while ((!done) && (*file != 0)) {
-    if (*file == ' ') {
-      done = 1;
-    }
-    file++;
-  }
-  if (done) {
-#else
+
   if (arglist != NULL) {
     file = arg_parse(arglist);
-#endif
     done = 0;
     p = file;
     i = 0;

@@ -92,7 +92,7 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
   DWORD base;
   int res;
 
-  dyn_entry = load_process(p, file, parser, &exec_space, &base, &size);
+  dyn_entry = fd32_load_process(p, file, parser, &exec_space, &base, &size);
   my_close(file);
 
   fd32_log_printf("[Wrapper] Process Loaded\n");
