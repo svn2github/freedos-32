@@ -31,7 +31,7 @@ clean: $(OSLIB)/config.mk
 	make -C modules clean
 
 allclean: clean
-	make -C $(OSLIB) clean
+	make -C $(OSLIB) allclean
 
 $(OSLIB)/config.mk: config.mk
 	$(CP) config.mk $(OSLIB_DIR)
