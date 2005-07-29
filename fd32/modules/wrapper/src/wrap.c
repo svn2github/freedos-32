@@ -259,7 +259,7 @@ int wrap_exec(char *filename, char *args)
   kf.seek_cur = FD32_SEEKCUR;
 
   kf.file_read((int)(&f), &magic, 2);
-  if (magic != 0x5A4D) { /* "MZ" */
+  if (magic == 0x5A4D) { /* "MZ" */
     my_process_dos_module(&kf, (int)(&f), &rf, args);
   }
   
