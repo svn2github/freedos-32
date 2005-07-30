@@ -21,7 +21,7 @@
 
 #define __DOS_EXEC_DEBUG__
 
-#define VM86_STACK_SIZE 0x2000
+#define VM86_STACK_SIZE 0x4000
 /* TSS optional section */
 static BYTE  vm86_stack0[VM86_STACK_SIZE];
 extern DWORD current_SP;
@@ -88,9 +88,9 @@ static int vm86_call(WORD ip, WORD sp, WORD vm86_stack_size, LIN_ADDR vm86_stack
   /* __asm__ __volatile__ ("movl %%esp, %0" : "=m" (current_SP)); */
   if (out != NULL) {
     ll_context_load(X_VM86_TSS);
-  } else {
+  } /* else {
     ll_context_to(X_VM86_TSS);
-  }
+  } */
   /* Back from the APP, after the stub switches VM86 to protected mode */
 
   /* Send back in the X_*REGS structure the value obtained with
@@ -236,7 +236,7 @@ static int isMZ2(struct kern_funcs *kf, int f, struct read_funcs *rf)
 
 
 /* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
-static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp;
+static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *cmdline, char *args)
 {
@@ -251,16 +251,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   BYTE *env_data;
   DWORD exec;
   DWORD exec_size;
-  char truefilename[FD32_LFNPMAX];
-
-  if (fd32_truename(truefilename, cmdline, FD32_TNSUBST) < 0) {
-#ifdef __DOS_EXEC_DEBUG__
-    fd32_log_printf("Cannot canonicalize the file name!!!\n");
-#endif
-    return -1;
-  } else {
-    cmdline = truefilename;
-  }
 
   kf->file_read(f, &hdr, sizeof(struct dos_header));
 
@@ -341,8 +331,10 @@ int dos_exec_switch(int option)
   switch(option)
   {
     case DOS_VM86_EXEC:
-      g_env_segtmp = dosmem_get(0x100);
-      g_env_segment = g_env_segtmp>>4;
+      if (g_env_segtmp == 0) {
+        g_env_segtmp = dosmem_get(0x100);
+        g_env_segment = g_env_segtmp>>4;
+      }
       fd32_set_binfmt("mz", isMZ, vm86_exec_process);
       res = 1;
       break;
