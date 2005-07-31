@@ -156,85 +156,6 @@ static int my_seek(int id, int pos, int w)
   return (int) ls.Offset;
 }
 
-/* MZ format handling for VM86 */
-static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
-{
-  WORD magic;
-
-  kf->file_read(f, &magic, 2);
-  kf->file_seek(f, kf->file_offset, kf->seek_set);
-
-  if (magic != 0x5A4D) { /* "MZ" */
-    return 0;
-  } else {
-    return 1;
-  }
-}
-
-/* MZ format handling for direct execution */
-static int isMZ2(struct kern_funcs *kf, int f, struct read_funcs *rf)
-{
-  WORD magic;
-  DWORD i, nt_sgn;
-  struct dos_header hdr;
-  DWORD dj_header_start;
-  struct bin_format *binfmt = fd32_get_binfmt();
-
-  kf->file_read(f, &magic, 2);
-  kf->file_seek(f, kf->file_offset, kf->seek_set);
-
-  if (magic != 0x5A4D) { /* "MZ" */
-    return 0;
-  }
-
-#ifdef __MOD_DEBUG__
-  kf->log("    Seems to be a DOS file...\n");
-  kf->log("    Perhaps a PE? Only them are supported...\n");
-#endif
-
-  kf->file_read(f, &hdr, sizeof(struct dos_header));
-
-  dj_header_start = hdr.e_cp * 512L;
-  if (hdr.e_cblp) {
-    dj_header_start -= (512L - hdr.e_cblp);
-  }
-  kf->file_seek(f, dj_header_start, kf->seek_set);
-  
-  for (i = 0; binfmt[i].name != NULL; i++)
-  {
-    if (strcmp(binfmt[i].name, "coff") == 0) {
-      if (binfmt[i].check(kf, f, rf)) {
-        kf->file_offset = dj_header_start;
-      #ifdef __MOD_DEBUG__
-        fd32_log_printf("    DJGPP COFF File\n");
-      #endif
-        return 1;
-      }
-    }
-  }
-
-  kf->file_seek(f, hdr.e_lfanew, kf->seek_set);
-  kf->file_read(f, &nt_sgn, 4);
-  
-  kf->message("The magic : %lx\n", nt_sgn);
-  if (nt_sgn == 0x00004550) {
-    for (i = 0; binfmt[i].name != NULL; i++)
-    {
-      if (strcmp(binfmt[i].name, "pei") == 0) {
-        if (binfmt[i].check(kf, f, rf)) {
-        #ifdef __MOD_DEBUG__
-          kf->log("It seems to be an NT PE\n");
-        #endif
-          return 1;
-        }
-      }
-    }
-  }
-
-  return 0;
-}
-
-
 /* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
@@ -327,9 +248,27 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   return 0;
 }
 
+/* MZ format handling for VM86 */
+static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
+{
+  WORD magic;
+
+  kf->file_read(f, &magic, 2);
+  kf->file_seek(f, kf->file_offset, kf->seek_set);
+
+  if (magic != 0x5A4D) { /* "MZ" */
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
+/* MZ format handling for direct execution */
+static int (*p_isMZ)(struct kern_funcs *kf, int f, struct read_funcs *rf) = NULL;
+
 int dos_exec_switch(int option)
 {
-  int res;
+  int res = 0;
 
   switch(option)
   {
@@ -338,15 +277,21 @@ int dos_exec_switch(int option)
         g_env_segtmp = dosmem_get(0x100);
         g_env_segment = g_env_segtmp>>4;
       }
+      if (p_isMZ == NULL) {
+        DWORD i;
+        struct bin_format *binfmt = fd32_get_binfmt();
+        for (i = 0; binfmt[i].name != NULL; i++)
+          if (strcmp(binfmt[i].name, "mz") == 0)
+            p_isMZ = binfmt[i].check;
+      }
       fd32_set_binfmt("mz", isMZ, vm86_exec_process);
       res = 1;
       break;
     case DOS_DIRECT_EXEC:
-      fd32_set_binfmt("mz", isMZ2, fd32_exec_process);
+      fd32_set_binfmt("mz", p_isMZ, fd32_exec_process);
       res = 1;
       break;
     default:
-      res = 0;
       break;
   }
   

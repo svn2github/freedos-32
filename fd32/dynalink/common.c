@@ -344,12 +344,53 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *
   return (DWORD)mem_space;
 }
 
+static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
+{
+  DWORD nt_sgn;
+  struct dos_header {
+    WORD e_magic;	/* Magic number 			*/
+    WORD e_cblp;	/* Bytes on last page of file		*/
+    WORD e_cp;		/* Pages in file (size of the file in blocks)*/
+    WORD e_res[27];
+    DWORD e_lfanew;	/* File address of new exe header	*/
+  } __attribute__ ((packed)) hdr;
+  DWORD dj_header_start;
+
+  kf->file_read(f, &hdr, sizeof(struct dos_header));
+  if (hdr.e_magic != 0x5A4D) { /* "MZ" */
+    return 0;
+  }
+
+  dj_header_start = hdr.e_cp * 512L;
+  if (hdr.e_cblp) {
+    dj_header_start -= (512L - hdr.e_cblp);
+  }
+  kf->file_seek(f, dj_header_start, kf->seek_set);
+  
+  if (isCOFF(kf, f, rf)) {
+    kf->file_offset = dj_header_start;
+    return 1;
+  }
+
+  kf->file_seek(f, hdr.e_lfanew, kf->seek_set);
+  kf->file_read(f, &nt_sgn, 4);
+  
+  kf->message("The magic : %lx\n", nt_sgn);
+  if (nt_sgn == 0x00004550) {
+    if (isPEI(kf, f, rf)) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 /* Binary format management routines */
 static struct bin_format binfmt[0x08] = {
-  /* {"mz", NULL, fd32_exec_process}, */
   {"coff", isCOFF, fd32_exec_process},
   {"elf", isELF, fd32_exec_process},
-  {"pei", isPEI, fd32_exec_process},
+  /* PEI is embedded in MZ {"pei", isPEI, fd32_exec_process}, */
+  {"mz", isMZ, fd32_exec_process},
   {NULL}
 };
 
@@ -362,21 +403,19 @@ int fd32_set_binfmt(const char *name, check_func_t check, exec_func_t exec)
 {
   DWORD i;
 
+  /* Search for duplicated name */
   for (i = 0; binfmt[i].name != NULL; i++)
-  {
     if (strcmp(binfmt[i].name, name) == 0)
-    {
-      binfmt[i].check = check;
-      binfmt[i].exec = exec;
-      return 1;
-    }
-  }
-  
-  /* Not exist */
+      break;
+
   if (i < 0x08) {
-    binfmt[i].name = name;
-    binfmt[i].check = check;
-    binfmt[i].exec = exec;
+    if (binfmt[i].name != NULL)
+      /* New binary format */
+      binfmt[i].name = name;
+    if (check != NULL)
+      binfmt[i].check = check;
+    if (exec != NULL)
+      binfmt[i].exec = exec;
     return 1;
   } else {
     return 0;

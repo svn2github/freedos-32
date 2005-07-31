@@ -4,7 +4,7 @@
  * This is free software; see GPL.txt
  */
 
-struct dos_header {
+typedef struct dos_header {
   WORD e_magic;		/* Magic number 			*/
   WORD e_cblp;		/* Bytes on last page of file		*/
   WORD e_cp;		/* Pages in file (size of the file in blocks)*/
@@ -26,5 +26,5 @@ struct dos_header {
   WORD e_oemid;	        /* OEM identifier (for e_oeminfo) 	*/
   WORD e_oeminfo;	/* OEM information; e_oemid specific	*/
   WORD e_res2[10];	/* Reserved words			*/
-  long int e_lfanew;	/* File address of new exe header	*/
-};
+  DWORD e_lfanew;	/* File address of new exe header	*/
+} __attribute__ ((packed)) tDOSHD;
