@@ -291,7 +291,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   ppsp->ps_environ = g_env_segment;
   ppsp->ps_maxfiles = 0x20;
   ppsp->ps_filetab = fd32_init_jft(0x20);
-
   if (g_fcb1 != NULL) {
     g_fcb1 = (g_fcb1>>12)+(g_fcb1&0x0000FFFF);
     memcpy(ppsp->def_fcb_1, (void *)g_fcb1, 16);
@@ -299,6 +298,10 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   if (g_fcb2 != NULL) {
     g_fcb2 = (g_fcb2>>12)+(g_fcb2&0x0000FFFF);
     memcpy(ppsp->def_fcb_2, (void *)g_fcb2, 20);
+  }
+  if (args != NULL) {
+    ppsp->command_line_len = strlen(args);
+    strcpy(ppsp->command_line, args);
   }
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] FCB: %x %x content: %x %x\n", (int)g_fcb1, (int)g_fcb2, *((BYTE *)g_fcb1), *((BYTE *)g_fcb2));
@@ -421,7 +424,8 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
       g_env_segment = env_segment;
       g_fcb1 = fcb1;
       g_fcb2 = fcb2;
-      *return_val = binfmt[i].exec(&kf, (int)(&f), &rf, filename, args);
+      /* NOTE: args[0] is the length of the args */
+      *return_val = binfmt[i].exec(&kf, (int)(&f), &rf, filename, args+1);
       break;
     }
 #ifdef __DOS_EXEC_DEBUG__

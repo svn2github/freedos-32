@@ -195,6 +195,7 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
     struct process_info pi;
     
     /* No entry point... We assume that we need dynamic linking */
+    pi.name = fname;
     pi.args = args;
     pi.memlimit = base + size + LOCAL_BSS;
 #ifdef __EXEC_DEBUG__
