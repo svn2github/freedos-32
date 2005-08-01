@@ -5,10 +5,13 @@
  */
 
 #include <ll/i386/hw-data.h>
+#include <ll/i386/hw-func.h>
 #include <ll/i386/hw-instr.h>
+#include <ll/i386/x-bios.h>
 #include <ll/i386/error.h>
 #include <ll/i386/cons.h>
 #include <ll/stdlib.h>
+#include <ll/string.h>
 
 #include <kmem.h>
 #include <logger.h>
@@ -46,6 +49,8 @@ void chandler1(DWORD eax, DWORD ebx, DWORD ecx, DWORD edx, DWORD intnum)
 
 void return_to_dos(union regs *r)
 {
+  struct tss * p_vm86_tss = vm86_get_tss();
+  WORD bl = p_vm86_tss->back_link;
   void restore_sp(int res);
 
 #ifdef __DPMI_DEBUG__
@@ -53,13 +58,15 @@ void return_to_dos(union regs *r)
   fd32_log_printf("Current stack: 0x%lx\n", get_sp());
 #endif
 
-  restore_sp(r->d.eax & 0xFF);
+  if (bl != NULL) {
+    p_vm86_tss->back_link = 0;
+    ll_context_load(bl);
+  } else {
+    restore_sp(r->d.eax & 0xFF);
+  }
 }
 
 
-#include <ll/i386/hw-func.h>
-#include <ll/i386/x-bios.h>
-#include <ll/string.h>
 static void gdt_place2(WORD sel,DWORD base,DWORD lim,BYTE acc,BYTE gran)
 {
     union gdt_entry x;
@@ -350,6 +357,10 @@ void chandler(DWORD intnum, union regs r)
             p_k_tss->eip = r.d.eip;
           } else if (i == 1) {
             gdt_place2(sel, r.d.vm86_ss<<4, 0xF0000, 0x92|(RUN_RING<<5), 0x00);
+            /* Set the privilege level-0 stack = the kernel stack */
+            p_k_tss->ss0 = p_k_tss->ss;
+            p_k_tss->esp0 = p_k_tss->esp;
+            /* Switch to the APP's stack */
             p_k_tss->ss = sel;
             p_k_tss->esp = r.d.vm86_esp-2;
             /* NOTE: The CS in the VM86 stack is replaced with the new CS selector */

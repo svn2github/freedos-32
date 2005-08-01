@@ -24,15 +24,10 @@
 #define VM86_STACK_SIZE 0x4000
 /* TSS optional section */
 static BYTE  vm86_stack0[VM86_STACK_SIZE];
-extern DWORD current_SP;
 
-static int vm86_call(WORD ip, WORD sp, WORD vm86_stack_size, LIN_ADDR vm86_stack, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
+static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
 {
-  DWORD vm86_flags, vm86_cs, vm86_ip;
-  LIN_ADDR vm86_stack_ptr;
-
   struct tss * p_vm86_tss = vm86_get_tss();
-  vm86_init(vm86_stack, vm86_stack_size);
 
   /* if (service < 0x10 || in == NULL) return -1; */
   if (p_vm86_tss->back_link != 0) {
@@ -43,14 +38,6 @@ static int vm86_call(WORD ip, WORD sp, WORD vm86_stack_size, LIN_ADDR vm86_stack
   p_vm86_tss->ss = s->ss;
   p_vm86_tss->ebp = 0x91E; /* this is more or less random but some programs expect 0x9 in the high byte of BP!! */
   p_vm86_tss->esp = sp;
-  /* Build an iret stack frame which returns to vm86_iretAddress */
-  vm86_cs = 0xcd;
-  vm86_ip = 0x48;
-  vm86_flags = 0; /* CPU_FLAG_VM | CPU_FLAG_IOPL; */
-  vm86_stack_ptr = vm86_stack + vm86_stack_size;
-  lmempokew(vm86_stack_ptr - 6, vm86_ip);
-  lmempokew(vm86_stack_ptr - 4, vm86_cs);
-  lmempokew(vm86_stack_ptr - 2, vm86_flags);
 
   /* Wanted VM86 mode + IOPL = 3! */
   p_vm86_tss->eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
@@ -84,14 +71,12 @@ static int vm86_call(WORD ip, WORD sp, WORD vm86_stack_size, LIN_ADDR vm86_stack
   /* Let's use the ll standard call... */
   p_vm86_tss->back_link = ll_context_save();
   
-  /* TODO: Remove this line */
-  /* __asm__ __volatile__ ("movl %%esp, %0" : "=m" (current_SP)); */
   if (out != NULL) {
     ll_context_load(X_VM86_TSS);
   } /* else {
     ll_context_to(X_VM86_TSS);
   } */
-  /* Back from the APP, after the stub switches VM86 to protected mode */
+  /* Back from the APP, through a software INT, see chandler.c */
 
   /* Send back in the X_*REGS structure the value obtained with
    * the real-mode interrupt call
@@ -166,8 +151,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   X_REGS16 in, out;
   X_SREGS16 s;
   DWORD mem;
-  DWORD stack;
-  DWORD stack_size;
   BYTE *exec_text;
   BYTE *env_data;
   DWORD exec;
@@ -176,9 +159,8 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   kf->file_read(f, &hdr, sizeof(struct dos_header));
 
   exec_size = hdr.e_cp*0x20-hdr.e_cparhdr+hdr.e_minalloc;
-  stack_size = 0x4000;
 
-  mem = dosmem_get(sizeof(struct psp)+exec_size*0x10+stack_size);
+  mem = dosmem_get(sizeof(struct psp)+exec_size*0x10);
   /* NOTE: Align exec text at 0x10 boundary */
   if ((mem&0x0F) != 0) {
     message("[EXEC] Dos memory not at 0x10 boundary!\n");
@@ -186,9 +168,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
 
   ppsp = (struct psp *)mem;
   exec = mem+sizeof(struct psp);
-  /* TODO: Stack is for VM86 init not the program's stack */
-  stack = mem+sizeof(struct psp)+exec_size*0x10;
-
   exec_text = (BYTE *)exec;
 
   kf->file_seek(f, hdr.e_cparhdr*0x10, kf->seek_set);
@@ -229,8 +208,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
 #endif
   
   s.ds = s.cs = (exec>>4)+hdr.e_cs;
-  /* TODO: Set the ss and sp corretly, after fixing the INT stack */
-  s.ss = stack>>4; // s.cs+hdr.e_ss;
+  s.ss = s.cs+hdr.e_ss;
   s.es = (DWORD)ppsp>>4;
   in.x.ax = 0;
   in.x.bx = 0;
@@ -242,8 +220,8 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   extern struct psp *current_psp;
   current_psp = ppsp;
   /* Call in VM86 mode */
-  vm86_call(hdr.e_ip, hdr.e_sp+0x3000, stack_size, (LIN_ADDR)stack, &in, &out, &s);
-  dosmem_free(mem, sizeof(struct psp)+exec_size*0x10+stack_size);
+  vm86_call(hdr.e_ip, hdr.e_sp, &in, &out, &s);
+  dosmem_free(mem, sizeof(struct psp)+exec_size*0x10);
   
   return 0;
 }

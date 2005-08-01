@@ -33,16 +33,13 @@
 #include <ll/i386/error.h>
 #include "biosdisk.h"
 
-#define VM86_STACK_SIZE 10000
-
 
 void biosdisk_init(struct process_info *p)
 {
     char *c, *cmdline;
     int done;
     int want_hd, want_fd;
-    DWORD buffer;
-    
+
     message("Initing BIOSDisk...\n");
 
     /* Parse the command line */
@@ -67,8 +64,6 @@ void biosdisk_init(struct process_info *p)
 	    c++;
 	}
     }
-    buffer = dosmem_get(VM86_STACK_SIZE);
-    vm86_init((LIN_ADDR)buffer, VM86_STACK_SIZE);
 
     if (want_fd) {
         /* In some bioses, INT 0x13 calls INT 0x40 */

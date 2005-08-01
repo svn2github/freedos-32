@@ -20,6 +20,8 @@
 
 /* #define STATIC_DPMI */
 /* #define STATIC_BIOSDISK */
+#define VM86_INIT 1
+#define VM86_STACK_SIZE 0x2000
 #define __BOOT_DEBUG__
 #define DISK_TEST 1
 
@@ -180,6 +182,10 @@ int main (int argc, char *argv[])
   dos_init(mbi);
 
   fd32_log_init();
+#ifdef VM86_INIT
+  /* NOTE: Pre-initialize VM86 for biosdisk, DPMI, ... */
+  vm86_init(dosmem_get(VM86_STACK_SIZE), VM86_STACK_SIZE);
+#endif
 #ifdef STATIC_BIOSDISK
   biosdisk_init();
 #endif
