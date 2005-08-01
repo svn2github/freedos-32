@@ -101,7 +101,7 @@ void process_modules(int mods_count, DWORD mods_addr)
 #ifdef __MOD_DEBUG__
     fd32_log_printf("[BOOT] Processing module #%d\n", i);
 #endif
-    message("Processing module #%d\n", (int)i);
+    message("Processing module #%d", (int)i);
     /* Pseudo-FS open */
     modfs_open(mods_addr, i);
     command_line = module_cl(mods_addr, i);
@@ -113,12 +113,14 @@ void process_modules(int mods_count, DWORD mods_addr)
     while ((*args != 0) && (*args != ' ')) {
       args++;
     }
-    if (*args != 0) {
+    if (*args == 0) {
       *args = 0;
       args++;
-    } else {
       args = NULL;
+    } else {
+      *args++ = 0;
     }
+    message(": %s\n", command_line);
 
     /* Load different modules in various binary format */
     for (j = 0; binfmt[j].name != NULL; j++)
