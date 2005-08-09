@@ -32,10 +32,6 @@
 #define FAT_CONFIG_FD32      1 /* Enable FD32 devices */
 #define FAT_CONFIG_DEBUG     0 /* Enable log output */
 
-#if FAT_CONFIG_WRITE
- //#error The FAT driver 2.0 is not yet ready for write support!
-#endif
-
 #if !FAT_CONFIG_FD32
  #include <stdio.h>
  #include <sys/types.h>
@@ -54,7 +50,11 @@
  #define FD32_OROPEN  1
  #define FD32_ORCREAT 2
  #define FD32_ORTRUNC 3
- #define LOG_PRINTF(s)
+ #if FAT_CONFIG_DEBUG
+  #define LOG_PRINTF(s) printf s
+ #else
+  #define LOG_PRINTF(s)
+ #endif
 #else
  #include <dr-env.h>
  #define malloc fd32_kmem_get
@@ -79,6 +79,30 @@ typedef enum { false = 0, true = !false } bool;
 #include <slabmem.h>
 #include "ondisk.h"
 
+
+#if FAT_CONFIG_FD32
+typedef struct BlockDev BlockDev;
+struct BlockDev
+{
+	uint32_t        handle;
+	fd32_request_t *request;
+	void           *devid;
+};
+#else
+typedef FILE* BlockDev;
+#endif
+
+
+/* Macros to check whether or not an open file is readable or writable */
+#if 1 /* Old-style, zero-based access modes (O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2) */
+ #define IS_NOT_READABLE(c)  (((c->flags & O_ACCMODE) != O_RDONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
+ #define IS_NOT_WRITEABLE(c) (((c->flags & O_ACCMODE) != O_RDWR) && ((c->flags & O_ACCMODE) != O_WRONLY))
+#else /* New-style, bitwise-distinct access modes (O_RDWR = O_RDONLY | O_WRONLY) */
+ #define IS_NOT_READABLE(c)  (!(c->flags & O_RDONLY))
+ #define IS_NOT_WRITEABLE(c) (!(c->flags & O_WRONLY))
+#endif
+
+
 /* The character to use as path component separator */
 /* TODO: Replace the backslash with a forward slash for internal operation. Use backslash as a quotation character. */
 #define FAT_PATH_SEP '\\'
@@ -90,20 +114,34 @@ enum
 	FAT_EOC = 0x0FFFFFFF,
 	/* TODO: these should be command line options */
 	FAT_NUM_BUFFERS = 30,
-	FAT_READ_AHEAD  = 8
+	FAT_READ_AHEAD  = 8,
+	FAT_UNLINKED = 1 /* value of de_sector if file unlinked */
 };
+
+/**
+ * \mainpage
+ * The FreeDOS-32 FAT driver is a highly portable software to gain access to
+ * media formatted with the FAT file system.
+ *
+ * \section Reference
+ * \ref api
+ */
+/**
+ * \defgroup api Public Functions (API)
+ */
 
 typedef enum { FAT12, FAT16, FAT32 } FatType;
 typedef uint32_t Sector;
 typedef uint32_t Cluster;
-typedef struct LookupData   LookupData;
-typedef struct Buffer       Buffer;
-typedef struct Volume       Volume;
-typedef struct File         File;
-typedef struct Channel      Channel;
+typedef struct LookupData LookupData;
+typedef struct Buffer     Buffer;
+typedef struct Dentry     Dentry;
+typedef struct Volume     Volume;
+typedef struct File       File;
+typedef struct Channel    Channel;
 
 
-/* Lookup data block for the internal "readdir" function */
+/// Lookup data block for the internal "readdir" function.
 struct LookupData
 {
 	wchar_t  sfn[FAT_SFN_MAX];
@@ -123,30 +161,41 @@ struct LookupData
 };
 
 
-/* A buffer containing one or more contiguous sectors */
+/// A buffer containing one or more contiguous sectors.
 struct Buffer
 {
-	Buffer *prev; /* from ListItem */
-	Buffer *next; /* from ListItem */
-	const Volume *v;
+	Buffer  *prev;   /* From ListItem, less recently used */
+	Buffer  *next;   /* From ListItem, more recently used */
+	Volume  *v;      /* Volume owning this buffer */
 	Sector   sector; /* First sector of this buffer */
 	unsigned count;  /* Sectors in this buffer */
-	int      flags;
-	uint8_t *data; /* Raw data of the buffered sectors */
+	int      flags;  /* Buffer state */
+	uint8_t *data;   /* Raw data of the buffered sectors */
 };
 
 
-/* This structure stores the state of a mounted FAT volume */
+/// A node in the cached directory tree, to locate directory entries.
+struct Dentry
+{
+	Dentry  *prev;        /* From ListItem, previous at the same level */
+	Dentry  *next;        /* From ListItem, next at the same level */
+	Dentry  *parent;      /* The parent Dentry */
+	List     children;    /* List of children of this node */
+	unsigned references;  /* Number of Channels and Dentries referring to this Dentry */
+	Volume  *v;           /* FAT volume containing this Dentry */
+	Sector   de_sector;   /* Sector containing the directory entry.
+	                       * 0 if no directory entry (root directory),
+	                       * FAT_UNLINKED if referring to an unlinked file. */
+	uint16_t de_entcnt;   /* Offset of the short name entry in the parent in sizeof(struct fat_direntry) units */
+	uint8_t  attr;        /* Attributes of the directory entry */
+	uint8_t  lfn_entries; /* Number of LFN entries occupied by this entry. Undefined if !FAT_CONFIG_LFN */
+};
+
+
+/// A structure storing the state of a mounted FAT volume.
 struct Volume
 {
-	#if FAT_CONFIG_FD32
-	/* Data referring to the hosting block device */
-	uint32_t        blk_handle;
-	fd32_request_t *blk_request;
-	void           *blk_devid;
-	#else
-	FILE *blk;
-	#endif
+	BlockDev blk;
 	struct nls_operations *nls;
 
 	/* Some precalculated data */
@@ -178,17 +227,20 @@ struct Volume
 
 	/* Buffers */
 	unsigned  sectors_per_buffer;
-	unsigned  buf_access;
-	unsigned  buf_miss;
-	unsigned  buf_hit;
+	unsigned  buf_access; /* statistics */
+	unsigned  buf_miss;   /* statistics */
+	unsigned  buf_hit;    /* statistics */
 	unsigned  num_buffers;
 	Buffer   *buffers;
 	uint8_t  *buffer_data;
 	List      buffers_lru;
 
 	/* Files */
+	unsigned  num_dentries; /* statistics */
+	slabmem_t dentries_slab;
 	slabmem_t files_slab;
 	slabmem_t channels_slab;
+	Dentry    root_dentry;
 	List      files_open;
 	List      channels_open;
 
@@ -197,26 +249,28 @@ struct Volume
 };
 
 
-/* The state of a file (shared by open instances). */
+/// The state of a file (shared by open instances).
 struct File
 {
 	File *prev; /* from ListItem */
 	File *next; /* from ListItem */
 	struct fat_direntry de;
 	bool     de_changed;
-	Sector   de_sector;
-	unsigned de_secoff;
+	Sector   de_sector; /* Sector containing the directory entry.
+	                     * 0 if no directory entry (root directory),
+	                     * FAT_UNLINKED if file queued for deletion. */
+	unsigned de_secofs; /* Byte offset of the directory entry in de_sector */
 	Volume  *v;
 	Cluster  first_cluster;
 	unsigned references;
 };
 
 
-/* An open instance of a file (called a "channel" in glibc documentation). */
+/// An open instance of a file (called a "channel" in glibc documentation).
 struct Channel
 {
-	Channel *prev; /* from ListItem */
-	Channel *next; /* from ListItem */
+	Channel  *prev;          /* From ListItem */
+	Channel  *next;          /* From ListItem */
 	off_t     file_pointer;  /* The one set by lseek and updated on r/w */
 	File     *f;             /* State of this file */
 	uint32_t  magic;         /* FAT_CHANNEL_MAGIC */
@@ -224,18 +278,19 @@ struct Channel
 	unsigned  references;    /* Number of times this instance is open */
 	Cluster   cluster_index; /* Cached cluster position (0 = N/A) */
 	Cluster   cluster;       /* Cached cluster address (undefined if cluster_index==0) */
+	Dentry   *dentry;        /* Cached directory node for this open instance */
 };
 
 
 /* alloc.c */
-void    fat_direntry_location(const Channel *c, LookupData *lud);
-int     fat_get_file_sector(Channel *c, Sector sector_index, Sector *sector);
 int32_t fat12_read(Volume *v, Cluster n, unsigned fat_num);
 int32_t fat16_read(Volume *v, Cluster n, unsigned fat_num);
 int32_t fat32_read(Volume *v, Cluster n, unsigned fat_num);
+int     fat_get_file_sector(Channel *c, Sector sector_index, Sector *sector);
 #if FAT_CONFIG_WRITE
 int32_t fat_append_cluster(Channel *c);
-int     fat_delete_clusters(const File *f, Cluster new_last_cluster);
+int     fat_delete_file_clusters(File *f, Cluster new_last_cluster);
+int     fat_delete_clusters(Volume *v, Cluster from);
 int     fat12_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 int     fat16_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 int     fat32_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
@@ -244,13 +299,16 @@ int     fat32_write(Volume *v, Cluster n, unsigned fat_num, Cluster value);
 /* dir.c */
 int fat_build_fcb_name(const struct nls_operations *nls, uint8_t *dest, const char *src, size_t src_size, bool wildcards);
 int fat_do_readdir(Channel *c, LookupData *lud);
-int fat_lookup(Channel *c, const char *fn, size_t fnsize, LookupData *lud);
 #if FAT_CONFIG_WRITE
-int fat_link(Channel *c, const char *fn, size_t fnsize, int attr, unsigned hint, LookupData *lud);
+int fat_unlink(Dentry *d);
+int fat_link  (Channel *c, const char *fn, size_t fnsize, int attr, unsigned hint, LookupData *lud);
+int fat_rename(Dentry *od, Dentry *ndparent, const char *nn, size_t nnsize);
+int fat_rmdir (Dentry *d);
+int fat_mkdir (Dentry *dparent, const char *fn, size_t fnsize, mode_t mode);
 #endif
 
 /* dos.c */
-int fat_findfirst(Volume *v, const char *fn, int attr, fd32_fs_dosfind_t *df);
+int fat_findfirst(Dentry *dparent, const char *fn, size_t fnsize, int attr, fd32_fs_dosfind_t *df);
 int fat_findnext (Volume *v, fd32_fs_dosfind_t *df);
 int fat_findfile (Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_lfnfind_t *lfnfind);
 
@@ -272,12 +330,16 @@ int     fat_set_attr (Channel *c, const fd32_fs_attr_t *a);
 #endif
 
 /* open.c */
-int fat_open      (Volume *v, const char *file_name, const char *fn_stop, int flags, mode_t mode, Channel **channel);
-int fat_reopen_dir(Volume *v, Cluster first_cluster, unsigned entry_count, Channel **channel);
+void fat_dget  (Dentry *d);
+void fat_dput  (Dentry *d);
+int  fat_open  (Dentry *dentry, int flags, Channel **channel);
+int  fat_create(Dentry *dparent, const char *fn, size_t fnsize, int flags, mode_t mode, Channel **channel);
+int  fat_reopen_dir(Volume *v, Cluster first_cluster, unsigned entry_count, Channel **channel);
 #if FAT_CONFIG_WRITE
-int fat_fflush    (Channel *c);
+int  fat_fsync (Channel *c, bool datasync);
 #endif
-int fat_close     (Channel *c);
+int  fat_close (Channel *c);
+int  fat_lookup(Dentry **dentry, const char *fn, size_t fnsize);
 
 /* volume.c */
 #if FAT_CONFIG_WRITE
@@ -294,9 +356,23 @@ int fat_mount(const char *blk_name, Volume **volume);
 #endif
 int fat_unmount(Volume *v);
 int fat_partcheck(unsigned id);
-#if FAT_CONFIG_REMOVABLE && FAT_CONFIG_FD32
+#if FAT_CONFIG_REMOVABLE //&& FAT_CONFIG_FD32
 int fat_mediachange(Volume *v);
 #endif
+
+/* Portability */
+ssize_t fat_blockdev_read       (BlockDev *bd, void *data, size_t count, Sector from);
+ssize_t fat_blockdev_write      (BlockDev *bd, const void *data, size_t count, Sector from);
+int     fat_blockdev_mediachange(BlockDev *bd);
+
+/* Functions with pathname resolution */
+int fat_open_pr  (Dentry *dentry, const char *pn, size_t pnsize, int flags, mode_t mode, Channel **channel);
+int fat_unlink_pr(Dentry *dentry, const char *pn, size_t pnsize);
+int fat_rename_pr(Dentry *odentry, const char *on, size_t onsize,
+                  Dentry *ndentry, const char *nn, size_t nnsize);
+int fat_rmdir_pr (Dentry *dentry, const char *pn, size_t pnsize);
+int fat_mkdir_pr (Dentry *dentry, const char *pn, size_t pnsize, mode_t mode);
+int fat_findfirst_pr(Dentry *dentry, const char *pn, size_t pnsize, int attr, fd32_fs_dosfind_t *df);
 
 
 #endif /* #ifndef __FD32_FAT_DRIVER_H */

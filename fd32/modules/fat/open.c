@@ -25,72 +25,152 @@
 #include "fat.h"
 
 
-/* Checks if the specified File is open.
- * The first_cluster alone may be not enough for file matching:
- * zero length files have first_cluster == 0.
- */
-static File *file_is_open(const Volume *v, Cluster first_cluster, Sector de_sector, unsigned de_secoff)
+static void file_init(File *f, Volume *v, const struct fat_direntry *de, Sector de_sector, unsigned de_secofs)
 {
-	File *f;
-	for (f = (File *) v->files_open.begin; f; f = f->next)
-	{
-		if (first_cluster && (f->first_cluster == first_cluster)) return f;
-		if (!first_cluster && (f->de_sector == de_sector) && (f->de_secoff == de_secoff)) return f;
-	}
-	return NULL;
-}
-
-
-/* Gets and initialize a struct File */
-static File *file_get(Volume *v, const struct fat_direntry *de, Sector de_sector, unsigned de_secoff)
-{
-	File *f = slabmem_alloc(&v->files_slab);
-	list_push_front(&v->files_open, (ListItem *) f);
 	memcpy(&f->de, de, sizeof(struct fat_direntry));
 	f->de_changed    = false;
 	f->de_sector     = de_sector;
-	f->de_secoff     = de_secoff;
+	f->de_secofs     = de_secofs;
 	f->v             = v;
 	f->first_cluster = ((Cluster) de->first_cluster_hi << 16) | (Cluster) de->first_cluster_lo;
-	f->references    = 1;
+	f->references    = 0;
+	list_push_front(&v->files_open, (ListItem *) f);
+}
+
+
+/* Gets and initializes a state structure for a file.
+ * If the specified File is already open, increase its reference count.
+ * Fot the latter task, comparing the first cluster is not enough, since
+ * all zero length files have the first cluster equal to 0.
+ */
+static File *file_get(Volume *v, const struct fat_direntry *de, Sector de_sector, unsigned de_secofs)
+{
+	File *f;
+	Cluster first = ((Cluster) de->first_cluster_hi << 16) | (Cluster) de->first_cluster_lo;
+	for (f = (File *) v->files_open.begin; f; f = f->next)
+	{
+		if (first && (f->first_cluster == first)) break;
+		if (!first && (f->de_sector == de_sector) && (f->de_secofs == de_secofs)) break;
+	}
+	if (!f)
+	{
+		f = slabmem_alloc(&v->files_slab);
+		file_init(f, v, de, de_sector, de_secofs);
+	}
+	f->references++;
 	return f;
 }
 
 
-/* Releases a struct File.
- * If it has no more references, write the directory entry if needed.
- * Returns the updated reference count or a negative error.
- */
-static int file_put(File *f)
+/* Releases a state structure for a file. */
+static void file_put(File *f)
 {
-	if (!f->references) return -EBADF;
+	assert (f->references);
 	if (--f->references == 0)
 	{
-		Volume *v = f->v;
-		#if FAT_CONFIG_WRITE
-		if (f->de_changed && f->de_sector)
-		{
-			Buffer *b = NULL;
-			int res = fat_readbuf(v, f->de_sector, &b, false);
-			if (res < 0) return res;
-			memcpy(b->data + res + f->de_secoff, &f->de, sizeof(struct fat_direntry));
-			f->de_changed = false;
-			res = fat_dirtybuf(b, false);
-			if (res < 0) return res;
-		}
-		#endif
-		list_erase(&v->files_open, (ListItem *) f);
-		slabmem_free(&v->files_slab, f);
+		list_erase(&f->v->files_open, (ListItem *) f);
+		slabmem_free(&f->v->files_slab, f);
 	}
-	return f->references;
 }
 
 
-/* Gets and initialize a struct Channel */
-static Channel *channel_get(File *f, int flags)
+/**
+ * \brief Increases the reference count of a cached directory node.
+ * \param d the cached directory node; the behavior is undefined if it is not valid.
+ * \ingroup api
+ */
+void fat_dget(Dentry *d)
 {
-	Channel *c = slabmem_alloc(&f->v->channels_slab);
-	list_push_front(&f->v->channels_open, (ListItem *) c);
+	d->references++;
+	d->v->num_dentries++;
+}
+
+
+#if FAT_CONFIG_LFN
+static void dentry_init(Dentry *d, Dentry *parent, unsigned de_entcnt, Sector de_sector, unsigned attr, unsigned lfn_entries)
+#else
+static void dentry_init(Dentry *d, Dentry *parent, unsigned de_entcnt, Sector de_sector, unsigned attr)
+#endif
+{
+	d->prev        = NULL;
+	d->next        = NULL;
+	d->parent      = parent;
+	list_init(&d->children);
+	d->references  = 0;
+	d->v           = parent->v;
+	d->de_sector   = de_sector;
+	d->attr        = attr;
+	d->de_entcnt   = (uint16_t) de_entcnt;
+	#if FAT_CONFIG_LFN
+	d->lfn_entries = (uint8_t) lfn_entries;
+	#endif
+	fat_dget(parent);
+	list_push_front(&parent->children, (ListItem *) d);
+}
+
+
+/* Gets a cached directory node matching the specified parameters,
+ * allocating a new one of there is not already one.
+ */
+#if FAT_CONFIG_LFN
+static Dentry *dentry_get(Dentry *parent, unsigned de_entcnt, Sector de_sector, unsigned attr, unsigned lfn_entries)
+#else
+static Dentry *dentry_get(Dentry *parent, unsigned de_entcnt, Sector de_sector, unsigned attr)
+#endif
+{
+	Dentry *d;
+	for (d = (Dentry *) parent->children.begin; d; d = d->next)
+		if (de_entcnt == d->de_entcnt) break;
+	if (!d)
+	{
+		d = slabmem_alloc(&parent->v->dentries_slab);
+		if (!d) return NULL;
+		#if FAT_CONFIG_LFN
+		dentry_init(d, parent, de_entcnt, de_sector, attr, lfn_entries);
+		#else
+		dentry_init(d, parent, de_entcnt, de_sector, attr);
+		#endif
+	}
+	fat_dget(d);
+	return d;
+}
+
+
+/**
+ * \brief   Releases a cached directory node.
+ * \param   d the cached directory node; the behavior is undefined if it is not valid.
+ * \remarks The reference count for the cached directory node shall be
+ *          decreased. If it reaches zero, the directory node itself shall
+ *          be deallocated, and the procedure shall be repeated recursively
+ *          for any parent cached directory node of the file system volume.
+ * \ingroup api
+ */
+void fat_dput(Dentry *d)
+{
+	Dentry *parent;
+	Volume *v = d->v;
+	while (d)
+	{
+		assert(d->v == v);
+		assert(d->references);
+		assert(v->num_dentries);
+		d->references--;
+		v->num_dentries--;
+		if (d->references) break;
+		assert(!d->children.size);
+		parent = d->parent;
+		if (parent)
+		{
+			list_erase(&parent->children, (ListItem *) d);
+			slabmem_free(&v->dentries_slab, d);
+		}
+		d = parent;
+	}
+}
+
+
+static void channel_init(Channel *c, File *f, Dentry *d, int flags)
+{
 	c->file_pointer   = 0;
 	c->f              = f;
 	c->magic          = FAT_CHANNEL_MAGIC;
@@ -98,146 +178,165 @@ static Channel *channel_get(File *f, int flags)
 	c->references     = 1;
 	c->cluster_index  = 0;
 	c->cluster        = 0;
+	c->dentry         = d;
+	list_push_front(&f->v->channels_open, (ListItem *) c);
+}
+
+
+/* Allocates and initializes an open instance of a file, and increases
+ * the reference count of the associated cached directory node.
+ */
+static Channel *channel_get(File *f, Dentry *d, int flags)
+{
+	Channel *c = slabmem_alloc(&f->v->channels_slab);
+	if (c)
+	{
+		channel_init(c, f, d, flags);
+		if (d) fat_dget(d);
+	}
 	return c;
 }
 
 
-#define fat_mode_to_attributes(x) x
-/* Opens the specified file in the specified parent directory.
- * The opened instance is returned in "channel".
+/**
+ * \brief  Opens an existing file.
+ * \param  dentry  cached directory node of the file to open;
+ * \param  flags   opening flags;
+ * \param  channel to receive the pointer to the open file description.
+ * \return 0 on success, or a negative error (\c channel unchanged).
+ * \remarks On success, the cached directory node shall be associated to the
+ *          open file description, thus its reference count shall be increased.
+ * \ingroup api
  */
-static int fat_open1(Channel *restrict parent, Channel **restrict channel, const char *name, size_t name_size, int flags, mode_t mode)
+int fat_open(Dentry *dentry, int flags, Channel **channel)
 {
-	struct fat_direntry *de;
-	Volume *v;
-	File *f;
+	struct fat_direntry de;
+	Volume  *v = dentry->v;
+	Buffer  *b = NULL;
+	File    *f;
 	Channel *c;
-	int res;
-	Cluster first;
-	bool existing = true;
-
-	if (!parent || !channel || !name) return -EFAULT;
-	v = parent->f->v;
-	res = fat_lookup(parent, name, name_size, &v->lud);
-	#if FAT_CONFIG_WRITE
-	if ((res == -ENOENT) && (flags & O_CREAT))
-	{
-		int attr = fat_mode_to_attributes(mode);
-		res = fat_link(parent, name, name_size, attr, 1, &v->lud);
-		if (res < 0) return res;
-		existing = false;
-	}
-	else if (res < 0) return res;
-	/* Here the file exists */
-	if (existing && (flags & O_CREAT) && (flags & O_EXCL)) return -EEXIST;
-	#else
-	if (res < 0) return res;
-	#endif
+	int      res;
+	unsigned de_secofs = ((off_t) dentry->de_entcnt * sizeof(struct fat_direntry))
+	                   & (v->bytes_per_sector - 1);
 
 	/* Check for permissions */
+	if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_TRUNC))
+	{
+		if (dentry->attr & FAT_ARDONLY) return -EACCES;
+		if (!(flags & O_DIRECTORY) && (dentry->attr & FAT_ADIR)) return -EISDIR;
+	}
+	if ((flags & O_DIRECTORY) && !(dentry->attr & FAT_ADIR)) return -ENOTDIR;
+	/* Fetch the directory entry, or synthesize one for the root */
+	if (dentry->parent)
+	{
+		res = fat_readbuf(v, dentry->de_sector, &b, false);
+		if (res < 0) return res;
+		memcpy(&de, b->data + res + de_secofs, sizeof(struct fat_direntry));
+	}
+	else
+	{
+		memset(&de, 0, sizeof(struct fat_direntry));
+		de.attr = FAT_ADIR;
+		de.first_cluster_hi = (uint16_t) (v->root_cluster >> 16);
+		de.first_cluster_lo = (uint16_t) v->root_cluster;
+	}
+	/* Open a file description */
+	f = file_get(v, &de, dentry->de_sector, de_secofs);
+	if (!f) return -ENOMEM;
+	c = channel_get(f, dentry, flags);
+	if (!c)
+	{
+		file_put(f);
+		return -ENOMEM;
+	}
+	assert(dentry->references >= 2);
+	*channel = c;
+	return 0;
+}
+
+
+#define mode_to_attributes(x) x
+/**
+ * \brief  Creates a new file in the specified directory.
+ * \param  dparent cached node of the directory where to create the file in;
+ * \param  fn      name of the file to create, in UTF-8 not null terminated;
+ * \param  fnsize  length in bytes of the file name in \c fn;
+ * \param  flags   opening flags (\c O_CREAT | \c O_EXCL assumed);
+ * \param  mode    permissions for the new file;
+ * \param  channel to receive the pointer to the open file description.
+ * \return 0 on success, or a negative error.
+ * \remarks The cached directory node of the parent directory shall be released.
+ * \ingroup api
+ */
+int fat_create(Dentry *dparent, const char *fn, size_t fnsize, int flags, mode_t mode, Channel **channel)
+{
+	struct fat_direntry *de;
+	Volume  *v = dparent->v;
+	File    *f = NULL;
+	Dentry  *d = NULL;
+	Channel *c = NULL;
+	Channel *cparent = NULL;
+	int      res;
+
+	/* Validate the access mode and open the parent */
+	mode = mode_to_attributes(mode);
+	if (flags & O_DIRECTORY) mode |= FAT_ADIR;
+	res = fat_open(dparent, O_RDWR | O_DIRECTORY, &cparent);
+	if (res < 0) return res;
+	/* Make sure there is room for the state structures for the new file */
+	res = -ENOMEM;
+	f = slabmem_alloc(&v->files_slab);
+	d = slabmem_alloc(&v->dentries_slab);
+	c = slabmem_alloc(&v->channels_slab);
+	if (!f || !d || !c) goto error;
+	/* Create a link to the new file */
+	res = fat_link(cparent, fn, fnsize, mode, 1, &v->lud);
+	if (res < 0) goto error;
+	res = fat_close(cparent);
+	if (res < 0) goto error;
 	#if FAT_CONFIG_LFN
 	de = &v->lud.cde[v->lud.cde_pos];
 	#else
 	de = &v->lud.cde;
 	#endif
-	if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_TRUNC))
-	{
-		if ((de->attr & FAT_ARDONLY) && existing) return -EACCES;
-		if ((de->attr & FAT_ADIR) && !(flags & O_DIRECTORY)) return -EISDIR;
-	}
-	if ((flags & O_DIRECTORY) && (!(de->attr & FAT_ADIR))) return -ENOTDIR;
-
-	/* Check if we are going to open the root directory, identified as a dir
-	 * starting at cluster 0, like in "..", even if the volume is FAT32. */
-	first = ((Cluster) de->first_cluster_hi << 16) | (Cluster) de->first_cluster_lo;
-	if (!first && (de->attr & FAT_ADIR))
-	{
-		v->lud.de_sector = 0;
-		v->lud.de_secofs = 0;
-		de->first_cluster_hi = (uint16_t) (v->root_cluster >> 16);
-		de->first_cluster_lo = (uint16_t)  v->root_cluster;
-	}
-	/* Open the file structure */
-	f = file_is_open(v, first, v->lud.de_sector, v->lud.de_secofs);
-	if (!f)
-	{
-		f = file_get(v, de, v->lud.de_sector, v->lud.de_secofs);
-		if (!f) return -ENOMEM;
-	}
-	else f->references++;	
-	c = channel_get(f, flags);
-	if (!c)
-	{
-		file_put(f);
-		return -ENOMEM;
-	}
-	res = FD32_ORCREAT;
-	if (existing) res = FD32_OROPEN;
-	#if FAT_CONFIG_WRITE
-	if (flags & O_TRUNC)
-	{
-		if (existing) res = FD32_ORTRUNC;
-		fat_ftruncate(c, 0);
-	}
+	/* Initialize the state structures */
+	file_init(f, v, de, v->lud.de_sector, v->lud.de_secofs);
+	f->references = 1;
+	assert(v->lud.de_dirofs % sizeof(struct fat_direntry) == 0);
+	#if FAT_CONFIG_LFN
+	dentry_init(d, dparent, v->lud.de_dirofs / sizeof(struct fat_direntry), v->lud.de_sector, de->attr, v->lud.lfn_entries);
+	#else
+	dentry_init(d, dparent, v->lud.de_dirofs / sizeof(struct fat_direntry), v->lud.de_sector, de->attr);
 	#endif
+	fat_dget(d);
+	channel_init(c, f, d, flags);
 	*channel = c;
+	return 0;
+error:
+	if (f) slabmem_free(&v->files_slab, f);
+	if (d) slabmem_free(&v->dentries_slab, d);
+	if (c) slabmem_free(&v->channels_slab, c);
+	if (cparent) fat_close(cparent);
 	return res;
-}
-
-
-static int fat_open_dot(Channel *restrict parent, Channel **restrict channel, int flags)
-{
-	File *f = parent->f;
-	Channel *c;
-
-	LOG_PRINTF(("[FAT2] fat_open_dot, flags=%08xh\n", flags));
-	if ((flags & O_CREAT) && (flags & O_EXCL)) return -EEXIST;
-	if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_TRUNC))
-	{
-		if (f->de.attr & FAT_ARDONLY) return -EACCES;
-		if ((f->de.attr & FAT_ADIR) && !(flags & O_DIRECTORY)) return -EISDIR;
-	}
-	if ((flags & O_DIRECTORY) && (!(f->de.attr & FAT_ADIR))) return -ENOTDIR;
-
-	f->references++;	
-	c = channel_get(f, flags);
-	if (!c)
-	{
-		file_put(f);
-		return -ENOMEM;
-	}
-	*channel = c;
-	#if FAT_CONFIG_WRITE
-	if (flags & O_TRUNC)
-	{
-		fat_ftruncate(c, 0);
-		return FD32_ORTRUNC;
-	}
-	#endif
-	return FD32_OROPEN;
 }
 
 
 /* Opens a directory knowing its first cluster for read, and seeks to
  * the offset corresponding to the specified 32-byte directory entry.
+ * Only used for DOS-style FindFirst and FindNext services.
  */
 int fat_reopen_dir(Volume *v, Cluster first_cluster, unsigned entry_count, Channel **channel)
 {
+	struct fat_direntry de;
 	File *f;
 	Channel *c;
-	f = file_is_open(v, first_cluster, 0, 0);
-	if (!f)
-	{
-		struct fat_direntry de;
-		memset(&de, 0, sizeof(struct fat_direntry));
-		de.attr = FAT_ADIR;
-		de.first_cluster_hi = (uint16_t) (first_cluster >> 16);
-		de.first_cluster_lo = (uint16_t) first_cluster;
-		f = file_get(v, &de, 0, 0);
-		if (!f) return -ENOMEM;
-	}
-	else f->references++;	
-	c = channel_get(f, O_RDONLY | O_DIRECTORY);
+	memset(&de, 0, sizeof(struct fat_direntry));
+	de.attr = FAT_ADIR;
+	de.first_cluster_hi = (uint16_t) (first_cluster >> 16);
+	de.first_cluster_lo = (uint16_t) first_cluster;
+	f = file_get(v, &de, 0, 0);
+	if (!f) return -ENOMEM;
+	c = channel_get(f, 0, O_RDONLY | O_DIRECTORY); //TODO: Missing Dentry
 	if (!c)
 	{
 		file_put(f);
@@ -250,19 +349,24 @@ int fat_reopen_dir(Volume *v, Cluster first_cluster, unsigned entry_count, Chann
 
 
 #if FAT_CONFIG_WRITE
-/* Backend for the fsync system call.
- * Commits the directory entry and volume buffers.
+/**
+ * \brief  Backend for the "fsync" and "fdatasync" POSIX system calls.
+ * \param  c        open instance of the file to commit;
+ * \param  datasync if nonzero, do not commit the directory entry, only the buffered data.
+ * \return 0 on success, or a negative error.
+ * \ingroup api
  */
-int fat_fflush(Channel *c)
+int fat_fsync(Channel *c, bool datasync)
 {
-	File *f = c->f;
-	/* If the file is not the root, write its directory entry */
-	if (f->de_changed && f->de_sector)
+	File *f;
+	if (c->magic != FAT_CHANNEL_MAGIC) return -EBADF;
+	f = c->f;
+	if (!datasync && f->de_changed && f->de_sector && (f->de_sector != FAT_UNLINKED))
 	{
 		Buffer *b = NULL;
 		int res = fat_readbuf(f->v, f->de_sector, &b, false);
 		if (res < 0) return res;
-		memcpy(b->data + res + f->de_secoff, &f->de, sizeof(struct fat_direntry));
+		memcpy(b->data + res + f->de_secofs, &f->de, sizeof(struct fat_direntry));
 		f->de_changed = false;
 		res = fat_dirtybuf(b, false);
 		if (res < 0) return res;
@@ -272,76 +376,153 @@ int fat_fflush(Channel *c)
 #endif
 
 
-/* Backend for the close system call */
+/**
+ * \brief   Backend for the "close" POSIX system call.
+ * \param   c open instance of the file to close.
+ * \return  0 on success, or a negative error.
+ * \remarks If there are no other open instances, the file description and the
+ *          associated cached directory node shall be released even on I/O error.
+ * \ingroup api
+ */
 int fat_close(Channel *c)
 {
-	Volume *v = c->f->v;
-	if (!c->references) return -EBADF;
-	if (--c->references == 0)
+	File *f;
+	Volume *v;
+	int res = 0;
+	if ((c->magic != FAT_CHANNEL_MAGIC) || !c->references) return -EBADF;
+	f = c->f;
+	v = f->v;
+	c->references--;
+	#if FAT_CONFIG_WRITE
+	if (!c->references && (f->de_sector == FAT_UNLINKED))
+		res = fat_delete_clusters(v, f->first_cluster);
+	if (!res) res = fat_fsync(c, false);
+	#endif
+	if (!c->references)
 	{
-		int res;
-		#if FAT_CONFIG_WRITE
-		res = fat_fflush(c);
-		if (res < 0) return res;
-		#endif
-		res = file_put(c->f);
-		if (res < 0) return res;
+		if (c->dentry) fat_dput(c->dentry);
+		file_put(f);
 		c->magic = 0;
 		list_erase(&v->channels_open, (ListItem *) c);
 		slabmem_free(&v->channels_slab, c);
 	}
-	#if FAT_CONFIG_DEBUG
-	LOG_PRINTF(("[FAT2] fat_flose. Volume buffers: %u hits, %u misses on %u\n",
-	            v->buf_hit, v->buf_miss, v->buf_access));
-	LOG_PRINTF(("[FAT2] %u channels open, %u files open.\n", v->channels_open.size, v->files_open.size));
+	#if FAT_CONFIG_FD32
+	fd32_log_printf("[FAT2] fat_flose (res=%i). Volume buffers: %u hits, %u misses on %u\n",
+		res, v->buf_hit, v->buf_miss, v->buf_access);
+	fd32_log_printf("[FAT2] %u channels open, %u files open, %u dentries.\n",
+		v->channels_open.size, v->files_open.size, v->num_dentries);
+	#else
+	LOG_PRINTF(("[FAT2] fat_flose (res=%i). Volume buffers: %u hits, %u misses on %u\n",
+		res, v->buf_hit, v->buf_miss, v->buf_access));
+	LOG_PRINTF(("[FAT2] %u channels open, %u files open, %u dentries.\n",
+		v->channels_open.size, v->files_open.size, v->num_dentries));
 	#endif
-	return 0;
-}
-
-
-/******************************************************************************/
-static const char *get_base_name(const char *file_name, const char *fn_stop)
-{
-	const char *res = file_name;
-	for (; *file_name && (file_name != fn_stop); file_name++)
-		if (*file_name == FAT_PATH_SEP) res = file_name + 1;
 	return res;
 }
 
 
-/* Opens or creates a file in the specified volume.
- * The "file_name" string is parsed until first between the null terminator,
- * or the byte position "fn_stop".
+/* Compares a UTF-8 file name against a wide character file name without
+ * wildcards. The strings are not null terminated.
+ * Return value: 0 match, >0 don't match, <0 error.
  */
-int fat_open(Volume *v, const char *file_name, const char *fn_stop, int flags, mode_t mode, Channel **channel)
+static int compare_without_wildcards(const char *s1, size_t n1, const wchar_t *s2, size_t n2)
 {
-	const char *bname;
-	Channel *parent;
-	Channel *child;
-	int res;
-
-	if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
-	res = fat_reopen_dir(v, v->root_cluster, 0, &parent);
-	if (res < 0) return res;
-
-	/* Descend the path */
-	bname = get_base_name(file_name, fn_stop);
-	while (*file_name && (file_name != fn_stop))
+	wchar_t wc;
+	int skip;
+	while (n1 && n2)
 	{
-		const char *comp;
-		int real_flags = O_RDONLY | O_DIRECTORY;
-		while ((*file_name == FAT_PATH_SEP) && (file_name != fn_stop)) file_name++;
-		if (file_name == bname) real_flags = flags;
-		for (comp = file_name; *file_name && (file_name != fn_stop) && (*file_name != FAT_PATH_SEP); file_name++);
-		if ((comp == file_name) || ((file_name == comp + 1) && (*comp == '.')))
-			res = fat_open_dot(parent, &child, flags | O_DIRECTORY);
-		else
-			res = fat_open1(parent, &child, comp, file_name - comp, real_flags, mode);
-		LOG_PRINTF(("[FAT2]      res=%i\n", res));
-		fat_close(parent);
-		if (res < 0) return res;
-		parent = child;
+		skip = unicode_utf8towc(&wc, s1, n1);
+		if (skip < 0) return skip;
+		if (unicode_simple_fold(wc) != unicode_simple_fold(*s2)) return 1;
+		n1 -= skip;
+		s1 += skip;
+		n2--;
+		s2++;
 	}
-	*channel = parent;
+	if (n1 || n2) return 1;
+	return 0;
+}
+
+
+/**
+ * \brief Searches a directory for a specified file.
+ * \param[in]  dentry cached node of the directory to search in;
+ * \param[out] dentry cached directory node for the file found;
+ * \param      fn     name of the file too lookup (not "."), not null terminated;
+ * \param      fnsize length in bytes of the file name in \c fn;
+ * \remarks On success, the output cached directory node reference count shall
+ *          be increased (it shall be at least 1), and the input cached
+ *          directory node shall be released. On error the input cached
+ *          directory node shall be unchanged.
+ * \return  0 on success, or a negative error.
+ * \ingroup api
+ */
+int fat_lookup(Dentry **dentry, const char *fn, size_t fnsize)
+{
+	LookupData *lud;
+	Channel *c;
+	Dentry *d;
+	int res;
+	assert((*dentry)->references);
+	/* Do "." fast. Consider "" the same as "." */
+	if (!fnsize || ((fnsize == 1) && (*fn == '.')))
+	{
+		res = -ENOTDIR;
+		if ((*dentry)->attr & FAT_ADIR) res = 0;
+		return res;
+	}
+	/* Do ".." fast */
+	if ((fnsize == 2) && (!memcmp(fn, "..", 2)))
+	{
+		d = (*dentry)->parent;
+		assert(d->attr & FAT_ADIR);
+		if (d)
+		{
+			fat_dget(d);
+			fat_dput(*dentry);
+			*dentry = d;
+		}
+		return 0;
+	}
+	/* Not "..", lookup the file name. */
+	res = fat_open(*dentry, O_RDONLY | O_DIRECTORY, &c);
+	if (res < 0) return res;
+	assert((*dentry)->references >= 2);
+	lud = &c->f->v->lud;
+	for (;;)
+	{
+		res = fat_do_readdir(c, lud);
+		if (res < 0)
+		{
+			if (res == -ENMFILE) res = -ENOENT;
+			goto quit;
+		}
+		#if FAT_CONFIG_LFN
+		if (lud->cde[lud->cde_pos].attr & FAT_AVOLID) continue;
+		res = compare_without_wildcards(fn, fnsize, lud->lfn, lud->lfn_length);
+		if (!res) break;
+		if (res < 0) goto quit;
+		#else
+		if (lud->cde.attr & FAT_AVOLID) continue;
+		#endif
+		res = compare_without_wildcards(fn, fnsize, lud->sfn, lud->sfn_length);
+		if (!res) break;
+		if (res < 0) goto quit;
+	}
+	res = -ENOMEM;
+	assert(lud->de_dirofs % sizeof(struct fat_direntry) == 0);
+	#if FAT_CONFIG_LFN
+	d = dentry_get(*dentry, lud->de_dirofs / sizeof(struct fat_direntry), lud->de_sector, lud->cde[lud->cde_pos].attr, lud->lfn_entries);
+	#else
+	d = dentry_get(*dentry, lud->de_dirofs / sizeof(struct fat_direntry), lud->de_sector, lud->cde.attr);
+	#endif
+	if (d)
+	{
+		fat_dput(*dentry);
+		*dentry = d;
+		res = 0;
+	}
+quit:
+	fat_close(c);
 	return res;
 }

@@ -31,6 +31,45 @@
 #endif
 
 
+ssize_t fat_blockdev_read(BlockDev *bd, void *data, size_t count, Sector from)
+{
+	fd32_blockread_t p =
+	{
+		.Size      = sizeof(fd32_blockread_t),
+		.DeviceId  = bd->devid,
+		.Start     = from,
+		.Buffer    = data,
+		.NumBlocks = count
+	};
+	return bd->request(FD32_BLOCKREAD, &p);
+}
+
+
+ssize_t fat_blockdev_write(BlockDev *bd, const void *data, size_t count, Sector from)
+{
+	fd32_blockwrite_t p =
+	{
+		.Size      = sizeof(fd32_blockwrite_t),
+		.DeviceId  = bd->devid,
+		.Start     = from,
+		.Buffer    = (void *) data,
+		.NumBlocks = count
+	};
+	return bd->request(FD32_BLOCKWRITE, &p);
+}
+
+
+int fat_blockdev_mediachange(BlockDev *bd)
+{
+	fd32_mediachange_t mc =
+	{
+		.Size     = sizeof(fd32_mediachange_t),
+		.DeviceId = bd->devid
+	};
+	return bd->request(FD32_MEDIACHANGE, &mc);
+}
+
+
 int fat_request(DWORD function, void *params)
 {
 	int res;
@@ -84,7 +123,7 @@ int fat_request(DWORD function, void *params)
 			res = fat_mediachange(v);
 			if (res < 0) return res;
 			#endif
-			res = fat_open(v, p->FileName, NULL, p->Mode, p->Attr, (Channel **) &p->FileId);
+			res = fat_open_pr(&v->root_dentry, p->FileName, strlen(p->FileName), p->Mode, p->Attr, (Channel **) &p->FileId);
 			LOG_PRINTF(("[FAT2] FD32_OPENFILE: done %i\n", res));
 			return res;
 		}
@@ -111,7 +150,7 @@ int fat_request(DWORD function, void *params)
 			res = fat_mediachange(v);
 			if (res < 0) return res;
 			#endif
-			res = fat_findfirst(v, p->path, p->attrib, (fd32_fs_dosfind_t *) p->find_data);
+			res = fat_findfirst_pr(&v->root_dentry, p->path, strlen(p->path), p->attrib, (fd32_fs_dosfind_t *) p->find_data);
 			LOG_PRINTF(("[FAT2] FD32_FINDFIRST: done %i\n", res));
 			return res;
 		}
@@ -153,7 +192,7 @@ int fat_request(DWORD function, void *params)
 			res = fat_mediachange(c->f->v);
 			if (res < 0) return res;
 			#endif
-			return fat_fflush(c);
+			return fat_fsync(c, false);
 		}
 		#endif
 		case FD32_OPEN:
@@ -182,7 +221,6 @@ int fat_request(DWORD function, void *params)
 			#endif
 			return fat_set_attr(c, (const fd32_fs_attr_t *) p->Attr);
 		}
-	#if 0
 		case FD32_UNLINK:
 		{
 			fd32_unlink_t *p = (fd32_unlink_t *) params;
@@ -192,7 +230,7 @@ int fat_request(DWORD function, void *params)
 			res = fat_mediachange(v);
 			if (res < 0) return res;
 			#endif
-			return fat_unlink(v, p->FileName, p->Flags);
+			return fat_unlink_pr(&v->root_dentry, p->FileName, strlen(p->FileName)); //p->Flags ignored
 		}
 		case FD32_RENAME:
 		{
@@ -203,7 +241,8 @@ int fat_request(DWORD function, void *params)
 			res = fat_mediachange(v);
 			if (res < 0) return res;
 			#endif
-			return fat_rename(v, p->OldName, p->NewName);
+			return fat_rename_pr(&v->root_dentry, p->OldName, strlen(p->OldName),
+			                     &v->root_dentry, p->NewName, strlen(p->NewName));
 		}
 		case FD32_MKDIR:
 		{
@@ -214,7 +253,7 @@ int fat_request(DWORD function, void *params)
 			res = fat_mediachange(v);
 			if (res < 0) return res;
 			#endif
-			return fat_mkdir(v, p->DirName);
+			return fat_mkdir_pr(&v->root_dentry, p->DirName, strlen(p->DirName), 0); //fake mode
 		}
 		case FD32_RMDIR:
 		{
@@ -225,9 +264,8 @@ int fat_request(DWORD function, void *params)
 			res = fat_mediachange(v);
 			if (res < 0) return res;
 			#endif
-			return fat_rmdir(v, p->DirName);
+			return fat_rmdir_pr(&v->root_dentry, p->DirName, strlen(p->DirName));
 		}
-	#endif
 		#endif /* FAT_CONFIG_WRITE */
 		case FD32_MOUNT:
 		{

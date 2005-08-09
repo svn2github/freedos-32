@@ -24,14 +24,6 @@
  */
 #include "fat.h"
 
-#if 1 /* Old-style, zero-based access modes (O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2) */
- #define IS_NOT_READABLE(c)  (((c->flags & O_ACCMODE) != O_RDONLY) && ((c->flags & O_ACCMODE) != O_RDWR))
- #define IS_NOT_WRITEABLE(c) (((c->flags & O_ACCMODE) != O_RDWR) && ((c->flags & O_ACCMODE) != O_WRONLY))
-#else /* New-style, bitwise-distinct access modes (O_RDWR = O_RDONLY | O_WRONLY) */
- #define IS_NOT_READABLE(c)  (!(c->flags & O_RDONLY))
- #define IS_NOT_WRITEABLE(c) (!(c->flags & O_WRONLY))
-#endif
-
 
 #if !FAT_CONFIG_FD32
 /// Converts a broken-down time to a 16-bit DOS date
@@ -102,13 +94,14 @@ void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_hund)
 
 
 /**
- * \brief  Backend for the "lseek" system call.
+ * \brief  Backend for the "lseek" POSIX system call.
  * \param  c      the file instance to seek into;
  * \param  offset new byte offset for the file pointer according to \c whence;
  * \param  whence can be \c SEEK_SET, \c SEEK_CUR or \c SEEK_END; the latter
  *                is not allowed for directories.
  * \return On success, the new byte offset from the beginning of the file,
  *         or a negative error.
+ * \ingroup api
  */
 off_t fat_lseek(Channel *c, off_t offset, int whence)
 {
@@ -131,11 +124,12 @@ off_t fat_lseek(Channel *c, off_t offset, int whence)
 
 
 /**
- * \brief  Backend for the "read" system call.
+ * \brief  Backend for the "read" POSIX system call.
  * \param  c      the file instance to read from;
  * \param  buffer pointer to a buffer to receive the data;
  * \param  size   the number of bytes to read;
- * \return The number of bytes read on success (may be less than \c size), or a negative error.
+ * \return The number of bytes read on success (may be less than \c size, 0 at EOF), or a negative error.
+ * \ingroup api
  */
 ssize_t fat_read(Channel *c, void *buffer, size_t size)
 {
@@ -263,7 +257,7 @@ ssize_t fat_do_write(Channel *c, const void *buffer, size_t size, off_t offset)
 	if (!(f->de.attr & FAT_ADIR))
 	{
 		fat_timestamps(&f->de.mod_time, &f->de.mod_date, NULL);
-		if (!(c->flags & O_NOATIME)) f->de.acc_date = f->de.mod_date;
+		f->de.acc_date = f->de.mod_date;
 		f->de.attr |= FAT_AARCHIV;
 		f->de_changed = true;
 	}
@@ -277,11 +271,12 @@ ssize_t fat_do_write(Channel *c, const void *buffer, size_t size, off_t offset)
 
 
 /**
- * \brief  Backend for the "write" system call.
+ * \brief  Backend for the "write" POSIX system call.
  * \param  c      the regular file (not a directory) instance to write to;
  * \param  buffer pointer to the data to be written;
  * \param  size   the number of bytes to write.
  * \return The number of bytes written on success (may be less than \c size), or a negative error.
+ * \ingroup api
  */
 ssize_t fat_write(Channel *c, const void *buffer, size_t size)
 {
@@ -314,13 +309,14 @@ ssize_t fat_write(Channel *c, const void *buffer, size_t size)
 
 
 /**
- * \brief  Backend for the "ftruncate" system call.
- * \param  c      the regular file (not a directory) instance to truncate or extend;
- * \param  length the desired new length for the file;
- * \return 0 on success, or a negative error.
- * \note   If \c length is greater than the file size, the file is extended
- *         by zero padding. If it is smaller it is truncated to the specified
- *         size. If \c length is equal to the file size, this is a no-op.
+ * \brief   Backend for the "ftruncate" POSIX system call.
+ * \param   c      the regular file (not a directory) instance to truncate or extend;
+ * \param   length the desired new length for the file;
+ * \return  0 on success, or a negative error.
+ * \remarks If \c length is greater than the file size, the file is extended
+ *          by zero padding. If it is smaller it is truncated to the specified
+ *          size. If \c length is equal to the file size, this is a no-op.
+ * \ingroup api
  */
 int fat_ftruncate(Channel *c, off_t length)
 {
@@ -342,10 +338,10 @@ int fat_ftruncate(Channel *c, off_t length)
 			if (res > 0) return -EIO; /* EOF: file size not matched by the cluster chain */
 			new_last_cluster = c->cluster;
 		}
-		res = fat_delete_clusters(f, new_last_cluster);
+		res = fat_delete_file_clusters(f, new_last_cluster);
 		if (res < 0) return res;
 		fat_timestamps(&f->de.mod_time, &f->de.mod_date, NULL);
-		if (!(c->flags & O_NOATIME)) f->de.acc_date = f->de.mod_date;
+		f->de.acc_date = f->de.mod_date;
 		f->de.file_size = length;
 		f->de.attr |= FAT_AARCHIV;
 		f->de_changed = true;

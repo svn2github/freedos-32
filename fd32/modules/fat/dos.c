@@ -123,27 +123,28 @@ static int dos_find(Channel *c, fd32_fs_dosfind_t *df)
 }
 
 
-/* Same functionality as the GNU version of basename in glibc */
-static const char *get_base_name(const char *file_name)
+/**
+ * \brief   Backend for the "FindFirst" DOS system call.
+ * \param   dparent cached node of the directory where to search in;
+ * \param   fn      file name to search, in UTF-8 not null terminated;
+ * \param   fnsize  length in bytes of the file name in \c fn;
+ * \param   attr    DOS attributes that must be matched during the search;
+ * \param   df      buffer containing the DOS FindData record (44 bytes).
+ * \return  0 on success, or a negative error.
+ * \remarks This function, as well as fat_findnext(), works only on the short
+ *          namespace, and it is rather inefficient, since it requires that
+ *          the lookup directory is opened and closed for every file to search.
+ * \sa      fat_findnext(), fat_findfile()
+ * \ingroup api
+ */
+int fat_findfirst(Dentry *dparent, const char *fn, size_t fnsize, int attr, fd32_fs_dosfind_t *df)
 {
-	const char *res = file_name;
-	for (; *file_name; file_name++)
-		if (*file_name == FAT_PATH_SEP) res = file_name + 1;
-	return res;
-}
-
-
-/* The DOS-style "findfirst" system call */
-int fat_findfirst(Volume *v, const char *fn, int attr, fd32_fs_dosfind_t *df)
-{
-	const char *bname = get_base_name(fn);
-	int res;
 	Channel *c;
-	df->SearchAttr = attr;
-	res = fat_build_fcb_name(v->nls, df->SearchTemplate, bname, strlen(bname), true);
+	int res = fat_build_fcb_name(dparent->v->nls, df->SearchTemplate, fn, fnsize, true);
 	if (res < 0) return res;
 	if (res > 0) return -ENOENT; /* Can't exist in the short names namespace */
-	res = fat_open(v, fn, bname, O_RDONLY | O_DIRECTORY, 0, &c);
+	df->SearchAttr = attr;
+	res = fat_open(dparent, O_RDONLY | O_DIRECTORY, &c);
 	if (res < 0) return res;
 	res = dos_find(c, df);
 	if (res == -ENMFILE) res = -ENOENT; /* Yet another convention */
@@ -151,7 +152,14 @@ int fat_findfirst(Volume *v, const char *fn, int attr, fd32_fs_dosfind_t *df)
 }
 
 
-/* The DOS-style "findnext" system call */
+/**
+ * \brief  Backend for the "FindNext" DOS system call.
+ * \param  v  file system volume where to continue the search;
+ * \param  df buffer containing the DOS FindData record (44 bytes).
+ * \return 0 on success, or a negative error.
+ * \sa     fat_findfirst(), fat_findfile()
+ * \ingroup api
+ */
 int fat_findnext(Volume *v, fd32_fs_dosfind_t *df)
 {
 	struct DosFindData *dfd = (struct DosFindData *) df;
@@ -287,7 +295,19 @@ static int compare_with_wildcards_compat(const char *s1, size_t n1, const wchar_
 }
 
 
-/* Backend for the long file names find facilities */
+/**
+ * \brief   Backend for the "FindFirst" and "FindNext" Long File Names DOS system calls.
+ * \param   c open instance of the directory where to search in;
+ * \param   fn      file name to search, in UTF-8 not null terminated;
+ * \param   fnsize  length in bytes of the file name in \c fn;
+ * \param   flags   search flags;
+ * \param   lfnfind buffer to store the search result.
+ * \return  0 on success, or a negative error.
+ * \remarks This function works on both the short and long namespaces, and
+ *          uses an open file description for the lookup directory.
+ * \sa      fat_findfirst(), fat_findnext()
+ * \ingroup api
+ */
 int fat_findfile(Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_lfnfind_t *lfnfind)
 {
 	int res;

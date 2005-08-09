@@ -386,10 +386,11 @@ static int gen_short_fname_part(const struct nls_operations *nls, uint8_t *dest,
 			if (up >= 0)
 			{
 				const char *c;
-				*dest = up;
-				if (*dest < 0x20) return -EINVAL;
+				if (up < 0x20) return -EINVAL;
 				for (c = invalid_sfn_characters; *c; c++)
-					if (*dest == *c) return -EINVAL;
+					if (up == *c) return -EINVAL;
+				if (up != *dest) res = 1;
+				*dest = up;
 			}
 			else skip = -EINVAL;
 		}
@@ -439,7 +440,7 @@ static int gen_short_fname1(const struct nls_operations *nls, uint8_t *dest, con
 	memset(dest, 0x20, 11);
 	/* If source is "." or ".." build ".          " or "..         " */
 	if ((src_size == 1) && (*src == '.')) *dest = '.';
-	else if ((src_size == 2) && (*((uint16_t *) src) == 0x2E2E)) *((uint16_t *) dest) = 0x2E2E;
+	else if ((src_size == 2) && !memcmp(src, "..", 2)) memcpy(dest, "..", 2);
 	else /* not "." nor ".." */
 	{
 		dot = last_embedded_dot(src, src_size);
@@ -531,6 +532,29 @@ static int gen_short_fname(Channel *c, uint8_t *dest, const char *src, size_t sr
 
 
 /**
+ * \brief   Computes the location of a directory entry.
+ * \param   c   the directory containing the directory entry to locate;
+ * \param   lud LookupData structure to update with the directory entry location.
+ * \remarks It is assumed that this function is called right after reading or
+ *          writing the directory entry. Updates the \c de_dirofs,
+ *          \c de_sector and \c de_secofs fields of \c lud.
+ */
+static void direntry_location(const Channel *c, LookupData *lud)
+{
+	const File   *f = c->f;
+	const Volume *v = f->v;
+	lud->de_dirofs = c->file_pointer - sizeof(struct fat_direntry);
+	lud->de_sector = lud->de_dirofs >> v->log_bytes_per_sector;
+	if (!f->de_sector && !f->first_cluster)
+		lud->de_sector += v->root_sector;
+	else
+		lud->de_sector = (lud->de_sector & (v->sectors_per_cluster - 1))
+	                       + ((c->cluster - 2) << v->log_sectors_per_cluster) + v->data_start;
+	lud->de_secofs = lud->de_dirofs & (v->bytes_per_sector - 1);
+}
+
+
+/**
  * \brief  Backend for the readdir and find services.
  * \param  c   the open instance of the directory to read;
  * \param  lud LookupData structure to fill with the read data.
@@ -567,7 +591,7 @@ int fat_do_readdir(Channel *c, LookupData *lud)
 			res = expand_fcb_name(v->nls, lud->sfn, FAT_SFN_MAX, de->name);
 			if (res < 0) return res;
 			lud->sfn_length = res;
-			fat_direntry_location(c, lud);
+			direntry_location(c, lud);
 			return 0;
 		}
 		#if FAT_CONFIG_LFN
@@ -578,12 +602,12 @@ int fat_do_readdir(Channel *c, LookupData *lud)
 }
 
 
-#if 0 //Not defined in the current file system interface
+#if 0
 /* The READDIR system call.
  * Reads the next directory entry of the open directory "dir" in
  * the passed LFN finddata structure.
  */
-int fat_readdir(File *f, fd32_fs_lfnfind_t *entry)
+int fat_readdir(Channel *c, struct dirent *de)
 {
 	FindData fd; /* TODO: remove from stack */
 	int res;
@@ -611,60 +635,11 @@ int fat_readdir(File *f, fd32_fs_lfnfind_t *entry)
 #endif
 
 
-/**
- * \brief  Compare a UTF-8 string against a wide character string without wildcards.
- * \note   The strings are not null terminated.
- * \return 0 match, >0 don't match, <0 error.
- */
-static int compare_without_wildcards(const char *s1, size_t n1, const wchar_t *s2, size_t n2)
-{
-	wchar_t wc;
-	int skip;
-	while (n1 && n2)
-	{
-		skip = unicode_utf8towc(&wc, s1, n1);
-		if (skip < 0) return skip;
-		if (unicode_simple_fold(wc) != unicode_simple_fold(*s2)) return 1;
-		n1 -= skip;
-		s1 += skip;
-		n2--;
-		s2++;
-	}
-	if (n1 || n2) return 1;
-	return 0;
-}
-
-
-/**
- * \brief  Searches an open directory for a file matching the specified name.
- * \note   The file name string is not null terminated.
- * \return On success, returns 0 and fills the passed LookupData structure.
- */
-int fat_lookup(Channel *c, const char *fn, size_t fnsize, LookupData *lud)
-{
-	int res;
-	while ((res = fat_do_readdir(c, lud)) == 0)
-	{
-		#if FAT_CONFIG_LFN
-		if (lud->cde[lud->cde_pos].attr & FAT_AVOLID) continue;
-		if (!compare_without_wildcards(fn, fnsize, lud->lfn, lud->lfn_length))
-			return 0;
-		#else
-		if (lud->cde.attr & FAT_AVOLID) continue;
-		#endif
-		if (!compare_without_wildcards(fn, fnsize, lud->sfn, lud->sfn_length))
-			return 0;
-	}
-	if (res == -ENMFILE) res = -ENOENT;
-	return res;
-}
-
-
 #if FAT_CONFIG_WRITE
 /**
  * \brief  Marks as free the specified directory entries.
  * \param  c     the open directory to free entries in;
- * \param  from  byte offset of the first entry to delete;
+ * \param  from  offset of the first entry to delete in sizeof(struct fat_direntry) units;
  * \param  count number of adjacent entries to delete;
  * \return 0 on success, or a negative error.
  */
@@ -672,6 +647,7 @@ static int delete_entries(Channel *c, off_t from, size_t count)
 {
 	uint8_t b = FAT_FREEENT;
 	ssize_t res;
+	from *= sizeof(struct fat_direntry);
 	while (count--)
 	{
 		res = fat_do_write(c, &b, 1, from);
@@ -702,6 +678,8 @@ static int find_free_entries(Channel *c, unsigned num_entries)
 	{
 		res = fat_read(c, &de, sizeof(struct fat_direntry));
 		if (res != sizeof(struct fat_direntry)) break;
+		/* Here it is assumed that all entries after FAT_ENDOFDIR start
+		 * with FAT_ENDOFDIR too, as it should be. */
 		if ((de.name[0] == FAT_FREEENT) || (de.name[0] == FAT_ENDOFDIR))
 		{
 			if (found > 0) found++;
@@ -731,12 +709,16 @@ static int find_free_entries(Channel *c, unsigned num_entries)
 }
 
 
-/* Allocates 32-bytes directory entries of the specified open directory */
-/* to store a long file name, using D as directory entry for the short  */
-/* name alias.                                                          */
-/* On success, returns the byte offset of the short name entry.         */
-/* On failure, returns a negative error code.                           */
-/* Called fat_creat and fat_rename.                                     */
+/**
+ * \brief  Creates a link to a new file.
+ * \param  c      directory where to create the link;
+ * \param  fn     file name of the new link, not null terminated;
+ * \param  fnsize lenght in bytes of the file name in \c fn;
+ * \param  attr   file attributes for the new link;
+ * \param  hint   hint for the numeric tail for the short file name;
+ * \param  lud    LookupData structure to update with the new link.
+ * \return 0 on success, or a negative error.
+ */
 int fat_link(Channel *c, const char *fn, size_t fnsize, int attr, unsigned hint, LookupData *lud)
 {
 	int res;
@@ -766,7 +748,7 @@ int fat_link(Channel *c, const char *fn, size_t fnsize, int attr, unsigned hint,
 	fat_timestamps(&de->cre_time, &de->cre_date, &de->cre_time_hund);
 	de->acc_date = de->cre_date;
 	de->mod_time = de->cre_time;
-	de->mod_date = de->mod_date;
+	de->mod_date = de->cre_date;
 	de->first_cluster_hi = 0;
 	de->first_cluster_lo = 0;
 	de->file_size = 0;
@@ -784,15 +766,316 @@ int fat_link(Channel *c, const char *fn, size_t fnsize, int attr, unsigned hint,
 	#if FAT_CONFIG_LFN
 	}
 	#endif
-	fat_direntry_location(c, lud);
+	direntry_location(c, lud);
 	return 0;
-#if 0
-	wchar_t  sfn[FAT_SFN_MAX];
-	unsigned sfn_length;
+}
+
+
+/**
+ * \brief  Checks if a subdirectory is emtpy.
+ * \param  c the subdirectory to check (not the root).
+ * \return 0 on success (directory empty), or a negative error.
+ */
+static int directory_is_empty(Channel *c)
+{
+	struct fat_direntry de;
+	/* The first two entries must be "." and ".." */
+	int res = fat_read(c, &de, sizeof(struct fat_direntry));
+	if (res < 0) return res;
+	if (res != sizeof(struct fat_direntry)) goto critical;
+	if (memcmp(".          ", de.name, 11)) goto critical;
+	res = fat_read(c, &de, sizeof(struct fat_direntry));
+	if (res < 0) return res;
+	if (res != sizeof(struct fat_direntry)) goto critical;
+	if (memcmp("..         ", de.name, 11)) goto critical;
+	/* The following entries must be free */
+	for (;;)
+	{
+		res = fat_read(c, &de, sizeof(struct fat_direntry));
+		if (res < 0) return res;
+		if (res != sizeof(struct fat_direntry)) goto critical;
+		if (!res || (de.name[0] == FAT_ENDOFDIR)) return 0;
+		if (!(de.attr & FAT_AVOLID) && (de.name[0] != FAT_FREEENT)) return -ENOTEMPTY;
+	}
+critical:
+	/* TODO: Mark the IO error bit */
+	return -EIO;
+}
+
+
+/* Performs the underlying work for the fat_unlink (if "dir" is false)
+ * and fat_rmdir (if "dir" is true) services. It is up to the caller of
+ * fat_unlink or fat_rmdir to release the cached directory node.
+ */
+static int fat_remove(Dentry *d, bool dir)
+{
+	Channel *c = NULL;
+	Channel *cparent = NULL;
+	Dentry  *dparent = d->parent;
+	int res = -EPERM;
+	if (dir) res = -EBUSY;
+	if (!dparent) return res; /* could not remove the root directory */
+	res = fat_open(dparent, O_WRONLY | O_DIRECTORY, &cparent);
+	if (res < 0) return res;
+	res = fat_open(d, 0, &c); /* to check if there are other open instances */
+	if (res < 0) goto error;
+	if (dir)
+	{
+		res = -ENOTDIR;
+		if (!(c->f->de.attr & FAT_ADIR)) goto error;
+		res = directory_is_empty(c);
+		if (res < 0) goto error;
+	}
+	else
+	{
+		res = -EPERM;
+		if (c->f->de.attr & FAT_ADIR) goto error;
+	}
 	#if FAT_CONFIG_LFN
-	wchar_t  lfn[FAT_LFN_MAX];
+	res = delete_entries(cparent, d->de_entcnt - d->lfn_entries, d->lfn_entries + 1);
 	#else
+	res = delete_entries(cparent, d->de_entcnt, 1);
 	#endif
-#endif
+	if (res < 0) goto error;
+	c->f->de_sector = FAT_UNLINKED;
+	d->de_sector = FAT_UNLINKED;
+	res = fat_close(c); /* deletes it if there are no other open instances */
+	if (res < 0) goto error;
+	return fat_close(cparent);
+error:
+	if (cparent) fat_close(cparent);
+	if (c) fat_close(c);
+	return res;
+}
+
+
+/**
+ * \brief   Backend for the "unlink" POSIX system call.
+ * \param   d cached directory node of the file to unlink.
+ * \return  0 on success, or a negative error.
+ * \remarks The cached directory node shall be released on exit.
+ * \remarks If there are other active references to the cached directory node
+ *          of the deleted file, they shall be marked as invalid.
+ * \remarks The cached directory node shall not identify a directory.
+ * \ingroup api
+ */
+int fat_unlink(Dentry *d)
+{
+	return fat_remove(d, false);
+}
+
+
+/**
+ * \brief   Backend for the "rename" POSIX system call.
+ * \param   od      cached directory node of the file to rename;
+ * \param   nparent cached node of the directory where to place the renamed file;
+ * \param   nn      the new file name in the new directory, not null terminated;
+ * \param   nnsize  length in bytes of the file name in \c nn;
+ * \return  0 on success, or a negative error.
+ * \remarks The two cached directory nodes shall be valid and contained
+ *          in the same file system volume.
+ * \ingroup api
+ */
+int fat_rename(Dentry *od, Dentry *ndparent, const char *nn, size_t nnsize)
+{
+	struct fat_direntry *de;
+	Dentry  *d;
+	Channel *nc = NULL;
+	Channel *ncparent = NULL;
+	Channel *oc = NULL;
+	Channel *ocparent = NULL;
+	Dentry  *odparent = od->parent;
+	LookupData *lud = &od->v->lud;
+	int res = -EBUSY;
+	if (!odparent) goto error; /* attempt to rename the root directory */
+	/* Check if the old name is in the path prefix of the new name */
+	res = -EINVAL;
+	for (d = ndparent; d; d = d->parent)
+		if (d == od) goto error;
+	/* Open the two parent directories (may be the same) and the old file */
+	res = fat_open(odparent, O_WRONLY | O_DIRECTORY, &ocparent);
+	if (res < 0) goto error;
+	res = fat_open(ndparent, O_RDWR | O_DIRECTORY, &ncparent);
+	if (res < 0) goto error;
+	res = fat_open(od, 0, &oc); /* to cope with any other open instance */
+	if (res < 0) goto error;
+	/* Check if the new name already exists */
+	d = ndparent;
+	fat_dget(d); /* otherwise fat_lookup would eat it */
+	res = fat_lookup(&d, nn, nnsize);
+	if (res == -ENOENT)
+	{
+		fat_dput(d);
+		res = fat_link(ncparent, nn, nnsize, 0, 1, lud);
+		if (res < 0) goto error;
+	}
+	else if (res < 0) goto error;
+	else
+	{
+		/* Here a file with the new name already exists */
+		res = fat_open(d, 0, &nc); /* updates "lud" as well */
+		fat_dput(d);
+		if (res < 0) goto error;
+		if (!(oc->f->de.attr & FAT_ADIR))
+		{
+			res = -EISDIR;
+			if (nc->f->de.attr & FAT_ADIR) goto error;
+		}
+		else
+		{
+			res = -ENOTDIR;
+			if (!(nc->f->de.attr & FAT_ADIR)) goto error;
+			res = directory_is_empty(nc);
+			if (res < 0) goto error;
+		}
+	}
+	/* Update the new link and delete the old link */
+	#if FAT_CONFIG_LFN
+	de = &lud->cde[lud->cde_pos];
+	#else
+	de = &lud->cde;
+	#endif
+	memcpy(&de->attr, &oc->f->de.attr, 21); /* everything but the name */
+	res = fat_do_write(ncparent, de, sizeof(struct fat_direntry), lud->de_dirofs);
+	if (res < 0) goto error;
+	if (res != sizeof(struct fat_direntry)) goto critical; /* malformed directory */
+	/* At this point the file being renamed exists with both names. */
+	if (nc)
+	{
+		nc->f->de_sector = FAT_UNLINKED;
+		nc->dentry->de_sector = FAT_UNLINKED;
+		res = fat_close(nc); /* deletes it if it is the sole open instance */
+		nc = NULL;
+		if (res < 0) goto error;
+	}
+	#if FAT_CONFIG_LFN
+	res = delete_entries(ocparent, od->de_entcnt - od->lfn_entries, od->lfn_entries + 1);
+	#else
+	res = delete_entries(ocparent, od->de_entcnt, 1);
+	#endif
+	if (res < 0) goto error;
+	oc->f->de_sector = lud->de_sector;
+	oc->f->de_secofs = lud->de_secofs;
+	od->de_sector = lud->de_sector;
+	od->de_entcnt = lud->de_dirofs / sizeof(struct fat_direntry);
+	#if FAT_CONFIG_LFN
+	od->lfn_entries = lud->lfn_entries;
+	#endif
+	/* Move the cached directory node if needed */
+	if (ndparent != odparent)
+	{
+		list_erase(&odparent->children, (ListItem *) od);
+		fat_dput(odparent);
+		list_push_front(&ndparent->children, (ListItem *) od);
+		fat_dget(ndparent);
+		od->parent = ndparent;
+		/* If moving a directory, update the ".." entry */
+		if (od->attr & FAT_ADIR)
+		{
+			struct fat_direntry dotdot;
+			res = fat_open(od, O_RDWR | O_DIRECTORY, &nc);
+			if (res < 0) goto error;
+			nc->file_pointer = sizeof(struct fat_direntry);
+			res = fat_read(nc, &dotdot, sizeof(struct fat_direntry));
+			if (res < 0) goto error;
+			if (res != sizeof(struct fat_direntry)) goto critical;
+			if (memcmp(dotdot.name, "..         ", sizeof(dotdot.name))) goto critical;
+			dotdot.first_cluster_hi = (uint16_t) (ncparent->f->first_cluster >> 16);
+			dotdot.first_cluster_lo = (uint16_t)  ncparent->f->first_cluster;
+			res = fat_do_write(nc, &dotdot, sizeof(struct fat_direntry), sizeof(struct fat_direntry));
+			if (res < 0) goto error;
+			if (res != sizeof(struct fat_direntry)) goto critical;
+			res = fat_close(nc);
+			if (res < 0) goto error;
+		}
+	}
+	res = fat_close(oc);
+	if (res < 0) goto error;
+	res = fat_close(ocparent);
+	if (res < 0) goto error;
+	res = fat_close(ncparent);
+	if (res < 0) goto error;
+	return 0;
+critical:
+	res = -EIO;
+	/* TODO: Mark the IO error bit */
+error:
+	if (ocparent) fat_close(ocparent);
+	if (ncparent) fat_close(ncparent);
+	if (oc) fat_close(oc);
+	if (nc) fat_close(nc);
+	return res;
+}
+
+
+/**
+ * \brief  Backend for the "rmdir" POSIX system call.
+ * \param  d cached directory node of the directory to remove.
+ * \return 0 on success, or a negative error.
+ * \ingroup api
+ */
+int fat_rmdir(Dentry *d)
+{
+	return fat_remove(d, true);
+}
+
+
+/**
+ * \brief  Backend for the "mkdir" POSIX system call.
+ * \param  dparent cached node of directory where to create the new directory in;
+ * \param  fn     name of the new directory, in UTF-8 not null terminated;
+ * \param  fnsize length in bytes of the directory name;
+ * \param  mode   permissions for the new directory.
+ * \return 0 on success, or a negative error.
+ * \ingroup api
+ */
+int fat_mkdir(Dentry *dparent, const char *fn, size_t fnsize, mode_t mode)
+{
+	struct fat_direntry de;
+	Volume *v = dparent->v;
+	Channel *c;
+	int res;
+	const size_t bytes_per_cluster = 1 << (v->log_bytes_per_sector + v->log_sectors_per_cluster);
+
+	res = fat_create(dparent, fn, fnsize, O_WRONLY | O_DIRECTORY | O_CREAT | O_EXCL, mode, &c);
+	if (res < 0) return res;
+	/* Fill the first cluster with zero bytes */
+	res = fat_do_write(c, NULL, bytes_per_cluster, 0);
+	if (res < 0) goto error;
+	if (res != bytes_per_cluster) goto critical;
+	/* Prepare the "." entry */
+	memcpy(&de, &c->f->de, sizeof(struct fat_direntry));
+	memcpy(de.name, ".          ", sizeof(de.name));
+	res = fat_do_write(c, &de, sizeof(struct fat_direntry), 0);
+	if (res < 0) goto error;
+	if (res != sizeof(struct fat_direntry)) goto critical;
+	/* Prepare the ".." entry. If it is the root, its first cluster must
+	 * be zero even if the volume is FAT32. It would made sense to set
+	 * the time stamps of ".." to those of the parent, but in the FAT file
+	 * system they are the same as the ones of the new directory. */
+	de.first_cluster_hi = 0;
+	de.first_cluster_lo = 0;
+	if (dparent->parent)
+	{
+		Buffer  *b = NULL;
+		struct fat_direntry *p;
+		res = fat_readbuf(v, dparent->de_sector, &b, false);
+		if (res < 0) goto error;
+		p = (struct fat_direntry *) (b->data + res
+		  + (((off_t) dparent->de_entcnt * sizeof(struct fat_direntry)) & (v->bytes_per_sector - 1)));
+		de.first_cluster_hi = p->first_cluster_hi;
+		de.first_cluster_lo = p->first_cluster_lo;
+	}
+	memcpy(de.name, "..         ", sizeof(de.name));
+	res = fat_do_write(c, &de, sizeof(struct fat_direntry), sizeof(struct fat_direntry));
+	if (res < 0) goto error;
+	if (res != sizeof(struct fat_direntry)) goto critical;
+	return fat_close(c);
+critical:
+	res = -EIO;
+	/* TODO: Mark the IO error bit */
+error:
+	fat_close(c);
+	return res;
 }
 #endif /* #if FAT_CONFIG_WRITE */
