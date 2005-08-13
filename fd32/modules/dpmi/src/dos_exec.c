@@ -243,6 +243,7 @@ static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 
 /* MZ format handling for direct execution */
 static int (*p_isMZ)(struct kern_funcs *kf, int f, struct read_funcs *rf) = NULL;
+void (*dos_exec_mode16)(void) = NULL;
 
 int dos_exec_switch(int option)
 {
@@ -254,6 +255,14 @@ int dos_exec_switch(int option)
       if (g_env_segtmp == 0) {
         g_env_segtmp = dosmem_get(0x100);
         g_env_segment = g_env_segtmp>>4;
+      }
+      /* dos_exec_mode16 */
+      if (dos_exec_mode16 == NULL) {
+        BYTE *p = (BYTE *)dosmem_get(0x10);
+        /* ".code16" "mov $0xfd32, %ax;" "int $0x2f;" "retf;" */
+        p[0] = 0xB8, p[1] = 0x32, p[2] = 0xFD;
+        p[3] = 0xCD, p[4] = 0x2F, p[5] = 0xCB;
+        dos_exec_mode16 = (void (*)(void))p;
       }
       if (p_isMZ == NULL) {
         DWORD i;

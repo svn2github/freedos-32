@@ -64,5 +64,6 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #define DOS_VM86_EXEC   0
 #define DOS_DIRECT_EXEC 1 /* Support COFF-GO32 only */
 int dos_exec_switch(int option); /* Return TRUE(1) or FALSE(0) */
+extern void (*dos_exec_mode16)(void); /* 16bit DPMI mode-switch */
 
 #endif
