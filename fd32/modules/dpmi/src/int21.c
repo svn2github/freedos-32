@@ -201,6 +201,26 @@ static int parse_open_action(int dos_action)
 }
 
 
+/* Helper for the DOS-style "open" system call.
+ * Forbids opening directories even for reading only.
+ */
+static int dos_open(const char *fn, int flags, int attr, int hint, int *action)
+{
+	fd32_fs_attr_t a;
+	int res;
+	int fd = fd32_open((char *) fn, flags, attr, hint, action);
+	if (fd < 0) return fd;
+	res = fd32_get_attributes(fd, &a);
+	if (res >= 0)
+	{
+		if (!(a.Attr & FD32_ADIR)) return fd;
+		res = -EACCES;
+	}
+	fd32_close(fd);
+	return res;
+}
+
+
 /* Converts a path name from DOS API to UTF-8 using no more than "size" bytes.
  * Forward slashes '/' are converted to back slashes '\'.
  * Returns 0 on success, or a negative error.
@@ -626,7 +646,7 @@ static inline void lfn_functions(union rmregs *r)
 			action = res;
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
 			if (res < 0) break;
-			res = fd32_open(fn, action | (DWORD) r->x.bx, r->x.cx, r->x.di, &action);
+			res = dos_open(fn, action | (DWORD) r->x.bx, r->x.cx, r->x.di, &action);
 			res2dos(res, r);
 			if (res >= 0)
 			{
@@ -843,7 +863,7 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 			LOG_PRINTF(("[DPMI] INT 21h: Creat \"%s\" with attr %04x\n", fn, r->x.cx));
 			if (res < 0) break;
-			res = fd32_open(fn, O_RDWR | O_CREAT | O_TRUNC, r->x.cx, 0, NULL);
+			res = dos_open(fn, O_RDWR | O_CREAT | O_TRUNC, r->x.cx, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
 			return;
@@ -854,7 +874,7 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 			LOG_PRINTF(("[DPMI] INT 21h %x %x : Open \"%s\" with mode %02x\n", r->x.ds, r->x.dx, fn, r->h.al));
 			if (res < 0) break;
-			res = fd32_open(fn, r->h.al, FD32_ANONE, 0, NULL);
+			res = dos_open(fn, r->h.al, FD32_ANONE, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
 			return;
@@ -1068,7 +1088,7 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 			LOG_PRINTF(("[DPMI] INT 21h: Creating new file (AH=5Bh) \"%s\" with attr %04x\n", fn, r->x.cx));
 			if (res < 0) break;
-			res = fd32_open(fn, O_RDWR | O_CREAT | O_EXCL, r->x.cx, 0, NULL);
+			res = dos_open(fn, O_RDWR | O_CREAT | O_EXCL, r->x.cx, 0, NULL);
 			res2dos(res, r);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
 			return;
@@ -1103,7 +1123,7 @@ void int21_handler(union rmregs *r)
 			action = res;
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
 			if (res < 0) break;
-			res = fd32_open(fn, action | (DWORD) r->x.bx, r->x.cx, 0, &action);
+			res = dos_open(fn, action | (DWORD) r->x.bx, r->x.cx, 0, &action);
 			LOG_PRINTF(("[DPMI] INT 21h: Extended open/create (AH=6Ch) \"%s\" res=%08xh\n", fn, res));
 			res2dos(res, r);
 			if (res >= 0)
