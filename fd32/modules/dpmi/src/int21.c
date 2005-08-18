@@ -210,6 +210,7 @@ static int dos_open(const char *fn, int flags, int attr, int hint, int *action)
 	int res;
 	int fd = fd32_open((char *) fn, flags, attr, hint, action);
 	if (fd < 0) return fd;
+	a.Size = sizeof(fd32_fs_attr_t);
 	res = fd32_get_attributes(fd, &a);
 	if (res >= 0)
 	{
