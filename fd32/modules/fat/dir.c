@@ -347,7 +347,11 @@ static const wchar_t valid_lfn_characters[] = { 0x2B, 0x2C, 0x3B, 0x3D, 0x5B, 0x
  * \param   src       array holding the part to convert, in UTF-8 not null terminated;
  * \param   src_size  size in bytes of \c src;
  * \retval   0 success, the name fitted in the short namespace;
- * \retval  >0 success, the name did not fit in the short namespace;
+ * \retval   0 success, the name fitted in the short namespace, LFN not needed;
+ * \retval   1 success, the name fitted in a short name, but needs LFN without
+ *             numeric tail to preserve case;
+ * \retval  >1 success, the name did not fit in the short namespace, LFN with
+ *             numeric tail needed;
  * \retval  <0 error.
  * \remarks Spaces and dots are removed, inconvertable characters are replaced with
  *          \c '_', all characters are converted to upper case and the name may be
@@ -369,14 +373,14 @@ static int gen_short_fname_part(const struct nls_operations *nls, uint8_t *dest,
 		src += skip;
 		if ((wc == ' ') || (wc == '.'))
 		{
-			res = 1;
+			res |= 2;
 			continue;
 		}
 		for (wcp = valid_lfn_characters; *wcp; wcp++)
 			if (wc == *wcp)
 			{
 				wc = '_';
-				res = 1;
+				res |= 2;
 				break;
 			}
 		skip = nls->wctomb(dest, wc, dest_size);
@@ -389,13 +393,13 @@ static int gen_short_fname_part(const struct nls_operations *nls, uint8_t *dest,
 				if (up < 0x20) return -EINVAL;
 				for (c = invalid_sfn_characters; *c; c++)
 					if (up == *c) return -EINVAL;
-				if (up != *dest) res = 1;
+				if (up != *dest) res |= 1;
 				*dest = up;
 			}
 			else skip = -EINVAL;
 		}
-		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size), res = 1;
-		if (skip == -ENAMETOOLONG) return 1;
+		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size), res |= 2;
+		if (skip == -ENAMETOOLONG) return 2;
 		if (skip < 0) return skip;
 		dest_size -= skip;
 		dest += skip;
@@ -427,8 +431,11 @@ static const char *last_embedded_dot(const char *s, size_t n)
  * \param   dest      array to hold the converted part in a national code page, in FCB format;
  * \param   src       array holding the long file name to convert, in UTF-8 not null terminated;
  * \param   src_size  size in bytes of \c src;
- * \retval   0 success, the name fitted in the short namespace;
- * \retval  >0 success, the name did not fit in the short namespace;
+ * \retval   0 success, the name fitted in the short namespace, LFN not needed;
+ * \retval   1 success, the name fitted in a short name, but needs LFN without
+ *             numeric tail to preserve case;
+ * \retval  >1 success, the name did not fit in the short namespace, LFN with
+ *             numeric tail needed;
  * \retval  <0 error.
  * \sa      gen_short_fname_part()
  */
@@ -460,7 +467,7 @@ static int gen_short_fname1(const struct nls_operations *nls, uint8_t *dest, con
 		if (*dest == ' ') return -EINVAL;
 		if (*dest == FAT_FREEENT) *dest = 0x05;
 	}
-	return res1 || res2;
+	return res1 | res2;
 }
 
 
@@ -470,8 +477,8 @@ static int gen_short_fname1(const struct nls_operations *nls, uint8_t *dest, con
  * \param   dest      array to hold the converted part in a national code page, in FCB format;
  * \param   src       array holding the long file name to convert, in UTF-8 not null terminated;
  * \param   src_size  size in bytes of \c src;
- * \retval   0 success, the name fitted in the short namespace;
- * \retval  >0 success, the name did not fit in the short namespace;
+ * \retval   0 success, the name fitted in the short namespace, LFN not needed;
+ * \retval  >0 success, the name did not fit in the short namespace, LFN needed;
  * \retval  <0 error.
  */
 static int gen_short_fname(Channel *c, uint8_t *dest, const char *src, size_t src_size, unsigned hint)
@@ -484,7 +491,7 @@ static int gen_short_fname(Channel *c, uint8_t *dest, const char *src, size_t sr
 	int      res;
 
 	res = gen_short_fname1(v->nls, dest, src, src_size);
-	if (res <= 0) return res;
+	if (res <= 1) return res;
 	for (counter = hint; counter <= UINT16_MAX; counter++)
 	{
 		int k;
