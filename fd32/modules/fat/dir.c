@@ -31,7 +31,7 @@
  *
  *****************************************************************************/
 
-static const char *invalid_sfn_characters = "\"+,./:;<=>[\\]|*"; /* '?' handled separately */
+static const char *invalid_sfn_characters = "\"+,./:;<=>[\\]|*?";
 
 
 /**
@@ -70,9 +70,9 @@ static int build_fcb_name_part(const struct nls_operations *nls, uint8_t *dest, 
 			const char *c;
 			assert(skip > 0);
 			if (*dest < 0x20) return -EINVAL;
-			if (!wildcards && (*dest == '?')) return -EINVAL;
-			for (c = invalid_sfn_characters; *c; c++)
-				if (*dest == *c) return -EINVAL;
+			if (!(wildcards && (*dest == '?')))
+				for (c = invalid_sfn_characters; *c; c++)
+					if (*dest == *c) return -EINVAL;
 			*dest = nls->toupper(*dest);
 		}
 		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size), res = 1;
