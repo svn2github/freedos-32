@@ -30,7 +30,6 @@
 #include "int31_0e.h"
 
 #define LETSSTOP 10
-
 /*
 #define __DPMI_DEBUG__
 */
@@ -46,7 +45,7 @@ void chandler1(DWORD eax, DWORD ebx, DWORD ecx, DWORD edx, DWORD intnum)
   message("edx = 0x%lx\n", edx);
 }
 
-void return_to_dos(union regs *r)
+static void return_to_dos(union regs *r)
 {
   struct tss * p_vm86_tss = vm86_get_tss();
   WORD bl = p_vm86_tss->back_link;
@@ -292,7 +291,7 @@ void chandler(DWORD intnum, union regs r)
         r.x.flags = r1.x.flags;
       }
       break;
-    /* Multiplex for PM execution */
+    /* Multiplex for PM execution, wrote by Hanzac Chen */
     case 0x2F:
       if (r.x.ax == 0x1687) {
         r.x.ax  = 0x0000; /* DPMI installed */
@@ -308,59 +307,39 @@ void chandler(DWORD intnum, union regs r)
         fd32_log_printf("[DPMI] VM86 switch: %x ES: %x DI: %x eflags: %x\n", (int)dos_exec_mode16, (int)r.d.vm86_es, r.x.di, (int)r.d.flags);
       #endif
       } else if (r.x.ax == 0xFD32) {
-        DWORD p_vm86_stack;
-        struct tss *p_k_tss, *p_vm86_tss = vm86_get_tss();
+        DWORD p_vm86_stack, p_vm86_app_stack;
+        struct tss *p_vm86_tss = vm86_get_tss();
         struct psp *ppsp = (struct psp *)(p_vm86_tss->es<<4);
-        WORD retf_cs, bl = p_vm86_tss->back_link;
+        WORD retf_cs;
 
-        /* Get the kernel TSS */
-        fd32_get_segment_base_address(bl, &p_k_tss);
       #ifdef __DPMI_DEBUG__
         fd32_log_printf("[DPMI] TASK Switch from VM86 (ECS:%x EIP:%x)!\n", (int)r.d.ecs, (int)r.d.eip);
       #endif
         /* Create new selectors */
-        p_k_tss->cs = fd32_segment_to_descriptor(r.d.ecs);
-        fd32_set_descriptor_access_rights(p_k_tss->cs, 0x009A);
-        p_k_tss->eip = r.d.eip;
+        r.d.ecs = fd32_segment_to_descriptor(r.d.ecs);
+        fd32_set_descriptor_access_rights(r.d.ecs, 0x009A);
         /* NOTE: The DS access rights is different with CS */
-        p_k_tss->ds = fd32_segment_to_descriptor(r.d.vm86_ds);
+        r.d.eds = fd32_segment_to_descriptor(r.d.vm86_ds);
         /* NOTE: The CS in the VM86 stack is replaced with the new CS selector */
-        p_vm86_stack = (r.d.vm86_ss<<4)+r.d.vm86_esp;
+        p_vm86_stack = r.d.esp+sizeof(DWORD)*3;    /* use the ring0/system(vm86_tss:ss0) stack and skip eip, ecs, flags */
+        p_vm86_app_stack = (r.d.vm86_ss<<4)+r.d.vm86_esp;
         retf_cs = fd32_allocate_descriptors(1);
-        fd32_set_segment_base_address(retf_cs, ((WORD *)p_vm86_stack)[1]<<4);
+        fd32_set_segment_base_address(retf_cs, ((WORD *)p_vm86_app_stack)[1]<<4);
         fd32_set_segment_limit(retf_cs, 0xFFFF);
         fd32_set_descriptor_access_rights(retf_cs, 0x009A);
+        ((WORD *)p_vm86_stack)[0] = ((WORD *)p_vm86_app_stack)[0];
         ((WORD *)p_vm86_stack)[1] = retf_cs;
-        /* Set the privilege level-0 stack = the kernel stack
-        p_k_tss->ss0 = p_k_tss->ss;
-        p_k_tss->esp0 = p_k_tss->esp; */
-        /* Switch to the APP's stack
-        p_k_tss->ss = fd32_segment_to_descriptor(r.d.vm86_ss);
-        p_k_tss->esp = r.d.vm86_esp; */
-        /* TODO: Better stack manipulation */
-        #define VM86_STACK_COPY_SIZE 0x40
-        p_k_tss->esp -= VM86_STACK_COPY_SIZE;
-        memcpy((BYTE *)p_k_tss->esp, (BYTE *)p_vm86_stack, VM86_STACK_COPY_SIZE);
-
         /* NOTE: The ES = selector to program's PSP (100h byte limit) */
-        p_k_tss->es = fd32_segment_to_descriptor(p_vm86_tss->es);
+        r.d.ees = fd32_segment_to_descriptor(p_vm86_tss->es);
         /* NOTE: The ENV selector is also created */
         ppsp->ps_environ = fd32_segment_to_descriptor(ppsp->ps_environ);
-
       #ifdef __DPMI_DEBUG__
-        fd32_log_printf("[DPMI] After Switch (CS:%x EIP:%x)\n", p_k_tss->cs, p_k_tss->eip);
+        fd32_log_printf("[DPMI] After Switch (CS:%x EIP:%x)\n", r.d.ecs, r.d.eip);
       #endif
-        /* Restore the registers' status */
-        p_k_tss->eflags = (p_k_tss->eflags&0xFFFF0000)|(r.d.flags&0x0000FFFF);
-        p_k_tss->eax = r.d.eax;
-        p_k_tss->ecx = r.d.ecx;
-        p_k_tss->edx = r.d.edx;
-        p_k_tss->ebx = r.d.ebx;
-        p_k_tss->ebp = r.d.ebp;
-        p_k_tss->esi = r.d.esi;
-        p_k_tss->edi = r.d.edi;
-        p_vm86_tss->back_link = 0;
-        ll_context_load(bl);
+        r.d.flags &= 0xFFFDFFFF; /* Clear the VM flag */
+        /* NOTE: Technique, iret to the targeted CS:IP still in protected mode
+                 but the space of vm registers saved in the ring0 stack is mostly lost
+        */
       }
       break;
     default:
