@@ -295,7 +295,7 @@ void psmouse_init(void)
 
   fd32_message("Start PS/2 mouse initialization ...\n");
   /* TODO: Save the old handler for recovery */
-  fd32_irq_bind(12, tmp_handler);
+  fd32_irq_bind(PS2MOUSE_IRQ, tmp_handler);
 
   /* Enable mouse interface */
   tmp_wait();

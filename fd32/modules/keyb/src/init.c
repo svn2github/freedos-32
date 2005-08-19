@@ -129,7 +129,7 @@ void keyb_init(void)
 {
   /* Handle the keyboard */
   fd32_message("Setting Keyboard handler\n");
-  fd32_irq_bind(1, keyb_handler);
+  fd32_irq_bind(KEYB_IRQ, keyb_handler);
   /* Clear the queue */
   keyb_queue_clear();
   /* Clear the shift flags and reset the leds, otherwise it won't work fine in some circumstances */

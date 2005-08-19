@@ -21,15 +21,11 @@
 
 #define __DOS_EXEC_DEBUG__
 
-#define VM86_STACK_SIZE 0x4000
-/* TSS optional section */
-static BYTE  vm86_stack0[VM86_STACK_SIZE];
 
 static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
 {
   struct tss * p_vm86_tss = vm86_get_tss();
 
-  /* if (service < 0x10 || in == NULL) return -1; */
   if (p_vm86_tss->back_link != 0) {
     message("WTF? VM86 called with CS = 0x%x, IP = 0x%x\n", p_vm86_tss->cs, ip);
     fd32_abort();
@@ -41,9 +37,9 @@ static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s
 
   /* Wanted VM86 mode + IOPL = 3! */
   p_vm86_tss->eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
-  /* Preload some standard values into the registers */
+  /* Ring0 system stack */
   p_vm86_tss->ss0 = X_FLATDATA_SEL;
-  p_vm86_tss->esp0 = (DWORD)&(vm86_stack0[VM86_STACK_SIZE - 1]);
+  p_vm86_tss->esp0 = mem_get(VM86_STACK_SIZE)+VM86_STACK_SIZE-1;
 
   /* Copy the parms from the X_*REGS structures in the vm86 TSS */
   p_vm86_tss->eax = (DWORD)in->x.ax;

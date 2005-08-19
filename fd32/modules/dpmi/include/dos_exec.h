@@ -61,6 +61,7 @@ typedef struct psp {
 int dos_exec(char *filename, DWORD env_segment, char *args,
 		DWORD fcb1, DWORD fcb2, WORD *return_val);
 
+#define VM86_STACK_SIZE 0x4000
 #define DOS_VM86_EXEC   0
 #define DOS_DIRECT_EXEC 1 /* Support COFF-GO32 only */
 int dos_exec_switch(int option); /* Return TRUE(1) or FALSE(0) */

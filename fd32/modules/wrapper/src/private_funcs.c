@@ -17,6 +17,8 @@
 
 #define STACKSIZE 1024 * 4
 
+extern void restore_psp(void);
+extern void my_close(int id);
 extern WORD user_cs, user_ds;
 
 #define __WRAP_DEBUG__

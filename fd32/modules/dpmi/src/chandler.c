@@ -13,6 +13,7 @@
 
 #include <logger.h>
 #include <kernel.h>
+#include <kmem.h>
 
 #include "dpmi.h"
 #include "rmint.h"
@@ -57,6 +58,9 @@ void return_to_dos(union regs *r)
 #endif
 
   if (bl != NULL) {
+    /* Free the system stack */
+    mem_free(p_vm86_tss->esp0-VM86_STACK_SIZE+1, VM86_STACK_SIZE);
+    /* Task switch to the kernel task */
     p_vm86_tss->back_link = 0;
     ll_context_load(bl);
   } else {
@@ -103,17 +107,17 @@ void chandler(DWORD intnum, union regs r)
       /* DPMI 0.9 service 0001h - Free LDT Descriptor */
       case 0x0001:
         int31_0001(&r);
-	break;
+        break;
 
       /* DPMI 0.9 service 0002h - Segment to Descriptor */
       case 0x0002:
         int31_0002(&r);
-	break;
+        break;
 
       /* DPMI 0.9 service 0003h - Get Selector Increment Value */
       case 0x0003:
         int31_0003(&r);
-	break;
+        break;
 
       /* DPMI 0.9 services 0004h and 0005h are reserved for historical
        * reasons and should not be called
@@ -142,85 +146,85 @@ void chandler(DWORD intnum, union regs r)
       /* DPMI 0.9 service 000Ah - Create Alias Descriptor */
       case 0x000A:
         int31_000A(&r);
-	break;
+        break;
 
       /* DPMI 0.9 service 000Bh - Get Descriptor */
       case 0x000B:
         int31_000B(&r);
-	break;
+        break;
 
       /* DPMI 0.9 service 000Ch - Set Descriptor */
       case 0x000C:
         int31_000C(&r);
-	break;
+        break;
 
       case 0x0100:
         int31_0100(&r);
-	break;
+        break;
 
       case 0x0101:
         int31_0101(&r);
-	break;
+        break;
 
       case 0x0200:
         int31_0200(&r);
-	break;
+        break;
 
       case 0x0201:
         int31_0201(&r);
-	break;
+        break;
 
       case 0x0202:
         int31_0202(&r);
-	break;
+        break;
 
       case 0x0203:
         int31_0203(&r);
-	break;
+        break;
 
       case 0x0204:
         int31_0204(&r);
-	break;
+        break;
 
       case 0x0205:
         int31_0205(&r);
-	break;
+        break;
 	
       case 0x0300:
         int31_0300(&r);
-	break;
+        break;
 
       case 0x0303:
         int31_0303(&r);
-	break;
+        break;
 
       case 0x0304:
         int31_0303(&r);
-	break;
+        break;
 
       case 0x0400:
-	int31_0400(&r);
-	break;
+        int31_0400(&r);
+        break;
 	
       case 0x0401:
-	int31_0401(&r);
-	break;
+        int31_0401(&r);
+        break;
 	
       case 0x0501:
-	int31_0501(&r);
-	break;
+        int31_0501(&r);
+        break;
 
       case 0x0502:
-	int31_0502(&r);
-	break;
+        int31_0502(&r);
+        break;
 
       case 0x0507:
-	int31_0507(&r);
-	break;
+        int31_0507(&r);
+        break;
 
       case 0x0600:
-	int31_0600(&r);
-	break;
+        int31_0600(&r);
+        break;
 
       case 0x0900:
         int31_0900(&r);
@@ -231,22 +235,22 @@ void chandler(DWORD intnum, union regs r)
         break;
 
       case 0x0E01:
-	int31_0E01(&r);
-	break;
+        int31_0E01(&r);
+        break;
 
       default: 
-	r.d.flags |= 0x01;
-	error("INT 31 Service not implemented\n");
-	message("Service number: 0x%lx\n", r.d.eax & 0xFFFF);
-	fd32_log_printf("INT 31, Service 0x%lx not implemented\n",
+        r.d.flags |= 0x01;
+        error("INT 31 Service not implemented\n");
+        message("Service number: 0x%lx\n", r.d.eax & 0xFFFF);
+        fd32_log_printf("INT 31, Service 0x%lx not implemented\n",
 			r.d.eax & 0xFFFF);
-	fd32_log_printf("eax = 0x%lx\t", r.d.eax);
-	fd32_log_printf("ebx = 0x%lx\t", r.d.ebx);
-	fd32_log_printf("ecx = 0x%lx\t", r.d.ecx);
-	fd32_log_printf("edx = 0x%lx\n", r.d.edx);
-	fd32_log_printf("esi = 0x%lx\t", r.d.esi);
-	fd32_log_printf("edi = 0x%lx\t", r.d.edi);
-	fd32_log_printf("ees = 0x%lx\n", r.d.ees);
+        fd32_log_printf("eax = 0x%lx\t", r.d.eax);
+        fd32_log_printf("ebx = 0x%lx\t", r.d.ebx);
+        fd32_log_printf("ecx = 0x%lx\t", r.d.ecx);
+        fd32_log_printf("edx = 0x%lx\n", r.d.edx);
+        fd32_log_printf("esi = 0x%lx\t", r.d.esi);
+        fd32_log_printf("edi = 0x%lx\t", r.d.edi);
+        fd32_log_printf("ees = 0x%lx\n", r.d.ees);
         if ((r.d.eax & 0xFFFF) != 0x507) {
           fd32_abort();
         }
