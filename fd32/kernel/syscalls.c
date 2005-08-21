@@ -187,20 +187,9 @@ static struct symbol syscall_table[] = {
   /* Symbols for logging functions (from logger.h) */
   { "fd32_log_printf", (DWORD) fd32_log_printf },
   { "fd32_log_stats", (DWORD) fd32_log_stats },
-#if 0
-  /* Symbols for Descriptor Management services */
-  { "fd32_allocate_descriptors",         (DWORD) fd32_allocate_descriptors         },
-  { "fd32_free_descriptor",              (DWORD) fd32_free_descriptor              },
-  { "fd32_segment_to_descriptor",        (DWORD) fd32_segment_to_descriptor        },
-  { "fd32_get_selector_increment_value", (DWORD) fd32_get_selector_increment_value },
-  { "fd32_get_segment_base_address",     (DWORD) fd32_get_segment_base_address     },
-  { "fd32_set_segment_base_address",     (DWORD) fd32_set_segment_base_address     },
-  { "fd32_set_segment_limit",            (DWORD) fd32_set_segment_limit            },
-  { "fd32_set_descriptor_access_rights", (DWORD) fd32_set_descriptor_access_rights },
-  { "fd32_create_alias_descriptor",      (DWORD) fd32_create_alias_descriptor      },
-  { "fd32_get_descriptor",               (DWORD) fd32_get_descriptor               },
-  { "fd32_set_descriptor",               (DWORD) fd32_set_descriptor               },
-#endif
+
+  /* in DPMI module: Symbols for Descriptor Management services */
+
   /* Symbols for Device Engine services (from devices.h) */
   { "fd32_dev_get",        (DWORD) fd32_dev_get        },
   { "fd32_dev_search",     (DWORD) fd32_dev_search     },
@@ -245,23 +234,9 @@ static struct symbol syscall_table[] = {
   { "fd32_getcwd",            (DWORD) fd32_getcwd            },
   { "fd32_truename",          (DWORD) fd32_truename          },
   { "fd32_sfn_truename",      (DWORD) fd32_sfn_truename      },
-  #if 0
-  /* Symbols for Unicode support (from unicode.h) */
-  { "fd32_utf16to32",  (DWORD) fd32_utf16to32  },
-  { "fd32_utf32to16",  (DWORD) fd32_utf32to16  },
-  { "fd32_utf8to32",   (DWORD) fd32_utf8to32   },
-  { "fd32_utf32to8",   (DWORD) fd32_utf32to8   },
-  { "utf8_stricmp",    (DWORD) utf8_stricmp    },
-  { "utf8_strupr",     (DWORD) utf8_strupr     },
-  { "fd32_utf8to16",   (DWORD) fd32_utf8to16   },
-  { "fd32_utf16to8",   (DWORD) fd32_utf16to8   },
-  { "unicode_toupper", (DWORD) unicode_toupper },
-  /* Symbols for NLS support (from nls.h) */
-  { "oemcp_to_utf8",  (DWORD) oemcp_to_utf8  },
-  { "utf8_to_oemcp",  (DWORD) utf8_to_oemcp  },
-  { "oemcp_skipchar", (DWORD) oemcp_skipchar },
-  #endif
-  
+  /* in unicode module: Symbols for Unicode support (from unicode.h) */
+  /* in nls module: Symbols for NLS support (from nls.h) */
+
   { "event_post", (DWORD) (&event_post) },
   { "event_delete", (DWORD) (&event_delete) },
   { "ll_gettime", (DWORD) ll_gettime },
