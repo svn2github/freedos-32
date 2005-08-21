@@ -12,6 +12,8 @@
 #include "dos_exec.h"
 
 extern void chandler(DWORD intnum, struct registers r);
+extern WORD stubinfo_xxxx(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
+extern void restore_psp(void);
 extern int use_lfn;
 
 /*void DPMI_init(DWORD cs, char *cmdline) */
@@ -19,6 +21,11 @@ void DPMI_init(struct process_info *p)
 {
   int done = 0;
   char *c, *cmdline;
+
+  if (add_call("stubinfo_init", (DWORD)stubinfo_xxxx, ADD) == -1)
+    message("Cannot add stubinfo_init to the symbol table\n");
+  if (add_call("restore_psp", (DWORD)restore_psp, ADD) == -1)
+    message("Cannot add restore_psp to the symbol table\n");
 
   cmdline = args_get(p);
   use_lfn = 1;
@@ -51,6 +58,5 @@ void DPMI_init(struct process_info *p)
   l1_int_bind(0x21, chandler);
   l1_int_bind(0x2F, chandler);
   l1_int_bind(0x31, chandler);
-
   message("DPMI installed.\n");
 }

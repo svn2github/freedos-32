@@ -1,7 +1,6 @@
 #include <dr-env.h>
 #include <filesys.h>
 #include <devices.h>
-#include <stubinfo.h>
 
 #include "cd-interf.h"
 
@@ -109,11 +108,10 @@ int process()
 
 void restore_sp(int res);
 
-extern struct psp *current_psp;
-static struct psp local_psp;
 
 void cd_test_init(struct process_info *pi)
 {
+    struct process_info *cur_P = fd32_get_current_pi();
     int res;
     char* args;
     char c;
@@ -140,13 +138,10 @@ void cd_test_init(struct process_info *pi)
         fd32_message("Error:  Numer of sectors to read per drive must be specified, or \"-a\" for all.\n");
         return;
     }
-    local_psp.jft_size = 6;
-    local_psp.jft = fd32_init_jft(6);
-    local_psp.link = current_psp;
-    current_psp = &local_psp;
+    cur_P->jft_size = 6;
+    cur_P->jft = fd32_init_jft(6);
     res = process();
-    fd32_free_jft(current_psp->jft, current_psp->jft_size);
-    current_psp = current_psp->link;
+    fd32_free_jft(cur_P->jft, cur_P->jft_size);
     restore_sp(res);
 }
 

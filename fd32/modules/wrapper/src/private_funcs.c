@@ -11,12 +11,34 @@
 #include "format.h"
 #include "kernel.h"
 #include "exec.h"
-#include "stubinfo.h"
 #include "logger.h"
+
+
+/* NOTE: Move the structure here, Correct? */
+struct stubinfo {
+  char magic[16];
+  DWORD size;
+  DWORD minstack;
+  DWORD memory_handle;
+  DWORD initial_size;
+  WORD minkeep;
+  WORD ds_selector;
+  WORD ds_segment;
+  WORD psp_selector;
+  WORD cs_selector;
+  WORD env_size;
+  char basename[8];
+  char argv0[16];
+  char dpmi_server[16];
+  /* FD/32 items */
+  DWORD dosbuf_handler;
+};
 
 
 #define STACKSIZE 1024 * 4
 
+/* from dpmi/src/dos_exec.c, using dynamic linking */
+extern WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
 extern void restore_psp(void);
 extern void my_close(int id);
 extern WORD user_cs, user_ds;
@@ -42,7 +64,6 @@ int my_create_process(DWORD entry, DWORD base, DWORD size,
   WORD stubinfo_sel;
   int res;
   int wrap_run(DWORD, WORD, DWORD, WORD, WORD, DWORD);
-  void wrap_restore_psp(void);
   char *args;
 
   args = name;

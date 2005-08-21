@@ -10,10 +10,17 @@
 #include "format.h"
 
 struct process_info {
+  struct process_info *prev_P;
+  void *psp;      /* Optional DOS PSP */
+  void *cds_list; /* Under DOS this is a global array            */
   char *args;
   DWORD memlimit;
   char *name;
+  void *jft;
+  WORD  jft_size;
 };
+struct process_info *fd32_get_current_pi(void);
+void fd32_set_current_pi(struct process_info *ppi);
 static inline char *args_get(struct process_info *p)
 {
   return p->args;
@@ -28,7 +35,6 @@ static inline DWORD maxmem_get(struct process_info *p)
 }
 
 void create_dll(DWORD entry, DWORD base, DWORD size);
-int create_process(DWORD entry, DWORD base, DWORD size, char *name, char *args);
 void fd32_abort(void);
 void fd32_reboot(void);
 void kernel_init();

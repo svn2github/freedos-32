@@ -56,9 +56,6 @@
 #define FAR2ADDR(seg, off) (((DWORD) seg << 4) + (DWORD) off)
 
 
-/* The current PSP is needed for the pointer to the DTA */
-extern struct psp *current_psp;
-
 int use_lfn;
 
 
@@ -696,7 +693,10 @@ void int21_handler(union rmregs *r)
 {
 	int res;
 	long long int res64;
+	/* The current PSP is needed for the pointer to the DTA */
+	struct psp *curpsp = fd32_get_current_pi()->psp;
 	char fn[FD32_LFNPMAX];
+
 	LOG_PRINTF(("[DPMI] INT 21h AX=%04xh BX=%04xh CX=%04xh DX=%04xh\n", r->x.ax, r->x.bx, r->x.cx, r->x.dx));
 	switch (r->h.ah)
 	{
@@ -755,7 +755,7 @@ void int21_handler(union rmregs *r)
 		/* DOS 1+ - Set Disk Transfer Area address (DS:DX->new DTA) */
 		case 0x1A:
 			LOG_PRINTF(("[DPMI] INT 21h: Set Disk Transfer Area Address: %04xh:%04xh\n", r->x.ds, r->x.dx));
-			current_psp->dta = (void *) FAR2ADDR(r->x.ds, r->x.dx);
+			curpsp->dta = (void *) FAR2ADDR(r->x.ds, r->x.dx);
 			return;
 		/* DOS 1+ - GET SYSTEM DATE */
 		case 0x2A:
@@ -785,8 +785,8 @@ void int21_handler(union rmregs *r)
 		}
 		/* DOS 2+ - Get Disk Transfer Area address (ES:BX <- current DTA) */
 		case 0x2F:
-			r->x.es = (DWORD) current_psp->dta >> 4;
-			r->x.bx = (DWORD) current_psp->dta & 0xF;
+			r->x.es = (DWORD) curpsp->dta >> 4;
+			r->x.bx = (DWORD) curpsp->dta & 0xF;
 			LOG_PRINTF(("[DPMI] INT 21h: Get Disk Transfer Area Address: %04xh:%04xh\n", r->x.es, r->x.bx));
 			return;
 
@@ -1051,13 +1051,13 @@ void int21_handler(union rmregs *r)
 			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 			LOG_PRINTF(("[DPMI] INT 21h: Findfirst \"%s\" with attr %04xh\n", fn, r->x.cx));
 			if (res < 0) break;
-			res = fd32_dos_findfirst(fn, r->x.cx, current_psp->dta);
+			res = fd32_dos_findfirst(fn, r->x.cx, curpsp->dta);
 			res2dos(res, r);
 			return;
 		/* DOS 2+ - "FINDNEXT" - Find next matching file */
 		case 0x4F:
 			LOG_PRINTF(("[DPMI] INT 21h: Findnext\n"));
-			res = fd32_dos_findnext(current_psp->dta);
+			res = fd32_dos_findnext(curpsp->dta);
 			res2dos(res, r);
 			return;
 		/* DOS 2+ - "RENAME" - Rename or move file (DS:DX->old name,
@@ -1096,7 +1096,7 @@ void int21_handler(union rmregs *r)
 		/* DOS 3.0+ - Get current PSP address */
 		case 0x62:
 			LOG_PRINTF(("[DPMI] INT 21h: Get current PSP address\n"));
-			r->x.bx = (DWORD) current_psp >> 4;
+			r->x.bx = (DWORD) curpsp >> 4;
 			return;
 		/* DOS 3.3+ - "FFLUSH" - Commit file
 		 * and DOS 4.0+ Undocumented - Commit file (BX=file handle).

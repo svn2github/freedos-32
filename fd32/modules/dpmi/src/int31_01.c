@@ -1,4 +1,5 @@
-#include<ll/i386/hw-data.h>
+#include <ll/i386/hw-data.h>
+#include <ll/i386/error.h>
 #include "kmem.h"
 
 #include "dpmi.h"
@@ -10,11 +11,11 @@
 void int31_0100(union regs *r)
 {
   DWORD dosmem;
-  WORD dossel;
+  int dossel;
 
   /* NOTE: Assuming the dosmem is allocated at 0x10 boundary */
   dosmem = dosmem_get(r->x.bx<<4);
-  if (dosmem&0x0F != 0) {
+  if ((dosmem&0x0F) != 0) {
     message("[DPMI] INT 31H 0100 - Allocate DOS Memory Block not at 0x10 boundary!\n");
   }
   dosmem >>= 4;

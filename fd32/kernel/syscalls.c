@@ -39,15 +39,10 @@ extern WORD kern_CS, kern_DS;
 extern CONTEXT context_save(void);
 extern union gdt_entry *GDT_base;
 
-
 void restore_sp(int res);
-extern struct psp *current_psp;
 
 #define EMPTY_SLOT {0, (DWORD)0xFFFFFFFF}
 
-extern void restore_psp(void);
-
-extern int identify_module(struct kern_funcs *p, int file, struct read_funcs *parser);
 extern void process_dos_module(struct kern_funcs *p, int file,
 	struct read_funcs *parser, char *cmdline);
 int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num,
@@ -132,8 +127,7 @@ static struct symbol syscall_table[] = {
   { "slabmem_free",    (DWORD) slabmem_free    },
   { "slabmem_create",  (DWORD) slabmem_create  },
   { "slabmem_destroy", (DWORD) slabmem_destroy },
-  
-  { "current_psp", (DWORD)(&current_psp) },
+
   { "rm_irq_table", (DWORD)(&rm_irq_table) },
   { "exc_table", (DWORD)(&exc_table) },
   { "get_syscall_table", (DWORD)get_syscall_table },
@@ -271,19 +265,30 @@ static struct symbol syscall_table[] = {
   { "event_post", (DWORD) (&event_post) },
   { "event_delete", (DWORD) (&event_delete) },
   { "ll_gettime", (DWORD) ll_gettime },
-  
-  /* { "identify_module", (DWORD) identify_module }, */
-  { "fd32_get_binfmt",   (DWORD) fd32_get_binfmt },
-  { "fd32_set_binfmt",   (DWORD) fd32_set_binfmt },
-  { "fd32_exec_process", (DWORD) fd32_exec_process },
-  { "fd32_load_process", (DWORD) fd32_load_process },
-  { "stubinfo_init", (DWORD) stubinfo_init },
-  { "restore_psp", (DWORD) restore_psp },
+  /* Symbols for Exec and Process */
+  { "fd32_get_binfmt",     (DWORD) fd32_get_binfmt },
+  { "fd32_set_binfmt",     (DWORD) fd32_set_binfmt },
+  { "fd32_exec_process",   (DWORD) fd32_exec_process },
+  { "fd32_load_process",   (DWORD) fd32_load_process },
+  { "fd32_create_process", (DWORD) fd32_create_process },
+  { "fd32_get_current_pi", (DWORD) fd32_get_current_pi },
+  { "fd32_set_current_pi", (DWORD) fd32_set_current_pi },
   
   { "add_dll_table", (DWORD) add_dll_table },
   { "get_dll_table", (DWORD) get_dll_table },
   {"fd32_init_jft", (DWORD)fd32_init_jft},
   {"fd32_free_jft", (DWORD)fd32_free_jft},
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
+  EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,
@@ -461,7 +466,6 @@ int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol 
 struct dll_table *get_dll_table(char *dll_name)
 {
   struct dll_int_table *p, *q;
-  WORD retval;
   strlwr(dll_name);
 
   /* Search for the DLL */

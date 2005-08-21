@@ -11,6 +11,7 @@
 #include <ll/i386/mb-info.h>
 #include <ll/i386/hw-instr.h>
 #include <ll/i386/hw-func.h>
+#include <ll/i386/x-bios.h>
 
 #include <ll/sys/ll/ll-func.h>
 #include <ll/sys/ll/time.h>
@@ -32,6 +33,7 @@
 #include "mods.h"
 #include "mmap.h"
 #include "filesys.h"	/* For fd32_set_boot_device() */
+#include "kmem.h"
 
 #ifdef STATIC_DPMI
 extern void DPMI_init(void);
@@ -175,7 +177,7 @@ int main (int argc, char *argv[])
   if (mbi->flags & MB_INFO_BOOTDEV) {
     fd32_set_boot_device(mbi->boot_device);
 #ifdef __BOOT_DEBUG__
-    message("    Boot device set: %08x\n", mbi->boot_device);
+    message("    Boot device set: %08lx\n", mbi->boot_device);
 #endif
   }
   
@@ -184,7 +186,7 @@ int main (int argc, char *argv[])
   fd32_log_init();
 #ifdef VM86_INIT
   /* NOTE: Pre-initialize VM86 for biosdisk, DPMI, ... */
-  vm86_init(dosmem_get(VM86_STACK_SIZE), VM86_STACK_SIZE);
+  vm86_init((BYTE *)dosmem_get(VM86_STACK_SIZE), VM86_STACK_SIZE);
 #endif
 #ifdef STATIC_BIOSDISK
   biosdisk_init();

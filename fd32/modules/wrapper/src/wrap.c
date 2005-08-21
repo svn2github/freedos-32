@@ -1,3 +1,7 @@
+/* NOTE: wrapper of the exec environment of coff-go32 programs,
+         rely on DPMI module
+ */
+
 #include <ll/i386/hw-data.h>
 #include <ll/i386/hw-func.h>
 #include <ll/i386/error.h>
@@ -41,7 +45,7 @@ int funkymem_get_region(DWORD base, DWORD size)
 }
 
 
-int funkymem_get(DWORD size)
+DWORD funkymem_get(DWORD size)
 {
   DWORD tmp;
   int done;

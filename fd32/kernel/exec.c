@@ -21,7 +21,7 @@
 #include "exec.h"
 #include "logger.h"
 
-DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *e_s, DWORD *image_base, int *s)
+DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *ex_exec_space, DWORD *image_base, int *ex_size)
 {
   #ifdef __EXEC_DEBUG__
   DWORD offset;
@@ -140,9 +140,9 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 	      sections[init_sect].base, exec_space);
 #endif
       dyn_entry += sections[init_sect].base + exec_space;
-      *s = size;
+      *ex_size = size;
       *image_base = exec_space;
-      *e_s = 0;
+      *ex_exec_space = 0;
       rf->free_tables(kf, &tables, symbols, sections);
       return dyn_entry;
     } else {
@@ -151,9 +151,9 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
     }
   } else if (tables.flags & DLL_WITH_STDCALL) {
     dyn_entry += exec_space;
-    *s = size;
+    *ex_size = size;
     *image_base = exec_space;
-    *e_s = -1; /* Note: Just to notify the exec_process it"s DLL with STDCALL entry */
+    *ex_exec_space = -1; /* Note: Just to notify the exec_process it"s DLL with STDCALL entry */
     rf->free_tables(kf, &tables, symbols, sections);
 
     return dyn_entry;
@@ -165,8 +165,8 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
     fd32_log_printf("[EXEC] 1) Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
 	    dyn_entry + offset, dyn_entry, offset);
 #endif
-    *s = size;
-    *e_s = exec_space;
+    *ex_size = size;
+    *ex_exec_space = exec_space;
     *image_base = tables.image_base;
     rf->free_tables(kf, &tables, symbols, sections);
     
@@ -175,13 +175,13 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 }
 
 /* Read an executable in memory, and execute it... */
-int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *fname, char *args)
+int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args)
 {
+  struct process_info pi;
   int retval;
   int size;
   DWORD exec_space;
   DWORD dyn_entry;
-  int run(DWORD address, WORD psp_sel, DWORD parm);
   DWORD base;
   DWORD offset;
 
@@ -191,41 +191,24 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
     /* We failed... */
     return -1;
   }
+  fd32_set_current_pi(&pi);
   if (exec_space == 0) {
-    struct process_info pi;
-    
-    /* No entry point... We assume that we need dynamic linking */
-    pi.name = fname;
-    pi.args = args;
-    pi.memlimit = base + size + LOCAL_BSS;
-#ifdef __EXEC_DEBUG__
-    fd32_log_printf("       Entry point: 0x%lx\n", dyn_entry);
-    fd32_log_printf("       Going to run...\n");
-    message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", pi.memlimit, base, size);
-#endif
-    run(dyn_entry, 0, (DWORD)/*args*/&pi);
-#ifdef __EXEC_DEBUG__
-    fd32_log_printf("       Returned\n");
-#endif
-    
-    retval = 0;
+    retval = fd32_create_process(dyn_entry, base, size, 0, filename, args);
   } else if (exec_space == -1) {
     create_dll(dyn_entry, base, size + LOCAL_BSS);
-#ifdef __EXEC_DEBUG__
-    fd32_log_printf("       Returned\n");
-#endif
     retval = 0;
   } else {
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
-
     offset = exec_space - base;
-    retval = create_process(dyn_entry + offset, exec_space, size, fname, args);
-#ifdef __EXEC_DEBUG__
-    message("Returned: %d!!!\n", retval);
-#endif
+    retval = fd32_create_process(dyn_entry + offset, exec_space, size, 0, filename, args);
     mem_free(exec_space, size);
   }
+  /* Back to the previous process NOTE: TSR native programs? */
+  fd32_set_current_pi(pi.prev_P);
+#ifdef __EXEC_DEBUG__
+  message("Returned: %d!!!\n", retval);
+#endif
   return retval;
 }

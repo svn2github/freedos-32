@@ -22,7 +22,7 @@ void int31_0501(union regs *r)
   DWORD blocksize;
   DWORD handle;
   DWORD base;
-  DWORD user_base;
+  /* DWORD user_base; */
 
   blocksize = ((r->d.ebx & 0xFFFF) << 16) | (r->d.ecx & 0xFFFF);
 #ifdef __DEBUG__

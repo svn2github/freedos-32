@@ -49,8 +49,10 @@ typedef struct psp {
   void *ps_prevpsp;             /* 38 previous psp pointer         */
   BYTE ps_fill2[20];            /* 3c */
   BYTE ps_unix[3];              /* 50 unix style call - 0xcd 0x21 0xcb */
-  BYTE ps_fill3[5];             /* 53 */
-  void *dta;                    /* 58 FD32 use allocated from ps_fill3, under DOS this pointer is stored in the SDA */
+  BYTE ps_fill3[3];             /* 53 */
+  /* FD/32 items */
+  void *dta;                    /* 56 FD32 use allocated from ps_fill3, under DOS this pointer is stored in the SDA */
+  WORD info_sel;
   BYTE def_fcb_1[16];
   BYTE def_fcb_2[20];
   /* Offset 80h (128): this is also the start of the default DTA */
@@ -61,6 +63,9 @@ typedef struct psp {
 int dos_exec(char *filename, DWORD env_segment, char *args,
 		DWORD fcb1, DWORD fcb2, WORD *return_val);
 
+#define RUN_RING   0
+#define ENV_SIZE 256
+#define MAX_OPEN_FILES  0x30
 #define VM86_STACK_SIZE 0x4000
 #define DOS_VM86_EXEC   0
 #define DOS_DIRECT_EXEC 1 /* Support COFF-GO32 only */

@@ -21,6 +21,296 @@
 
 #define __DOS_EXEC_DEBUG__
 
+/* Sets the JFT for the current process. */
+static void fd32_set_jft(void *Jft, int JftSize)
+{
+  struct process_info *cur_P = fd32_get_current_pi();
+  struct psp *ppsp = cur_P->psp;
+
+  if (Jft == NULL)
+    Jft = fd32_init_jft(MAX_OPEN_FILES);
+  ppsp->ps_maxfiles = JftSize;
+  ppsp->ps_filetab  = Jft;
+  cur_P->jft_size   = JftSize;
+  cur_P->jft        = Jft;
+}
+
+static void set_psp(struct psp *npsp, WORD env_sel, char *args, WORD info_sel, DWORD base, DWORD end)
+{
+  /* Set the PSP */
+  npsp->ps_environ = env_sel;
+  npsp->info_sel = info_sel;
+  fd32_get_current_pi()->psp = npsp;
+#ifdef __DOS_EXEC_DEBUG__
+  fd32_log_printf("[DOSEXEC] New PSP: 0x%x\n", (int)npsp);
+#endif
+  /* npsp->old_stack = current_SP; */
+  /* npsp->memlimit = base + end; */
+
+  /* Create the Job File Table */
+
+  /* TODO: Why!?!? Help me Luca!
+           For the moment I always create a new JFT */
+  /* if (npsp->link == NULL) Create new JFT
+     else Copy JFT from npsp->link->Jft
+  */
+  fd32_set_jft(NULL, MAX_OPEN_FILES);
+  npsp->dta      = &npsp->command_line_len;
+  /* npsp->cds_list = 0; */
+
+  /* And now... Set the arg list!!! */
+  if (args != NULL) {
+    npsp->command_line_len = strlen(args);
+    strcpy(npsp->command_line, args);
+  } else {
+    npsp->command_line_len = 0;
+  }
+}
+
+/* NOTE: Move the structure here, Correct? */
+struct stubinfo {
+  char magic[16];
+  DWORD size;
+  DWORD minstack;
+  DWORD memory_handle;
+  DWORD initial_size;
+  WORD minkeep;
+  WORD ds_selector;
+  WORD ds_segment;
+  WORD psp_selector;
+  WORD cs_selector;
+  WORD env_size;
+  char basename[8];
+  char argv0[16];
+  char dpmi_server[16];
+  /* FD/32 items */
+  DWORD dosbuf_handler;
+};
+
+static WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args)
+{
+  struct stubinfo *info;
+  struct psp *newpsp;
+  char *envspace;
+  WORD sel, psp_selector, env_selector;
+  BYTE acc;
+  int done;
+  DWORD m;
+  BYTE *allocated;
+  int size;
+  int env_size;
+
+  /*Environment lenght + 2 zeros + 1 word + program name... */
+  env_size = 2 + 2 + strlen(filename) + 1;
+  size = sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE;
+  /* Always allocate a fixed amount of memory...
+   * Keep some space for adding environment variables
+   */
+  allocated = (BYTE *)mem_get(sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE);
+  if (allocated == NULL) {
+    return NULL;
+  }
+  info = (struct stubinfo *)allocated;
+
+  done = 0; sel = 8;
+  while (sel < 256 && (!done)) {
+    gdt_read(sel, NULL, &acc, NULL);
+    if (acc == 0) {
+      done = 1;
+    } else {
+      sel += 8;
+    }
+  }
+#ifdef __DOS_EXEC_DEBUG__
+  fd32_log_printf("[DOSEXEC] StubInfo Selector Allocated: = 0x%x\n", sel);
+#endif
+  if (done == 0) {
+    mem_free((DWORD)allocated, size);
+    return NULL;
+  }
+  gdt_place(sel, (DWORD)info, sizeof(struct stubinfo),
+	  0x92 | (RUN_RING << 5), 0x40);
+  
+  newpsp = (struct psp *)(allocated + sizeof(struct stubinfo));
+  
+  done = 0; psp_selector = sel;
+  while (psp_selector < 256 && (!done)) {
+    gdt_read(psp_selector, NULL, &acc, NULL);
+    if (acc == 0) {
+      done = 1;
+    } else {
+      psp_selector += 8;
+    }
+  }
+
+  if (done == 0) {
+    mem_free((DWORD)allocated, size);
+    gdt_place(sel, 0, 0, 0, 0);
+    return NULL;
+  }
+#ifdef __DOS_EXEC_DEBUG__
+  fd32_log_printf("[DOSEXEC] PSP Selector Allocated: = 0x%x\n", psp_selector);
+#endif
+  gdt_place(psp_selector, (DWORD)newpsp, sizeof(struct psp),
+	  0x92 | (RUN_RING << 5), 0x40);
+
+  /* Allocate Environment Space & Selector */
+  envspace = (char *)(allocated + sizeof(struct stubinfo) + sizeof(struct psp));
+  memset(envspace, 0, env_size);
+  *((WORD *)envspace + 2) = 1;
+  strcpy(envspace + 2 + sizeof(WORD), filename); /* No environment... */
+
+  done = 0; env_selector = psp_selector;
+  while (env_selector < 256 && (!done)) {
+    gdt_read(env_selector, NULL, &acc, NULL);
+    if (acc == 0) {
+      done = 1;
+    } else {
+      env_selector += 8;
+    }
+  }
+
+  if (done == 0) {
+    mem_free((DWORD)allocated , size);
+    gdt_place(sel, 0, 0, 0, 0);
+    gdt_place(psp_selector, 0, 0, 0, 0);
+    return NULL;
+  }
+#ifdef __DOS_EXEC_DEBUG__
+  fd32_log_printf("[DOSEXEC] Environment Selector Allocated: = 0x%x\n", env_selector);
+#endif
+  gdt_place(env_selector, (DWORD)envspace, ENV_SIZE,
+	  0x92 | (RUN_RING << 5), 0x40);
+  
+  strcpy(info->magic, "go32stub, v 2.00");
+  info->size = sizeof(struct stubinfo);
+
+  info->minstack = 0x40000;      /* FIXME: Check this!!! */
+  info->memory_handle = mem_handle;
+	/* Memory pre-allocated by the kernel... */
+  info->initial_size = initial_size; /* align? */
+
+  info->minkeep = 0x1000;        /* DOS buffer size... */
+  info->dosbuf_handler = m = dosmem_get(0x1010);
+  info->ds_segment = m >> 4;
+
+  info->ds_selector = get_ds();
+  info->cs_selector = get_cs();
+  info->psp_selector = psp_selector;
+
+  /* TODO: There should be some error down here... */
+  info->env_size = env_size;
+  info->basename[0] = 0;
+  info->argv0[0] = 0;
+
+  set_psp(newpsp, env_selector, args, sel, base, initial_size);
+  
+  return sel;
+}
+
+/* TODO: FD32 module can't export ?_init name! */
+WORD stubinfo_xxxx(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args)
+{
+  return stubinfo_init(base, initial_size, mem_handle, filename, args);
+}
+
+void restore_psp(void)
+{
+  WORD stubinfo_sel;
+  DWORD base, base1;
+  int res;
+  struct stubinfo *info;
+  struct process_info *cur_P = fd32_get_current_pi();
+  struct psp *curpsp = cur_P->psp;
+
+  /* Free memory & selectors... */
+  stubinfo_sel = curpsp->info_sel;
+  base = gdt_read(stubinfo_sel, NULL, NULL, NULL);
+#ifdef __DOS_EXEC_DEBUG__
+  fd32_log_printf("[DOSEXEC] Stubinfo Sel: 0x%x --- 0x%lx\n", stubinfo_sel, base);
+#endif
+  info = (struct stubinfo *)base;
+  base1 = gdt_read(info->psp_selector, NULL, NULL, NULL);
+  if (base1 != (DWORD)curpsp) {
+    error("Restore PSP: paranoia check failed...\n");
+    message("Stubinfo Sel: 0x%x;    Base: 0x%lx\n",
+	    stubinfo_sel, base);
+    message("Current psp: 0x%lx;    Base1: 0x%lx\n",
+	    (DWORD)curpsp, base1);
+    fd32_abort();
+  }
+  gdt_place(stubinfo_sel, 0, 0, 0, 0);
+  gdt_place(info->psp_selector, 0, 0, 0, 0);
+  gdt_place(curpsp->ps_environ, 0, 0, 0, 0);
+  res = dosmem_free(info->dosbuf_handler, 0x1010);
+  if (res != 1) {
+    error("Restore PSP panic while freeing DOS memory...\n");
+    fd32_abort();
+  }
+
+  fd32_free_jft(cur_P->jft, cur_P->jft_size);
+  
+  res = mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE);
+  if (res != 1) {
+    error("Restore PSP panic while freeing memory...\n");
+    fd32_abort();
+  }
+
+  /* TODO: return frame OK?
+  if (curpsp != NULL) {
+    current_SP = curpsp->old_stack;
+  } else {
+    current_SP = NULL;
+  }
+  current_SP = curpsp->old_stack; */
+}
+
+static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
+		char *filename, char *args)
+{
+  struct process_info pi;
+  int retval;
+  int size;
+  DWORD exec_space;
+  DWORD entry;
+  DWORD base;
+  DWORD offset;
+  WORD stubinfo_sel;
+
+  entry = fd32_load_process(kf, f, rf, &exec_space, &base, &size);
+  if (entry == -1) {
+    return -1;
+  }
+
+  fd32_set_current_pi(&pi);
+  if (exec_space == 0) {
+    retval = fd32_create_process(entry, base, size, 0, filename, args);
+  } else if (exec_space == -1) {
+    /* create_dll(entry, base, size + LOCAL_BSS); */
+    retval = 0;
+  } else {
+#ifdef __DOS_EXEC_DEBUG__
+    fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", entry);
+#endif
+    stubinfo_sel = stubinfo_init(exec_space, size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args);
+    if (stubinfo_sel == 0) {
+      error("No stubinfo!!!\n");
+      return -1;
+    }
+    offset = exec_space - base;
+    retval = fd32_create_process(entry + offset, exec_space, size, stubinfo_sel, filename, args);
+#ifdef __DOS_EXEC_DEBUG__
+    fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
+#endif
+    restore_psp();
+    mem_free(exec_space, size);
+  }
+  /* Back to the previous process NOTE: TSR native programs? */
+  fd32_set_current_pi(pi.prev_P);
+
+  return retval;
+}
+
 
 static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
 {
@@ -80,7 +370,7 @@ static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s
   if (out != NULL) {
     if (p_vm86_tss->back_link != 0) {message("Panic!\n"); fd32_abort();}
 
-    /* out->x.ax = global_regs->eax;
+  /* out->x.ax = global_regs->eax;
     out->x.bx = global_regs->ebx;
     out->x.cx = global_regs->ecx;
     out->x.dx = global_regs->edx;
@@ -140,8 +430,9 @@ static int my_seek(int id, int pos, int w)
 /* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
-		char *cmdline, char *args)
+		char *filename, char *args)
 {
+  struct process_info pi;
   struct dos_header hdr;
   struct psp *ppsp;
   X_REGS16 in, out;
@@ -176,8 +467,8 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   env_data[0] = 0;
   env_data[1] = 1;
   env_data[2] = 0;
-  /* NOTE: cmdline is only the filepath */
-  strcpy(env_data + 3, cmdline);
+  /* NOTE: filename is only the filepath */
+  strcpy(env_data + 3, filename);
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] ENVSEG: %x - %x %x %x %s\n", (int)g_env_segment, env_data[0], env_data[1], env_data[2], env_data+3);
 #endif
@@ -185,8 +476,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   ppsp->ps_size = (exec+exec_size*0x10)>>4;
   ppsp->ps_parent = 0;
   ppsp->ps_environ = g_env_segment;
-  ppsp->ps_maxfiles = 0x20;
-  ppsp->ps_filetab = fd32_init_jft(0x20);
   if (g_fcb1 != NULL) {
     g_fcb1 = (g_fcb1>>12)+(g_fcb1&0x0000FFFF);
     memcpy(ppsp->def_fcb_1, (void *)g_fcb1, 16);
@@ -199,6 +488,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
     ppsp->command_line_len = strlen(args);
     strcpy(ppsp->command_line, args);
   }
+  ppsp->dta = &ppsp->command_line_len;
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] FCB: %x %x content: %x %x\n", (int)g_fcb1, (int)g_fcb2, *((BYTE *)g_fcb1), *((BYTE *)g_fcb2));
 #endif
@@ -212,11 +502,16 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   in.x.di = hdr.e_sp;
   in.x.si = hdr.e_ip;
 
-  /* NOTE: Set the current_psp */
-  extern struct psp *current_psp;
-  current_psp = ppsp;
+  /* NOTE: Set the current process info */
+  pi.name = filename;
+  pi.args = args;
+  pi.psp = ppsp;
+  fd32_set_current_pi(&pi);
+  fd32_set_jft(NULL, MAX_OPEN_FILES);
   /* Call in VM86 mode */
   vm86_call(hdr.e_ip, hdr.e_sp, &in, &out, &s);
+  /* Back to the previous process */
+  fd32_set_current_pi(pi.prev_P);
   dosmem_free(mem, sizeof(struct psp)+exec_size*0x10);
   
   return 0;
@@ -271,7 +566,7 @@ int dos_exec_switch(int option)
       res = 1;
       break;
     case DOS_DIRECT_EXEC:
-      fd32_set_binfmt("mz", p_isMZ, fd32_exec_process);
+      fd32_set_binfmt("mz", p_isMZ, direct_exec_process);
       res = 1;
       break;
     default:

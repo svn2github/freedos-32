@@ -7,7 +7,6 @@
 #include <ll/i386/hw-data.h>
 
 #include "kmem.h"
-#include "stubinfo.h"
 #include "kernel.h"
 
 #include "dpmimem.h"
@@ -48,7 +47,6 @@ DWORD dpmi_alloc(DWORD size, DWORD *base)
 {
   struct dpmimem_info *p;
   DWORD area;
-  int res;
 
 #ifdef __DPMIMEM_DEBUG__
   fd32_log_printf("DPMI Alloc 0x%lx\n", size);
