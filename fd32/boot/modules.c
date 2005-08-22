@@ -22,13 +22,6 @@
 
 static struct kern_funcs kf;
 
-struct mods_struct {
-  void *mod_start;
-  void *mod_end;
-  char *string;
-  DWORD reserved;
-};
-
 int istext(struct kern_funcs *kf, int file)
 {
   char p[256];

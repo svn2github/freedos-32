@@ -11,6 +11,7 @@
 #include "kernel.h"
 #include "kmem.h"
 #include "pmm.h"
+#include "mods.h"
 
 void system_init(void *mbp)
 {
@@ -35,15 +36,18 @@ void dos_init(void *p)
 #ifdef __MEM_DEBUG__
     message("DOS Mem Size: %lx %lu\n", memsize, memsize);
 #endif
-	  /* Randomly chosen safe value :) */
+    /* TODO: Reserve for the GRUB data (formerly Randomly chosen safe value) */
     membase = 0x10000;
     if (mbp->flags & MB_INFO_BOOT_LOADER_NAME) {
       if (*((char *)(mbp->boot_loader_name)) == 'X') {
         membase = mbp->mem_lowbase;
       }
     }
-    memsize = 640 * 1024 - membase; /* Hack! */
+    /* Reserve the memory before membase */
+    memsize -= membase;
     dosmem_init(membase, memsize);
+    /* Reserve the module structure infomation and it's in DOS memory */
+    dosmem_get_region(mbp->mods_addr, sizeof(struct mods_struct)*mbp->mods_count);
   } else {
     message("Cannot initialize the DOS Memory Pool\n");
   }
