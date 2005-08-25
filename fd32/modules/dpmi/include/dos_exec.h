@@ -28,6 +28,12 @@ typedef struct dos_header {
   DWORD e_lfanew;	/* File address of new exe header	*/
 } __attribute__ ((packed)) tDOSHD;
 
+typedef struct dos_reloc {
+  unsigned short offset;
+  unsigned short segment;
+} __attribute__ ((packed)) tDOSRLC;
+
+
 typedef struct psp {
   WORD ps_exit;                 /* 00 CP/M-like exit point: int 20 */
   WORD ps_size;                 /* 02 segment of first byte beyond */
