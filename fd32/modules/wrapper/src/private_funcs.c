@@ -40,7 +40,6 @@ struct stubinfo {
 /* from dpmi/src/dos_exec.c, using dynamic linking */
 extern WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
 extern void restore_psp(void);
-extern void my_close(int id);
 extern WORD user_cs, user_ds;
 
 #define __WRAP_DEBUG__
@@ -116,7 +115,7 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
   int res;
 
   dyn_entry = fd32_load_process(p, file, parser, &exec_space, &base, &size);
-  my_close(file);
+  fd32_kernel_close(file);
 
   fd32_log_printf("[Wrapper] Process Loaded\n");
   if (dyn_entry == -1) {

@@ -28,11 +28,6 @@ DWORD pgm_mem_step = 0x100000;
 int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline);
 
 WORD user_cs, user_ds;
-
-struct funky_file {
-  fd32_request_t *request;
-  void *file_id;
-};
 static DWORD funky_base;
 
 int funkymem_get_region(DWORD base, DWORD size)
@@ -129,54 +124,6 @@ static int funkymem_free(DWORD base, DWORD size)
   return mem_free(base, size);
 }
 
-void my_close(int id)
-{
-  fd32_close_t cr;
-  struct funky_file *f;
-  int res;
-  
-  f = (struct funky_file *)id;
-  cr.Size = sizeof(fd32_close_t);
-  cr.DeviceId = f->file_id;
-  res = f->request(FD32_CLOSE, &cr);
-}
-
-static int my_read(int id, void *b, int len)
-{
-  struct funky_file *f;
-  fd32_read_t r;
-  int res;
-
-  f = (struct funky_file *)id;
-  r.Size = sizeof(fd32_read_t);
-  r.DeviceId = f->file_id;
-  r.Buffer = b;
-  r.BufferBytes = len;
-  res = f->request(FD32_READ, &r);
-#ifdef __DEBUG__
-  if (res < 0) {
-    fd32_log_printf("WTF!!!\n");
-  }
-#endif
-
-  return res;
-}
-
-static int my_seek(int id, int pos, int w)
-{
-  int error;
-  struct funky_file *f;
-  fd32_lseek_t ls;
- 
-  f = (struct funky_file *)id;
-  ls.Size = sizeof(fd32_lseek_t);
-  ls.DeviceId = f->file_id;
-  ls.Offset = (long long int) pos;
-  ls.Origin = (DWORD) w;
-  error = f->request(FD32_LSEEK, &ls);
-  return (int) ls.Offset;
-}
-
 static void my_process_dos_module(struct kern_funcs *kf, int file,
 		struct read_funcs *rf, char *cmdline)
 {
@@ -218,40 +165,17 @@ int wrap_exec(char *filename, char *args)
 {
   struct kern_funcs kf;
   struct read_funcs rf;
-  struct funky_file f;
-  void *fs_device;
-  char *pathname;
-  fd32_openfile_t of;
-  fd32_close_t cr;
-  int res;
+  struct kernel_file f;
   WORD magic;
 
-  if (fd32_get_drive(filename, &f.request, &fs_device, &pathname) < 0) {
-#ifdef __DEBUG__
-    fd32_log_printf("Cannot find the drive!!!\n");
-#endif
+  if (fd32_kernel_open(filename, O_RDONLY, 0, 0, &f) < 0)
     return -1;
-  }
-#ifdef __DEBUG__
-  fd32_log_printf("Opening %s\n", filename);
-#endif
-  of.Size = sizeof(fd32_openfile_t);
-  of.DeviceId = fs_device;
-  of.FileName = pathname;
-  of.Mode = O_RDONLY;
-  if (f.request(FD32_OPENFILE, &of) < 0) {
-#ifdef __DEBUG__
-    fd32_log_printf("File not found!!\n");
-#endif
-    return -1;
-  }
-  f.file_id = of.FileId;
 
 #ifdef __DEBUG__
   fd32_log_printf("FileId = 0x%lx (0x%lx)\n", (DWORD)f.file_id, (DWORD)&f);
 #endif
-  kf.file_read = my_read;
-  kf.file_seek = my_seek;
+  kf.file_read = fd32_kernel_read;
+  kf.file_seek = fd32_kernel_seek;
   kf.file_offset = 0; /* Reflect the changes in identify_module */
   kf.mem_alloc = funkymem_get;
   kf.mem_alloc_region = funkymem_get_region;
@@ -266,12 +190,8 @@ int wrap_exec(char *filename, char *args)
   if (magic == 0x5A4D) { /* "MZ" */
     my_process_dos_module(&kf, (int)(&f), &rf, args);
   }
-  
-  cr.Size = sizeof(fd32_close_t);
-  cr.DeviceId = f.file_id;
-  message("Closing %d\n", (int)f.file_id);
-  res = f.request(FD32_CLOSE, &cr);
-  message("Returned %d\n", res);
+
+  fd32_kernel_close((int)&f);
   return 1;
 }
 

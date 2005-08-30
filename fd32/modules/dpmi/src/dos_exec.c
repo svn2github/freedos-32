@@ -351,48 +351,6 @@ static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s
   return 1;
 }
 
-/* File handling */
-struct funky_file {
-  fd32_request_t *request;
-  void *file_id;
-};
-
-static int my_read(int id, void *b, int len)
-{
-  struct funky_file *f;
-  fd32_read_t r;
-  int res;
-
-  f = (struct funky_file *)id;
-  r.Size = sizeof(fd32_read_t);
-  r.DeviceId = f->file_id;
-  r.Buffer = b;
-  r.BufferBytes = len;
-  res = f->request(FD32_READ, &r);
-#ifdef __DEBUG__
-  if (res < 0) {
-    fd32_log_printf("WTF!!!\n");
-  }
-#endif
-
-  return res;
-}
-
-static int my_seek(int id, int pos, int w)
-{
-  int error;
-  struct funky_file *f;
-  fd32_lseek_t ls;
-
-  f = (struct funky_file *)id;
-  ls.Size = sizeof(fd32_lseek_t);
-  ls.DeviceId = f->file_id;
-  ls.Offset = (long long int) pos;
-  ls.Origin = (DWORD) w;
-  error = f->request(FD32_LSEEK, &ls);
-  return (int) ls.Offset;
-}
-
 /* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
@@ -562,49 +520,17 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
   struct kern_funcs kf;
   struct read_funcs rf;
   struct bin_format *binfmt;
-  struct funky_file f;
-  void *fs_device;
-  char *pathname;
-  fd32_openfile_t of;
+  struct kernel_file f;
   DWORD i;
 
-/* TODO: filename must be canonicalized with fd32_truename, but fd32_truename
-         resolve the current directory, that is per process.
-         Have we a valid current_psp at this point?
-         Next, truefilename shall be used instead of filename.
-  char truefilename[FD32_LFNPMAX];
-  if (fd32_truename(truefilename, filename, FD32_TNSUBST) < 0) {
-#ifdef __DEBUG__
-    fd32_log_printf("Cannot canonicalize the file name!!!\n");
-#endif
+  if (fd32_kernel_open(filename, O_RDONLY, 0, 0, &f) < 0)
     return -1;
-  } */
-  if (fd32_get_drive(/*true*/filename, &f.request, &fs_device, &pathname) < 0) {
-#ifdef __DOS_EXEC_DEBUG__
-    fd32_log_printf("Cannot find the drive!!!\n");
-#endif
-    return -1;
-  }
-#ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("Opening %s\n", /*true*/filename);
-#endif
-  of.Size = sizeof(fd32_openfile_t);
-  of.DeviceId = fs_device;
-  of.FileName = pathname;
-  of.Mode = O_RDONLY;
-  if (f.request(FD32_OPENFILE, &of) < 0) {
-#ifdef __DOS_EXEC_DEBUG__
-    fd32_log_printf("File not found!!\n");
-#endif
-    return -1;
-  }
-  f.file_id = of.FileId;
 
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("FileId = 0x%lx (0x%lx)\n", (DWORD)f.file_id, (DWORD)&f);
 #endif
-  kf.file_read = my_read;
-  kf.file_seek = my_seek;
+  kf.file_read = fd32_kernel_read;
+  kf.file_seek = fd32_kernel_seek;
   kf.mem_alloc = mem_get;
   kf.mem_alloc_region = mem_get_region;
   kf.mem_free = mem_free;
@@ -639,6 +565,6 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
     /* p->file_seek(file, p->file_offset, p->seek_set); */
   }
 
-  /* TODO: Close file */
+  fd32_kernel_close((int)&f);
   return 1;
 }

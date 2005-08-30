@@ -7,8 +7,20 @@
 #ifndef __KERNEL_H__
 #define __KERNEL_H__
 
+#include "devices.h"
 #include "format.h"
 
+/* Kernel File handling */
+struct kernel_file {
+  fd32_request_t *request;
+  void *file_id;
+};
+int fd32_kernel_open(char *filename, DWORD mode, WORD attr, WORD alias_hint, struct kernel_file *f);
+int fd32_kernel_close(int id);
+int fd32_kernel_read(int id, void *buffer, int len);
+int fd32_kernel_seek(int id, int pos, int whence);
+
+/* Kernel Process management */
 struct process_info {
   struct process_info *prev_P;
   void *psp;      /* Optional DOS PSP */
