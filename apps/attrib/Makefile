@@ -5,13 +5,14 @@ ifndef OSLIB
 OSLIB = ../../oslib
 endif
 ifndef DRIVERS
-DRIVERS = ../../drivers
+DRIVERS = ../../fd32/modules
 endif
 
-
+include $(OSLIB)/config.mk
 INCL   = $(OSLIB)
 
 C_OPT += -I $(OSLIB) -I $(DRIVERS)/include/fd32 -I ./ -I $(FDOS)/include -Wall -Wsystem-headers -Os -fno-builtin -nostdinc -D__LINUX__ 
+LINK_OPT = -Bstatic
 
 OBJS =  attrib.o dirsrch.o
 

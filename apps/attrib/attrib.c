@@ -25,13 +25,9 @@
 
 #include <dr-env.h>
 #include <filesys.h>
-#include <stubinfo.h>
-#include <dirsrch.h>
+#include "dirsrch.h"
 
 //#define _FAKE_CON_
-
-extern struct psp *current_psp;
-static struct psp local_psp;
 
 #ifdef _FAKE_CON_
 
@@ -47,10 +43,11 @@ static struct psp local_psp;
    to switch back to the previous psp */
 void old_psp_puts(int handle, char* s)
 {
-    current_psp = current_psp->link;
+	struct process_info *ppi = fd32_get_current_pi();
+    fd32_set_current_pi(ppi->prev_P);
     if(s)
         fd32_write(handle, s, strlen(s));
-    current_psp = &local_psp;
+    fd32_set_current_pi(ppi);
 }
 
 #define ERR_PRINT(string) old_psp_puts(stderr, string)
@@ -350,8 +347,6 @@ static int process(char* args)
     }
 }
 
-void restore_sp(int res);
-
 void attrib_init(struct process_info *pi)
 {
     char *args;
@@ -368,17 +363,13 @@ void attrib_init(struct process_info *pi)
 #endif
     while(*args == ' ')
         args++;
-    local_psp.jft_size = MAX_DEPTH + 12;
-    local_psp.jft = fd32_init_jft(MAX_DEPTH + 12);
-    local_psp.link = current_psp;
-    current_psp = &local_psp;
+    pi->jft_size = MAX_DEPTH + 12;
+    pi->jft = fd32_init_jft(MAX_DEPTH + 12);
     res = process(args);
 #ifndef _FAKE_CON_
     fd32_fflush(stdout);
     fd32_fflush(stderr);
 #endif
-    fd32_free_jft(current_psp->jft, current_psp->jft_size);
-    current_psp = current_psp->link;
-    restore_sp(res);
+    fd32_free_jft(pi->jft, pi->jft_size);
 }
 

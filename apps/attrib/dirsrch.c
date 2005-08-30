@@ -20,7 +20,7 @@
 
 #include <dr-env.h>
 #include <filesys.h>
-#include <dirsrch.h>
+#include "dirsrch.h"
 
 
 /* Try to close all open file handles if an error occures */

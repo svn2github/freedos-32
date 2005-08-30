@@ -106,12 +106,8 @@ int process()
 }
 
 
-void restore_sp(int res);
-
-
 void cd_test_init(struct process_info *pi)
 {
-    struct process_info *cur_P = fd32_get_current_pi();
     int res;
     char* args;
     char c;
@@ -138,10 +134,9 @@ void cd_test_init(struct process_info *pi)
         fd32_message("Error:  Numer of sectors to read per drive must be specified, or \"-a\" for all.\n");
         return;
     }
-    cur_P->jft_size = 6;
-    cur_P->jft = fd32_init_jft(6);
+    pi->jft_size = 6;
+    pi->jft = fd32_init_jft(6);
     res = process();
-    fd32_free_jft(cur_P->jft, cur_P->jft_size);
-    restore_sp(res);
+    fd32_free_jft(pi->jft, pi->jft_size);
 }
 

@@ -60,7 +60,7 @@ struct process_info *fd32_get_current_pi(void)
 
 void fd32_set_current_pi(struct process_info *ppi)
 {
-  ppi->prev_P = cur_P;
+  ppi->prev_P = cur_P; /* TODO: The previous pi will be lost */
   cur_P = ppi;
 }
 
