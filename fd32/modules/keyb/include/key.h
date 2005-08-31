@@ -1,13 +1,29 @@
 /* Keyborad Driver for FD32
- * original by Luca Abeni
- * extended by Hanzac Chen
+ * by Luca Abeni and Hanzac Chen
  *
  * 2004 - 2005
  * This is free software; see GPL.txt
  */
 
+#ifndef __KEY_H__
+#define __KEY_H__
 
 #define KEYB_DEV_INFO     0x80
+
+/* keyboard I/O ports */
+#define KEYB_STATUS_PORT  0x64
+#define KEYB_DATA_PORT    0x60
+/* keyboard command */
+#define KEYB_CMD_SET_LEDS 0xED
+
+int preprocess(BYTE code);
+void postprocess(void);
+BYTE keyb_get_data(void);
+WORD keyb_get_shift_flags(void);
+void keyb_set_shift_flags(WORD f);
+WORD keyb_decode(BYTE c, int flags, int lock);
+void keyb_hook(WORD key, int isCTRL, int isALT, DWORD hook_func);
+void keyb_fire_hook(WORD key, int isCTRL, int isALT);
 
 /* BIOS Data Area: keyboard */
 #define BDA_OFFSET(addr) (addr&0x00FF)
@@ -17,10 +33,6 @@
 #define BDA_KEYB_BUF      0x041E
 #define BDA_KEYB_BUFSTART 0x0480
 #define BDA_KEYB_BUFEND   0x0482
-
-/* keyboard I/O ports */
-#define KEYB_STATUS_PORT  0x64
-#define KEYB_DATA_PORT    0x60
 
 /* scan code */
 #define VK_ESCAPE     0x1B
@@ -61,3 +73,5 @@
 #define NUMLK_FLAG    0x2000
 #define CAPS_FLAG     0x4000
 #define SYSRQ_FLAG    0x8000
+
+#endif

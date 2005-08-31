@@ -10,5 +10,6 @@ void keyqueue_put(WORD code);
 WORD keyqueue_gethead(void);
 BYTE keyqueue_get(void);
 int keyqueue_empty(void);
+void keyb_queue_clear(void);
 
 #endif
