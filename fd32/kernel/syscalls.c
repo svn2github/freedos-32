@@ -16,6 +16,7 @@
 #include <ll/stdio.h>
 #include <ll/string.h>
 #include <ll/ctype.h>
+#include <ll/getopt.h>
 
 #include <ll/sys/ll/event.h>
 #include <ll/sys/ll/time.h>
@@ -61,7 +62,7 @@ static void fake_get_time(fd32_time_t *T)
 }
 
 /* Kernel File handling */
-int fd32_kernel_open(char *filename, DWORD mode, WORD attr, WORD alias_hint, struct kernel_file *f)
+int fd32_kernel_open(const char *filename, DWORD mode, WORD attr, WORD alias_hint, struct kernel_file *f)
 {
   int res;
   char *pathname;
@@ -82,24 +83,24 @@ int fd32_kernel_open(char *filename, DWORD mode, WORD attr, WORD alias_hint, str
 #ifdef __DEBUG__
     fd32_log_printf("Cannot find the drive!!!\n");
 #endif
-    return res;
+  } else {
+  #ifdef __DEBUG__
+    fd32_log_printf("Opening %s\n", /*true*/file_name);
+  #endif
+    of.Size = sizeof(fd32_openfile_t);
+    of.DeviceId = fs_device;
+    of.FileName = pathname;
+    of.Mode = mode;
+    of.Attr = attr;
+    of.AliasHint = alias_hint;
+    if ((res = f->request(FD32_OPENFILE, &of)) < 0) {
+  #ifdef __DEBUG__
+      fd32_log_printf("File not found!!\n");
+  #endif
+    } else {
+      f->file_id = of.FileId;
+    }
   }
-#ifdef __DEBUG__
-  fd32_log_printf("Opening %s\n", /*true*/file_name);
-#endif
-  of.Size = sizeof(fd32_openfile_t);
-  of.DeviceId = fs_device;
-  of.FileName = pathname;
-  of.Mode = mode;
-  of.Attr = attr;
-  of.AliasHint = alias_hint;
-  if ((res = f->request(FD32_OPENFILE, &of)) < 0) {
-#ifdef __DEBUG__
-    fd32_log_printf("File not found!!\n");
-#endif
-    return res;
-  }
-  f->file_id = of.FileId;
 
   return res;
 }
@@ -273,6 +274,12 @@ static struct symbol syscall_table[] = {
   { "strscn",  (DWORD) strscn },
   { "strupr",  (DWORD) strupr },
   { "strlwr",  (DWORD) strlwr },
+  { "getopt",  (DWORD) getopt },
+  { "getopt_long", (DWORD) getopt_long },
+  { "optarg",  (DWORD) &optarg },
+  { "optind",  (DWORD) &optind },
+  { "opterr",  (DWORD) &opterr },
+  { "optopt",  (DWORD) &optopt },
   /* Symbols for date and time functions (from fd32time.h) */
   { "fd32_get_date", (DWORD) fake_get_date },
   { "fd32_get_time", (DWORD) fake_get_time },
@@ -340,6 +347,7 @@ static struct symbol syscall_table[] = {
   { "fd32_create_process", (DWORD) fd32_create_process },
   { "fd32_get_current_pi", (DWORD) fd32_get_current_pi },
   { "fd32_set_current_pi", (DWORD) fd32_set_current_pi },
+  { "fd32_get_argv",       (DWORD) fd32_get_argv },
   { "fd32_kernel_open",    (DWORD) fd32_kernel_open },
   { "fd32_kernel_read",    (DWORD) fd32_kernel_read },
   { "fd32_kernel_seek",    (DWORD) fd32_kernel_seek },

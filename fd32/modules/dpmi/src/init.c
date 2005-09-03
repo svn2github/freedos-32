@@ -7,6 +7,7 @@
 #include <ll/i386/hw-func.h>
 #include <ll/i386/string.h>
 #include <ll/i386/error.h>
+#include <ll/getopt.h>
 
 #include <kernel.h>
 #include "dos_exec.h"
@@ -16,42 +17,48 @@ extern WORD stubinfo_xxxx(DWORD base, DWORD initial_size, DWORD mem_handle, char
 extern void restore_psp(void);
 extern int use_lfn;
 
+static struct option dpmi_options[] =
+{
+  /* These options set a flag. */
+  {"nolfn", no_argument, &use_lfn, 0},
+  /* These options don't set a flag.
+     We distinguish them by their indices. */
+  {"dos-exec", required_argument, 0, 'X'},
+  {0, 0, 0, 0}
+};
+
 /*void DPMI_init(DWORD cs, char *cmdline) */
 void DPMI_init(struct process_info *p)
 {
-  int done = 0;
-  char *c, *cmdline;
+  char **argv;
+  int argc = fd32_get_argv(name_get(p), args_get(p), &argv);
 
   if (add_call("stubinfo_init", (DWORD)stubinfo_xxxx, ADD) == -1)
     message("Cannot add stubinfo_init to the symbol table\n");
   if (add_call("restore_psp", (DWORD)restore_psp, ADD) == -1)
     message("Cannot add restore_psp to the symbol table\n");
 
-  cmdline = args_get(p);
   use_lfn = 1;
   /* Default use direct dos_exec, only support COFF-GO32 */
   dos_exec_switch(DOS_DIRECT_EXEC);
-  
-  if (cmdline != NULL) {
-    message("DPMI Init: command line = %s\n", cmdline);
 
+  if (argc > 0) {
+    int c, option_index = 0;
+    message("DPMI Init: command line\n");
     /* Parse the command line */
-    c = cmdline;
-    while (!done) {
-      if (*c == 0) {
-        done = 1;
-      } else {
-        if ((*c =='-') && (*(c + 1) == '-')) {
-          if (strcmp(c + 2, "nolfn") == 0) {
-            use_lfn = 0;
-            message("LFN disabled\n");
-          } else if (strcmp(c + 2, "dos-exec=vm86") == 0) {
+    for ( ; (c = getopt_long (argc, argv, "D:", dpmi_options, &option_index)) != -1; ) {
+      switch (c) {
+        case 0:
+          message("LFN disabled\n");
+          break;
+        case 'X':
+          if (strcmp(optarg, "vm86") == 0)
             dos_exec_switch(DOS_VM86_EXEC);
-          } else if (strcmp(c + 2, "dos-exec=direct") == 0) {
+          else if (strcmp(optarg, "direct") == 0)
             dos_exec_switch(DOS_DIRECT_EXEC);
-          }
-        }
-        c++;
+          break;
+        default:
+          break;
       }
     }
   }

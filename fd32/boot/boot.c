@@ -67,8 +67,8 @@ void args_parse(int argc, char *argv[])
   char *name, *value = NULL;
   int i, j;
 
-  set_param("coff", NULL, COFF_set_type);
-  set_param("tick", NULL, Timer_set);
+  add_param("coff", COFF_set_type);
+  add_param("tick", Timer_set);
 
   for (i = 1; i < argc; i++) {
     /* kernel parameters ...
@@ -85,7 +85,7 @@ void args_parse(int argc, char *argv[])
             value = argv[i];
             break;
           } else {
-            set_param(name, NULL, NULL);
+            set_param(name, NULL);
             return;
           }
         }
@@ -95,7 +95,7 @@ void args_parse(int argc, char *argv[])
         value = argv[i]+j+1;
       }
       /* Set the param */
-      set_param(name, value, NULL);
+      set_param(name, value);
       value = NULL;
     }
   }

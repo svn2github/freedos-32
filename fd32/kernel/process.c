@@ -17,7 +17,7 @@
 #include "kmem.h"
 #include "kernel.h"
 
-//#define __PROCESS_DEBUG__
+/* #define __PROCESS_DEBUG__ */
 
 WORD kern_CS, kern_DS;
 
@@ -106,4 +106,32 @@ int fd32_create_process(DWORD entry, DWORD base, DWORD size, WORD fs_sel, char *
 #endif
 
   return res;
+}
+
+int fd32_get_argv(char *filename, char *args, char **_pargv[])
+{
+  DWORD i;
+  int _argc = 1, is_newarg;
+
+  /* Get the argc */
+  if (args != NULL) {
+    _argc++;
+    for (i = 0; args[i] != 0; i++)
+      if (args[i] == ' ')
+        _argc++;
+  }
+
+  /* Allocate a argv and fill */
+  *_pargv = (char **)mem_get(sizeof(char *)*_argc);
+  (*_pargv)[0] = filename; /* The first argument is the filename */
+  _argc = 1;
+  for (i = 0, is_newarg = 1; args[i] != 0; i++) {
+    if (is_newarg)
+      (*_pargv)[_argc] = args+i, is_newarg = 0;
+    if (args[i] == ' ')
+      args[i] = 0, _argc++, is_newarg = 1;
+  }
+  _argc ++; /* Add one at the end */
+
+  return _argc;
 }

@@ -15,7 +15,7 @@ struct kernel_file {
   fd32_request_t *request;
   void *file_id;
 };
-int fd32_kernel_open(char *filename, DWORD mode, WORD attr, WORD alias_hint, struct kernel_file *f);
+int fd32_kernel_open(const char *filename, DWORD mode, WORD attr, WORD alias_hint, struct kernel_file *f);
 int fd32_kernel_close(int id);
 int fd32_kernel_read(int id, void *buffer, int len);
 int fd32_kernel_seek(int id, int pos, int whence);
@@ -33,6 +33,8 @@ struct process_info {
 };
 struct process_info *fd32_get_current_pi(void);
 void fd32_set_current_pi(struct process_info *ppi);
+int fd32_get_argv(char *filename, char *args, char **pargv[]);
+
 static inline char *args_get(struct process_info *p)
 {
   return p->args;
