@@ -42,7 +42,7 @@ STD_OBJS = random.o \
 
 GNU_S_OBJS = modf.o
 
-GNU_C_OBJS =
+GNU_C_OBJS = getopt.o
 
 OBJS = $(GNU_S_OBJS) $(GNU_C_OBJS) $(COMMON_OBJS) $(STRING_OBJS) $(IO_OBJS) $(STD_OBJS)
 
