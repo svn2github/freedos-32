@@ -115,6 +115,10 @@ static int keyb_request(DWORD function, void *params)
 
 void keyb_init(struct process_info *pi)
 {
+	char **argv;
+	int argc = fd32_get_argv(name_get(pi), args_get(pi), &argv);
+	
+	fd32_unget_argv(argc, argv);
 	/* Handle the keyboard */
 	fd32_message("Setting Keyboard handler\n");
 	fd32_irq_bind(KEYB_IRQ, keyb_handler);

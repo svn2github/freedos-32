@@ -7,6 +7,7 @@
 #include <ll/i386/error.h>
 #include <ll/i386/string.h>
 #include <ll/stdlib.h>
+#include <ll/getopt.h>
 
 #include "devices.h"
 #include "filesys.h"
@@ -195,111 +196,68 @@ int wrap_exec(char *filename, char *args)
   return 1;
 }
 
-static char *arg_parse(char *c)
+static struct option wrapper_options[] =
 {
-  int done, res;
-  char *tmp;
-  char tmpbuff[20];
+  /* These options set a flag. */
 
-  done = 0;
-  while (!done) {
-    if (*c == 0) {
-      done = 1;
-    } else {
-      if (*c =='-') {
-	c++;
-	if (*c == 0) {
-          message("Malformed cmd line!\n");
+  /* These options don't set a flag.
+     We distinguish them by their indices. */
+  {"tsr-mode", no_argument, 0, 'D'},
+  {"mem-base", required_argument, 0, 'b'},
+  {"mem-step", required_argument, 0, 's'},
+  {0, 0, 0, 0}
+};
 
-	  return NULL;
-	}
-        switch (*c) {
-          case 'D':
-	    message("TSR mode is currently unimplemented\n");
-	    break;
-          case 'b':
-#if 0
-	    message("Setting memory base is currently unimplemented\n");
-#else
-	    tmp = tmpbuff;
-	    do {
-              c++;
-	    } while ((*c != 0) && (*c == ' '));
-	    while ((*c != 0) && (*c != ' ')) {
-              *tmp++ = *c++;
-	    }
-	    *tmp = 0;
-            res = atoi(tmpbuff);
-	    if ((res > 0x100000) && (res < 0x10000000)) {
-              pgm_mem_base = res;
-	    } else {
-              message("Strange Memory Base 0x%x: not setting\n", res);
-	    }
-#endif
-	    break;
-          case 's':
-#if 0
-	    message("Setting memory step is currently unimplemented\n");
-#else
-	    tmp = tmpbuff;
-	    do {
-              c++;
-	    } while ((*c != 0) && (*c == ' '));
-	    while ((*c != 0) && (*c != ' ')) {
-              *tmp++ = *c++;
-	    }
-	    *tmp = 0;
-	    res = atoi(tmpbuff);
-	    if ((res > 0x100) && (res < 0x1000000)) {
-              pgm_mem_step = res;
-	    } else {
-              message("Strange Memory Step 0x%x: not setting\n", res);
-	    }
-#endif
-	    break;
-          default:
-	    message("Unknown option -%c\n", *c);
-	    break;
-	}
-	do {
-          c++;
-	} while ((*c != 0) && (*c == ' '));
-      } else {
-	done = 1;
-      }
-    }
-  }
-
-  return c;
-}
 int wrap_init(struct process_info *pi)
 {
-  int i, done;
-  char prgname[15], *p;
-  char *file, *arglist;
+  char **argv;
+  int argc = fd32_get_argv(name_get(pi), args_get(pi), &argv);
 
-  arglist = args_get(pi);
-
-  if (arglist != NULL) {
-    file = arg_parse(arglist);
-    done = 0;
-    p = file;
-    i = 0;
-    while ((!done) && (p[i] != 0)) {
-      if (p[i] == ' ') {
-        done = 1;
-      } else {
-        prgname[i] = p[i];
-        i++;
+  if (argc > 1) {
+    DWORD res;
+    char *sub_name, *sub_args;
+    int c, option_index = 0;
+    /* Parse the command line */
+    for ( ; (c = getopt_long (argc, argv, "+Db:s:", wrapper_options, &option_index)) != -1; ) {
+      switch (c) {
+        case 'D':
+          message("TSR mode is currently unimplemented\n");
+          break;
+        case 'b':
+          res = atoi(optarg);
+          if ((res > 0x100000) && (res < 0x10000000)) {
+              pgm_mem_base = res;
+          } else {
+              message("Strange Memory Base 0x%lx: not setting\n", res);
+          }
+          break;
+        case 's':
+          res = atoi(optarg);
+          if ((res > 0x100) && (res < 0x1000000)) {
+            pgm_mem_step = res;
+          } else {
+            message("Strange Memory Step 0x%lx: not setting\n", res);
+          }
+          break;
+        default:
+          break;
       }
     }
-    prgname[i] = 0;
+    sub_name = argv[optind], res = strlen(sub_name);
+    if (++optind < argc)
+      sub_args = argv[optind];
+    else
+      sub_args = "";
+    /* Recover the original args and free the argv */
+    fd32_unget_argv(argc, argv);
+    /* Split the sub_name and sub_args */
+    sub_name[res] = 0;
     message("FD/32 Wrapper... Trying to run %s (args: %s)\n",
-		    prgname, file);
+		sub_name, sub_args);
 #ifdef __DEBUG__
-    fd32_log_printf("Program name: %s\t CmdLine: %s\n", prgname, file);
+    fd32_log_printf("Program name: %s\t CmdLine: %s\n", sub_name, sub_args);
 #endif
-    wrap_exec(prgname, file);
+    wrap_exec(sub_name, sub_args);
     /* NOTE: wrap exec does not return here, but exit() returns back to
      * the function that called the wrapper...
      * (hint: the current_SP that is really used is in the kernel, not in

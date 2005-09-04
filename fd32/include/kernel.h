@@ -33,7 +33,8 @@ struct process_info {
 };
 struct process_info *fd32_get_current_pi(void);
 void fd32_set_current_pi(struct process_info *ppi);
-int fd32_get_argv(char *filename, char *args, char **pargv[]);
+int fd32_get_argv(char *filename, char *args, char ***_pargv);
+int fd32_unget_argv(int _argc, char *_argv[]); /* Recover the original args and free the argv */
 
 static inline char *args_get(struct process_info *p)
 {

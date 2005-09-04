@@ -34,7 +34,7 @@ WORD kern_CS, kern_DS;
 
 /* extern DWORD current_SP; */
 /* Top/kernel process info */
-static struct process_info top_P = { NULL, NULL, NULL, 0, "fd32.bin", NULL, 0 };
+static struct process_info top_P = { NULL, NULL, NULL, NULL, 0, "fd32.bin", NULL, 0 };
 static struct process_info *cur_P = &top_P;
 
 /* Gets the Current Directiry List for the current process. */
@@ -108,30 +108,42 @@ int fd32_create_process(DWORD entry, DWORD base, DWORD size, WORD fs_sel, char *
   return res;
 }
 
-int fd32_get_argv(char *filename, char *args, char **_pargv[])
+int fd32_get_argv(char *filename, char *args, char ***_pargv)
 {
   DWORD i;
   int _argc = 1, is_newarg;
 
   /* Get the argc */
   if (args != NULL) {
-    _argc++;
     for (i = 0; args[i] != 0; i++)
       if (args[i] == ' ')
         _argc++;
+    /* Add one at the end */
+    _argc++;
   }
 
   /* Allocate a argv and fill */
   *_pargv = (char **)mem_get(sizeof(char *)*_argc);
   (*_pargv)[0] = filename; /* The first argument is the filename */
   _argc = 1;
-  for (i = 0, is_newarg = 1; args[i] != 0; i++) {
-    if (is_newarg)
-      (*_pargv)[_argc] = args+i, is_newarg = 0;
-    if (args[i] == ' ')
-      args[i] = 0, _argc++, is_newarg = 1;
+  if (args != NULL) {
+    for (i = 0, is_newarg = 1; args[i] != 0; i++) {
+      if (is_newarg)
+        (*_pargv)[_argc] = args+i, is_newarg = 0;
+      if (args[i] == ' ')
+        args[i] = 0, _argc++, is_newarg = 1;
+    }
+    /* Add one at the end */
+    _argc ++;
   }
-  _argc ++; /* Add one at the end */
 
   return _argc;
+}
+
+int fd32_unget_argv(int _argc, char *_argv[])
+{
+  DWORD i;
+  for (i = 0; i < _argc-1; i++)
+    _argv[i][strlen(_argv[i])] = ' ';
+  return mem_free((DWORD)_argv, sizeof(char *)*_argc);
 }

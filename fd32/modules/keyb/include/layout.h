@@ -1,8 +1,7 @@
 #ifndef __LAYOUT_H__
 #define __LAYOUT_H__
 
-#include <windows.h>
-
+#include <dr-env.h>
 
 /*
 000  3 BYTES   Signature:  "KLF"

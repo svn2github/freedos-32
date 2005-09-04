@@ -42,11 +42,11 @@ void DPMI_init(struct process_info *p)
   /* Default use direct dos_exec, only support COFF-GO32 */
   dos_exec_switch(DOS_DIRECT_EXEC);
 
-  if (argc > 0) {
+  if (argc > 1) {
     int c, option_index = 0;
     message("DPMI Init: command line\n");
     /* Parse the command line */
-    for ( ; (c = getopt_long (argc, argv, "D:", dpmi_options, &option_index)) != -1; ) {
+    for ( ; (c = getopt_long (argc, argv, "X:", dpmi_options, &option_index)) != -1; ) {
       switch (c) {
         case 0:
           message("LFN disabled\n");
@@ -62,6 +62,7 @@ void DPMI_init(struct process_info *p)
       }
     }
   }
+  fd32_unget_argv(argc, argv);
   l1_int_bind(0x21, chandler);
   l1_int_bind(0x2F, chandler);
   l1_int_bind(0x31, chandler);
