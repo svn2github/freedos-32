@@ -8,6 +8,7 @@
 #include <dr-env.h>
 
 #include "key.h"
+#include "layout.h"
 
 typedef struct s_key_type
 {
@@ -118,10 +119,16 @@ const s_key_type_t keymap[128] = {
 
 WORD keyb_decode(BYTE c, int flags, int lock)
 {
+	int res;
 	/*	Letter keys have to be handled according to CAPSLOCK...
 		Keypad keys have to be handled according to NUMLOCK... */
 	int caps_or_num = (keymap[c].flags.numlock_af && lock&LED_NUMLK) |
 					(keymap[c].flags.capslock_af && lock&LED_CAPS);
+
+	/* Layout decode first */
+	if ((res = keyb_layout_decode(c, flags, lock)) >= 0)
+		return res;
+
 	/* Set the keymap index value according to the shift flags */
 	if ((flags&ALT_FLAG) != 0)
 		flags = 3;

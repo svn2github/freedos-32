@@ -3,17 +3,6 @@
 
 #include <dr-env.h>
 
-/*
-000  3 BYTES   Signature:  "KLF"
-			   Signature for the KLF file
-
-003	WORD	Version of the KL structure (in this case 0100h)
-
-005	BYTE	Length n of the following namestring
-
-006  n BYTES   namestring (see table 2)
- */
-
 /* KL compacted library header */
 typedef struct KHeader
 {
@@ -66,6 +55,8 @@ typedef struct Plane
 
 typedef struct KeybCB
 {
+	DWORD size; /* The whole size of CONTROL BLOCK */
+
 	struct {
 	BYTE submap_num;
 	BYTE plane_num;
@@ -75,53 +66,16 @@ typedef struct KeybCB
 	DWORD next;
 	WORD id;
 	char name[8];
-	} *ref;
+	} *ref; /* The CONTROL BLOCK info */
+
 	SubMapping *submaps;
 	Plane *planes;
 } __attribute__ ((packed)) KeybCB;
 #define SIZEOF_CB (20)
 
-/*
-000  BYTE      Number of submappings (n+1) described in the block
-               General submapping is counted, and is usually numbered as 0.
-001  BYTE      Number of additional planes (m) that are globally defined for
-               the whole keyb control block. The total number of planes is
-               m+2 (there are two implicit ones, see TABLE 3)
-               The maximum number of planes is 10 (that is, m=8)
-002  BYTE      Character to be used as decimal separator character by
-               the driver when using this layout.
-               0 when the default character (usually .) should be used.
-003  BYTE      Current particular submapping in use (1 to n)
-004  WORD      MCB-ID of the KeybCB, only if the KeybCB resides in a MCB
-               that must be deallocated if the KeybCB will no longer be
-               used.
-006  DWORD     PTR=> Next KeybCB
-               KeybCBs may be organized in a linked list, if the keyboard
-               driver supports more than one.
-               Set to 00:00 if there are no more KeybCBs.
-010  WORD      ID Word of the current KeybCB (see ofs 012)
-012  8 BYTES   0-padded string of the name with which the KeybCB has been
-               loaded. It is usually a two-letter identifier, such as UK,
-               GR or SP.
-               KeybCBs are usually loaded as single "keyboard layouts"
-               identified by a short string and an identifier word in case
-               there are several models appliable to the same string ID.
-               (for the identifier word, see ofs 010)
 
-     ---Submappings---
-020  n+1 QWORDS Each QWORD describes a submapping (see TABLE 2)
-                The general submappings comes first, the others are the
-                particular submappings.
-
-     ---Planes---
-020 + (n+1)*8
-     m   QWORDS Each QWORD describes an additional plane (see TABLE 3)
-
-     ---Data---
-020 + (n+1)*8 + m*8
-                Data blocks start here
-*/
-
-int keyb_choose_layout(const char *filename, char *layout_name);
+int keyb_layout_choose(const char *filename, char *layout_name);
+int keyb_layout_free(void);
+int keyb_layout_decode(BYTE c, int flags, int lock);
 
 #endif

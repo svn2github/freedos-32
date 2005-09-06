@@ -10,6 +10,7 @@
 #include <ll/i386/stdlib.h>
 #include <ll/i386/string.h>
 #include <ll/ctype.h>
+#include <ll/getopt.h>
 #include <ll/sys/ll/event.h>
 
 #include <dr-env/bios.h>

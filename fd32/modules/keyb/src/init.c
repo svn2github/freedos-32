@@ -11,6 +11,7 @@
 
 #include "key.h"
 #include "queues.h"
+#include "layout.h"
 
 
 /* The name of the keyboard device. Using the Linux name. */
@@ -113,11 +114,42 @@ static int keyb_request(DWORD function, void *params)
 	return res;
 }
 
+static struct option keyb_options[] =
+{
+  /* These options set a flag. */
+
+  /* These options don't set a flag.
+     We distinguish them by their indices. */
+  {"file-name", required_argument, 0, 'F'},
+  {"layout-name", required_argument, 0, 'L'},
+  {0, 0, 0, 0}
+};
+
 void keyb_init(struct process_info *pi)
 {
 	char **argv;
 	int argc = fd32_get_argv(name_get(pi), args_get(pi), &argv);
-	
+
+	if (argc > 1) {
+		char *layoutname = "US";
+		char *filename = "A:\\fd32\\keyboard.sys";
+		int c, option_index = 0;
+		/* Parse the command line */
+		for ( ; (c = getopt_long (argc, argv, "+F:L:", keyb_options, &option_index)) != -1; ) {
+			switch (c) {
+				case 'F':
+					filename = optarg;
+					break;
+				case 'L':
+					layoutname = optarg;
+					break;
+				default:
+					break;
+			}
+		}
+		fd32_message("Choose a layout %s:%s ...\n", filename, layoutname);
+		keyb_layout_choose(filename, layoutname);
+	}
 	fd32_unget_argv(argc, argv);
 	/* Handle the keyboard */
 	fd32_message("Setting Keyboard handler\n");
