@@ -70,6 +70,7 @@ extern char * strcat(char *, const char *);
 extern char * strncat(char *, const char *, size_t);
 extern size_t strlcat(char *, const char *, size_t);
 extern int strcmp(const char *,const char *);
+extern int stricmp(const char *, const char *);
 extern int strncmp(const char *,const char *,size_t);
 extern int strnicmp(const char *, const char *, size_t);
 extern char * strchr(const char *,int);
@@ -78,6 +79,16 @@ extern char * strrchr(const char *,int);
 extern char * strstr(const char *,const char *);
 extern size_t strlen(const char *);
 extern size_t strnlen(const char *,size_t);
+
+static inline int strcasecmp(const char *s1, const char *s2)
+{
+	return stricmp(s1, s2);
+}
+
+static inline int strncasecmp(const char *s1, const char *s2, int n)
+{
+	return strnicmp(s1, s2, n);
+}
 
 #if 0
 extern void * memset(void *,int,size_t);

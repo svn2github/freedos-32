@@ -35,7 +35,6 @@
 #include <kmem.h>
 #include <filesys.h>
 #include <errno.h>
-#include <kernel.h> /* strcasecmp */
 
 /* Define the __DEBUG__ symbol in order to activate log output */
 //#define __DEBUG__

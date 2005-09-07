@@ -61,6 +61,33 @@ char *strlwr(char *s)
     return(base);
 }
 
+int stricmp(const char *s1, const char *s2)
+{
+  while (toupper(*s1) == toupper(*s2)) {
+    if (*s1 == 0) {
+      return 0;
+    }
+    s1++;
+    s2++;
+  }
+
+  return *(unsigned const char *)s1 - *(unsigned const char *)s2;
+}
+
+int strnicmp(const char *s1, const char *s2, size_t n)
+{
+  if (n == 0) return 0;
+  do {
+    if (toupper(*s1) != toupper(*s2++)) {
+      return *(unsigned const char *)s1 - *(unsigned const char *)(s2 - 1);
+    }
+    if (*s1++ == 0) break;
+    
+  } while (--n != 0);
+
+  return 0;
+}
+
 /* The following was copied from Linux 2.6.12 by Nils Labugt Jul 28 2005 */
 
 /*
@@ -83,44 +110,6 @@ char *strlwr(char *s)
  *                    Matthew Hawkins <matt@mh.dropbear.id.au>
  * -  Kissed strtok() goodbye
  */
-
-
-
-/**
- * strnicmp - Case insensitive, length-limited string comparison
- * @s1: One string
- * @s2: The other string
- * @len: the maximum number of characters to compare
- */
-int strnicmp(const char *s1, const char *s2, size_t len)
-{
-#ifndef __HAVE_ARCH_STRNICMP
-	/* Yes, Virginia, it had better be unsigned */
-	unsigned char c1, c2;
-
-	c1 = 0;	c2 = 0;
-	if (len) {
-		do {
-			c1 = *s1; c2 = *s2;
-			s1++; s2++;
-			if (!c1)
-				break;
-			if (!c2)
-				break;
-			if (c1 == c2)
-				continue;
-			c1 = tolower(c1);
-			c2 = tolower(c2);
-			if (c1 != c2)
-				break;
-		} while (--len);
-	}
-	return (int)c1 - (int)c2;
-#else
-	return __strnicmp(s1, s2, len);
-#endif
-}
-
 
 /**
  * strcpy - Copy a %NUL terminated string

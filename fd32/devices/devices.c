@@ -15,7 +15,6 @@
 #include <unicode.h>
 #endif
 #include <errno.h>
-#include <kernel.h> /* strcasecmp */
 
 
 typedef struct

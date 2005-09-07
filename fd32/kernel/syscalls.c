@@ -255,8 +255,8 @@ static struct symbol syscall_table[] = {
   { "strcmp",  (DWORD) strcmp  },
   { "toupper", (DWORD) toupper },
   { "strtoi",    (DWORD) strtoi},
-  { "strcasecmp",  (DWORD) strcasecmp  }, /* currently from strcase.c and kernel.h */
-  { "strncasecmp", (DWORD) strncasecmp }, /* currently from strcase.c and kernel.h */
+  { "strcasecmp",  (DWORD) strcasecmp  },
+  { "strncasecmp", (DWORD) strncasecmp },
   { "strnicmp",  (DWORD) strnicmp },
   { "strpbrk",  (DWORD) strpbrk },
   { "strsep",  (DWORD) strsep },

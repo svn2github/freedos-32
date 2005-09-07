@@ -66,7 +66,4 @@ struct dll_table *get_dll_table(char *dll_name);
 extern void *fd32_init_jft(int JftSize); /* Implemented in filesys\jft.c */
 void fd32_free_jft(void *p, int jft_size); /* idem */
 
-int strcasecmp(const char *s1, const char *s2); /* Implemented in kernel/strcase.c */
-int strncasecmp(const char *s1, const char *s2, int n); /* Implemented in kernel/strcase.c */
-
 #endif
