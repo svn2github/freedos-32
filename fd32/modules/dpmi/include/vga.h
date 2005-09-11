@@ -6,7 +6,7 @@
 #ifndef __VGA_H__
 #define __VGA_H__
 
-/* from http://www.nongnu.org/vgabios (vgabios-0.4c.tgz/vgatables.h) */
+/* from http://www.nongnu.org/vgabios (vgatables.h) */
 #define VGAREG_MDA_CRTC_ADDRESS   0x3B4
 #define VGAREG_ACTL_ADDRESS       0x3C0
 #define VGAREG_ACTL_WRITE_DATA    0x3C0
@@ -14,6 +14,7 @@
 #define VGAREG_WRITE_MISC_OUTPUT  0x3C2
 #define VGAREG_SEQU_ADDRESS       0x3C4
 #define VGAREG_SEQU_DATA          0x3C5
+#define VGAREG_PEL_MASK           0x3C6
 #define VGAREG_DAC_READ_ADDRESS   0x3C7
 #define VGAREG_DAC_WRITE_ADDRESS  0x3C8
 #define VGAREG_DAC_DATA           0x3C9
@@ -23,6 +24,13 @@
 #define VGAREG_ACTL_RESET         0x3DA
 
 #define ACTL_MAX_REG              0x14
+
+/*
+ *
+ * BIOS Memory 
+ *
+ */
+#define BIOSMEM_SEG 0x40
 
 #define BIOSMEM_INITIAL_MODE  0x10
 #define BIOSMEM_CURRENT_MODE  0x49
@@ -42,6 +50,7 @@
 #define BIOSMEM_MODESET_CTL   0x89
 #define BIOSMEM_DCC_INDEX     0x8A
 #define BIOSMEM_VS_POINTER    0xA8
+#define BIOSMEM_VBE_FLAG      0xB9
 #define BIOSMEM_VBE_MODE      0xBA
 
 #define TEXT       0x00
