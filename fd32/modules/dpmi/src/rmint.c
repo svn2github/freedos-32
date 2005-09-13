@@ -76,7 +76,8 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
           break;
         /* MS Windows - WINDOWS ENHANCED MODE INSTALLATION CHECK */
         case 0x1600:
-          r1->h.al = 0;
+          /* NOTE: Neither Windows 3.x enhanced mode nor Windows/386 2.x running */
+          r1->h.al = 0; 
           break;
         /* MS Windows, DPMI, various - RELEASE CURRENT VIRTUAL MACHINE TIME-SLICE */
         case 0x1680:
@@ -89,8 +90,8 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
           break;
         /* OS/2 v2.0+ - INSTALLATION CHECK / GET VERSION */
         case 0x4010:
-          message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
-          /* TODO: should res = -1; */
+          fd32_log_printf("[DPMI] OS/2 v2.0+ - Installation Check / Get Version (INT 0x%x EAX: 0x%lx)\n", intnum, r1->d.eax);
+          /* NOTE: Do nothing ... */
           break;
         default:
           /* WARNING: PRINT/SHARE/DOS internal to be implemented... */
@@ -103,8 +104,8 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       return mousebios_int(r1);
 
     case 0x4B:
-      /* WARNING: Virtual DMA Specification not supported */
-      message("Unsupported INT 0x%x EAX: 0x%lx (VDM)\n", intnum, r1->d.eax);
+      fd32_log_printf("[DPMI] Virtual DMA Specification (INT 0x%x EAX: 0x%lx)\n", intnum, r1->d.eax);
+      /* NOTE: Virtual DMA Specification not supported */
       if (r1->x.ax == 0x8102)
         res = 0x0F; /* Function not supported */
       else
