@@ -14,6 +14,7 @@
 #include <ll/i386/stdio.h>
 #include <ll/i386/error.h>
 #include <ll/i386/cons.h>
+#include <ll/getopt.h>
 #include "kmem.h"
 #include "kernel.h"
 
@@ -143,6 +144,10 @@ int fd32_get_argv(char *filename, char *args, char ***_pargv)
 int fd32_unget_argv(int _argc, char *_argv[])
 {
   DWORD i;
+
+  /* NOTE: Reset getopt (for kernel modules) here */
+  optind = 0;
+
   for (i = 0; i < _argc-1; i++)
     _argv[i][strlen(_argv[i])] = ' ';
   return mem_free((DWORD)_argv, sizeof(char *)*_argc);
