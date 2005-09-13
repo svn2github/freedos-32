@@ -15,13 +15,14 @@ LINK_OPT = -Bstatic
 
 OBJS = boot.o init.o modules.o mem.o mmap.o modfs.o
 
-all: fdboot.o
+all: fdboot.a
 
 clean :
 	$(RM) *.o
+	$(RM) *.a
 
-fdboot.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -o fdboot.o
+fdboot.a: $(OBJS)
+	$(AR) rs fdboot.a $(OBJS)
 fd32.bin : $(OBJS) $(LIB_PATH)/libhc.a $(LIB_PATH)/libhx.a
 	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o $(OBJS) --start-group -lhc -lhx --end-group -o $@
 

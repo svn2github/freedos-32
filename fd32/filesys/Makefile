@@ -13,13 +13,14 @@ LINK_OPT = -Bstatic
 
 OBJS =  drives.o fs.o jft.o truename.o
 
-all: filesys.o
+all: filesys.a
 
 clean:
 	$(RM) *.o
+	$(RM) *.a
 
-filesys.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -s -o filesys.o
+filesys.a: $(OBJS)
+	$(AR) rs filesys.a $(OBJS)
 
 # Common rules
 %.o : %.c

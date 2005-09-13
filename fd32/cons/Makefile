@@ -17,13 +17,14 @@ OBJS = cons1.o cons2.o message.o
 
 .PHONY : clean allclean info install
 
-all : cons.o
+all : cons.a
 
 clean :
 	$(RM) *.o
+	$(RM) *.a
 
-cons.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -s -o cons.o
+cons.a: $(OBJS)
+	$(AR) rs cons.a $(OBJS)
 
 # Common rules
 %.o : %.c

@@ -11,8 +11,8 @@ INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-OBJS =	boot/fdboot.o devices/devices.o dynalink/dynalink.o filesys/filesys.o\
-	kernel/kernel.o cons/cons.o
+OBJS =	boot/fdboot.a devices/devices.a dynalink/dynalink.a \
+	kernel/kernel.a filesys/filesys.a cons/cons.a
 
 KERNEL_DIRS = $(OSLIB) boot cons devices dynalink filesys kernel
 
@@ -48,7 +48,7 @@ $(LIB_PATH)/%.a: $(OSLIB)/config.mk
 	make install -C $(OSLIB)
 
 fd32.bin : kern_subdirs $(LIB_PATH)/libhc.a $(LIB_PATH)/libhx.a
-	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o $(OBJS) --start-group -lhc -lhx -lkl --end-group -o $@
+	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o --start-group $(OBJS) -lhc -lhx -lkl --end-group -o $@
 
 kernel.src: fd32.bin
 	$(OBJDUMP) --disassemble fd32.bin > kernel.src

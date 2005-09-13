@@ -11,11 +11,22 @@ LIB_DIR  = $(OSLIB)\lib
 C_OPT +=  -I../include $(DEBUG)
 LINK_OPT = -Bstatic
 
-all: devices.o
+OBJS = devices.o
+
+all: devices.a
 
 clean:
 	$(RM) *.o
+	$(RM) *.a
 
-devices.o: devices.c
-	$(REDIR) $(CC) $(C_OPT) -s -c devices.c
+devices.a: $(OBJS)
+	$(AR) rs devices.a $(OBJS)
+
+# Common rules
+%.o : %.c
+	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -c $<
+%.s : %.c
+	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -S $<
+%.o : %.s
+	$(CC) $(ASM_OPT) -c $<
 

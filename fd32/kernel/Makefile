@@ -16,13 +16,14 @@ LINK_OPT = -Bstatic
 OBJS = call.o pmm.o run.o exch.o abort.o process.o exec.o \
 	syscalls.o logger.o slabmem.o params.o
 
-all: kernel.o
+all: kernel.a
 
 clean :
 	$(RM) *.o
+	$(RM) *.a
 
-kernel.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -s -o kernel.o
+kernel.a: $(OBJS)
+	$(AR) rs kernel.a $(OBJS)
 
 # Common rules
 %.o : %.c

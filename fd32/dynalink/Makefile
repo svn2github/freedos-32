@@ -15,13 +15,14 @@ LINK_OPT = -Bstatic
 
 OBJS = coff.o elf.o pei.o common.o
 
-all: dynalink.o
+all: dynalink.a
 
 clean :
 	$(RM) *.o
+	$(RM) *.a
 
-dynalink.o: $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -o dynalink.o
+dynalink.a: $(OBJS)
+	$(AR) rs dynalink.a $(OBJS)
 
 # Common rules
 %.o : %.c
