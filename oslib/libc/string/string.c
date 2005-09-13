@@ -27,65 +27,62 @@ FILE(string);
 
 char *strscn(char *s,char *pattern)
 {
-    char *scan;
-    while (*s != 0) {
-    	scan = pattern;
-    	while (*scan != 0) {
-	    if (*s == *scan) return(s);
-	    else scan++;
+	char *scan;
+	while (*s != 0) {
+		scan = pattern;
+		while (*scan != 0) {
+			if (*s == *scan) return(s);
+			else scan++;
+		}
+		s++;
 	}
-	s++;
-    }
-    return(NULL);
+	return(NULL);
 }
 
 char *strupr(char *s)
 {
-    char *base = s;
-    while (*s != 0) {
-	if (*s >= 'a' && *s <= 'z')
-           *s = *s + 'A' -'a';
-	s++;
-    }
-    return(base);
+	char *base = s;
+	while (*s != 0) {
+		if (*s >= 'a' && *s <= 'z')
+			*s = *s + 'A' -'a';
+		s++;
+	}
+	return(base);
 }
 
 char *strlwr(char *s)
 {
-    char *base = s;
-    while (*s != 0) {
-	if (*s >= 'A' && *s <= 'Z')
-	   *s = *s + 'a' -'A';
-	s++;
-    }
-    return(base);
+	char *base = s;
+	while (*s != 0) {
+		if (*s >= 'A' && *s <= 'Z')
+			*s = *s + 'a' -'A';
+		s++;
+	}
+	return(base);
 }
 
 int stricmp(const char *s1, const char *s2)
 {
-  while (toupper(*s1) == toupper(*s2)) {
-    if (*s1 == 0) {
-      return 0;
-    }
-    s1++;
-    s2++;
-  }
-
-  return *(unsigned const char *)s1 - *(unsigned const char *)s2;
+	for ( ; ; s1++, s2++) {
+		if (toupper(*s1) != toupper(*s2)) {
+			return *(unsigned const char *)s1 - *(unsigned const char *)s2;
+		} else if (*s1 == 0) {
+			break;
+		}
+	}
+	return 0;
 }
 
 int strnicmp(const char *s1, const char *s2, size_t n)
 {
-  if (n == 0) return 0;
-  do {
-    if (toupper(*s1) != toupper(*s2++)) {
-      return *(unsigned const char *)s1 - *(unsigned const char *)(s2 - 1);
-    }
-    if (*s1++ == 0) break;
-    
-  } while (--n != 0);
-
-  return 0;
+	for ( ; n > 0; n--, s1++, s2++) {
+		if (toupper(*s1) != toupper(*s2)) {
+			return *(unsigned const char *)s1 - *(unsigned const char *)s2;
+		} else if (*s1 == 0) {
+			break;
+		}
+	}
+	return 0;
 }
 
 /* The following was copied from Linux 2.6.12 by Nils Labugt Jul 28 2005 */
@@ -610,7 +607,7 @@ void * memscan(void * addr, int c, size_t size)
 		p++;
 		size--;
 	}
-  	return (void *) p;
+	return (void *) p;
 }
 EXPORT_SYMBOL(memscan);
 #endif
@@ -630,7 +627,7 @@ void *memchr(const void *s, int c, size_t n)
 {
 	const unsigned char *p = s;
 	while (n-- != 0) {
-        	if ((unsigned char)c == *p++) {
+			if ((unsigned char)c == *p++) {
 			return (void *)(p-1);
 		}
 	}
