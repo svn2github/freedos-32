@@ -126,7 +126,7 @@ int preprocess(BYTE code)
 			flags[0] |= LALT_FLAG|ALT_FLAG;
 			break;
 		case MK_CAPS:
-			flags[0] |= CAPS_FLAG;
+		/*	flags[0] |= CAPS_FLAG; */
 			flags[0] ^= LED_CAPS;
 			set_leds();
 			break;
@@ -158,9 +158,9 @@ int preprocess(BYTE code)
 		case BREAK|MK_LALT:
 			flags[0] &= ~(LALT_FLAG|ALT_FLAG);
 			break;
-		case BREAK|MK_CAPS:
+		/* case BREAK|MK_CAPS:
 			flags[0] &= ~CAPS_FLAG;
-			break;
+			break; */
 		case BREAK|MK_NUMLK:
 			flags[0] &= ~NUMLK_FLAG;
 			break;

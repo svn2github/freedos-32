@@ -26,7 +26,7 @@ typedef struct KeyType
 {
 	BYTE scancode;
 	struct {
-		BYTE data_length: 3;
+		BYTE data_maxidx: 3;
 		BYTE reserved:    1;
 		BYTE lock:        1;
 		BYTE numlock_af:  1;

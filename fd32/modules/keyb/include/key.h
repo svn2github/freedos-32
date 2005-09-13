@@ -71,7 +71,8 @@ void keyb_fire_hook(WORD key, int isCTRL, int isALT);
 #define RALT_FLAG     0x0800
 #define SCRLK_FLAG    0x1000
 #define NUMLK_FLAG    0x2000
-#define CAPS_FLAG     0x4000
+/* #define CAPS_FLAG     0x4000 */
+#define SHIFT_FLAG    0x4000
 #define SYSRQ_FLAG    0x8000
 
 #endif
