@@ -88,7 +88,8 @@ struct stubinfo {
   DWORD dosbuf_handler;
 };
 
-static WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args)
+/* NOTE: FD32 module can't export ?_init name so make it internal with prefix `_' */
+WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args)
 {
   struct stubinfo *info;
   struct psp *newpsp;
@@ -175,12 +176,6 @@ static WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char
   return sel;
 }
 
-/* TODO: FD32 module can't export ?_init name! */
-WORD stubinfo_xxxx(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args)
-{
-  return stubinfo_init(base, initial_size, mem_handle, filename, args);
-}
-
 void restore_psp(void)
 {
   WORD stubinfo_sel;
@@ -258,7 +253,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", entry);
 #endif
-    stubinfo_sel = stubinfo_init(exec_space, size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args);
+    stubinfo_sel = _stubinfo_init(exec_space, size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args);
     if (stubinfo_sel == 0) {
       error("No stubinfo!!!\n");
       return -1;
@@ -493,12 +488,15 @@ int dos_exec_switch(int option)
         p[3] = 0xCD, p[4] = 0x2F, p[5] = 0xCB;
         dos_exec_mode16 = (void (*)(void))p;
       }
+      /* Store the previous check */
       if (p_isMZ == NULL) {
         DWORD i;
         struct bin_format *binfmt = fd32_get_binfmt();
         for (i = 0; binfmt[i].name != NULL; i++)
-          if (strcmp(binfmt[i].name, "mz") == 0)
+          if (strcmp(binfmt[i].name, "mz") == 0) {
             p_isMZ = binfmt[i].check;
+            break;
+          }
       }
       fd32_set_binfmt("mz", isMZ, vm86_exec_process);
       res = 1;
@@ -566,5 +564,5 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
   }
 
   fd32_kernel_close((int)&f);
-  return 1;
+  return 0;
 }

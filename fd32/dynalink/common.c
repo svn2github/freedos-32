@@ -181,59 +181,52 @@ address += *((DWORD *)destination);
   return 1;
 }
 
+/* Import symbol with suffix `name'
+	NOTE: Any symbol with prefix `_' won't be found and be regarded as internal and hidden */
 DWORD common_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *syms, char *name, int *sect)
 {
   int i;
-  int done;
-  char *p;
- 
-  i = 0; done = 0;
-  while ((i < n) && !done) {
+  int len = strlen(name);
+
+  for (i = 0; i < n ; i++) {
 #ifdef __COFF_DEBUG__
     kf->log("Checking symbol %d [%d] --- Sect %d\n", i, n, syms[i].section);
 #endif
     if ((syms[i].section != EXTERN_SYMBOL) && (syms[i].section != COMMON_SYMBOL)) {
 #ifdef __COFF_DEBUG__
-      kf->log(" : %s\n", syms[i].name);
-      kf->log("strstr(%s, %s)\n", syms[i].name, name);
+      kf->log("Compare %s, %s\n", syms[i].name, name);
 #endif
-      p = strstr(syms[i].name, name);
+      if (syms[i].name[0] != '_') {
+        int sym_len = strlen(syms[i].name);
+        if (sym_len >= len && strcmp(syms[i].name+sym_len-len, name) == 0) {
 #ifdef __COFF_DEBUG__
-      if (p == NULL) {
-        kf->log("Done: NULL\n");
-      } else {
-        kf->log("Done: %s\n", p);
+          kf->log("Found: %s --- 0x%x : 0x%lx\n",
+				syms[i].name, syms[i].section, syms[i].offset);
+#endif
+          break;
+        }
+#ifdef __COFF_DEBUG__
+        else {
+          kf->log("Cmp failed --- Going to %d\n", i);
+        }
+#endif
       }
-#endif
-      if ((p != NULL) && (*(p - 1) != '_')) {
-#ifdef __COFF_DEBUG__
-	kf->log("Found: %s --- 0x%x : 0x%lx\n",
-		     syms[i].name, syms[i].section, syms[i].offset);
-#endif
-	done = 1;
-      } else {
-#ifdef __COFF_DEBUG__
-        kf->log("Cmp failed --- Going to %d\n", i);
-#endif
-	i++;
-      }
-    } else {
-#ifdef __COFF_DEBUG__
-      kf->log("Skipped symbol --- Going to %d\n", i);
-#endif
-      i++;
     }
+#ifdef __COFF_DEBUG__
+    else {
+      kf->log("Skipped symbol --- Going to %d\n", i);
+    }
+#endif
   }
 
-  if (done) {
+  if (i < n) { /* Symbol found */
     *sect = syms[i].section;
     return syms[i].offset;
+  } else {
+    *sect = -1;
+    kf->error("Symbol not found!!!\n");
+    return 0;
   }
-
-  *sect = -1;
-  kf->error("Symbol not found!!!\n");
-
-  return 0;
 }
 
 

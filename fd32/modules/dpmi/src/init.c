@@ -13,7 +13,7 @@
 #include "dos_exec.h"
 
 extern void chandler(DWORD intnum, struct registers r);
-extern WORD stubinfo_xxxx(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
+extern WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
 extern void restore_psp(void);
 extern int use_lfn;
 
@@ -33,7 +33,7 @@ void DPMI_init(struct process_info *p)
   char **argv;
   int argc = fd32_get_argv(name_get(p), args_get(p), &argv);
 
-  if (add_call("stubinfo_init", (DWORD)stubinfo_xxxx, ADD) == -1)
+  if (add_call("stubinfo_init", (DWORD)_stubinfo_init, ADD) == -1)
     message("Cannot add stubinfo_init to the symbol table\n");
   if (add_call("restore_psp", (DWORD)restore_psp, ADD) == -1)
     message("Cannot add restore_psp to the symbol table\n");
