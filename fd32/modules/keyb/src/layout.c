@@ -13,10 +13,16 @@
 #include <filesys.h>
 
 
+#define __KEYB_DEBUG__
+
+
 /* Current selected keyb control block (the layout) */
 static KeybCB cb;
 
 
+/* Decode the scancode based on the current layout
+	TODO: Implement user-defined flags
+ */
 int keyb_layout_decode(BYTE c, int flags, int lock)
 {
 	DWORD i;
@@ -25,36 +31,36 @@ int keyb_layout_decode(BYTE c, int flags, int lock)
 	if (cb.ref != NULL) {
 		BYTE *p;
 		KeyType *blk;
-		BYTE plane_idx, data_size;
+		BYTE data_size;
+		BYTE plane_idx = 0;
 		
 		/* Select the plane based on the flags */
-		if (flags&(SHIFT_FLAG|CTRL_FLAG|ALT_FLAG)) {
-			if (!(flags&(CTRL_FLAG|ALT_FLAG)) && flags&(SHIFT_FLAG)) {
-				plane_idx = 1;
-			} else {
-				/* Additional planes */
-				for (i = 0; i < cb.ref->plane_num; i++) {
-
+		if (flags&SHIFT_FLAG && !(flags&(CTRL_FLAG|ALT_FLAG))) {
+			plane_idx = 1;
+		} else if (flags&(CTRL_FLAG|ALT_FLAG)) {
+			/* Additional planes */
+			for (i = 0; i < cb.ref->plane_num; i++) {
+				if (flags&cb.planes[i].wtStd && !(flags&cb.planes[i].exStd)) {
+					plane_idx = 2+i;
+					break;
 				}
 			}
-		} else {
-			plane_idx = 0;
 		}
 
 		/* Select the keycode based on the scancode */
 		p = (BYTE *)cb.ref+cb.submaps[0].keysofs;
+		/* Granularity (scancode-flag) check on the data_size */
 		for (blk = (KeyType *)p, data_size = (blk->flags.data_maxidx+1)>>blk->flags.s_flag; blk->scancode != 0;
 			p += sizeof(KeyType)+data_size,
-			/* Granularity (scancode-flag) check on the data_size */
 			blk = (KeyType *)p, data_size = (blk->flags.data_maxidx+1)>>blk->flags.s_flag) {
 			if (blk->scancode == c) {
                 #ifdef __KEYB_DEBUG__
 				fd32_log_printf("[KEYB] Scancode: 0x%02x, flags: 0x%02x, cmd: 0x%02x, data: %02x %02x ...\n",
 					blk->scancode, blk->flags, blk->cmdbits, blk->data[0], blk->data[1]);
 				#endif
-				if (blk->data[0])
-					ret = blk->data[0];
-				/* If command 0 then return -1 */
+				if (blk->data[plane_idx])
+					ret = blk->data[plane_idx];
+				/* If keycode is cmd 0 then return -1 */
 				break;
 			}
 		}

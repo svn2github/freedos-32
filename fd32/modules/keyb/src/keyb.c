@@ -28,7 +28,8 @@ typedef union psctrl_status
 
 static int ack_expected = 0;
 static DWORD ecode = 0;
-static volatile WORD *flags = (WORD *)BDA_KEYB_FLAG;
+static volatile WORD *flags = (WORD *)BDA_KEYB_FLAG1;
+static volatile WORD *status = (WORD *)BDA_KEYB_STATUS;
 
 BYTE keyb_get_status(void)
 {

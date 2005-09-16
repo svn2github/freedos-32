@@ -27,12 +27,15 @@ void keyb_fire_hook(WORD key, int isCTRL, int isALT);
 
 /* BIOS Data Area: keyboard */
 #define BDA_OFFSET(addr) (addr&0x00FF)
-#define BDA_KEYB_FLAG     0x0417
+#define BDA_KEYB_FLAG1    0x0417
+#define BDA_KEYB_FLAG2    0x0418
+#define BDA_KEYB_ALTTOKEN 0x0419
 #define BDA_KEYB_BUFHEAD  0x041A
 #define BDA_KEYB_BUFTAIL  0x041C
 #define BDA_KEYB_BUF      0x041E
 #define BDA_KEYB_BUFSTART 0x0480
 #define BDA_KEYB_BUFEND   0x0482
+#define BDA_KEYB_STATUS   0x0496
 
 /* scan code */
 #define VK_ESCAPE     0x1B

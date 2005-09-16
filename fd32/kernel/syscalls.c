@@ -220,7 +220,9 @@ static struct symbol syscall_table[] = {
   { "slabmem_free",    (DWORD) slabmem_free    },
   { "slabmem_create",  (DWORD) slabmem_create  },
   { "slabmem_destroy", (DWORD) slabmem_destroy },
-
+  /* BIOS data area */
+  { "bios_da", (DWORD)0x400 },
+  /* OSlib Low level calls & data */
   { "rm_irq_table", (DWORD)(&rm_irq_table) },
   { "exc_table", (DWORD)(&exc_table) },
   { "get_syscall_table", (DWORD)get_syscall_table },
@@ -359,7 +361,6 @@ static struct symbol syscall_table[] = {
   { "get_dll_table", (DWORD) get_dll_table },
   {"fd32_init_jft", (DWORD)fd32_init_jft},
   {"fd32_free_jft", (DWORD)fd32_free_jft},
-  EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,
   EMPTY_SLOT,
