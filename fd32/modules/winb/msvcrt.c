@@ -1,8 +1,6 @@
 /* Mini MSVCRT
  * by Hanzac Chen
  *
- * Ref: Wine is an Open Source implementation of the Windows API on top of X and Unix.
- *
  * This is free software; see GPL.txt
  */
 
@@ -113,89 +111,28 @@ static unsigned int fd32_imp_initterm(_INITTERMFUN *start,_INITTERMFUN *end)
   return 0;
 }
 
-/* WINE.MSVCRT._control87 Copyright 2000 Jon Griffiths */
-/* _controlfp masks and bitflags - x86 only so far */
-#ifdef __i386__
-#define _EM_INEXACT    0x1
-#define _EM_UNDERFLOW  0x2
-#define _EM_OVERFLOW   0x4
-#define _EM_ZERODIVIDE 0x8
-#define _EM_INVALID    0x10
-#define _EM_DENORMAL   0x80000
-
-#define _RC_NEAR       0x0
-#define _RC_DOWN       0x100
-#define _RC_UP   0x200
-#define _RC_CHOP       0x300
-
-#define _PC_64   0x0
-#define _PC_53   0x10000
-#define _PC_24   0x20000
-
-#define _IC_AFFINE     0x40000
-#define _IC_PROJECTIVE 0x0
-#endif
+/* NOTE: Simple controlfp, why the WINE.MSVCRT._control87 is so complicated? */
 static unsigned int fd32_imp_control87(unsigned int newval, unsigned int mask)
 {
 #if defined(__GNUC__) && defined(__i386__)
-  unsigned int fpword = 0;
-  unsigned int flags = 0;
+  unsigned int oldval = 0;
 
-  fd32_log_printf("[WINB] (%08x, %08x): Called\n", newval, mask);
+  fd32_log_printf("[WINB] _control87(%08x, %08x): Called\n", newval, mask);
 
   /* Get fp control word */
-  __asm__ __volatile__( "fstcw %0" : "=m" (fpword) : );
+  __asm__ __volatile__( "fstcw %0" : "=m" (oldval) : );
 
-  fd32_log_printf("[WINB] Control word before : %08x\n", fpword);
-
-  /* Convert into mask constants */
-  if (fpword & 0x1)  flags |= _EM_INVALID;
-  if (fpword & 0x2)  flags |= _EM_DENORMAL;
-  if (fpword & 0x4)  flags |= _EM_ZERODIVIDE;
-  if (fpword & 0x8)  flags |= _EM_OVERFLOW;
-  if (fpword & 0x10) flags |= _EM_UNDERFLOW;
-  if (fpword & 0x20) flags |= _EM_INEXACT;
-  switch(fpword & 0xC00) {
-  case 0xC00: flags |= _RC_UP|_RC_DOWN; break;
-  case 0x800: flags |= _RC_UP; break;
-  case 0x400: flags |= _RC_DOWN; break;
-  }
-  switch(fpword & 0x300) {
-  case 0x0:   flags |= _PC_24; break;
-  case 0x200: flags |= _PC_53; break;
-  case 0x300: flags |= _PC_64; break;
-  }
-  if (fpword & 0x1000) flags |= _IC_AFFINE;
+  fd32_log_printf("[WINB] Control word before : %08x\n", oldval);
 
   /* Mask with parameters */
-  flags = (flags & ~mask) | (newval & mask);
+  newval = (oldval & ~mask) | (newval & mask);
 
-  /* Convert (masked) value back to fp word */
-  fpword = 0;
-  if (flags & _EM_INVALID)    fpword |= 0x1;
-  if (flags & _EM_DENORMAL)   fpword |= 0x2;
-  if (flags & _EM_ZERODIVIDE) fpword |= 0x4;
-  if (flags & _EM_OVERFLOW)   fpword |= 0x8;
-  if (flags & _EM_UNDERFLOW)  fpword |= 0x10;
-  if (flags & _EM_INEXACT)    fpword |= 0x20;
-  switch(flags & (_RC_UP | _RC_DOWN)) {
-  case _RC_UP|_RC_DOWN: fpword |= 0xC00; break;
-  case _RC_UP:    fpword |= 0x800; break;
-  case _RC_DOWN:  fpword |= 0x400; break;
-  }
-  switch (flags & (_PC_24 | _PC_53)) {
-  case _PC_64: fpword |= 0x300; break;
-  case _PC_53: fpword |= 0x200; break;
-  case _PC_24: fpword |= 0x0; break;
-  }
-  if (flags & _IC_AFFINE) fpword |= 0x1000;
-
-  fd32_log_printf("[WINB] Control word after  : %08x\n", fpword);
+  fd32_log_printf("[WINB] Control word after  : %08x\n", newval);
 
   /* Put fp control word */
-  __asm__ __volatile__( "fldcw %0" : : "m" (fpword) );
+  __asm__ __volatile__( "fldcw %0" : : "m" (newval) );
 
-  return flags;
+  return oldval&0x0FFFF;
 #else
   fd32_log_printf("[WINB] controlfp Not Implemented on this target!\n");
   return 0;
