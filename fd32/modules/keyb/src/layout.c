@@ -9,7 +9,6 @@
  */
 
 #include "layout.h"
-#include "key.h"
 #include <filesys.h>
 
 
@@ -23,7 +22,7 @@ static KeybCB cb;
 /* Decode the scancode based on the current layout
 	TODO: Implement user-defined flags
  */
-int keyb_layout_decode(BYTE c, int flags, int lock)
+int keyb_layout_decode(BYTE c, keyb_std_status_t stdst, int lock)
 {
 	DWORD i;
 	int ret = -1;
@@ -32,15 +31,16 @@ int keyb_layout_decode(BYTE c, int flags, int lock)
 		BYTE *p;
 		KeyType *blk;
 		BYTE data_size;
+		BYTE submap_idx;
 		BYTE plane_idx = 0;
-		
+
 		/* Select the plane based on the flags */
-		if (flags&SHIFT_FLAG && !(flags&(CTRL_FLAG|ALT_FLAG))) {
+		if (stdst.s.shift && !stdst.s.ctrl && !stdst.s.alt) {
 			plane_idx = 1;
-		} else if (flags&(CTRL_FLAG|ALT_FLAG)) {
+		} else if (stdst.s.ctrl || stdst.s.alt) {
 			/* Additional planes */
 			for (i = 0; i < cb.ref->plane_num; i++) {
-				if (flags&cb.planes[i].wtStd && !(flags&cb.planes[i].exStd)) {
+				if (stdst.data&cb.planes[i].wtStd && !(stdst.data&cb.planes[i].exStd)) {
 					plane_idx = 2+i;
 					break;
 				}
@@ -48,15 +48,16 @@ int keyb_layout_decode(BYTE c, int flags, int lock)
 		}
 
 		/* Select the keycode based on the scancode */
-		p = (BYTE *)cb.ref+cb.submaps[0].keysofs;
+		submap_idx = cb.ref->cur_submap;
+		p = (BYTE *)cb.ref+cb.submaps[submap_idx].keysofs;
 		/* Granularity (scancode-flag) check on the data_size */
-		for (blk = (KeyType *)p, data_size = (blk->flags.data_maxidx+1)>>blk->flags.s_flag; blk->scancode != 0;
+		for (blk = (KeyType *)p, data_size = blk->flags.data_maxidx>>blk->flags.s_flag; blk->scancode != 0;
 			p += sizeof(KeyType)+data_size,
-			blk = (KeyType *)p, data_size = (blk->flags.data_maxidx+1)>>blk->flags.s_flag) {
+			blk = (KeyType *)p, data_size = blk->flags.data_maxidx>>blk->flags.s_flag) {
 			if (blk->scancode == c) {
                 #ifdef __KEYB_DEBUG__
 				fd32_log_printf("[KEYB] Scancode: 0x%02x, flags: 0x%02x, cmd: 0x%02x, data: %02x %02x ...\n",
-					blk->scancode, blk->flags, blk->cmdbits, blk->data[0], blk->data[1]);
+					blk->scancode, *(BYTE *)(&blk->flags), blk->cmdbits, blk->data[0], blk->data[1]);
 				#endif
 				if (blk->data[plane_idx])
 					ret = blk->data[plane_idx];
@@ -133,6 +134,7 @@ int keyb_layout_choose(const char *filename, char *layout_name)
 				#ifdef __KEYB_DEBUG__
 				/* Key layout debug output */
 				DWORD i;
+				keyb_std_status_t stdst;
 				kl_print_id(klheader.id, klheader.length);
 				fd32_log_printf("[KEYB] KeybCB: next %lx:\n\tSubmap_num %d\n\tPlane_num %d\n\tDec_sep %x\n\tCur_submap %d\n\tMCBID %x\n",
 					cb.ref->next, cb.ref->submap_num, cb.ref->plane_num, cb.ref->dec_sep, cb.ref->cur_submap, cb.ref->mcbid);
@@ -141,7 +143,7 @@ int keyb_layout_choose(const char *filename, char *layout_name)
 					fd32_log_printf("%d ", cb.submaps[i].codepage);
 				fd32_log_printf("\n");
 				for (i = 0; i < 0x100; i++)
-				    keyb_layout_decode(i, 0, 0);
+				    keyb_layout_decode(i, stdst, 0);
 				/* Display additional planes */
 				for (i = 0; i < cb.ref->plane_num; i++) {
 					fd32_log_printf("[KEYB] Plane %ld: %x %x %x %x\n", i, cb.planes[i].wtStd, cb.planes[i].exStd, cb.planes[i].wtUsr, cb.planes[i].exUsr);

@@ -15,11 +15,6 @@ static volatile BYTE rawqueue[RAWQUEUE_MAX_SIZE];
 /* static volatile int rawqueue_elements; */
 static volatile WORD rawqueue_head;
 static volatile WORD rawqueue_tail;
-/* Level 2 keybuf queue */
-static volatile BYTE *keyqueue = (BYTE *)BDA_KEYB_BUF; /* KEYQUEUE_MAX_SIZE */
-/* static volatile int keyqueue_elements; */
-static volatile WORD *keyqueue_head = (WORD *)BDA_KEYB_BUFHEAD;
-static volatile WORD *keyqueue_tail = (WORD *)BDA_KEYB_BUFTAIL;
 
 void rawqueue_put(BYTE code)
 {
@@ -54,48 +49,55 @@ BYTE rawqueue_get(void)
  */
 void keyqueue_put(WORD code)
 {
-	if (keyqueue_tail[0]-keyqueue_head[0] == KEYQUEUE_MAX_SIZE) {
+	if (bios_da.keyb_buftail-bios_da.keyb_bufhead == KEYQUEUE_MAX_SIZE) {
+		return;
+	} else {
+		DWORD i = bios_da.keyb_buftail-BDA_OFFSET(bios_da.keyb_buf);
+		/* Note: keyqueue_elements++ is not used, elements determined by keyqueue_tail[0]-keyqueue_head[0] */
+		fd32_cli();
+		/* Put new WORD */
+		bios_da.keyb_buf[i] = code&0x00FF;
+		bios_da.keyb_buf[i+1] = code>>8;
+		bios_da.keyb_buftail = (i + 2) % KEYQUEUE_MAX_SIZE;
+		bios_da.keyb_buftail += BDA_OFFSET(bios_da.keyb_buf);
+		fd32_sti();
+	
 		return;
 	}
-	/* Note: keyqueue_elements++ is not used, elements determined by keyqueue_tail[0]-keyqueue_head[0] */
-	fd32_cli();
-	((WORD *)(keyqueue + keyqueue_tail[0] - BDA_OFFSET(BDA_KEYB_BUF)))[0] = code;
-	keyqueue_tail[0] = (keyqueue_tail[0] - BDA_OFFSET(BDA_KEYB_BUF) + 2) % KEYQUEUE_MAX_SIZE;
-	keyqueue_tail[0] += BDA_OFFSET(BDA_KEYB_BUF);
-	fd32_sti();
-
-	return;
 }
 
 /* Note: Not ignore the maskable interrupts 'cause no shared data manipulation */
 WORD keyqueue_gethead(void)
 {
-	if (keyqueue_tail[0] == keyqueue_head[0]) {
+	if (bios_da.keyb_buftail == bios_da.keyb_bufhead) {
 		/* fd32_error("??? No char in queue???\n"); */
 		return 0;
+	} else {
+		DWORD i = (bios_da.keyb_bufhead-BDA_OFFSET(bios_da.keyb_buf)) % KEYQUEUE_MAX_SIZE;
+		return bios_da.keyb_buf[i]|bios_da.keyb_buf[i+1]<<8;
 	}
-	return ((WORD *)(keyqueue + (keyqueue_head[0]-BDA_OFFSET(BDA_KEYB_BUF)) % KEYQUEUE_MAX_SIZE))[0];
 }
 
 BYTE keyqueue_get(void)
 {
-	DWORD t = keyqueue_head[0];
-	if (keyqueue_tail[0] == keyqueue_head[0]) {
+	if (bios_da.keyb_buftail == bios_da.keyb_bufhead) {
 		/* fd32_error("??? No char in queue???\n"); */
 		return 0;
-	}
-	/* keyqueue_elements--; */
-	fd32_cli();
-	keyqueue_head[0] = (keyqueue_head[0]-BDA_OFFSET(BDA_KEYB_BUF) + 1) % KEYQUEUE_MAX_SIZE;
-	keyqueue_head[0] += BDA_OFFSET(BDA_KEYB_BUF);
-	fd32_sti();
+	} else {
+		DWORD i = bios_da.keyb_bufhead-BDA_OFFSET(bios_da.keyb_buf);
+		/* keyqueue_elements--; */
+		fd32_cli();
+		bios_da.keyb_bufhead = (bios_da.keyb_bufhead-BDA_OFFSET(bios_da.keyb_buf) + 1) % KEYQUEUE_MAX_SIZE;
+		bios_da.keyb_bufhead += BDA_OFFSET(bios_da.keyb_buf);
+		fd32_sti();
 
-	return keyqueue[t-BDA_OFFSET(BDA_KEYB_BUF)];
+		return bios_da.keyb_buf[i];
+	}
 }
 
 int keyqueue_empty(void)
 {
-	if (keyqueue_tail[0] == keyqueue_head[0]) {
+	if (bios_da.keyb_buftail == bios_da.keyb_bufhead) {
 		/* fd32_error("??? No char in queue???\n"); */
 		return 1;
 	} else {
@@ -109,9 +111,9 @@ void keyb_queue_clear(void)
 	rawqueue_head = 0;
 	rawqueue_tail = 0;
 	/* Keyqueue clear */
-	keyqueue_head[0] = BDA_OFFSET(BDA_KEYB_BUF);
-	keyqueue_tail[0] = BDA_OFFSET(BDA_KEYB_BUF);
+	bios_da.keyb_bufhead = BDA_OFFSET(bios_da.keyb_buf);
+	bios_da.keyb_buftail = BDA_OFFSET(bios_da.keyb_buf);
 	/* Set the Keyqueue buffer start offsets to 0x0040:0000 */
-	((WORD *)BDA_KEYB_BUFSTART)[0] = BDA_OFFSET(BDA_KEYB_BUF);
-	((WORD *)BDA_KEYB_BUFEND)[0] = BDA_OFFSET(BDA_KEYB_BUF)+KEYQUEUE_MAX_SIZE;
+	bios_da.keyb_bufstart = BDA_OFFSET(bios_da.keyb_buf);
+	bios_da.keyb_bufend = BDA_OFFSET(bios_da.keyb_buf)+KEYQUEUE_MAX_SIZE;
 }

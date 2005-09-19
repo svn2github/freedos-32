@@ -2,6 +2,7 @@
 #define __LAYOUT_H__
 
 #include <dr-env.h>
+#include "key.h"
 
 /* KL compacted library header */
 typedef struct KHeader
@@ -76,6 +77,6 @@ typedef struct KeybCB
 
 int keyb_layout_choose(const char *filename, char *layout_name);
 int keyb_layout_free(void);
-int keyb_layout_decode(BYTE c, int flags, int lock);
+int keyb_layout_decode(BYTE c, keyb_std_status_t stdst, int lock);
 
 #endif

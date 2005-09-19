@@ -3,6 +3,7 @@
 
 #define RAWQUEUE_MAX_SIZE 128
 #define KEYQUEUE_MAX_SIZE 32 /* BIOS Data Area limit to 32 bytes */
+#define BDA_OFFSET(addr) (((DWORD)addr)&0x00FF)
 
 void rawqueue_put(BYTE code);
 BYTE rawqueue_get(void);

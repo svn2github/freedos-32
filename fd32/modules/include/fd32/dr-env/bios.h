@@ -46,7 +46,7 @@
 extern DWORD rm_irq_table[256];
 
 /* BIOS data area */
-struct bios_data_area {
+extern struct bios_data_area {
   WORD com_baseaddr[4];    /* 0x400 */
   WORD lpt_baseaddr[4];
   WORD device_config;

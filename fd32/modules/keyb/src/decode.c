@@ -117,27 +117,27 @@ const s_key_type_t keymap[128] = {
 	{ {3, 0, 0, 0, 0, 1}, 0,  {0x8600, 0x8800, 0x8A00, 0x8C00} }  /* F12 */
 };
 
-WORD keyb_decode(BYTE c, int flags, int lock)
+WORD keyb_decode(BYTE c, keyb_std_status_t stdst, int lock)
 {
 	int res, caps_or_num;
 
 	/* Layout decode first */
-	if ((res = keyb_layout_decode(c, flags, lock)) < 0) {
+	if ((res = keyb_layout_decode(c, stdst, lock)) < 0) {
 		/*	Letter keys have to be handled according to CAPSLOCK...
 			Keypad keys have to be handled according to NUMLOCK... */
 		caps_or_num = (keymap[c].flags.numlock_af && lock&LED_NUMLK) |
-						(keymap[c].flags.capslock_af && lock&LED_CAPS);
+						(keymap[c].flags.capslock_af && lock&LED_CAPSLK);
 		/* Set the keymap index value according to the shift flags */
-		if ((flags&ALT_FLAG) != 0)
-			flags = 3;
-		else if ((flags&CTRL_FLAG) != 0)
-			flags = 2;
-		else if ((flags&(RSHIFT_FLAG|LSHIFT_FLAG)) != 0)
-			flags = 1 ^ caps_or_num;
+		if (stdst.s.alt)
+			res = 3;
+		else if (stdst.s.ctrl)
+			res = 2;
+		else if (stdst.s.shift)
+			res = 1 ^ caps_or_num;
 		else
-			flags = 0 ^ caps_or_num;
+			res = 0 ^ caps_or_num;
 		
-		res = keymap[c].data[flags];
+		res = keymap[c].data[res];
 	}
 
 	/* return 0 if something like tab has been pressed... */
