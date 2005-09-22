@@ -136,7 +136,30 @@ int videobios_int(union rmregs *r)
 
     /* VIDEO - ALTERNATE FUNCTIONS */
     case 0x12:
-      fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);
+      switch (r->h.bl)
+      {
+        case 0x10: /* GET EGA INFO */
+          break;
+        case 0x20: /* ALTERNATE PRTSC */
+          break;
+        case 0x30: /* SELECT VERTICAL RESOLUTION */
+          break;
+        case 0x31: /* PALETTE LOADING */
+          break;
+        case 0x32: /* VIDEO ADDRESSING */
+          break;
+        case 0x33: /* GRAY-SCALE SUMMING */
+          break;
+        case 0x34: /* CURSOR EMULATION */
+          break;
+        case 0x35: /* DISPLAY-SWITCH INTERFACE */
+          break;
+        case 0x36: /* VIDEO REFRESH CONTROL */
+          break;
+        default:
+          fd32_log_printf("VIDEO - Alternate Functions (AX=%x BX=%x)\n", r->x.ax, r->x.bx);
+          break;
+      }
       break;
 
     /* VIDEO - SET/GET DISPLAY COMBINATION CODE */

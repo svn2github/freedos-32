@@ -13,34 +13,9 @@
 #include "exec.h"
 #include "logger.h"
 
-
-/* NOTE: Move the structure here, Correct? */
-struct stubinfo {
-  char magic[16];
-  DWORD size;
-  DWORD minstack;
-  DWORD memory_handle;
-  DWORD initial_size;
-  WORD minkeep;
-  WORD ds_selector;
-  WORD ds_segment;
-  WORD psp_selector;
-  WORD cs_selector;
-  WORD env_size;
-  char basename[8];
-  char argv0[16];
-  char dpmi_server[16];
-  /* FD/32 items */
-  DWORD dosbuf_handler;
-};
-
+#include "wrap.h"
 
 #define STACKSIZE 1024 * 4
-
-/* from dpmi/src/dos_exec.c, using dynamic linking */
-extern WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
-extern void restore_psp(void);
-extern WORD user_cs, user_ds;
 
 #define __WRAP_DEBUG__
 
@@ -58,31 +33,19 @@ static void stubinfo_set_segments(WORD stubinfo_sel, WORD cs, WORD ds)
 
 /* FIXME: Simplify ---> user_stack is probably not needed! */
 int my_create_process(DWORD entry, DWORD base, DWORD size,
-		DWORD user_stack, char *name)
+		DWORD user_stack, char *filename, char *args)
 {
   WORD stubinfo_sel;
   int res;
   int wrap_run(DWORD, WORD, DWORD, WORD, WORD, DWORD);
-  char *args;
-
-  args = name;
-  while ((*args != 0) && (*args != ' ')) {
-    args++;
-  }
-  if (*args != 0) {
-    *args = 0;
-    args++;
-  } else {
-    args = NULL;
-  }
 
 #ifdef __WRAP_DEBUG__
   fd32_log_printf("[WRAP] Going to run 0x%lx, size 0x%lx\n",
-	  entry, size);
+		entry, size);
 #endif
   /* HACKME!!! size + stack_size... */
   /* FIXME!!! WTH is user_stack (== base + size) needed??? */
-  stubinfo_sel = stubinfo_init(base, size + /*STACKSIZE*/base, 0, name, args);
+  stubinfo_sel = stubinfo_init(base, size + /*STACKSIZE*/base, 0, filename, args);
   if (stubinfo_sel == 0) {
     error("Error! No stubinfo!!!\n");
     return -1;
@@ -90,7 +53,7 @@ int my_create_process(DWORD entry, DWORD base, DWORD size,
   stubinfo_set_segments(stubinfo_sel, user_cs, user_ds);
 #ifdef __WRAP_DEBUG__
   fd32_log_printf("[WRAP] Calling run 0x%lx 0x%lx (0x%x 0x%x) --- 0x%lx\n",
-		  entry, size, user_cs, user_ds, user_stack);
+		entry, size, user_cs, user_ds, user_stack);
 #endif
 
   res = wrap_run(entry, stubinfo_sel, 0, user_cs, user_ds, user_stack);
@@ -105,7 +68,7 @@ int my_create_process(DWORD entry, DWORD base, DWORD size,
 
 
 /* Read an executable in memory, and execute it... */
-int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline)
+int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *filename, char *args)
 {
   int retval;
   int size;
@@ -142,7 +105,7 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
   }
   /* Note: use the real entry */
   retval = my_create_process(dyn_entry, exec_space, size + STACKSIZE,
-		  base + size + STACKSIZE, cmdline);
+		base + size + STACKSIZE, filename, args);
   #undef ENTRY_CALL_OFFSET
 #ifdef __WRAP_DEBUG__
   message("Returned: %d!!!\n", retval);

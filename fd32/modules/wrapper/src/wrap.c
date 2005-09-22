@@ -12,21 +12,11 @@
 #include "devices.h"
 #include "filesys.h"
 #include "format.h"
-#include "kernel.h"
 #include "kmem.h"
 #include "logger.h"
 #include "exec.h"
-#include "doshdr.h"
 
-#define RUN_RING 0
-
-#define VERSION "0.1"
-DWORD pgm_mem_base = 0x400000;
-DWORD pgm_mem_step = 0x100000;
-#define PGM_MEM_LIMIT 0x4000000
-
-/* from fd32/kernel/exec.c */
-int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *cmdline);
+#include "wrap.h"
 
 WORD user_cs, user_ds;
 static DWORD funky_base;
@@ -55,27 +45,15 @@ DWORD funkymem_get(DWORD size)
   }
  
   message("Allocating 0x%lx = 0x%lx + 0x%lx\n",
-		  size + funky_base, size, funky_base);
-#if 0
+		size + funky_base, size, funky_base);
   tmp = mem_get(size + funky_base);
-#else
-  /* FIXME!!! */
-  tmp = pgm_mem_base;
-  done = 0;
-  while ((!done) && (tmp < PGM_MEM_LIMIT)) {
-    if (mem_get_region(tmp, size + funky_base) < 0) {
-      tmp += pgm_mem_step;
-    } else {
-      done = 1;
-    }
-  }
-#endif
-  if (done == 0) {
+  /* NOTE: DjLibc doesn't need the memory address to be above the image base anymore? */
+  if (tmp == 0) {
     message("Failed!\n");
-
     return 0;
+  } else {
+    message("Got 0x%lx\n", tmp);
   }
-  message("Got 0x%lx\n", tmp);
 
   done = 0; data_selector = 8;
   while (data_selector < 256 && (!done)) {
@@ -126,7 +104,7 @@ static int funkymem_free(DWORD base, DWORD size)
 }
 
 static void my_process_dos_module(struct kern_funcs *kf, int file,
-		struct read_funcs *rf, char *cmdline)
+		struct read_funcs *rf, char *filename, char *args)
 {
   struct dos_header hdr;
   struct bin_format *binfmt = fd32_get_binfmt();
@@ -147,7 +125,7 @@ static void my_process_dos_module(struct kern_funcs *kf, int file,
   {
     if (strcmp(binfmt[i].name, "coff") == 0) {
       if (binfmt[i].check(kf, file, rf)) {
-        my_exec_process(kf, file, rf, cmdline);
+        my_exec_process(kf, file, rf, filename, args);
         return;
       }
     }
@@ -157,12 +135,11 @@ static void my_process_dos_module(struct kern_funcs *kf, int file,
 }
 
 
-#if 0
+/* Using in the DPMI module's DOS execute
 int wrap_exec(char *filename, DWORD env_segment, DWORD cmd_tail,
              DWORD fcb1, DWORD fcb2, WORD *return_val)
-#else
+*/
 int wrap_exec(char *filename, char *args)
-#endif
 {
   struct kern_funcs kf;
   struct read_funcs rf;
@@ -189,7 +166,7 @@ int wrap_exec(char *filename, char *args)
 
   kf.file_read((int)(&f), &magic, 2);
   if (magic == 0x5A4D) { /* "MZ" */
-    my_process_dos_module(&kf, (int)(&f), &rf, args);
+    my_process_dos_module(&kf, (int)(&f), &rf, filename, args);
   }
 
   fd32_kernel_close((int)&f);
@@ -203,8 +180,6 @@ static struct option wrapper_options[] =
   /* These options don't set a flag.
      We distinguish them by their indices. */
   {"tsr-mode", no_argument, 0, 'D'},
-  {"mem-base", required_argument, 0, 'b'},
-  {"mem-step", required_argument, 0, 's'},
   {0, 0, 0, 0}
 };
 
@@ -217,27 +192,11 @@ int wrap_init(struct process_info *pi)
     DWORD res;
     char *sub_name, *sub_args;
     int c, option_index = 0;
-    /* Parse the command line */
-    for ( ; (c = getopt_long (argc, argv, "+Db:s:", wrapper_options, &option_index)) != -1; ) {
+    /* Parse the command line, stop when meeting the first non-option (+) */
+    for ( ; (c = getopt_long (argc, argv, "+D", wrapper_options, &option_index)) != -1; ) {
       switch (c) {
         case 'D':
           message("TSR mode is currently unimplemented\n");
-          break;
-        case 'b':
-          res = atoi(optarg);
-          if ((res > 0x100000) && (res < 0x10000000)) {
-              pgm_mem_base = res;
-          } else {
-              message("Strange Memory Base 0x%lx: not setting\n", res);
-          }
-          break;
-        case 's':
-          res = atoi(optarg);
-          if ((res > 0x100) && (res < 0x1000000)) {
-            pgm_mem_step = res;
-          } else {
-            message("Strange Memory Step 0x%lx: not setting\n", res);
-          }
           break;
         default:
           break;
