@@ -13,6 +13,7 @@
 #define FD32_O_EXCL    O_EXCL
 #define FD32_O_TRUNC   O_TRUNC
 #define FD32_O_APPEND  O_APPEND
+#define FD32_O_NOINHERIT O_NOINHERIT
 #undef O_ACCMODE
 #undef O_RDONLY
 #undef O_WRONLY
@@ -22,6 +23,7 @@
 #undef O_EXCL
 #undef O_TRUNC
 #undef O_APPEND
+#undef O_NOINHERIT
 #include <kernel.h>
 
 #include <sys/fcntl.h>

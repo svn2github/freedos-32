@@ -1,51 +1,27 @@
 #include <ll/i386/hw-data.h>
 #include <kernel.h>
-#include <stubinfo.h>
 #include <stdlib.h>
 
 #define MAX_FILES 20
-static char **environ;
-static char *__env[1] = {0};
-static char *argv[255];
-DWORD mem_limit;
-extern struct psp *current_psp;
+static char *environ[1] = {0};
 
 extern int main(int argc,char **argv,char **envp);
-static struct psp local_psp;
 
 void libc_init(struct process_info *pi)
 {
-  int argc;
-  char *p, *args;
-
-  environ = __env;
-
-  /* Set up args... */
-  args = args_get(pi);
-  mem_limit = maxmem_get(pi);
-  argc = 1;
-  argv[0] = name_get(pi);
-  p = args;
-  if (p != NULL) {
-    while (*p != 0) {
-      argv[argc++] = p;
-      while ((*p != 0) && (*p != ' ')) {
-        p++;
-      }
-      if (*p != 0) {
-        *p++ = 0;
-      }
-      while(*p == ' ') {
-        p++;
-      };
-    }
-  }
+  int ret;
+  char **argv;
+  int argc = fd32_get_argv(name_get(pi), args_get(pi), &argv);
   
   /* Set up the JFT */
-  local_psp.jft_size = MAX_FILES;
-  local_psp.jft = fd32_init_jft(MAX_FILES);
-  local_psp.link = current_psp;
-  current_psp = &local_psp;
-  exit(main(argc, argv, environ));
-  /* FIXME: how do we restore the psp??? Simple: in exit.c!!! */
+  pi->jft_size = MAX_FILES;
+  pi->jft = fd32_init_jft(MAX_FILES);
+
+  /* program's entry-point */
+  ret = main(argc, argv, environ);
+
+  /* Free the argv */
+  fd32_unget_argv(argc, argv);
+  /* NOTE: Free the JFT in exit.c */
+  exit(ret);
 }
