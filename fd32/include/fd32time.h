@@ -28,6 +28,8 @@ int fd32_get_date(fd32_date_t *);
 int fd32_set_date(fd32_date_t *);
 int fd32_get_time(fd32_time_t *);
 int fd32_set_time(fd32_time_t *);
+/* Delay a specified nanoseconds */
+void delay(unsigned int ns);
 
 
 #endif /* #ifndef __FD32_TIME_H */

@@ -28,17 +28,6 @@ void ata_wait(DWORD us)
     /* We do not delete the event, because the timeout _always_ expires! */
 }
 
-/* TODO: This needs to be rewritten. Move into kernel? */
-void delay(unsigned ns)
-{
-    TIME start, current;
-    TIME us = ns / 1000;
-    us +=4;
-    current = start = ll_gettime(TIME_NEW, NULL);
-    while(current - start < us)
-        current = ll_gettime(TIME_NEW, NULL);
-}
-
 BYTE ata_cmd_irq(unsigned long max_wait, struct ide_interface *p)
 {
     int tout_event;
