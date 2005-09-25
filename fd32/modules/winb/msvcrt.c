@@ -184,39 +184,24 @@ static char *** fd32_imp__p__environ(void)
   return &environ;
 }
 
-extern struct psp *current_psp;
 static int local_argc;
-static char *local_argv[255];
-static char **local_argv_ptr = local_argv;
-static char*** fd32_imp__p___argv(void)
+static char **local_argv_ptr = NULL;
+static char *** fd32_imp__p___argv(void)
 {
-  char *p = current_psp->command_line;
-  local_argv[0] = "stub.exe";
-  local_argc = 1;
-  if (p != NULL) {
-    while (*p != 0) {
-      local_argv[local_argc++] = p;
-      while ((*p != 0) && (*p != ' ')) {
-  p++;
-      }
-      if (*p != 0) {
-  *p++ = 0;
-      }
-      while(*p == ' ') {
-  p++;
-      };
-    }
-  }
   return &local_argv_ptr;
+}
+static int * fd32_imp__p___argc(void)
+{
+  return &local_argc;
 }
 
 static void fd32_imp__getmainargs(int *argc, char** *argv, char** *envp, int expand_wildcards, int *new_mode)
 {
   fd32_log_printf("[WINB] GETMAINARGS: %x, %x, %x, %x, %x\n", (uint32_t)argc, (uint32_t)argv, (uint32_t)envp, (uint32_t)expand_wildcards, (uint32_t)new_mode);
-  fd32_log_printf("[WINB] Current PSP cmdline: %s (%d)\n", current_psp->command_line, current_psp->command_line_len);
-  
-  *argv = *fd32_imp__p___argv();
-  *argc = local_argc;
+  fd32_log_printf("[WINB] Current process cmdline: %s\n", args_get(fd32_get_current_pi()));
+
+  *argc = fd32_get_argv(name_get(fd32_get_current_pi()), args_get(fd32_get_current_pi()), argv);
+  local_argv_ptr = *argv;
 }
 
 /* Maximum number of bytes in multi-byte character in the current locale */
@@ -333,6 +318,7 @@ static struct symbol msvcrt_symarray[] = {
   {"__dllonexit",     (uint32_t)fd32_imp__dllonexit},
   {"__getmainargs",   (uint32_t)fd32_imp__getmainargs},
   {"__mb_cur_max",    (uint32_t)fd32_imp__mb_cur_max},
+  {"__p___argc",      (uint32_t)fd32_imp__p___argc},
   {"__p___argv",      (uint32_t)fd32_imp__p___argv},
   {"__p___initenv",   (uint32_t)fd32_imp__p___initenv},
   {"__p__commode",    (uint32_t)fd32_imp__p__commode},

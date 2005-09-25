@@ -49,7 +49,6 @@ static void return_to_dos(union regs *r)
 {
   struct tss * p_vm86_tss = vm86_get_tss();
   WORD bl = p_vm86_tss->back_link;
-  void restore_sp(int res);
 
 #ifdef __DPMI_DEBUG__
   fd32_log_printf("[DPMI] Return to DOS: return code 0x%x\n", (BYTE)(r->d.eax & 0xFF));

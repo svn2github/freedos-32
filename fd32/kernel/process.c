@@ -5,15 +5,8 @@
  */
 
 #include <ll/i386/hw-data.h>
-#include <ll/i386/hw-instr.h>
-#include <ll/i386/hw-func.h>
-/* #include <ll/i386/x-dosmem.h> */
 #include <ll/i386/stdlib.h>
 #include <ll/i386/string.h>
-#include <ll/i386/mem.h>
-#include <ll/i386/stdio.h>
-#include <ll/i386/error.h>
-#include <ll/i386/cons.h>
 #include <ll/getopt.h>
 #include "kmem.h"
 #include "kernel.h"
@@ -22,15 +15,7 @@
 
 WORD kern_CS, kern_DS;
 
-/* TODO:
-   Still to check:
-     minstack  OK? (used to allocate initial stack...)
-
-   There probably is some error in one of the following
-   (see argtest)...
-     env_size
-     base_name
-     argv0
+/* TODO: # Environ variables management
 */
 
 /* extern DWORD current_SP; */

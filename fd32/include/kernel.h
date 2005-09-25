@@ -50,6 +50,7 @@ static inline DWORD maxmem_get(struct process_info *p)
 }
 
 void create_dll(DWORD entry, DWORD base, DWORD size);
+void restore_sp(int res) __attribute__ ((noreturn)); /* Turn back the previous running state, after running a program */
 void fd32_abort(void);
 void fd32_reboot(void);
 void kernel_init();

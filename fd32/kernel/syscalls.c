@@ -40,8 +40,6 @@ extern WORD kern_CS, kern_DS;
 extern CONTEXT context_save(void);
 extern union gdt_entry *GDT_base;
 
-void restore_sp(int res);
-
 #define EMPTY_SLOT {0, (DWORD)0xFFFFFFFF}
 
 extern void process_dos_module(struct kern_funcs *p, int file,
@@ -153,7 +151,20 @@ int fd32_kernel_close(int id)
   return f->request(FD32_CLOSE, &cr);
 }
 
-static void *memcpy2(void *dest, const void *src, size_t size)
+/* Delay a specified nanoseconds
+ * NOTE: This needs to be rewritten. Move into the proper place of kernel?
+ */
+static void imp_delay(unsigned int ns)
+{
+    TIME start, current;
+    TIME us = ns / 1000;
+    us +=4;
+    current = start = ll_gettime(TIME_NEW, NULL);
+    while(current - start < us)
+        current = ll_gettime(TIME_NEW, NULL);
+}
+
+static void *imp_memcpy(void *dest, const void *src, size_t size)
 {
   size_t i, j, m, n = size>>3;
   BYTE *src_p8 = (BYTE *)src;
@@ -249,7 +260,7 @@ static struct symbol syscall_table[] = {
   { "GDT_base",  (DWORD) (&GDT_base) },
   { "gdt_read",  (DWORD) gdt_read    },
   /* Symbols for libc functions */
-  { "memcpy",  (DWORD) memcpy2 },
+  { "memcpy",  (DWORD) imp_memcpy },
   { "strchr",  (DWORD) strchr  },
   { "strcpy",  (DWORD) strcpy  },
   { "strncpy", (DWORD) strncpy },
@@ -286,6 +297,7 @@ static struct symbol syscall_table[] = {
   /* Symbols for date and time functions (from fd32time.h) */
   { "fd32_get_date", (DWORD) fake_get_date },
   { "fd32_get_time", (DWORD) fake_get_time },
+  { "delay",         (DWORD) imp_delay },
   /* Symbols for logging functions (from logger.h) */
   { "fd32_log_printf", (DWORD) fd32_log_printf },
   { "fd32_log_stats", (DWORD) fd32_log_stats },
@@ -515,18 +527,19 @@ int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol 
 {
   DWORD mem;
   struct dll_int_table *p, *q;
-  
+
   /* Search for existing DLL with the same name */
   for (p = &dll_int_list; p != NULL; q = p, p = p->next) {
-    if (strcmp(dll_name, p->dll->name) == 0) {
+    if (strcmp(strlwr(dll_name), p->dll->name) == 0) {
       return 2;
     }
   }
-
+  /* Construct a new DLL */
   mem = mem_get(sizeof(struct dll_int_table)+sizeof(struct dll_table));
   p = (struct dll_int_table *)mem;
   p->handle = handle;
   p->ref_num = 1;
+  p->next = NULL;
   p->dll = (struct dll_table *)(mem+sizeof(struct dll_int_table));
   p->dll->name = strlwr(dll_name);
   p->dll->symbol_num = symbol_num;
@@ -535,7 +548,7 @@ int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol 
   /* Link at the end of list */
   q->next = p;
 
-  fd32_log_printf("Add DLL %s at %x\n", dll_name, (int)mem);
+  fd32_log_printf("Add DLL %s at 0x%x\n", dll_name, (int)mem);
   
   return 1;
 }

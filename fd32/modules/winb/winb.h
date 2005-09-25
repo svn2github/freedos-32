@@ -21,36 +21,38 @@ struct symbol {
   uint32_t address;
 };
 
-/* Program Segment Prefix
- * from fd32/include/stubinfo.h
+/* Kernel process management
+ * from fd32/include/kernel.h
  */
-struct psp {
-  /* FD/32 stuff */
-  struct psp *link;
-  uint32_t memlimit;
-  uint32_t old_stack;
-  uint32_t DOS_mem_buff;
-  uint32_t info_sel;
-
-  void *dta;      /* Under DOS this pointer is stored in the SDA */
+struct process_info {
+  struct process_info *prev_P;
+  void *psp;      /* Optional DOS PSP */
   void *cds_list; /* Under DOS this is a global array            */
-
-  /* Gap */
-  uint8_t gap[16];
-
-  /* The following fields must start at offset 2Ch (44) */
-  uint16_t environment_selector;
-  uint8_t  reserved_3[4];
-  uint16_t jft_size; /* Offset 32h (50) */
-  void *jft;      /* Offset 34h (52) */
-  uint8_t  reserved_4[32];
-  void (*mem_clear_up)(void);
-  uint8_t  default_FCB_1[16];
-  uint8_t  default_FCB_2[20];
-  /* Offset 80h (128): this is also the start of the default DTA */
-  uint8_t  command_line_len;
-  uint8_t  command_line[127];
-} __attribute__ ((packed)) ;
+  char *args;
+  uint32_t memlimit;
+  char *name;
+  void *jft;
+  uint16_t jft_size;
+};
+struct process_info *fd32_get_current_pi(void);
+int fd32_get_argv(char *filename, char *args, char ***_pargv);
+int fd32_unget_argv(int _argc, char *_argv[]); /* Recover the original args and free the argv */
+static inline char *args_get(struct process_info *p)
+{
+  return p->args;
+}
+static inline char *name_get(struct process_info *p)
+{
+  return p->name;
+}
+static inline uint32_t maxmem_get(struct process_info *p)
+{
+  return p->memlimit;
+}
+/* Turn back the previous running state, after running a program */
+void restore_sp(int res) __attribute__ ((noreturn));
+/* Clear-up the local heaps */
+void winb_mem_clear_up(void);
 
 /*
  * from oslib/ll/i386/error.h

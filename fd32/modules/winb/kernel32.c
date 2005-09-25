@@ -123,13 +123,12 @@ static BOOL WINAPI fd32_imp__PeekNamedPipe(HANDLE hNamedPipe, LPVOID lpBuffer, D
  *|Dynamic-Link Library Functions|*
 \*|______________________________|*/
 
-extern struct psp *current_psp;
 static DWORD WINAPI fd32_imp__GetModuleHandleA( LPCSTR module )
 {
 #ifdef __WINB_DEBUG__
   fd32_log_printf("[WINB] GetModuleHandle: %s\n", module);
 #endif
-  return (DWORD)current_psp;
+  return 0; /* TODO: Implement it! */
 }
 
 
@@ -138,7 +137,6 @@ static DWORD WINAPI fd32_imp__GetModuleHandleA( LPCSTR module )
  *| Process and Thread Functions |*
 \*|______________________________|*/
 
-void restore_sp(DWORD s);
 static VOID WINAPI fd32_imp__ExitProcess( UINT ecode )
 {
 #ifdef __WINB_DEBUG__
@@ -146,20 +144,20 @@ static VOID WINAPI fd32_imp__ExitProcess( UINT ecode )
 #endif
   /* TODO: Remove the Atom? */
   atomname = NULL;
-  if (current_psp->mem_clear_up != NULL)
-    current_psp->mem_clear_up();
+  winb_mem_clear_up();
   restore_sp(ecode);
 }
 
 static LPSTR WINAPI fd32_imp__GetCommandLineA(VOID)
 {
-  return current_psp->command_line;
+  return args_get(fd32_get_current_pi());
 }
 
 static LPSTR WINAPI fd32_imp__GetEnvironmentStringsA(void)
 {
   /* NOTE: FD32 currently support GDT only */
-  return (LPSTR)gdt_read(current_psp->environment_selector, NULL, NULL, NULL);
+  /* TODO: Where is the environment strings */
+  return NULL;
 }
 
 static VOID WINAPI fd32_imp__GetStartupInfoA(LPSTARTUPINFOA lpStartupInfo)
@@ -196,7 +194,7 @@ static DWORD WINAPI fd32_imp__GetCurrentProcessId( void )
 #ifdef __WINB_DEBUG__
   fd32_log_printf("[WINB] GetCurrentProcessId ...\n");
 #endif
-  return (DWORD)current_psp;
+  return 0; /* TODO: Implement it */
 }
 
 /* The GetCurrentThreadId function returns the thread identifier of the calling thread. 
