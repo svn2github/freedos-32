@@ -10,7 +10,6 @@ all: fd32 djgpp
 
 clean :
 	$(RM) *.o
-	$(RM) *.exe
 	$(MAKE) -C fd32 clean
 	$(MAKE) -C djgpp clean
 

@@ -1,8 +1,21 @@
-/* Keyborad Driver for FD32
- * by Luca Abeni and Hanzac Chen
+/* i8042 and keyboard handling for FD32's Keyborad Driver
  *
- * 2004 - 2005
- * This is free software; see GPL.txt
+ * Copyright (C) 2004,2005 by Luca Abeni and Hanzac Chen
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 #include <dr-env.h>
@@ -26,10 +39,9 @@ typedef union psctrl_status
 	} s;
 } psctrl_status_t;
 
-static keyb_std_status_t stdst;
-static int ack_expected = 0;
-static WORD ecode = 0;
-
+/*
+ * i8042 low-level functions
+ */
 BYTE keyb_get_status(void)
 {
 	return fd32_inb(KEYB_STATUS_PORT);
@@ -40,67 +52,118 @@ BYTE keyb_get_data(void)
 	return fd32_inb(KEYB_DATA_PORT);
 }
 
-/*
- * Function to write in the keyboard register; it waits for the port
- * to be free, then write the command
- */
-int keyb_write(BYTE cmd)
+void keyb_send_command(BYTE val)
+{
+	fd32_outb(val, KEYB_STATUS_PORT);
+}
+
+static int keyb_wait_write(void)
+{
+	DWORD i;
+	psctrl_status_t st;
+	
+	for (i = 0, st.data = keyb_get_status(); st.s.inbuf_full && i < KEYB_CTL_TIMEOUT; i++, st.data = keyb_get_status())
+		delay(50);
+	if (i < KEYB_CTL_TIMEOUT)
+		return 0;
+	else
+		return -1;
+}
+
+static int keyb_wait_read(void)
 {
 	DWORD i;
 	BYTE t;
 	psctrl_status_t st;
 
-	for (i = 0, st.data = keyb_get_status(); (st.s.outbuf_full|st.s.inbuf_full) && i < 0x1000000; i++, st.data = keyb_get_status())
-		if (st.s.outbuf_full)
-			t = fd32_inb(0x60);
-	if (i < 0x1000000) {
-		fd32_outb(KEYB_DATA_PORT, cmd);
-		return 1;
+	for (i = 0, st.data = keyb_get_status(); st.s.outbuf_full && i < KEYB_CTL_TIMEOUT; i++, st.data = keyb_get_status())
+		t = fd32_inb(KEYB_DATA_PORT);
+	if (i < KEYB_CTL_TIMEOUT)
+		return 0;
+	else
+		return -1;
+}
+
+/*
+ * Function to write in the keyboard register; it waits for the port
+ * to be free, then write the data
+ */
+int keyb_write(BYTE data)
+{
+	if (keyb_wait_write() != -1) {
+		fd32_outb(KEYB_DATA_PORT, data);
+		return 0;
 	} else {
 		return -1;
 	}
 }
 
-static void set_leds(void)
-{
-	if (ack_expected != 0) {
-		/* Uhmm.... Why is this != 0? */
-		fd32_error("Set Leds with ack_expected != 0!!!\n");
-		/* The best thing to do here is to reset the keyboard... */
-		return;
-	}
-	ack_expected = 1;
-	keyb_write(KEYB_CMD_SET_LEDS);
-}
+/*
+ * Keyboard handling
+ */
 
 WORD keyb_get_shift_flags(void)
 {
 	return bios_da.keyb_flag;
 }
 
-void keyb_set_shift_flags(WORD f)
+int keyb_set_shift_flags(WORD f)
 {
 	bios_da.keyb_flag = f;
-	set_leds();
+	return keyb_send_cmd(KEYB_CMD_SET_LEDS);
 }
 
-static void handle_ack(void)
+typedef struct keyb_command {
+	BYTE cmd;
+	BYTE datalen;
+	BYTE *data;
+} keyb_command_t;
+
+static keyb_std_status_t stdst;
+static WORD ecode;
+static WORD ack_left;
+static BYTE ack_cmd;
+static BYTE led_state;
+static keyb_command_t cmd_table[] = {
+	{KEYB_CMD_SET_LEDS, 1, &led_state} /* After the ack, the led state must be sent! */
+};
+#define CMD_NUM (sizeof(cmd_table)/sizeof(keyb_command_t))
+
+int keyb_send_cmd(BYTE cmd)
 {
-	if (ack_expected == 0) {
-		/* What happened? An ack arrived but we are not waiting for it... */
-		fd32_error("WARNING: Unexpected Ack!!!\n");
-	} else if (ack_expected == 1) {
-		/* We sent a 0xED command... After the ack, the led mask must be sent! */
-		keyb_write((bios_da.keyb_flag&LEGS_MASK)>>4);
-		ack_expected = 2;
-	} else if (ack_expected == 2) {
-		/* Uhmmm... We don't need this!
-		keyb_write(KBD_CMD_ENABLE); */
-		ack_expected = 0;
-	} else {
-		/* This is impossible!!! */
-		fd32_message("[KEYB] CRITICAL: ack_expected = %d\n", ack_expected);
-		fd32_error("Keyboard driver: inconsistent internal status!\n");
+	if (ack_left == 0)
+		if (keyb_write(cmd) != -1) {
+			ack_left = 2;   /* Always need 2 ACKs */
+			ack_cmd = cmd;	/* Record the ack information */
+			return 0;
+		}
+
+	fd32_message("[KEYB] control command sending error!\n");
+	return -1;
+}
+
+static void keyb_ack_handler(void)
+{
+	DWORD i, j;
+
+	switch (ack_left) {
+		case 2:
+			/* Send the command parameter */
+			for (i = 0; i < CMD_NUM; i++)
+				if (ack_cmd == cmd_table[i].cmd)
+					for (j = 0; j < cmd_table[i].datalen; j++)
+						keyb_write(cmd_table[i].data[j]);
+			ack_left--;
+			break;
+		case 1:
+			/* NOTE: Shall we need: keyb_write(KBD_CMD_ENABLE); */
+			ack_left--;
+			break;
+		default:
+			/* This is impossible!!! */
+			fd32_message("[KEYB] Keyboard command acknowledgement CRITICAL error\n");
+			fd32_error("Keyboard driver: inconsistent internal status!\n");
+			break;
 	}
 }
 
@@ -113,7 +176,7 @@ int preprocess(BYTE code)
 		case 0xE0:
 			return 0;
 		case 0xFA:
-			handle_ack();
+			keyb_ack_handler();
 			break;
 		/* FUNCTION KEY pressed ... */
 		case MK_LCTRL:
@@ -137,21 +200,24 @@ int preprocess(BYTE code)
 			bios_da.keyb_flag |= FLAG_CAPS;
 			bios_da.keyb_flag ^= ACT_CAPSLK;
 			bios_da.keyb_led ^= LED_CAPSLK;
-			set_leds();
+			led_state ^= LED_CAPSLK;
+			keyb_send_cmd(KEYB_CMD_SET_LEDS);
 			break;
 		case MK_NUMLK:
 			stdst.s.numlk_active ^= 1;
 			bios_da.keyb_flag |= FLAG_NUMLK;
 			bios_da.keyb_flag ^= ACT_NUMLK;
 			bios_da.keyb_led ^= LED_NUMLK;
-			set_leds();
+			led_state ^= LED_NUMLK;
+			keyb_send_cmd(KEYB_CMD_SET_LEDS);
 			break;
 		case MK_SCRLK:
 			stdst.s.scrlk_active ^= 1;
 			bios_da.keyb_flag |= FLAG_SCRLK;
 			bios_da.keyb_flag ^= ACT_SCRLK;
 			bios_da.keyb_led ^= LED_SCRLK;
-			set_leds();
+			led_state ^= LED_SCRLK;
+			keyb_send_cmd(KEYB_CMD_SET_LEDS);
 			break;
 		case MK_SYSRQ:
 			bios_da.keyb_flag |= FLAG_SYSRQ;

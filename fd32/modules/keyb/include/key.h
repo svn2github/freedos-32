@@ -13,6 +13,7 @@
 /* keyboard I/O ports */
 #define KEYB_STATUS_PORT  0x64
 #define KEYB_DATA_PORT    0x60
+#define KEYB_CTL_TIMEOUT  0x10000
 /* keyboard command */
 #define KEYB_CMD_SET_LEDS 0xED
 
@@ -44,8 +45,10 @@ typedef union keyb_std_status
 int preprocess(BYTE code);
 void postprocess(void);
 BYTE keyb_get_data(void);
+BYTE keyb_get_status(void);
+int keyb_send_cmd(BYTE cmd);
 WORD keyb_get_shift_flags(void);
-void keyb_set_shift_flags(WORD f);
+int keyb_set_shift_flags(WORD f);
 WORD keyb_decode(BYTE c, keyb_std_status_t stdst, int lock);
 void keyb_hook(WORD key, int isCTRL, int isALT, DWORD hook_func);
 void keyb_fire_hook(WORD key, int isCTRL, int isALT);
