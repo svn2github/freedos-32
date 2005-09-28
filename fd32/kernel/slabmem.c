@@ -16,9 +16,6 @@
  * the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/** \file
- *  \brief Implementation of a simple portable Slab Memory Allocator for FreeDOS-32.
- */
 #include "slabmem.h"
 
 #if 0 /* Standard libc */
@@ -34,13 +31,42 @@
  #define SLABMEM_PAGE_FREE(page) mem_free((DWORD) page, SLABMEM_PAGE_SIZE)
 #endif
 
+/**
+\defgroup slabmem Slab cache memory allocator
+ 
+The Slab Memory Allocator manages a pool, called a <em>slab cache</em>,
+of equally-sized small objects. The idea is to reduce memory fragmentation.
+The cache is splitted in memory pages (also called slabs), each of them
+holding a fixed amount of objects, and may grow by allocating new
+pages if more storage is required.
+ 
+A slab cache is represented by a SlabMem structure, which must be
+initialized by the user of the cache. Each cache contains a linked list
+of pages, and a linked list of free objects, no matter how they are
+distributed across the pages of the cache. The last bytes of each page
+contain a pointer to the next page of the cache (thus, on i386 each page
+has 4092 bytes of storage and 4 bytes for the pointer to the next page).
+The first bytes (4 on i386) of each free object contain a pointer to the
+next free object. This pointer is overwritten when the object is allocated
+and used.
+ 
+An object is allocated from the cache using the ::slabmem_alloc function,
+which also grows the cache when the list of free objects is empty, whereas
+an object is returned to the cache when no longer used using the ::slabmem_free
+function. The whole slab cache storage should be deallocated using
+::slabmem_destroy, which returns all its pages to the system, when the cache
+is no longer useful.
+
+@{ */
+
 
 /**
+ * \brief Allocates an object from a slab cache.
  * \param cache the slab cache where to allocate the object from.
  * \return A pointer to the object, or NULL on failure.
- * \remarks The object should be released with #slabmem_free when no longer used.
+ * \remarks The object should be released with ::slabmem_free when no longer used.
  */
-void *slabmem_alloc(slabmem_t *cache)
+void *slabmem_alloc(SlabCache *cache)
 {
 	void *res = cache->free_objs;
 	if (!res)
@@ -63,10 +89,11 @@ void *slabmem_alloc(slabmem_t *cache)
 
 
 /**
+ * \brief Releases an object to a slab cache.
  * \param cache the slab cache where the object was allocated from;
  * \param obj   pointer to the object to release.
  */
-void slabmem_free(slabmem_t *cache, void *obj)
+void slabmem_free(SlabCache *cache, void *obj)
 {
 	*((void **) obj) = cache->free_objs;
 	cache->free_objs = obj;
@@ -74,12 +101,14 @@ void slabmem_free(slabmem_t *cache, void *obj)
 
 
 /**
+ * \brief Initializes a slab cache.
  * \param cache the slab cache to initialize;
  * \param obj_size the size in bytes of each object in the cache.
- * \remarks This function just sets the fields of the specified #slabmem_t
- * to reasonable default values. You can do that manually if you prefer.
+ * \remarks This function just sets the fields of the specified SlabCache
+ *          structure to reasonable default values.
+ *          You can do it manually if you prefer.
  */
-void slabmem_create(slabmem_t *cache, size_t obj_size)
+void slabmem_create(SlabCache *cache, size_t obj_size)
 {
 	cache->pages     = NULL;
 	cache->obj_size  = obj_size;
@@ -88,11 +117,12 @@ void slabmem_create(slabmem_t *cache, size_t obj_size)
 
 
 /**
+ * \brief Releases all memory used by a slab cache.
  * \param cache the slab cache to destroy.
  * \remarks This functions deallocates every object in the slab cache,
  * thus, it should be called when there are no active references to any object.
  */
-void slabmem_destroy(slabmem_t *cache)
+void slabmem_destroy(SlabCache *cache)
 {
 	if (cache->pages)
 	{
@@ -106,3 +136,5 @@ void slabmem_destroy(slabmem_t *cache)
 	cache->pages = NULL;
 	cache->free_objs = NULL;
 }
+
+/* @} */

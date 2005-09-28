@@ -13,6 +13,7 @@ body {
 table {
 	font-size: 1em;
 	line-height: 1.5em;
+	text-align: justify;
 }
 
 table.datatable
