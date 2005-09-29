@@ -110,7 +110,7 @@ WORD keyb_get_shift_flags(void)
 int keyb_set_shift_flags(WORD f)
 {
 	bios_da.keyb_flag = f;
-	return keyb_send_cmd(KEYB_CMD_SET_LEDS);
+	return 0;
 }
 
 typedef struct keyb_command {
@@ -161,7 +161,7 @@ static void keyb_ack_handler(void)
 			break;
 		default:
 			/* This is impossible!!! */
-			fd32_message("[KEYB] Keyboard command acknowledgement CRITICAL error\n");
+			fd32_message("[KEYB] Keyboard command acknowledgement CRITICAL error (current ack: %u)\n", ack_left);
 			fd32_error("Keyboard driver: inconsistent internal status!\n");
 			break;
 	}

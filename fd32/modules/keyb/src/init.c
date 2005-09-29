@@ -169,8 +169,7 @@ void keyb_init(struct process_info *pi)
 	fd32_irq_bind(KEYB_IRQ, keyb_handler);
 	/* Clear the queue */
 	keyb_queue_clear();
-	/* Clear the shift flags and reset the leds, otherwise it won't work fine in some circumstances */
-	keyb_set_shift_flags(0);
+	/* TODO: Reset the keyboard, otherwise it won't work fine in some circumstances */
 
 	/* Ctrl+Alt+Del reboot PC */
 	keyb_hook(0x53, 1, 1, (DWORD)fd32_reboot);
