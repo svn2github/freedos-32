@@ -10,6 +10,7 @@
 
 #define EXTERN_SYMBOL 0xFF00
 #define COMMON_SYMBOL 0xFF01
+#define NULL_SYMBOL   0xFFFF
 
 #define REL_TYPE_ELF_ABSOLUTE   1
 #define REL_TYPE_COFF_ABSOLUTE  2
@@ -50,11 +51,6 @@ struct pe_reloc_info {
   DWORD size;
 };
 
-struct bss_symbols {
-  int sym_idx;
-  DWORD addr;
-};
-
 struct table_info {
   DWORD section_header;
   WORD num_sections;
@@ -70,7 +66,8 @@ struct table_info {
   DWORD section_names_size;
   
   DWORD image_base;
-  DWORD private_info;  /* support pe format */
+  /* In PEI, it's a pei extra info; in COFF, it's a local_bss and local_bss_size */
+  DWORD private_info;
 };
 
 struct section_info {
@@ -128,25 +125,25 @@ struct kern_funcs {
 
 struct read_funcs {
   DWORD (* read_headers)(struct kern_funcs *kf, int f,
-		  struct table_info *tables);
+		struct table_info *tables);
   int (* read_section_headers)(struct kern_funcs *kf, int f,
-		  struct table_info *tables, struct section_info *scndata);
+		struct table_info *tables, struct section_info *scndata);
   int (* read_symbols)(struct kern_funcs *kf, int f,
-		  struct table_info *tables, struct symbol_info *syms);
+		struct table_info *tables, struct symbol_info *syms);
   DWORD (* load_relocatable)(struct kern_funcs *kf, int f,
-		  struct table_info *tables,
-		  int n, struct section_info *s, int *size);
+		struct table_info *tables,
+		int n, struct section_info *s, int *size);
   DWORD (* load_executable)(struct kern_funcs *kf, int f,
-		  struct table_info *tables,
-		  int n, struct section_info *s, int *size);
-  int (* relocate_section)(struct kern_funcs *p,DWORD base, DWORD bssbase,
-		struct section_info *s, int sect,
-		struct symbol_info *syms,
-		struct symbol *import);
-  DWORD (* import_symbol)(struct kern_funcs *p, int n, struct symbol_info *syms,
+		struct table_info *tables,
+		int n, struct section_info *s, int *size);
+  int (* relocate_section)(struct kern_funcs *kf, DWORD base,
+		struct table_info *tables,
+		int n, struct section_info *s, int sect,
+		struct symbol_info *syms, struct symbol *import);
+  DWORD (* import_symbol)(struct kern_funcs *kf, int n, struct symbol_info *syms,
 		char *name, int *sect);
-  void (* free_tables)(struct kern_funcs *p, struct table_info *tables, struct symbol_info *syms,
-		  struct section_info *scndata);
+  void (* free_tables)(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms,
+		struct section_info *scndata);
 };
   
 int isPEI(struct kern_funcs *kf, int f, struct read_funcs *rf);
@@ -176,8 +173,6 @@ int fd32_set_binfmt(const char *name, check_func_t check, exec_func_t exec);
 
 /** \brief Select COFF object type: "djcoff" or "pecoff" */
 void COFF_set_type(char *value);
-
-#define LOCAL_BSS 64 * 1024
 
 
 #endif

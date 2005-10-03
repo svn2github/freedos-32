@@ -125,7 +125,7 @@ struct pe_scnhdr {
 
 struct imp_name {
   WORD hint;
-  BYTE name[1];
+  char name[1];
 };
 
 union thunk_data {

@@ -74,7 +74,7 @@ DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
     		header.e_phentsize, header.e_phentsize);
   }
 
-#if 0
+#ifdef __ELF_DEBUG_2__
   /* Flags... */
   /* RELOCATION */
   if (header.f_flags & F_RELFLG) {

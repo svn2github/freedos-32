@@ -223,7 +223,7 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
   {
     BYTE *import_symbol_dir = (BYTE *)image_base+pee_info->import_symbol;
     struct imp_desc *desc = (struct imp_desc *)import_symbol_dir;
-    struct dll_table *dylt = NULL;
+    struct dll_table *dt = NULL;
     char *dll_name;
     struct imp_name *imp;
     DWORD *hint;
@@ -243,8 +243,8 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
       #endif
       for(i = 0; hint[i] != 0; i++, entry += 4)
       {
-        dylt = kf->get_dll_table(dll_name);
-        if(dylt == NULL)
+        dt = kf->get_dll_table(dll_name);
+        if(dt == NULL)
         {
           kf->message("WARNING: DLL %s not found!\n", dll_name);
           /* Should try to load the target Dynalink lib in get_dll_table */
@@ -253,14 +253,14 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
         }
         imp = (struct imp_name *)(image_base+hint[i]);
         /* TODO: QSORT and QSEARCH? */
-        for(j = 0; j < dylt->symbol_num; j++)
-          if(strcmp(dylt->symbol_table[j].name, imp->name) == 0)
+        for(j = 0; j < dt->symbol_num; j++)
+          if(strcmp(dt->symbol_table[j].name, imp->name) == 0)
           {
             func = (DWORD *)entry;
-            *func = dylt->symbol_table[j].address;
+            *func = dt->symbol_table[j].address;
             break;
           }
-        if(j == dylt->symbol_num)
+        if(j == dt->symbol_num)
           kf->message("WARNING: Import Symbol %s not found in %s DLL!\n", imp->name, dll_name);
       }
       desc = (struct imp_desc *)((BYTE *)desc+sizeof(struct imp_desc));
@@ -325,7 +325,7 @@ DWORD pei_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *syms, 
   return 0;
 }
 
-int pei_relocate_section(struct kern_funcs *kf, DWORD image_base, DWORD bssbase, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
+int pei_relocate_section(struct kern_funcs *kf, DWORD image_base, struct table_info *tables, int n, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
   int i;
   /* DWORD image_base = base-s[0].base; */

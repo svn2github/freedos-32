@@ -79,7 +79,7 @@ int fd32_create_process(DWORD entry, DWORD base, DWORD size, WORD fs_sel, char *
   /* No entry point... We assume that we need dynamic linking */
   cur_P->name = filename;
   cur_P->args = args;
-  cur_P->memlimit = base + size + LOCAL_BSS;
+  cur_P->memlimit = base + size;
   cur_P->cds_list = NULL; /* Pointer set by FS */
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n", entry, size);

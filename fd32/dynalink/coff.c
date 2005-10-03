@@ -34,7 +34,7 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
   if (header.f_magic != 0x014c) {
 #ifdef __COFF_DEBUG__
     kf->log("Not a DJ COFF file (Wrong Magic: 0x%x)!!!\n",
-	header.f_magic);
+		header.f_magic);
 #endif
     return 0;
   }
@@ -158,14 +158,13 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
     
 #ifdef __COFF_DEBUG__
     kf->log("[%s]: <0x%lx:0x%lx> (0x%lx)\n", name,
-	  scndata[i].base,
-	  scndata[i].base + scndata[i].size,
-	  scndata[i].fileptr);
+		scndata[i].base,
+		scndata[i].base + scndata[i].size,
+		scndata[i].fileptr);
 #endif
     if (h.s_nreloc !=0) {
 #ifdef __COFF_DEBUG__
-      kf->log("Relocation info @ %ld (%d entries)\n",
-        h.s_relptr, h.s_nreloc);
+      kf->log("Relocation info @ %ld (%d entries)\n", h.s_relptr, h.s_nreloc);
 #endif
       scndata[i].num_reloc = h.s_nreloc;
       scndata[i].reloc = (void *)kf->mem_alloc(sizeof(struct reloc_info) * h.s_nreloc);
@@ -193,7 +192,7 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
 #ifdef __COFF_DEBUG__
     if (h.s_nlnno !=0) {
       kf->log("Line Number Table Pointer @ %ld (%d entries)\n",
-	  h.s_lnnoptr, h.s_nlnno);
+		h.s_lnnoptr, h.s_nlnno);
     } else {
       kf->log("No Line Number Table\n");
     }
@@ -220,26 +219,17 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
 int COFF_read_symbols(FILE *f, int n, int p, struct symbol_info *sym, char **s)
 */
 int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
-	struct symbol_info *syms)
+  struct symbol_info *syms)
 {
-  int i;
+  int i, num_of_inlined;
   int size;
   struct coff_symbol_info *symbol;
-  int numinlined;
-  char *s;
-  BYTE *inlined;
-
-  numinlined = 0;
+  char *s, *inlined;
 
   symbol = (void *)kf->mem_alloc(tables->num_symbols * sizeof(struct coff_symbol_info));
   kf->file_seek(f, kf->file_offset + tables->symbol, kf->seek_set);
-  for (i = 0; i < tables->num_symbols; i++) {
-    kf->file_read(f, &symbol[i], sizeof(struct coff_symbol_info));
-    if ((BYTE)symbol[i].e.e.e_zeroes != 0) {
-      numinlined++;
-    }
-  }  
-  
+  kf->file_read(f, symbol, tables->num_symbols * sizeof(struct coff_symbol_info));
+
 #ifdef __COFF_DEBUG__
   kf->log("Reading strings\n");
 #endif
@@ -247,19 +237,32 @@ int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
 #ifdef __COFF_DEBUG__
   kf->log("size: %d\n", size);
 #endif
-  s = (void *)kf->mem_alloc(size + numinlined * 9);
-  kf->file_read(f, (char *)(s + 4), size - 4);
+  for (i = 0, num_of_inlined = 0; i < tables->num_symbols; i++) {
+    if (symbol[i].e.e.e_zeroes != 0) {
+      num_of_inlined++;
+    }
+  }
+  s = (void *)kf->mem_alloc(size + num_of_inlined * 9);
+  kf->file_read(f, s + 4, size - 4);
   inlined = s + size;
 
   for (i = 0; i < tables->num_symbols; i++) {
 #ifdef __COFF_DEBUG__
     kf->log("Symbol %d:\n", i);
 #endif
-    if ((BYTE)symbol[i].e.e.e_zeroes != 0) {
+    /* Mark the empty entry */
+    if (symbol[i].e_sclass == 0 /* C_NULL */) {
+      syms[i].section = NULL_SYMBOL;
+      continue;
+    }
+
+    syms[i].offset = symbol[i].e_value;
+    syms[i].section = symbol[i].e_scnum;
+    if (symbol[i].e.e.e_zeroes != 0) {
 #ifdef __COFF_DEBUG__
       kf->log("Inlined: %s\n", symbol[i].e.e_name);
 #endif
-      /* Inlined symbol */
+      /* Inlined symbol, always add zero at 9 to make sure that the string is null-terminated */
       memcpy(inlined, symbol[i].e.e_name, 8);
       inlined[8] = 0;
       syms[i].name = inlined + 1;
@@ -271,30 +274,39 @@ int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
       if (symbol[i].e.e.e_offset > size) {
         syms[i].name = 0;
       } else {
+        /* Plus 1 means removing the prefix '_' */
         syms[i].name = s + symbol[i].e.e.e_offset + 1;
       }
 #ifdef __COFF_DEBUG__
       kf->log("Name: %s\n", syms[i].name);
 #endif
     }
-    syms[i].offset = symbol[i].e_value;
-    syms[i].section = symbol[i].e_scnum;
 
-    if (syms[i].section == 0) {
-      if (syms[i].offset == 0) {
-        /* extern symbol */
-        syms[i].section = EXTERN_SYMBOL;
-      } else {
-        /* common symbol */
-        syms[i].section = COMMON_SYMBOL;
-      }
-    } else {
-      syms[i].section--;
+    switch (syms[i].section) {
+      case 0:
+        if (syms[i].offset == 0) {
+          /* extern symbol */
+          syms[i].section = EXTERN_SYMBOL;
+        } else {
+          /* common symbol */
+          syms[i].section = COMMON_SYMBOL;
+        }
+        break;
+      case 0xFFFF:
+        /* An absolute symbol (e_value is a constant, not an address) */
+        break;
+      case 0xFFFE:
+        /* A debugging symbol */
+        break;
+      default:
+        syms[i].section--;
+        break;
     }
   }
+  
   /* needed info to clear the memory */
   tables->string_buffer = (DWORD)s;
-  tables->string_size = size + numinlined * 9;
+  tables->string_size = size + num_of_inlined * 9;
   kf->mem_free((DWORD)symbol, tables->num_symbols * sizeof(struct coff_symbol_info));
 
   return 1;
@@ -313,7 +325,7 @@ void COFF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct s
   kf->mem_free((DWORD)scndata,
     sizeof(struct section_info)*tables->num_sections);
   if(syms != NULL) {
-    kf->mem_free((DWORD)syms, sizeof(struct symbol_info)*tables->num_symbols);
+    kf->mem_free((DWORD)syms, tables->symbol_size);
   }
   if(tables->string_size != 0) {
     kf->mem_free(tables->string_buffer, tables->string_size);
