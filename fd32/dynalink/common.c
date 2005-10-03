@@ -38,8 +38,6 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
       tables->private_info = local_bss = mem_get(local_bss_size+sizeof(DWORD));
       *((DWORD *)local_bss) = local_bss_size;
       local_bss += sizeof(DWORD);
-    } else {
-      tables->private_info = local_bss = 0;
     }
   
     for (i = 0; i < tables->num_symbols; i++) {

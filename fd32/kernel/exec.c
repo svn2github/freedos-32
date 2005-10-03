@@ -36,6 +36,10 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
   struct symbol_info *symbols = NULL;
   struct table_info tables;
 
+  /* Initialize the table info */
+  tables.section_names_size = 0;
+  tables.private_info = 0;
+
   dyn_entry = rf->read_headers(kf, file, &tables);
 
   sections = (struct section_info *)mem_get(sizeof(struct section_info) * tables.num_sections);

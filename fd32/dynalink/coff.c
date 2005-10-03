@@ -117,9 +117,6 @@ static DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *
     tables->flags |= NEED_SECTION_RELOCATION;
   }
   
-  /* To prevent mem_free in common_free_tables */
-  tables->section_names_size = 0;
-  
   return entry;
 }
 
