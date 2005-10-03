@@ -65,8 +65,7 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
   }
 
   if (tables.num_symbols != 0) {
-    tables.symbol_size = tables.num_symbols * sizeof (struct symbol_info);
-    symbols = (struct symbol_info *)mem_get(tables.symbol_size);
+    symbols = (struct symbol_info *)mem_get(tables.num_symbols * sizeof (struct symbol_info));
     if (symbols == 0) {
       error("Error allocating symbols table\n");
       rf->free_tables(kf, &tables, symbols, sections);

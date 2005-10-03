@@ -301,6 +301,30 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *
   return (DWORD)mem_space;
 }
 
+void common_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
+{
+  int i;
+
+  for(i = 0; i < tables->num_sections; i++)
+    if (scndata[i].num_reloc != 0)
+      kf->mem_free((DWORD)scndata[i].reloc, sizeof(struct reloc_info)*scndata[i].num_reloc);
+
+  kf->mem_free((DWORD)scndata, sizeof(struct section_info)*tables->num_sections);
+  if (syms != NULL) {
+    kf->mem_free((DWORD)syms, sizeof(struct symbol_info)*tables->num_symbols);
+  }
+  if (tables->string_size != 0) {
+    kf->mem_free(tables->string_buffer, tables->string_size);
+  }
+  if (tables->section_names_size != 0) {
+    kf->mem_free((DWORD)tables->section_names, tables->section_names_size);
+  }
+  if (tables->private_info != 0) {
+    DWORD local_bss_size = *((DWORD *)(tables->private_info));
+    kf->mem_free(tables->private_info, local_bss_size+sizeof(DWORD));
+  }
+}
+
 static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
   DWORD nt_sgn;

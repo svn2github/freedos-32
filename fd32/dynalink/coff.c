@@ -22,7 +22,7 @@ int coff_type = DjCOFF;
 int coff_type = DjCOFF;
 #endif
 
-DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
+static DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 {
   DWORD entry;
   struct external_filehdr header;
@@ -117,10 +117,13 @@ DWORD COFF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
     tables->flags |= NEED_SECTION_RELOCATION;
   }
   
+  /* To prevent mem_free in common_free_tables */
+  tables->section_names_size = 0;
+  
   return entry;
 }
 
-int COFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *tables, struct section_info *scndata)
+static int COFF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *tables, struct section_info *scndata)
 /*
 int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
 */
@@ -218,7 +221,7 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
 /*
 int COFF_read_symbols(FILE *f, int n, int p, struct symbol_info *sym, char **s)
 */
-int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
+static int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
   struct symbol_info *syms)
 {
   int i, num_of_inlined;
@@ -312,26 +315,6 @@ int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
   return 1;
 }
 
-void COFF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
-{
-  int i;
-
-  for(i = 0; i < tables->num_sections; i++) {
-    if(scndata[i].num_reloc != 0) {
-      kf->mem_free((DWORD)scndata[i].reloc,
-        sizeof(struct reloc_info)*scndata[i].num_reloc);
-    }
-  }
-  kf->mem_free((DWORD)scndata,
-    sizeof(struct section_info)*tables->num_sections);
-  if(syms != NULL) {
-    kf->mem_free((DWORD)syms, tables->symbol_size);
-  }
-  if(tables->string_size != 0) {
-    kf->mem_free(tables->string_buffer, tables->string_size);
-  }
-}
-
 void COFF_set_type(char *value)
 {
   /* Select COFF object type: --coff=djcoff or --coff=pecoff
@@ -362,7 +345,7 @@ int isCOFF(struct kern_funcs *kf, int f, struct read_funcs *rf)
   rf->load_relocatable = common_load_relocatable;
   rf->relocate_section = common_relocate_section;
   rf->import_symbol = common_import_symbol;
-  rf->free_tables = COFF_free_tables;
+  rf->free_tables = common_free_tables;
   
   return 1;
 }

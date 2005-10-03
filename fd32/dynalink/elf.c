@@ -15,7 +15,7 @@
 
 char elf_signature[] = "\177ELF";
 
-DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
+static DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 {
   int res;
 
@@ -159,7 +159,7 @@ DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
   return entry;
 }
 
-int ELF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *tables, struct section_info *scndata)
+static int ELF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *tables, struct section_info *scndata)
 {
   int bss = -1;
   int i, j;
@@ -309,8 +309,7 @@ int ELF_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
   return bss;
 }
 
-
-int ELF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
+static int ELF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
 	struct symbol_info *syms)
 {
   int i;
@@ -350,29 +349,6 @@ int ELF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables,
   return 1;
 }
 
-void ELF_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
-{
-  int i;
-
-  for (i = 0; i < tables->num_sections; i++) {
-    if (scndata[i].num_reloc != 0) {
-      kf->mem_free((DWORD)scndata[i].reloc,
-		      scndata[i].num_reloc * sizeof(struct reloc_info));
-    }
-  }
-  kf->mem_free((DWORD)scndata,
-		  sizeof(struct section_info)*tables->num_sections);
-  if(syms != NULL) {
-    kf->mem_free((DWORD)syms, sizeof(struct symbol_info)*tables->num_symbols);
-  }
-  if (tables->string_size != 0) {
-    kf->mem_free(tables->string_buffer, tables->string_size);
-  }
-  if (tables->section_names_size != 0) {
-    kf->mem_free((DWORD)tables->section_names, tables->section_names_size);
-  }
-}
-
 int isELF(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
   char signature[4];
@@ -393,7 +369,7 @@ int isELF(struct kern_funcs *kf, int f, struct read_funcs *rf)
   rf->load_relocatable = common_load_relocatable;
   rf->relocate_section = common_relocate_section;
   rf->import_symbol = common_import_symbol;
-  rf->free_tables = ELF_free_tables;
+  rf->free_tables = common_free_tables;
   
   return 1;
 }

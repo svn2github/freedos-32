@@ -14,4 +14,8 @@ DWORD common_load_executable(struct kern_funcs *kf, int file,
 DWORD common_load_relocatable(struct kern_funcs *kf, int f,
 	struct table_info *tables, int n, struct section_info *s, int *size);
 
+void common_free_tables(struct kern_funcs *kf,
+	struct table_info *tables, struct symbol_info *syms, struct section_info *scndata);
+
+
 #endif /* __COMMON_H__ */
