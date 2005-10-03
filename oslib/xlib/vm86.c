@@ -242,7 +242,7 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
     vm86_tss.t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
     /* Preload some standard values into the registers */
     vm86_tss.t.ss0 = X_FLATDATA_SEL;
-    vm86_tss.t.esp0 = (DWORD)&(vm86_stack0[VM86_STACK_SIZE - 1]); 
+    vm86_tss.t.esp0 = (DWORD)&(vm86_stack0[VM86_STACK_SIZE]); 
     
     /* Copy the parms from the X_*REGS structures in the vm86 TSS */
     vm86_tss.t.eax = (DWORD)in->x.ax;
