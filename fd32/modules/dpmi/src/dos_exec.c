@@ -17,6 +17,7 @@
 #include <exec.h>
 #include <kernel.h>
 #include <logger.h>
+#include "dpmi.h"
 #include "dos_exec.h"
 #include "ldtmanag.h"
 
@@ -287,10 +288,10 @@ static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s
   p_vm86_tss->esp = sp;
 
   /* Wanted VM86 mode + IOPL = 3! */
-  p_vm86_tss->eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
+  p_vm86_tss->eflags = CPU_FLAG_VM | CPU_FLAG_IOPL | CPU_FLAG_IF;
   /* Ring0 system stack */
   p_vm86_tss->ss0 = X_FLATDATA_SEL;
-  p_vm86_tss->esp0 = mem_get(VM86_STACK_SIZE)+VM86_STACK_SIZE-1;
+  p_vm86_tss->esp0 = (DWORD)&dpmi_stack[DPMI_STACK_SIZE];
 
   /* Copy the parms from the X_*REGS structures in the vm86 TSS */
   p_vm86_tss->eax = (DWORD)in->x.ax;
@@ -417,9 +418,13 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
     g_fcb2 = (g_fcb2>>12)+(g_fcb2&0x0000FFFF);
     memcpy(ppsp->def_fcb_2, (void *)g_fcb2, 20);
   }
+
   if (args != NULL) {
     ppsp->command_line_len = strlen(args);
     strcpy(ppsp->command_line, args);
+  } else {
+    ppsp->command_line_len = 0;
+    ppsp->command_line[0] = 0;
   }
   ppsp->dta = &ppsp->command_line_len;
 #ifdef __DOS_EXEC_DEBUG__

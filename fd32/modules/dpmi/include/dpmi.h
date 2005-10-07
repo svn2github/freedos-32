@@ -1,10 +1,10 @@
 #ifndef __FD32_DPMI_H
 #define __FD32_DPMI_H
 
+#define DPMI_STACK_SIZE 0xC000
 
 /* VM86 extended */
 #define VM86_EXT 1
-
 
 /* Carry Flag set/clear macros */
 #define SET_CARRY   r->d.flags |= 0x0001
@@ -84,6 +84,8 @@ union regs {
     BYTE flags[4];
   } h;
 };
+
+extern BYTE dpmi_stack[DPMI_STACK_SIZE];
 
 extern inline void dpmi_return(int res, union regs *r)
 {

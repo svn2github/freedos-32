@@ -22,7 +22,7 @@ typedef struct dos_header {
   /* DJ Ends HERE!!! */
 
   WORD e_res[4];	/* Reserved words 			*/
-  WORD e_oemid;	        /* OEM identifier (for e_oeminfo) 	*/
+  WORD e_oemid;		/* OEM identifier (for e_oeminfo) 	*/
   WORD e_oeminfo;	/* OEM information; e_oemid specific	*/
   WORD e_res2[10];	/* Reserved words			*/
   DWORD e_lfanew;	/* File address of new exe header	*/
@@ -42,10 +42,10 @@ typedef struct psp {
 
   /* CP/M-like entry point */
   BYTE ps_farcall;              /* 05  far call opcode   */
-  void (*ps_reentry)(void);     /* 06  re-entry point    */
-  DWORD  ps_isv22,	        /* 0a  terminate address */
-         ps_isv23,        	/* 0e  break address     */
-         ps_isv24;        	/* 12 critical error address */
+  void (*ps_reentry)(void);   /* 06  re-entry point    */
+  DWORD  ps_isv22,              /* 0a  terminate address */
+         ps_isv23,              /* 0e  break address     */
+         ps_isv24;              /* 12 critical error address */
   WORD ps_parent;               /* 16 parent psp segment           */
   BYTE ps_files[20];            /* 18 file table - 0xff is unused  */
   WORD ps_environ;              /* 2c environment paragraph        */
@@ -72,7 +72,6 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #define RUN_RING   0
 #define ENV_SIZE 256
 #define MAX_OPEN_FILES  0x30
-#define VM86_STACK_SIZE 0x4000
 #define DOS_VM86_EXEC   0
 #define DOS_DIRECT_EXEC 1 /* Support COFF-GO32 only */
 int dos_exec_switch(int option); /* Return TRUE(1) or FALSE(0) */

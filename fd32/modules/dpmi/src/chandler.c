@@ -30,9 +30,9 @@
 #include "int31_0e.h"
 
 #define LETSSTOP 10
-/*
-#define __DPMI_DEBUG__
-*/
+
+/* #define __DPMI_DEBUG__ */
+
 
 int stop = -1;
 
@@ -56,9 +56,9 @@ static void return_to_dos(union regs *r)
 #endif
 
   if (bl != NULL) {
-    /* Free the system stack */
-    mem_free(p_vm86_tss->esp0-VM86_STACK_SIZE+1, VM86_STACK_SIZE);
-    /* Task switch to the kernel task */
+    /* No need to free the static memory system-stack
+     * and Task switch back to the kernel task
+     */
     p_vm86_tss->back_link = 0;
     ll_context_load(bl);
   } else {
@@ -66,9 +66,15 @@ static void return_to_dos(union regs *r)
   }
 }
 
-void chandler(DWORD intnum, union regs r)
+
+BYTE dpmi_stack[DPMI_STACK_SIZE];
+DWORD dpmi_stack_top = (DWORD)&dpmi_stack[DPMI_STACK_SIZE];
+void dpmi_chandler(DWORD intnum, union regs r)
 {
   /* DWORD eax, ebx, ecx, edx, esi, edi, ees; */
+#ifdef __DPMI_DEBUG__
+  fd32_log_printf("DPMI chandler, INT: %x EAX: %x EBX: %x eflags: %x\n", intnum, r.d.eax, r.d.ebx, r.d.flags);
+#endif
 
   sti();
 
@@ -140,7 +146,7 @@ void chandler(DWORD intnum, union regs r)
       case 0x0009:
         int31_0009(&r);
         break;
-	
+
       /* DPMI 0.9 service 000Ah - Create Alias Descriptor */
       case 0x000A:
         int31_000A(&r);
@@ -187,7 +193,7 @@ void chandler(DWORD intnum, union regs r)
       case 0x0205:
         int31_0205(&r);
         break;
-	
+
       case 0x0300:
         int31_0300(&r);
         break;
@@ -203,11 +209,11 @@ void chandler(DWORD intnum, union regs r)
       case 0x0400:
         int31_0400(&r);
         break;
-	
+
       case 0x0401:
         int31_0401(&r);
         break;
-	
+
       case 0x0501:
         int31_0501(&r);
         break;
@@ -262,7 +268,6 @@ void chandler(DWORD intnum, union regs r)
       } else {
         /* Redirect to call RM interrupts' handler */
         extern void int21_handler(union rmregs *r);
-        /* TODO: Remove the static rmregs */
         union rmregs r1;
         r1.d.edi = r.d.edi;
         r1.d.esi = r.d.esi;
@@ -333,9 +338,9 @@ void chandler(DWORD intnum, union regs r)
         /* NOTE: The ENV selector is also created */
         ppsp->ps_environ = fd32_segment_to_descriptor(ppsp->ps_environ);
       #ifdef __DPMI_DEBUG__
-        fd32_log_printf("[DPMI] After Switch (CS:%x EIP:%x)\n", r.d.ecs, r.d.eip);
+        fd32_log_printf("[DPMI] TASK Switch to PMODE (CS:%lx EIP:%lx)\n", r.d.ecs, r.d.eip);
       #endif
-        r.d.flags &= 0xFFFDFFFF; /* Clear the VM flag */
+        r.d.flags &= ~(CPU_FLAG_VM|CPU_FLAG_IOPL); /* Clear the VM flag */
         /* NOTE: Technique, iret to the targeted CS:IP still in protected mode
                  but the space of vm registers saved in the ring0 stack is mostly lost
         */
