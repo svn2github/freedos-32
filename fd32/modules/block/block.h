@@ -287,6 +287,22 @@ struct BlockOperations
 #define REQ_RELEASE 2
 
 
+/* Nils: these belongs in this file? */
+static inline int req_get_operations(int (*r)(int function, ...), int type, void **operations)
+{
+    return r(REQ_GET_OPERATIONS, type, operations);
+}
+
+static inline int req_get_references(int (*r)(int function, ...))
+{
+    return r(REQ_GET_REFERENCES);
+}
+
+static inline int req_release(int (*r)(int function, ...), void *handle)
+{
+    return r(REQ_RELEASE, handle);
+}
+
 const char *block_enumerate (void **iterator);
 int         block_get       (const char *name, int type, void **operations, void **handle);
 int         block_register  (const char *name, int (*request)(int function, ...), void *handle);
