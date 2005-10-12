@@ -31,7 +31,7 @@
  *          sign before returning it.
  * \sa enum BlockSenseKeys
  */
-#define BLOCK_ERROR(sense, code) (((BLOCK_ERROR_CATEGORY & 0x1FF) << 22) | sense | (code & 0xFFFF))
+#define BLOCK_ERROR(sense, code) (((BLOCK_ERROR_CATEGORY & 0x1FF) << 22) | (sense) | ((code) & 0xFFFF))
 
 
 /**
