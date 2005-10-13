@@ -18,6 +18,7 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
  
+#if 0
 #define CD_EOFF -3000
 
 #define CD_ERR_GENERAL		CD_EOFF-1	/* Unspecified error */
@@ -44,12 +45,15 @@
 #define CD_ERR_POWER_MODE 	CD_EOFF-22	/* Device has entered low power mode */
 #define CD_ERR_UNIT_ATTENTION 	CD_EOFF-23 	/* Unspecified unit attention condition */
 #define CD_ERR_ABORTED_CDM 	CD_EOFF-24	/* Command was aborted */
+#endif
 
 
-#define CD_FLAG_MOUNTED 1
-#define CD_FLAG_FATAL_ERROR 2
-#define CD_FLAG_IN_PROGRESS 4
-#define CD_FLAG_RETRY 8
+#define CD_FLAG_IS_OPEN 1
+#define CD_FLAG_IS_VALID 2
+#define CD_FLAG_NEED_RESET 4
+
+#define CD_FLAG_IN_PROGRESS 8
+#define CD_FLAG_RETRY 16
 
 /* The ILI bit in sense data byte 2 */
 #define CD_ILI 0x20
@@ -62,6 +66,7 @@ struct cd_device
     char out_name[8];
     int cmd_size;
     int type;
+    int type2;  /* For use by the block interface. */
     int flags;
     DWORD total_blocks;
     DWORD bytes_per_sector;

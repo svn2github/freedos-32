@@ -1,31 +1,15 @@
+/*
+    Returned error codes: block error category with
+        code = (ASC << 8) | ASC_QUALIFIER,
+    or -EIO. The latter is a bad sign...
+    To be fixed later: -EINVAL when trying to read more than 0xFFFF sectors
+    at once.
+*/
 
+#define REQ_CD_SET_TO   333332
 
-typedef struct cd_dev_parm
+static inline int req_cd_set_timeout(int (*r)(int function, ...), uint32_t tout_read_us)
 {
-    DWORD Size;
-    void *DeviceId;
+    return r(REQ_CD_SET_TO, tout_read_us);
 }
-cd_dev_parm_t;
-
-typedef struct cd_dev_info
-{
-    DWORD Size;
-    void *DeviceId;
-    char name[4];
-    DWORD multiboot_id;
-    int type;
-}
-cd_dev_info_t;
-
-typedef struct cd_set_tout
-{
-    DWORD Size;
-    void *DeviceId;
-    DWORD tout_read_us;
-}
-cd_set_tout_t;
-
-#define CD_PREMOUNT 333330
-#define CD_DEV_INFO 333331
-#define CD_SET_TO   333332
 

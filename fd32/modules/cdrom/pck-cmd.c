@@ -22,7 +22,9 @@
 #include <dr-env.h>
 #include <devices.h>
 #include <ata-interf.h>
+#include <errno.h>
 #include "pck-cmd.h"
+#include "../block/block.h" /* FIXME! */
 
 #define _DEBUG_
 #define LOG_MSG fd32_log_printf
@@ -63,7 +65,7 @@ static int cd_request_sense(struct cd_device* d, struct cd_sense* s)
 
     if(res<0)
         LOG_MSG("REQUEST SENSE cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
-                        res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
+                res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
 #endif
 
     return res;
@@ -78,9 +80,9 @@ static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
     if(res<0)
     {
         /* Reset probably needed here */
-        d->flags &=  ~CD_FLAG_MOUNTED;
-        d->flags |= CD_FLAG_FATAL_ERROR;
-        *result = CD_ERR_FATAL;
+        d->flags &=  ~CD_FLAG_IS_VALID;
+        d->flags |= CD_FLAG_NEED_RESET;
+        *result = -EIO;
 #ifdef _DEBUG_
 
         LOG_MSG("SENSE failed, returning %i\n", res);
@@ -110,162 +112,50 @@ static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
     LOG_MSG("SENSE: k=0x%x,asc=0x%x,q=0x%x,ec=0x%x\n", s->sense_key, s->asc, s->asc_q, s->error_code);
 #endif
 
+    *result = -BLOCK_ERROR(s->sense_key, (s->asc << 8) | s->asc_q);
     switch (s->sense_key & 0x0F)
     {
-    case 0:    /* No Sense */
+    case 0:    /* No Sense (no error) */
+    case 1:    /* Recovered Error (We just ignore this condition for now) */
         {
-            /* No error */
             *result = 0;
-            return 0;
-        }
-    case 1:    /* Recovered Error */
-        {
-            /* We just ignore this condition for now */
-            *result = 0;
-            return 0;
+            break;
         }
     case 2:    /* Not Ready */
         {
-            switch (s->asc)
+            if (s->asc == 0x04)
             {
-            case 0x04:
                 switch (s->asc_q)
                 {
                 case 1:
-                    *result = CD_ERR_NR_PROGRESS;
-                    d->flags |= CD_FLAG_IN_PROGRESS;
-                    return 0;
-                case 2:
-                    *result = CD_ERR_NR_INIT_REQ;
-                    return 0;
-                case 3:
-                    *result = CD_ERR_NR_MANUAL_INTERV_REQ;
-                    return 0;
                 case 4:
                 case 5:
                 case 6:
                 case 7:
                 case 8:
-                    *result = CD_ERR_NR_OP_IN_PROGR;
                     d->flags |= CD_FLAG_IN_PROGRESS;
-                    return 0;
-                case 0:
-                default:
-                    *result = CD_ERR_NR;
-#if 0
-
-                    d->flags |= CD_FLAG_IN_PROGRESS;
-#endif
-
-                    return 0;
                 }
-                *result = CD_ERR_ADDR_RANGE;
-                return 0;
-            case 0x06:
-                *result = CD_ERR_NO_REF_POS;
-                return 0;
-            case 0x30:
-                *result = CD_ERR_MEDIUM_FORMAT;
-                return 0;
-            case 0x3A:
-                *result = CD_ERR_NO_MEDIUM;
-#if 0
-
-                d->flags &=  ~CD_FLAG_MOUNTED;
-#endif
-
-                return 0;
-            default:
-                *result = CD_ERR_NR;
-                return 0;
             }
-        }
-    case 3:    /* Medium Error */
-        {
-            switch (s->asc)
-            {
-            case 0x11:
-                *result = CD_ERR_UNREC_READ;
-                return 0;
-            case 0x19:
-                *result = CD_ERR_DEFECT_LIST;
-                return 0;
-            default:
-                *result = CD_ERR_MEDIUM;
-                return 0;
-            }
-        }
-    case 4:    /* Hardware Error */
-        {
-            *result = CD_ERR_HARDWARE_FAILURE;
-            return 0;
-        }
-    case 5:    /* Illegal Request */
-        {
-            switch (s->asc)
-            {
-            case 0x21:
-                *result = CD_ERR_ADDR_RANGE;
-                return 0;
-            case 0x30:
-                *result = CD_ERR_MEDIUM_FORMAT;
-                return 0;
-            default:
-                *result = CD_ERR_INVALID_REQ;
-                return 0;
-            }
+            break;
         }
     case 6:    /* Unit attention */
         {
-            switch (s->asc)
-            {
-            case 0x29:
-                d->flags &=  ~CD_FLAG_MOUNTED;
-                *result = CD_ERR_RESET;
-                return 0;
-            case 0x28:
-                d->flags &=  ~CD_FLAG_MOUNTED;
-                *result = CD_ERR_MEDIA_CHANGE;
-                return 0;
-            case 0x5E:
-                *result = CD_ERR_POWER_MODE;
-                return 0;
-            default:
-                d->flags &=  ~CD_FLAG_MOUNTED;
-                *result = CD_ERR_UNIT_ATTENTION;
-                return 0;
-            }
-        }
-    case 7:    /* Data Protect */
-        {
-            /* Writing not implemented */
+#if 1
+            if(s->asc == 0x5E) /* CHECKME! */
+                break;
+#endif
+
+            d->flags &=  ~CD_FLAG_IS_VALID;
             break;
-        }
-    case 8:    /* Blanck Check */
-        {
-            *result = CD_ERR_MEDIUM;
-            return 0;
         }
     case 0xB:    /* Aborted Command */
         {
             /* TODO */
             d->flags |= CD_FLAG_RETRY;
-            *result = CD_ERR_ABORTED_CDM;
-            return 0;
-        }
-    case 0xE:    /* Miscompare */
-        {
-            /* Writing is not implemented */
-            break;
-        }
-    default:    /* Unknown */
-        {
-            /* ? */
             break;
         }
     }
-    /* An unhandled error */
-    return -1;
+    return 0;
 }
 
 /* Error handler */
@@ -277,7 +167,7 @@ static int cd_err_handl_1(struct cd_device* d, struct packet_error* err, int err
     if(err->flags == 0) /* Byte 1 to 3 invalid? */
     {
         /* TODO: timeout etc */
-        return CD_ERR_GENERAL;
+        return -EIO;
     }
     if(err->status & 1) /* A check condition? */
     {
@@ -288,7 +178,7 @@ static int cd_err_handl_1(struct cd_device* d, struct packet_error* err, int err
             LOG_MSG("Error unhandled\n");
 #endif
 
-            return CD_ERR_GENERAL;
+            return -EIO;
         }
         else
             return res2;
@@ -300,10 +190,10 @@ static int cd_err_handl_1(struct cd_device* d, struct packet_error* err, int err
         LOG_MSG("No check condition\n");
 #endif
 
-        return -1;
+        return -EIO;
     }
     /* TODO */
-    return -1;
+    return -EIO;
 }
 
 
@@ -312,7 +202,7 @@ static int cd_read10(struct cd_device* d, DWORD start, WORD blocks, char* buffer
     atapi_pc_parm_t pcp;
     struct packet_read10 packet;
     unsigned long tb;
-    int res, res2;
+    int res, res1, res2;
 
     pcp.Size = sizeof(atapi_pc_parm_t);
     pcp.DeviceId = d->device_id;
@@ -337,13 +227,14 @@ static int cd_read10(struct cd_device* d, DWORD start, WORD blocks, char* buffer
     {
 #ifdef _DEBUG_
         LOG_MSG("READ(10) cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
-                        res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
+                res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
 #endif
 
-        if(cd_err_handl_1(d, (struct packet_error*)&packet, res, &res2) < 0)
+        res1 = cd_err_handl_1(d, (struct packet_error*)&packet, res, &res2);
+        if(res1 < 0)
         {
             /* TODO */
-            return CD_ERR_GENERAL;
+            return res1;
         }
         else
             return res2;
@@ -379,7 +270,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
     /* Instead of this calculation we should realy have the caller pass this value */
     buff_size = d->bytes_per_sector * blocks;
     if(start > 0xFFFF)
-        return CD_ERR_LENGTH;
+        return -EINVAL;
     while(1)
     {
         d->flags &= ~(CD_FLAG_RETRY | CD_FLAG_IN_PROGRESS);
@@ -449,13 +340,13 @@ static int cd_read_capacity(struct cd_device* d, DWORD* blocks, DWORD* block_siz
     {
 #ifdef _DEBUG_
         LOG_MSG("READ CAPACITY cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
-                        res, packet[1], packet[2], packet[3]);
+                res, packet[1], packet[2], packet[3]);
 #endif
 
         if(cd_err_handl_1(d, (struct packet_error*)&packet, res, &res2) < 0)
         {
             /* TODO */
-            return CD_ERR_GENERAL;
+            return -EIO;
         }
         else
             return res2;
@@ -480,7 +371,7 @@ int cd_premount( struct cd_device* d )
     LOG_MSG("Entering premount\n");
 #endif
 
-    if(d->flags & CD_FLAG_FATAL_ERROR)
+    if(d->flags & CD_FLAG_NEED_RESET)
     {
 #ifdef _DEBUG_
         LOG_MSG("Soft reset!\n");
@@ -488,36 +379,44 @@ int cd_premount( struct cd_device* d )
 
         p.Size = sizeof(ata_dev_parm_t);
         p.DeviceId = d->device_id;
-        res1 = d->req(FD32_ATA_DRESET, (void*)&p);
+        res1 = d->req(REQ_ATA_DRESET, (void*)&p);
         if(res1 < 0)
         {
 #ifdef _DEBUG_
             LOG_MSG("Device reset failed!");
 #endif
 
-            res1 = d->req(FD32_ATA_SRESET, (void*)&p);
+            res1 = d->req(REQ_ATA_SRESET, (void*)&p);
             if(res1 < 0)
             {
 #ifdef _DEBUG_
                 LOG_MSG("Software reset failed!!! Returned %i\n", res1);
 #endif
 
-                return -1;
+                return -EIO;
             }
         }
-        d->flags &= ~CD_FLAG_FATAL_ERROR;
+        d->flags &= ~CD_FLAG_NEED_RESET;
     }
+    /* This should problably be done differently. We may loose important info here... */
+    res1 = 0;
     for(i=0;; i++)
     {
-        if(i == 10)
+        if(i >= 10) /* 10 a bit much? */
         {
-            return -1;
+            if(res1<0)
+                return res1;
+            else
+                return res2;
         }
         res1 = cd_check( d, &s, &res2);
         /* TODO: test if reset needed */
         /* TODO: test to see if we should return here */
         if(res1 < 0)
+        {
+            i++;     /* Let faild sense count twice as much. */
             continue;
+        }
         if(res2 == 0)
             break;
     }
@@ -532,7 +431,7 @@ int cd_premount( struct cd_device* d )
         LOG_MSG("failed returning %i\n", res1);
 #endif
 
-        return -1;
+        return res1;
     }
     else
     {
@@ -540,7 +439,7 @@ int cd_premount( struct cd_device* d )
         LOG_MSG("blocks=%lu bytes/sect=%lu\n", d->total_blocks, d->bytes_per_sector);
 #endif
 
-        d->flags |= CD_FLAG_MOUNTED;
+        d->flags |= CD_FLAG_IS_VALID;
         return 0;
     }
 }

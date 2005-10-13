@@ -17,95 +17,145 @@
  *   Free Software Foundation, Inc.,                                       *
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
- 
+
 #include <dr-env.h>
 #include <errno.h>
-#include <devices.h>
 #include <ata-interf.h>
 #include "pck-cmd.h"
 #include "cd-interf.h"
+#include "../block/block.h" /* FIXME! */
+
+static int cd_bi_open(void *handle);
+static int cd_bi_revalidate(void *handle);
+static int cd_bi_close(void *handle);
+static int cd_bi_get_device_info(void *handle, BlockDeviceInfo *buf);
+static int cd_bi_get_medium_info(void *handle, BlockMediumInfo *buf);
+static ssize_t cd_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
+static ssize_t cd_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
+static int cd_bi_sync(void *handle);
+static int cd_request(int function, va_list parms); /* URGH! FIXME! :-( */
+
+static unsigned ref_counter;
+static struct BlockOperations block_ops =
+    {
+        .request = &cd_request,
+        .open = &cd_bi_open,
+        .revalidate = &cd_bi_revalidate,
+        .close = &cd_bi_close,
+        .get_device_info = &cd_bi_get_device_info,
+        .get_medium_info = &cd_bi_get_medium_info,
+        .read = &cd_bi_read,
+        .write = &cd_bi_write,
+        .sync = &cd_bi_sync
+    };
 
 
 
-static int cd_request(DWORD f, void *params)
+
+static int cd_bi_open(void *handle)
+{
+    int res;
+    struct cd_device *d = handle;
+
+    if(d->flags & CD_FLAG_IS_OPEN)
+        return -EBUSY;
+    res = cd_premount( d );
+    if(!(res<0))
+        d->flags |= CD_FLAG_IS_OPEN;
+    return res;
+}
+
+static int cd_bi_revalidate(void *handle)
+{
+    struct cd_device *d = handle;
+
+    return cd_premount( d );
+}
+
+static int cd_bi_close(void *handle)
+{
+    struct cd_device *d = handle;
+
+    d->flags &= ~CD_FLAG_IS_OPEN;
+    return 0;
+}
+
+static int cd_bi_get_device_info(void *handle, BlockDeviceInfo *buf)
+{
+    struct cd_device *d = handle;
+
+    buf->flags = d->type2;
+    buf->multiboot_id = d->multiboot_id;
+    return 0;
+}
+
+static int cd_bi_get_medium_info(void *handle, BlockMediumInfo *buf)
+{
+    struct cd_device *d = handle;
+
+    if(!(d->flags & CD_FLAG_IS_OPEN))
+        return -EBUSY;
+    buf->blocks_count = (uint64_t)d->total_blocks;
+    buf->block_bytes = d->bytes_per_sector;
+    return 0;
+}
+
+static ssize_t cd_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags)
+{
+    struct cd_device *d = handle;
+
+    if(!(d->flags & CD_FLAG_IS_OPEN))
+        return -EBUSY;
+    /* We ignore the flags parameter for now since we have no cache yet. */
+    return cd_read(d, start, count, buffer);
+}
+
+static ssize_t cd_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags)
+{
+    /* Will we ever use the block interface to write to a CD? */
+    return -ENOTSUP;
+}
+
+static int cd_bi_sync(void *handle)
+{
+    return 0;
+}
+
+
+static int cd_request(int function, va_list parms)
 {
     struct cd_device *d;
-    switch (f)
+    switch (function)
     {
-    case FD32_BLOCKREAD:
+    case REQ_GET_OPERATIONS:
         {
-            fd32_blockread_t *x = (fd32_blockread_t*) params;
-            ;
-            if (x->Size < sizeof(fd32_blockread_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct cd_device*) x->DeviceId;
-            if(d->flags & CD_FLAG_MOUNTED)
-            {
-                return cd_read(d, x->Start, x->NumBlocks, x->Buffer);
-            }
-            else
-                return CD_ERR_UNMOUNTED;
-        }
-    case FD32_BLOCKINFO:
-        {
-            fd32_blockinfo_t *x = (fd32_blockinfo_t*) params;
-            if (x->Size < sizeof(fd32_blockinfo_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct cd_device*) x->DeviceId;
-            if(d->flags & CD_FLAG_MOUNTED)
-            {
-                x->BlockSize = d->bytes_per_sector;
-                x->TotalBlocks = d->total_blocks;
-                x->Type = FD32_BICD;
-                x->MultiBootId = d->multiboot_id;
-                return 0;
-            }
-            else
-                return CD_ERR_UNMOUNTED;
-        }
-    /* Call this before trying to access any of the other commands */
-    case CD_PREMOUNT:
-        {
-            cd_dev_parm_t *x = (cd_dev_parm_t*) params;
-            if (x->Size < sizeof(cd_dev_parm_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct cd_device*) x->DeviceId;
-            return cd_premount( d );
-        }
-    /* Device info in addition to the block info */
-    case CD_DEV_INFO:
-        {
-            cd_dev_info_t *x = (cd_dev_info_t*) params;
-            if (x->Size < sizeof(cd_dev_info_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct cd_device*) x->DeviceId;
-            *(int*)&(x->name[0]) = *(int*)&(d->in_name[0]);
-            x->type = d->type;
-            x->multiboot_id = d->multiboot_id;
+            int type = va_arg(parms, int);
+            void **operations = va_arg(parms, void**);
+            if(type != BLOCK_OPERATIONS_TYPE)
+                return -1;
+            if(operations != NULL)
+                *operations = &block_ops;
+            ref_counter++;
             return 0;
         }
-    /* Set timeout parameter(s) */
-    case CD_SET_TO:
+    case REQ_GET_REFERENCES:
         {
-            cd_set_tout_t *x = (cd_set_tout_t*) params;
-            if (x->Size < sizeof(cd_set_tout_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct cd_device*) x->DeviceId;
-            d->tout_read_us = x->tout_read_us;
+            return ref_counter;
+        }
+    case REQ_RELEASE:
+        {
+            ref_counter--;
+            return 0;
+        }
+        /* Set timeout parameter(s) */
+    case REQ_CD_SET_TO:
+        {
+            d = va_arg(parms, struct cd_device*);
+            d->tout_read_us = va_arg(parms, uint32_t);
             return 0;
         }
     }
-    return -ENOTSUP;
+    return -ENOTSUP; /* ? */
 }
 
 
@@ -122,6 +172,7 @@ int cd_init(struct process_info *p)
     int i;
 
     args = args_get(p);
+    ref_counter = 0;
     fd32_message("[CDROM] Searching for CD-ROM drives...\n");
     /* Search for all devices with name hd<letter> an test if they respond to FD32_ATAPI_INFO */
     for(c='a', i=0; c<='z'; c++)
@@ -153,6 +204,7 @@ int cd_init(struct process_info *p)
         *((int*)(d->in_name)) = *((int*)dev_name);
         /* TODO: check type field */
         d->type = inf.PIDevType;
+        d->type2 = BLOCK_DEVICE_INFO_TCDDVD | BLOCK_DEVICE_INFO_REMOVABLE | BLOCK_DEVICE_INFO_MEDIACHG;
         /* Size of command packet, usually 12, bu may be 16 */
         d->cmd_size = inf.CmdSize;
         d->flags = 0;
@@ -160,7 +212,7 @@ int cd_init(struct process_info *p)
         d->tout_read_us = 30 * 1000 * 1000;
         ksprintf(d->out_name, "cdrom%i", i);
         fd32_message("[CDROM] ATAPI device %s becomes block device %s\n", d->in_name, d->out_name);
-        if(fd32_dev_register(cd_request, d, d->out_name) < 0)
+        if(block_register(d->out_name, cd_request, d) < 0)
             fd32_message("[CDROM] failed to register device!\n");
         i++;
     }
