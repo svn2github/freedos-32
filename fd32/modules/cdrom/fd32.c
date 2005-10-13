@@ -33,7 +33,7 @@ static int cd_bi_get_medium_info(void *handle, BlockMediumInfo *buf);
 static ssize_t cd_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
 static ssize_t cd_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
 static int cd_bi_sync(void *handle);
-static int cd_request(int function, va_list parms); /* URGH! FIXME! :-( */
+static int cd_request(int function, ...);
 
 static unsigned ref_counter;
 static struct BlockOperations block_ops =
@@ -122,9 +122,11 @@ static int cd_bi_sync(void *handle)
 }
 
 
-static int cd_request(int function, va_list parms)
+static int cd_request(int function, ...)
 {
+    va_list parms;
     struct cd_device *d;
+    va_start(parms,function);
     switch (function)
     {
     case REQ_GET_OPERATIONS:
