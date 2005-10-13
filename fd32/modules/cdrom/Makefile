@@ -15,7 +15,7 @@ LINK_OPT = -Bstatic
 
 .PHONY: all clean
 
-all: cdrom.o cdtest.com
+all: cdrom.o #cdtest.com
 
 cdtest.com: $(OBJS3)
 	$(LD) $(LINK_OPT) $(OBJS3) -r -s -o cdtest.com
