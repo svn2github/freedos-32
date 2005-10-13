@@ -134,7 +134,7 @@ static int cd_request(int function, ...)
             int type = va_arg(parms, int);
             void **operations = va_arg(parms, void**);
             if(type != BLOCK_OPERATIONS_TYPE)
-                return -1;
+                return -EINVAL;
             if(operations != NULL)
                 *operations = &block_ops;
             ref_counter++;
