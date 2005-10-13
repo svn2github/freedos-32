@@ -93,7 +93,7 @@ static int cd_bi_get_medium_info(void *handle, BlockMediumInfo *buf)
 {
     struct cd_device *d = handle;
 
-    if(!(d->flags & CD_FLAG_IS_OPEN))
+    if(!((d->flags & CD_FLAG_IS_OPEN) & (d->flags & CD_FLAG_IS_VALID )))
         return -EBUSY;
     buf->blocks_count = (uint64_t)d->total_blocks;
     buf->block_bytes = d->bytes_per_sector;
@@ -104,7 +104,7 @@ static ssize_t cd_bi_read(void *handle, void *buffer, uint64_t start, size_t cou
 {
     struct cd_device *d = handle;
 
-    if(!(d->flags & CD_FLAG_IS_OPEN))
+    if(!((d->flags & CD_FLAG_IS_OPEN) & (d->flags & CD_FLAG_IS_VALID )))
         return -EBUSY;
     /* We ignore the flags parameter for now since we have no cache yet. */
     return cd_read(d, start, count, buffer);
