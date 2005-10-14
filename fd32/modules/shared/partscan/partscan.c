@@ -29,6 +29,7 @@
 /* Modifications (#define directives below) by Nils Labugt, Mach 2005 */
 /* to make this file compile with the ATA driver  */
 
+
 #define FD32DEV
 #define SHOWMSG
 
@@ -51,14 +52,13 @@
 #ifdef __ATA__
 
 #include <dr-env.h>
-#include <devices.h>
 #include <errno.h>
 #include "ata.h"
 #include "disk.h"
 #include "partscan.h"
 #include "ata-ops.h"
 
-int ata_request(DWORD f, void *params); /* FIXME */
+static int ata_request(int function, ...); /* FIXME */
 
 #define PS_DEVICE struct ata_device
 #define PS_READ ata_read
@@ -71,6 +71,8 @@ int ata_request(DWORD f, void *params); /* FIXME */
 
 
 #endif
+
+#include "../../block/block.h" /* FIXME! */
 
 typedef struct
 {
@@ -208,7 +210,7 @@ static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, Pa
         if (dev_name == NULL)
             return -ENOMEM;
         strcpy(dev_name, new_name);
-        res = fd32_dev_register(PS_REQUEST, (void *) new_d, dev_name);
+        res = block_register(dev_name, PS_REQUEST, (void *) new_d);
         if (res < 0)
             return res;
 #endif
