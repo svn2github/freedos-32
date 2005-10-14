@@ -269,7 +269,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
     tout_event = fd32_event_post(d->tout_read_us, private_timed_out, (void *)&tout);
     /* Instead of this calculation we should realy have the caller pass this value */
     buff_size = d->bytes_per_sector * blocks;
-    if(start > 0xFFFF)
+    if(blocks > 0xFFFF)
         return -EINVAL;
     while(1)
     {
