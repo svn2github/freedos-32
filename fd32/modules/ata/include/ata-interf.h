@@ -8,12 +8,12 @@
 #ifndef __INTERFACE_H__
 #define __INTERFACE_H__
 
-#define FD32_ATA_STANBY_IMM 12345
+#define REQ_ATA_STANBY_IMM 12345
 #define FD32_ATAPI_INFO     12346
 #define FD32_ATAPI_PACKET   12347
-#define FD32_ATA_SLEEP      12348
-#define FD32_ATA_SRESET      12349
-#define FD32_ATA_DRESET      12350
+#define REQ_ATA_SLEEP      12348
+#define REQ_ATA_SRESET      12349
+#define REQ_ATA_DRESET      12350
 
 typedef struct ata_dev_parm
 {

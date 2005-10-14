@@ -133,7 +133,6 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
         (*d)->flags |= 1 << (DEV_FLG_SUPP_PIO_BITS + 1);
     if(drvdata[53] & 2)
         (*d)->flags |= ((int)drvdata[64]) << (DEV_FLG_SUPP_PIO_BITS + 2);
-    (*d)->type = 0xFFFFFFFF;
     if(pi_device == FALSE)
     {
         (*d)->cyls = drvdata[1];

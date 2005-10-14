@@ -12,34 +12,138 @@
 #include "ata-ops.h"
 #include "partscan.h"
 #include "ata-interf.h"
+#include "../../block/block.h" /* FIXME! */
+
 
 extern int ata_global_flags;
 //#define _DEBUG_
 
-#ifdef _DEBUG_
-void block_dump(unsigned char* b, int n)
-{
-    int i;
 
-    for(i=0;i<n;i++)
+static int ata_bi_open(void *handle);
+static int ata_bi_revalidate(void *handle);
+static int ata_bi_close(void *handle);
+static int ata_bi_get_device_info(void *handle, BlockDeviceInfo *buf);
+static int ata_bi_get_medium_info(void *handle, BlockMediumInfo *buf);
+static ssize_t ata_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
+static ssize_t ata_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
+static int ata_bi_sync(void *handle);
+static int ata_request(int function, ...);
+
+static unsigned ref_counter;
+static struct BlockOperations block_ops =
     {
-        if((i & 0x1F) == 0)
-        {
-            fd32_message("\n");
-        }
-        else if((i & 0x7) == 0)
-        {
-            fd32_message("-");
-        }
-        fd32_message("%2x", (unsigned)(*b++));
-    }
-    fd32_message("\n");
-}
-#endif
+        .request = &ata_request,
+        .open = &ata_bi_open,
+        .revalidate = &ata_bi_revalidate,
+        .close = &ata_bi_close,
+        .get_device_info = &ata_bi_get_device_info,
+        .get_medium_info = &ata_bi_get_medium_info,
+        .read = &ata_bi_read,
+        .write = &ata_bi_write,
+        .sync = &ata_bi_sync
+    };
 
-/*static*/ int ata_request(DWORD f, void *params)
+int ata_bi_open(void *handle)
 {
+    struct ata_device *d = handle;
+
+    /* This is mostly a stub for now */
+    if(d->flags & DEV_FLG_IS_OPEN)
+        return -EBUSY;
+    d->flags |= DEV_FLG_IS_OPEN;
+    return 0;
+}
+
+int ata_bi_revalidate(void *handle)
+{
+    /* This is also just a stub for the time being */
+    return 0;
+}
+
+int ata_bi_close(void *handle)
+{
+    struct ata_device *d = handle;
+
+    d->flags &= ~DEV_FLG_IS_OPEN;
+    return 0;
+}
+
+int ata_bi_get_device_info(void *handle, BlockDeviceInfo *buf)
+{
+    struct ata_device *d = handle;
+
+    buf->flags = d->type;
+    buf->multiboot_id = d->multiboot_id;
+    return 0;
+}
+
+int ata_bi_get_medium_info(void *handle, BlockMediumInfo *buf)
+{
+    struct ata_device *d = handle;
+
+    if(!(d->flags & DEV_FLG_IS_OPEN))
+        return -EBUSY;
+    buf->blocks_count = (uint64_t)d->total_blocks;
+    buf->block_bytes = d->bytes_per_sector;
+    return 0;
+}
+
+ssize_t ata_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags)
+{
+    int res;
+    struct ata_device *d = handle;
+
+    if(!(d->flags & DEV_FLG_IS_OPEN))
+        return -EBUSY;
+    res = ata_read(d, start, count, buffer);
+    /*
+        If ata_read returns an error code, then most likely a reset is required.
+        This should not happen if both software and hardware is in order, except
+        in the case of sleep. I think this reset should normaly happen in this
+        driver, but this is not implemented yet. In the mean time, just return
+        -EIO.
+    */
+    if(res<0)
+    {
+        if(res == ATA_ERANGE)
+            return -BLOCK_ERROR(BLOCK_SENSE_ILLREQ, 0);
+        else
+            return -EIO;
+    }
+    return res;
+}
+
+ssize_t ata_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags)
+{
+    int res;
+    struct ata_device *d = handle;
+
+    if(!(d->flags & DEV_FLG_IS_OPEN))
+        return -EBUSY;
+    res = ata_write(d, start, count, buffer);
+    /* See the comment for the read function above. */
+    if(res<0)
+    {
+        if(res == ATA_ERANGE)
+            return -BLOCK_ERROR(BLOCK_SENSE_ILLREQ, 0);
+        else
+            return -EIO;
+    }
+    return res;
+}
+
+int ata_bi_sync(void *handle)
+{
+    return 0;
+}
+
+
+/*static*/
+int ata_request(int function, ...)
+{
+    va_list parms;
     struct ata_device *d;
+    va_start(parms,function);
 
 #ifdef _DEBUG_
 
@@ -47,123 +151,48 @@ void block_dump(unsigned char* b, int n)
     int res;
 #endif
 
-    switch (f)
+    switch (function)
     {
-    case FD32_MEDIACHANGE:
-        return FALSE;		/* No removable devices, for now... */
-    case FD32_BLOCKREAD:
+    case REQ_GET_OPERATIONS:
         {
-            fd32_blockread_t *x;
-
-            x = (fd32_blockread_t *) params;
-            if (x->Size < sizeof(fd32_blockread_t))
-            {
+            int type = va_arg(parms, int);
+            void **operations = va_arg(parms, void**);
+            if(type != BLOCK_OPERATIONS_TYPE)
                 return -EINVAL;
-            }
-            d = (struct ata_device *) x->DeviceId;
-
-#ifdef _DEBUG_
-
-            fd32_message("read:%lx,%lu,%lu,%lu\n", (DWORD)d, x->Start, x->NumBlocks, (DWORD)x->Buffer);
-            res = ata_read(d, x->Start, x->NumBlocks, x->Buffer);
-            //            block_dump((unsigned char*)(x->Buffer), 512);
-            return res;
-#else
-
-            return ata_read(d, x->Start, x->NumBlocks, x->Buffer);
-#endif
-
-        }
-    case FD32_BLOCKWRITE:
-        {
-            fd32_blockwrite_t *x;
-
-            if(ata_global_flags & ATA_GFLAG_NWRITE) /* TODO: move this to ata_write and device flags */
-                return -1;
-            x = (fd32_blockwrite_t *) params;
-            if (x->Size < sizeof(fd32_blockwrite_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct ata_device *) x->DeviceId;
-#ifdef _DEBUG_
-
-            fd32_message("write:%lx,%lu,%lu,%lu\n", (DWORD)d, x->Start, x->NumBlocks, (DWORD)x->Buffer);
-            res = ata_read(d, x->Start, x->NumBlocks, x->Buffer);
-            //            block_dump((unsigned char*)(x->Buffer), 512);
-            return res;
-#else
-
-            return ata_write(d, x->Start, x->NumBlocks, x->Buffer);
-#endif
-
-        }
-    case FD32_BLOCKINFO:
-        {
-            fd32_blockinfo_t *x;
-
-            x = (fd32_blockinfo_t *) params;
-            if (x->Size < sizeof(fd32_blockinfo_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct ata_device *) x->DeviceId;
-            x->BlockSize = d->bytes_per_sector;
-            x->TotalBlocks = d->total_blocks;
-            if(d->type == 0xFFFFFFFF)
-                x->Type = FD32_BIGEN;
-            else
-                x->Type = d->type;
-            x->MultiBootId = d->multiboot_id;
-#ifdef _DEBUG_
-
-            fd32_message("blinf:%lx,%lu,%lu,%lu\n", (DWORD)d, x->BlockSize, x->TotalBlocks, x->Type);
-#endif
-
+            if(operations != NULL)
+                *operations = &block_ops;
+            ref_counter++;
             return 0;
         }
-    case FD32_ATA_STANBY_IMM:
+    case REQ_GET_REFERENCES:
+        {
+            return ref_counter;
+        }
+    case REQ_RELEASE:
+        {
+            ref_counter--;
+            return 0;
+        }
+    case REQ_ATA_STANBY_IMM:
         {
 
-            ata_dev_parm_t *x;
-
-            x = (ata_dev_parm_t *) params;
-            if (x->Size < sizeof(ata_dev_parm_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct ata_device *) x->DeviceId;
+            d = va_arg(parms, struct ata_device*);
             d->flags |= DEV_FLG_STANDBY;
             return ata_standby_imm( d );
         }
-    case FD32_ATA_SLEEP:
+    case REQ_ATA_SLEEP:
         {
             /* WARNING! Reset is neccessary to wake up from sleep mode */
-            ata_dev_parm_t *x;
-
-            x = (ata_dev_parm_t *) params;
-            if (x->Size < sizeof(ata_dev_parm_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct ata_device *) x->DeviceId;
+            d = va_arg(parms, struct ata_device*);
             d->flags |= DEV_FLG_SLEEP;
             return ata_sleep( d );
         }
-    case FD32_ATA_SRESET:
+    case REQ_ATA_SRESET:
         {
             /* Soft reset of device */
-            ata_dev_parm_t *x;
-
-            x = (ata_dev_parm_t *) params;
-            if (x->Size < sizeof(ata_dev_parm_t))
-            {
-                return -EINVAL;
-            }
-            d = (struct ata_device *) x->DeviceId;
+            d = va_arg(parms, struct ata_device*);
             return ata_sreset( d );
         }
-
     }
     return -ENOTSUP;
 }
@@ -206,7 +235,7 @@ static int atapi_request(DWORD f, void *params)
             return ata_packet_pio( x->MaxWait, d, x->Packet, x->PacketSize,
                                    x->Buffer, x->MaxCount, x->TotalBytes, x->BufferSize);
         }
-    case FD32_ATA_DRESET:
+    case REQ_ATA_DRESET:
         {
             /* Soft reset of device */
             ata_dev_parm_t *x;
@@ -219,11 +248,19 @@ static int atapi_request(DWORD f, void *params)
             d = (struct ata_device *) x->DeviceId;
             return ata_dev_reset( d );
         }
-    case FD32_ATA_SRESET:
-    case FD32_ATA_SLEEP:
-    case FD32_ATA_STANBY_IMM:
+    case REQ_ATA_SRESET:
+    case REQ_ATA_SLEEP:
+    case REQ_ATA_STANBY_IMM:
         {
-            return ata_request( f, params );
+            ata_dev_parm_t *x;
+
+            x = (ata_dev_parm_t *) params;
+            if (x->Size < sizeof(ata_dev_parm_t))
+            {
+                return -EINVAL;
+            }
+            d = (struct ata_device *) x->DeviceId;
+            return ata_request( f, d );
         }
     }
     return -ENOTSUP;
@@ -258,7 +295,8 @@ void disk_add(struct ata_device *d, char *name)
             fd32_message("Using %u sectors block mode\n", (unsigned)d->sectors_per_block);
         if(ata_global_flags & ATA_GFLAG_NWRITE)
             fd32_message("Writing disabled!\n");
-        fd32_dev_register(ata_request, d, name);
+        d->type = BLOCK_DEVICE_INFO_TGENERIC | BLOCK_DEVICE_INFO_WRITABLE;
+        block_register(name, ata_request, d);
         ata_scanpart(d, name);
     }
 }

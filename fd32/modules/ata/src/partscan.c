@@ -29,6 +29,7 @@
 /* Modifications (#define directives below) by Nils Labugt, Mach 2005 */
 /* to make this file compile with the ATA driver  */
 
+
 #define FD32DEV
 #define SHOWMSG
 
@@ -51,14 +52,13 @@
 #ifdef __ATA__
 
 #include <dr-env.h>
-#include <devices.h>
 #include <errno.h>
 #include "ata.h"
 #include "disk.h"
 #include "partscan.h"
 #include "ata-ops.h"
 
-int ata_request(DWORD f, void *params); /* FIXME */
+static int ata_request(int function, ...); /* FIXME */
 
 #define PS_DEVICE struct ata_device
 #define PS_READ ata_read
@@ -71,6 +71,8 @@ int ata_request(DWORD f, void *params); /* FIXME */
 
 
 #endif
+
+#include "../../block/block.h" /* FIXME! */
 
 typedef struct
 {
@@ -94,31 +96,37 @@ __attribute__ ((packed)) PartTabl;
 #define PART_EXT_LINUX 0x85
 
 #ifdef SHOWMSG
-static const struct { BYTE id; char *name; } partition_types[] =
+static const struct
 {
-    { 0x00, "Empty"             },
-    { 0x01, "FAT12"             },
-    { 0x04, "FAT16 up to 32 MB" },
-    { 0x05, "DOS extended"      },
-    { 0x06, "FAT16 over 32 MB"  },
-    { 0x07, "NTFS or HPFS"      },
-    { 0x0B, "FAT32"             },
-    { 0x0C, "FAT32 with LBA"    },
-    { 0x0E, "FAT16 with LBA"    },
-    { 0x0F, "Win extended"      },
-    { 0x82, "Linux Swap"        },
-    { 0x83, "Linux native"      },
-    { 0x85, "Linux extended"    },
-    { 0xFF, "unknown"           },
-    { 0, 0 }
-};
+    BYTE id;
+    char *name;
+}
+partition_types[] =
+    {
+        { 0x00, "Empty"             },
+        { 0x01, "FAT12"             },
+        { 0x04, "FAT16 up to 32 MB" },
+        { 0x05, "DOS extended"      },
+        { 0x06, "FAT16 over 32 MB"  },
+        { 0x07, "NTFS or HPFS"      },
+        { 0x0B, "FAT32"             },
+        { 0x0C, "FAT32 with LBA"    },
+        { 0x0E, "FAT16 with LBA"    },
+        { 0x0F, "Win extended"      },
+        { 0x82, "Linux Swap"        },
+        { 0x83, "Linux native"      },
+        { 0x85, "Linux extended"    },
+        { 0xFF, "unknown"           },
+        { 0, 0 }
+    };
 
 
 static char *partname(BYTE id)
 {
     unsigned k;
     for (k = 0; partition_types[k].name; k++)
-  	    if (partition_types[k].id == id) return partition_types[k].name;
+        if (partition_types[k].id == id)
+            return partition_types[k].name;
     return "unknown";
 }
 #endif
@@ -134,12 +142,13 @@ static void check_lba(PartTabl *p, const PS_DEVICE *d)
 {
     DWORD lba_start, lba_size;
 
-    if (d->total_blocks / (d->PS_HEADS * d->PS_SECTS) > 1024) return; /* ...since we trust them */
+    if (d->total_blocks / (d->PS_HEADS * d->PS_SECTS) > 1024)
+        return; /* ...since we trust them */
     lba_start = chs_to_lba(p->start_c + ((WORD) (p->start_s & 0xC0) << 2),
                            p->start_h, p->start_s & 0x3F, d->PS_HEADS, d->PS_SECTS);
     lba_size  = chs_to_lba(p->end_c + ((WORD) (p->end_s & 0xC0) << 2),
                            p->end_h, p->end_s & 0x3F, d->PS_HEADS, d->PS_SECTS)
-              - lba_start + 1;
+                - lba_start + 1;
     if ((lba_start != p->lba_start) || (lba_size != p->lba_size))
         fd32_message("LBA values for the partition are not consistent with CHS values!\n");
     p->lba_start = lba_start;
@@ -149,35 +158,40 @@ static void check_lba(PartTabl *p, const PS_DEVICE *d)
 
 static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, PartTabl *p)
 {
-    #ifdef FD32DEV
+#ifdef FD32DEV
     int    res;
     char  *dev_name;
-    #endif
+#endif
+
     DWORD  lba_start = p->lba_start;
     DWORD  lba_end   = p->lba_start + p->lba_size - 1;
     DWORD  type;
     char   new_name[256];
     PS_DEVICE  *new_d;
-    
+
     if ((p->type != PART_EMPTY)
-     && (p->type != PART_EXT_DOS)
-     && (p->type != PART_EXT_WIN)
-     && (p->type != PART_EXT_LINUX))
+            && (p->type != PART_EXT_DOS)
+            && (p->type != PART_EXT_WIN)
+            && (p->type != PART_EXT_LINUX))
     {
         ksprintf(new_name, "%s%u", name, part);
         type = FD32_BILOG;
         if (part < 5)
         {
-          if (p->active) type = FD32_BIACT;
-                    else type = FD32_BIPRI;
+            if (p->active)
+                type = FD32_BIACT;
+            else
+                type = FD32_BIPRI;
         }
         type |= (DWORD) p->type << 4;
-        #ifdef SHOWMSG
+#ifdef SHOWMSG
+
         fd32_message("%s is %s (%02xh), Start: %lu, Size: %lu (%lu MiB)\n",
                      new_name, partname(p->type), (unsigned) p->type, lba_start,
                      lba_end - lba_start + 1,
                      (DWORD) (((long long) (lba_end - lba_start + 1) * d->PS_BLOCK_SIZE) >> 20));
-        #endif
+#endif
+
         check_lba(p, d);
 
         /* Allocate and initialize the private data structure */
@@ -190,14 +204,17 @@ static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, Pa
         new_d->type         = type;
         new_d->multiboot_id = (d->multiboot_id & 0xFF00FFFF) | ((part - 1) << 24);
 
-        #ifdef FD32DEV
+#ifdef FD32DEV
         /* Register the new device to the FD32 kernel */
         dev_name = (char *) fd32_kmem_get(strlen(new_name) + 1);
-        if (dev_name == NULL) return -ENOMEM;
+        if (dev_name == NULL)
+            return -ENOMEM;
         strcpy(dev_name, new_name);
-        res = fd32_dev_register(PS_REQUEST, (void *) new_d, dev_name);
-        if (res < 0) return res;
-        #endif
+        res = block_register(dev_name, PS_REQUEST, (void *) new_d);
+        if (res < 0)
+            return res;
+#endif
+
     }
     return 0;
 }
@@ -210,7 +227,7 @@ int PS_SCANPART(B_CONST PS_DEVICE *d, const char *dev_name)
     int       res;
     BYTE      buffer[d->PS_BLOCK_SIZE];
     DWORD     ext_start = 0, ext_start1 = 0;
-    
+
     if (d->total_blocks / (d->PS_HEADS * d->PS_SECTS) > 1024)
     {
         fd32_message("Media is too big to be addressed using CHS (has more than 1024 cylinders).\n");
@@ -224,53 +241,60 @@ int PS_SCANPART(B_CONST PS_DEVICE *d, const char *dev_name)
 
     /* Read the MBR and copy the partition table in the tbl array */
     res = PS_READ(d, 0, 1, buffer);
-    if (res < 0) return res;
+    if (res < 0)
+        return res;
     memcpy(tbl, buffer + 446, 64);
 
     /* If there are no active partitions, mark the first primary as active */
-    for (k = 0; k < 4; k++) if (tbl[k].active) break;
+    for (k = 0; k < 4; k++)
+        if (tbl[k].active)
+            break;
     if (k == 4)
         for (k = 0; k < 4; k++)
             if ((tbl[k].type != PART_EMPTY)
-             && (tbl[k].type != PART_EXT_DOS)
-             && (tbl[k].type != PART_EXT_WIN)
-             && (tbl[k].type != PART_EXT_LINUX))
+                    && (tbl[k].type != PART_EXT_DOS)
+                    && (tbl[k].type != PART_EXT_WIN)
+                    && (tbl[k].type != PART_EXT_LINUX))
             {
                 tbl[k].active = 0x80;
                 break;
             }
     /* Create partition devices for primary partitions */
-    for (k = 0; k < 4; k++) add_partition(d, dev_name, ++part_num, &tbl[k]);
+    for (k = 0; k < 4; k++)
+        add_partition(d, dev_name, ++part_num, &tbl[k]);
     /* Search for an extended partition in the primary partition table */
     for (k = 0; k < 4; k++)
     {
         if ((tbl[k].type == PART_EXT_DOS)
-         || (tbl[k].type == PART_EXT_WIN)
-         || (tbl[k].type == PART_EXT_LINUX))
+                || (tbl[k].type == PART_EXT_WIN)
+                || (tbl[k].type == PART_EXT_LINUX))
         {
-            #ifdef SHOWMSG
+#ifdef SHOWMSG
             fd32_message("%s%u is a %s partition\n", dev_name, k + 1,
                          partname(tbl[k].type));
             check_lba(&tbl[k], d);
-            #endif
+#endif
+
             ext_start = tbl[k].lba_start;
             res = PS_READ(d, ext_start, 1, buffer);
-            if (res < 0) return res;
+            if (res < 0)
+                return res;
             break;
         }
     }
 
     /* Read extended partitions */
-    if (!ext_start) return 0;
+    if (!ext_start)
+        return 0;
     for (;;)
     {
         memcpy(tbl, buffer + 446, 64);
         for (k = 0; k < 4; k++)
         {
             if ((tbl[k].type != PART_EMPTY)
-             && (tbl[k].type != PART_EXT_DOS)
-             && (tbl[k].type != PART_EXT_WIN)
-             && (tbl[k].type != PART_EXT_LINUX))
+                    && (tbl[k].type != PART_EXT_DOS)
+                    && (tbl[k].type != PART_EXT_WIN)
+                    && (tbl[k].type != PART_EXT_LINUX))
             {
                 part_num++;
                 tbl[k].lba_start += ext_start + ext_start1;
@@ -280,17 +304,19 @@ int PS_SCANPART(B_CONST PS_DEVICE *d, const char *dev_name)
         for (k = 0; k < 4; k++)
         {
             if ((tbl[k].type == PART_EXT_DOS)
-             || (tbl[k].type == PART_EXT_WIN)
-             || (tbl[k].type == PART_EXT_LINUX))
+                    || (tbl[k].type == PART_EXT_WIN)
+                    || (tbl[k].type == PART_EXT_LINUX))
             {
                 ext_start1 = tbl[k].lba_start;
                 check_lba(&tbl[k], d);
                 res = PS_READ(d, ext_start + ext_start1, 1, buffer);
-                if (res < 0) return res;
+                if (res < 0)
+                    return res;
                 break;
             }
         }
-        if (k == 4) break;
+        if (k == 4)
+            break;
     }
     return 0;
 }

@@ -114,6 +114,7 @@ struct ide_interface
 #define DEV_FLG_IRQ_ON_PCMD 256
 #define DEV_FLG_SLEEP 512
 #define DEV_FLG_48BIT_LBA 1024
+#define DEV_FLG_IS_OPEN 2048
 
 
 

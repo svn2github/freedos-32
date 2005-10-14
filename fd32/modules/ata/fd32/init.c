@@ -10,11 +10,13 @@
 #include "ata-detect.h"
 #include "ata-wait.h"
 
-int ata_global_flags;
-char* ata_args;
-BYTE standby_timer;
-int max_pio_mode;
-int block_mode;
+extern unsigned ref_counter;
+
+static int ata_global_flags;
+static char* ata_args;
+static BYTE standby_timer;
+static int max_pio_mode;
+static int block_mode;
 
 struct ide_interface iface[4] =
     {
@@ -191,6 +193,7 @@ int ata_init(struct process_info *p)
     int res;
     void disk_add(struct ata_device *d, char *name);
 
+    ref_counter = 0;
     ata_global_flags = 0;
     ata_args = args_get(p);
     res = ata_parse_args(ata_args);

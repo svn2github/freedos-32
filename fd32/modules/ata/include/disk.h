@@ -11,7 +11,7 @@ struct ata_device
 {
     DWORD bytes_per_sector;
     DWORD total_blocks;
-    DWORD type;
+    DWORD type;     /* Compatible with BlockDeviceInfoFlags in block.h if block device */
     DWORD multiboot_id;
         
     DWORD first_sector;
