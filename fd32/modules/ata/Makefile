@@ -8,6 +8,7 @@ clean :
 	$(RM) *.exe
 
 fd32:
+	cp ../shared/partscan/partscan.c ./src  # This is a bit dirty...
 	$(MAKE) -C fd32
 djgpp:
 	$(MAKE) -C djgpp
