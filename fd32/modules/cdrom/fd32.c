@@ -21,8 +21,8 @@
 #include <dr-env.h>
 #include <errno.h>
 #include <ata-interf.h>
-#include "pck-cmd.h"
 #include "cd-interf.h"
+#include "pck-cmd.h"
 #include "../block/block.h" /* FIXME! */
 
 static int cd_bi_open(void *handle);
@@ -59,7 +59,9 @@ static int cd_bi_open(void *handle)
 
     if(d->flags & CD_FLAG_IS_OPEN)
         return -EBUSY;
-    res = cd_premount( d );
+    /* Since we are still in alpha, and since a need for reset is a sign of a
+        bug (on functional hardware), don't mask it with reset */
+    res = cd_clear( d, CD_CLEAR_FLAG_NO_RESET );
     if(!(res<0))
         d->flags |= CD_FLAG_IS_OPEN;
     return res;
@@ -69,7 +71,7 @@ static int cd_bi_revalidate(void *handle)
 {
     struct cd_device *d = handle;
 
-    return cd_premount( d );
+    return cd_clear( d, CD_CLEAR_FLAG_NO_RESET );
 }
 
 static int cd_bi_close(void *handle)
@@ -129,7 +131,18 @@ static int cd_request(int function, ...)
     va_start(parms,function);
     switch (function)
     {
-    case REQ_GET_OPERATIONS:
+        case REQ_CD_TEST:
+        {
+            d = va_arg(parms, struct cd_device*);
+            return cd_test_unit_ready(d);
+        }
+        case REQ_CD_EXTENDED_ERROR_REPORT:
+        {
+            d = va_arg(parms, struct cd_device*);
+            struct cd_error_info** ei = va_arg(parms, struct cd_error_info**);
+            return cd_extra_error_report(d, ei);
+        }
+        case REQ_GET_OPERATIONS:
         {
             int type = va_arg(parms, int);
             void **operations = va_arg(parms, void**);

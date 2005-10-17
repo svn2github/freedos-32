@@ -23,6 +23,7 @@
 #include <devices.h>
 #include <ata-interf.h>
 #include <errno.h>
+#include "cd-interf.h"
 #include "pck-cmd.h"
 #include "../block/block.h" /* FIXME! */
 
@@ -71,6 +72,9 @@ static int cd_request_sense(struct cd_device* d, struct cd_sense* s)
     return res;
 }
 
+
+
+
 /* Diagnose a check condition */
 static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
 {
@@ -112,7 +116,26 @@ static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
     LOG_MSG("SENSE: k=0x%x,asc=0x%x,q=0x%x,ec=0x%x\n", s->sense_key, s->asc, s->asc_q, s->error_code);
 #endif
 
-    *result = -BLOCK_ERROR(s->sense_key, (s->asc << 8) | s->asc_q);
+    if((s->error_code & 0x7F) == 0x70)
+    {
+        *result = -BLOCK_ERROR(s->sense_key & 0x0F, (s->asc << 8) | s->asc_q);
+        d->flags &=  ~CD_FLAG_EXTRA_ERROR_INFO;
+    }
+    else if((s->error_code & 0x7F) == 0x71)
+    {
+        *result = -BLOCK_ERROR(0, 0);
+        d->errinf.error_code = -BLOCK_ERROR(s->sense_key & 0x0F, (s->asc << 8) | s->asc_q);
+        d->errinf.flags = CD_ERROR_FLAG_DEFERRED;
+        d->flags |=  CD_FLAG_EXTRA_ERROR_INFO;
+    }
+    else
+    {
+        d->errinf.error_code = -EIO;
+        d->errinf.flags = CD_ERROR_FLAG_SENSE_INVALID;
+        d->flags |= CD_FLAG_NEED_RESET;
+        return -EIO;
+    }
+
     switch (s->sense_key & 0x0F)
     {
     case 0:    /* No Sense (no error) */
@@ -158,6 +181,35 @@ static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
     return 0;
 }
 
+/*
+    This is mainly for queued check conditions, deferred errors,
+    and additional error info
+*/
+int cd_extra_error_report(struct cd_device* d, struct cd_error_info** ei)
+{
+    struct cd_sense s;
+    int res1, res2;
+
+    if(d->flags & CD_FLAG_EXTRA_ERROR_INFO)
+    {
+        *ei = &(d->errinf);
+        d->flags &= ~CD_FLAG_EXTRA_ERROR_INFO;
+        return d->errinf.error_code;
+    }
+    *ei = NULL;
+    res1 = cd_check(d, &s, &res2);
+    if(res1<0)
+    {
+#ifdef _DEBUG_
+            LOG_MSG("Error unhandled\n");
+#endif
+
+            return -EIO;
+    }
+    return res2;
+}
+    
+        
 /* Error handler */
 static int cd_err_handl_1(struct cd_device* d, struct packet_error* err, int err_code, int* result)
 {
@@ -194,6 +246,46 @@ static int cd_err_handl_1(struct cd_device* d, struct packet_error* err, int err
     }
     /* TODO */
     return -EIO;
+}
+
+
+int cd_test_unit_ready(struct cd_device* d)
+{
+    atapi_pc_parm_t pcp;
+    BYTE packet[16];
+    unsigned long tb;
+    int res, res1, res2;
+
+    pcp.Size = sizeof(atapi_pc_parm_t);
+    pcp.DeviceId = d->device_id;
+    pcp.MaxWait = 500 * 1000; /* this is relatively arbitrary */
+    pcp.PacketSize = d->cmd_size;
+    pcp.Buffer = NULL;
+    pcp.BufferSize = 0;
+    pcp.MaxCount = 0;
+    pcp.TotalBytes = &tb;
+    pcp.Packet = (WORD*)&packet;
+    /* Prepare command packet */
+    memset((void*)packet, 0, 16);
+    packet[0] = 0x00;
+    res = d->req(FD32_ATAPI_PACKET, (void*)&pcp);
+    if(res<0)
+    {
+#ifdef _DEBUG_
+        LOG_MSG("TEST UNIT READY cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
+                res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
+#endif
+
+        res1 = cd_err_handl_1(d, (struct packet_error*)&packet, res, &res2);
+        if(res1 < 0)
+        {
+            /* TODO */
+                       return res1;
+        }
+        else
+            return res2;
+    }
+    return 0;
 }
 
 
@@ -267,7 +359,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
 
     tout = FALSE;
     tout_event = fd32_event_post(d->tout_read_us, private_timed_out, (void *)&tout);
-    /* Instead of this calculation we should realy have the caller pass this value */
+    /* Instead of this calculation we should really have the caller pass this value */
     buff_size = d->bytes_per_sector * blocks;
     if(blocks > 0xFFFF)
         return -EINVAL;
@@ -314,6 +406,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
     return res;
 }
 
+
 /* Get medium capacity */
 static int cd_read_capacity(struct cd_device* d, DWORD* blocks, DWORD* block_size)
 {
@@ -359,7 +452,7 @@ static int cd_read_capacity(struct cd_device* d, DWORD* blocks, DWORD* block_siz
 }
 
 
-int cd_premount( struct cd_device* d )
+int cd_clear( struct cd_device* d, int flags )
 {
     int res1, res2;
     int i;
@@ -373,7 +466,10 @@ int cd_premount( struct cd_device* d )
 
     if(d->flags & CD_FLAG_NEED_RESET)
     {
+        if(flags & CD_CLEAR_FLAG_NO_RESET)
+            return -EIO;
 #ifdef _DEBUG_
+
         LOG_MSG("Soft reset!\n");
 #endif
 
@@ -386,6 +482,8 @@ int cd_premount( struct cd_device* d )
             LOG_MSG("Device reset failed!");
 #endif
 
+            if(flags & CD_CLEAR_FLAG_NO_SRESET)
+                return -EIO;
             res1 = d->req(REQ_ATA_SRESET, (void*)&p);
             if(res1 < 0)
             {
@@ -414,11 +512,20 @@ int cd_premount( struct cd_device* d )
         /* TODO: test to see if we should return here */
         if(res1 < 0)
         {
-            i++;     /* Let faild sense count twice as much. */
-            continue;
+            if(CD_CLEAR_FLAG_RETRY_FAILED_SENSE)
+            {
+                i++;     /* Let faild sense count twice as much. */
+                continue;
+            }
+            d->flags |= CD_FLAG_NEED_RESET;
+            return -EIO;
         }
         if(res2 == 0)
             break;
+        if((s.sense_key & 0x0F) == SENSE_KEY_HARDWARE)
+            return res2;
+        if(flags & CD_CLEAR_FLAG_REPORT_SENSE)
+            return res2;
     }
 #ifdef _DEBUG_
     LOG_MSG("Reading capacity...");
@@ -433,15 +540,12 @@ int cd_premount( struct cd_device* d )
 
         return res1;
     }
-    else
-    {
 #ifdef _DEBUG_
-        LOG_MSG("blocks=%lu bytes/sect=%lu\n", d->total_blocks, d->bytes_per_sector);
+    LOG_MSG("blocks=%lu bytes/sect=%lu\n", d->total_blocks, d->bytes_per_sector);
 #endif
 
-        d->flags |= CD_FLAG_IS_VALID;
-        return 0;
-    }
+    d->flags |= CD_FLAG_IS_VALID;
+    return 0;
 }
 
 

@@ -51,12 +51,20 @@
 #define CD_FLAG_IS_OPEN 1
 #define CD_FLAG_IS_VALID 2
 #define CD_FLAG_NEED_RESET 4
-
 #define CD_FLAG_IN_PROGRESS 8
 #define CD_FLAG_RETRY 16
+#define CD_FLAG_EXTRA_ERROR_INFO 32
 
 /* The ILI bit in sense data byte 2 */
 #define CD_ILI 0x20
+
+#define SENSE_KEY_HARDWARE 4
+
+#define CD_CLEAR_FLAG_NO_RESET 1
+#define CD_CLEAR_FLAG_NO_SRESET 2
+#define CD_CLEAR_FLAG_RETRY_FAILED_SENSE 4
+#define CD_CLEAR_FLAG_REPORT_SENSE 8
+
 
 struct cd_device
 {
@@ -72,6 +80,7 @@ struct cd_device
     DWORD bytes_per_sector;
     DWORD multiboot_id;
     DWORD tout_read_us;
+    struct cd_error_info errinf;
 };
 
 struct packet_read10 
@@ -100,7 +109,7 @@ struct cd_sense
 {
     BYTE error_code;
     BYTE segment_number;
-    BYTE sense_key;
+    BYTE sense_key;     /* remember to AND with 0x0F!*/
     DWORD information;
     BYTE add_sense_length;
     DWORD cmd_specific;
@@ -110,5 +119,8 @@ struct cd_sense
     BYTE sk_sp[3];
 } __attribute__ ((__packed__));
 
-int cd_premount( struct cd_device* d );
+int cd_clear( struct cd_device* d, int flags );
 int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer);
+int cd_test_unit_ready(struct cd_device* d);
+int cd_extra_error_report(struct cd_device* d, struct cd_error_info** ei);
+
