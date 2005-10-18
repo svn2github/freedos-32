@@ -20,13 +20,12 @@ extern int ata_global_flags;
 
 
 static int ata_bi_open(void *handle);
-static int ata_bi_revalidate(void *handle);
 static int ata_bi_close(void *handle);
 static int ata_bi_get_device_info(void *handle, BlockDeviceInfo *buf);
 static int ata_bi_get_medium_info(void *handle, BlockMediumInfo *buf);
 static ssize_t ata_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
 static ssize_t ata_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
-static int ata_bi_sync(void *handle);
+static int ata_bi_stub(void *handle);
 static int ata_request(int function, ...);
 
 static unsigned ref_counter;
@@ -34,13 +33,14 @@ static struct BlockOperations block_ops =
     {
         .request = &ata_request,
         .open = &ata_bi_open,
-        .revalidate = &ata_bi_revalidate,
+        .revalidate = &ata_bi_stub,
         .close = &ata_bi_close,
         .get_device_info = &ata_bi_get_device_info,
         .get_medium_info = &ata_bi_get_medium_info,
         .read = &ata_bi_read,
         .write = &ata_bi_write,
-        .sync = &ata_bi_sync
+        .sync = &ata_bi_stub,
+        .test = &ata_bi_stub
     };
 
 int ata_bi_open(void *handle)
@@ -54,11 +54,6 @@ int ata_bi_open(void *handle)
     return 0;
 }
 
-int ata_bi_revalidate(void *handle)
-{
-    /* This is also just a stub for the time being */
-    return 0;
-}
 
 int ata_bi_close(void *handle)
 {
@@ -132,7 +127,8 @@ ssize_t ata_bi_write(void *handle, const void *buffer, uint64_t start, size_t co
     return res;
 }
 
-int ata_bi_sync(void *handle)
+
+int ata_bi_stub(void *handle)
 {
     return 0;
 }
