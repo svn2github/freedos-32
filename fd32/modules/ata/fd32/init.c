@@ -70,7 +70,7 @@ static char* arg_names[] =
         "'\0'"
     };
 
-static int ata_fetch_number(char** b, long int* n)
+static int ata_fetch_number(char** b, unsigned long* n)
 {
     char* p = *b;
     unsigned char c;
