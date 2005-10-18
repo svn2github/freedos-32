@@ -7,6 +7,9 @@
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  * This is meant to be compatible with the GNU General Public License.
  */
+
+/* Slight modification by Nils Labugt, October 2005. */
+
 #ifndef __FD32_BLOCK_H
 #define __FD32_BLOCK_H
 
@@ -40,7 +43,7 @@
  */
 enum BlockSenseKeys
 {
-	BLOCK_SENSE_NONE       =  0 << 16, ///< No sense
+    BLOCK_SENSE_NONE       =  0 << 16, ///< Reserved - device specific
 	BLOCK_SENSE_RECOVERED  =  1 << 16, ///< Recovered error
 	BLOCK_SENSE_NOTREADY   =  2 << 16, ///< Not ready
 	BLOCK_SENSE_MEDIUM     =  3 << 16, ///< Medium error
@@ -250,6 +253,13 @@ struct BlockOperations
 	 *          occur between the calls to \a sync and \a close.
 	 */
 	int (*sync)(void *handle);
+    /**
+     * \brief Tests for unit attention.
+     * \param handle opaque identifier of the block device.
+     * \remarks At a minimum, this function shall report unit attention,
+     *          but may also detect other error conditions.
+     */
+    int (*test)(void *handle);
 };
 
 
@@ -287,7 +297,6 @@ struct BlockOperations
 #define REQ_RELEASE 2
 
 
-/* Nils: these belongs in this file? */
 static inline int req_get_operations(int (*r)(int function, ...), int type, void **operations)
 {
     return r(REQ_GET_OPERATIONS, type, operations);

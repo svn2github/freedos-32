@@ -33,6 +33,7 @@ static int cd_bi_get_medium_info(void *handle, BlockMediumInfo *buf);
 static ssize_t cd_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
 static ssize_t cd_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
 static int cd_bi_sync(void *handle);
+static int cd_bi_test(void *handle);
 static int cd_request(int function, ...);
 
 static unsigned ref_counter;
@@ -46,7 +47,8 @@ static struct BlockOperations block_ops =
         .get_medium_info = &cd_bi_get_medium_info,
         .read = &cd_bi_read,
         .write = &cd_bi_write,
-        .sync = &cd_bi_sync
+        .sync = &cd_bi_sync,
+        .test = &cd_bi_test
     };
 
 
@@ -123,6 +125,13 @@ static int cd_bi_sync(void *handle)
     return 0;
 }
 
+/* FIXME: We should use the address of cd_test_unit_ready here, to avoid
+           the extra call */
+static int cd_bi_test(void *handle) 
+{
+    struct cd_device *d = handle;
+    return cd_test_unit_ready(d);
+}
 
 static int cd_request(int function, ...)
 {
@@ -131,11 +140,6 @@ static int cd_request(int function, ...)
     va_start(parms,function);
     switch (function)
     {
-        case REQ_CD_TEST:
-        {
-            d = va_arg(parms, struct cd_device*);
-            return cd_test_unit_ready(d);
-        }
         case REQ_CD_EXTENDED_ERROR_REPORT:
         {
             d = va_arg(parms, struct cd_device*);
