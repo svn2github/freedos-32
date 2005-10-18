@@ -43,7 +43,7 @@
  */
 enum BlockSenseKeys
 {
-    BLOCK_SENSE_NONE       =  0 << 16, ///< Reserved - device specific
+	BLOCK_SENSE_NONE       =  0 << 16, ///< Reserved - device specific
 	BLOCK_SENSE_RECOVERED  =  1 << 16, ///< Recovered error
 	BLOCK_SENSE_NOTREADY   =  2 << 16, ///< Not ready
 	BLOCK_SENSE_MEDIUM     =  3 << 16, ///< Medium error
@@ -253,13 +253,13 @@ struct BlockOperations
 	 *          occur between the calls to \a sync and \a close.
 	 */
 	int (*sync)(void *handle);
-    /**
-     * \brief Tests for unit attention.
-     * \param handle opaque identifier of the block device.
-     * \remarks At a minimum, this function shall report unit attention,
-     *          but may also detect other error conditions.
-     */
-    int (*test)(void *handle);
+	/**
+	 * \brief Tests for unit attention.
+	 * \param handle opaque identifier of the block device.
+	 * \remarks At a minimum, this function shall report unit attention,
+	 *          but may also detect other error conditions.
+	 */
+	int (*test)(void *handle);
 };
 
 
@@ -299,17 +299,17 @@ struct BlockOperations
 
 static inline int req_get_operations(int (*r)(int function, ...), int type, void **operations)
 {
-    return r(REQ_GET_OPERATIONS, type, operations);
+	return r(REQ_GET_OPERATIONS, type, operations);
 }
 
 static inline int req_get_references(int (*r)(int function, ...))
 {
-    return r(REQ_GET_REFERENCES);
+	return r(REQ_GET_REFERENCES);
 }
 
 static inline int req_release(int (*r)(int function, ...), void *handle)
 {
-    return r(REQ_RELEASE, handle);
+	return r(REQ_RELEASE, handle);
 }
 
 const char *block_enumerate (void **iterator);
