@@ -5,11 +5,29 @@
  * This is free software; see GPL.txt
  */
 
+#ifndef __ELF_HDR__
+#define __ELF_HDR__
+
 #define	ELFCLASS32	1
 #define ELFDATA2LSB	1
 #define ET_EXEC		2 
-#define EM_386   3
+#define EM_386		3
 
+/* This info is needed when parsing the symbol table */
+#define STB_LOCAL	0
+#define STB_GLOBAL	1
+#define STB_WEAK	2
+
+#define STT_NOTYPE	0
+#define STT_OBJECT	1
+#define STT_FUNC	2
+#define STT_SECTION	3
+#define STT_FILE	4
+
+#define ELF_ST_BIND(info)	((info) >> 4)
+#define ELF_ST_TYPE(info)	(((unsigned int) info) & 0xf)
+
+/* sh_type */
 #define SHT_NULL	0
 #define SHT_SYMTAB	2
 #define SHT_RELA	4
@@ -20,9 +38,11 @@
 #define R_386_32	1
 #define R_386_PC32	2
 
+/* special section indexes */
 #define SHN_UNDEF	0
 #define SHN_COMMON	0xFFF2
 
+/* e_ident[] indexes */
 #define EI_MAG0		0
 #define EI_MAG1		1
 #define EI_MAG2		2
@@ -30,9 +50,9 @@
 #define EI_CLASS	4
 #define EI_DATA		5
 
-
 #define EI_NIDENT	16
 
+/* EI_MAG */
 #define ELFMAG0		0x7f
 #define ELFMAG1		'E'
 #define ELFMAG2		'L'
@@ -102,3 +122,5 @@ struct elf_rela_info {
   DWORD		r_info;
   DWORD		r_addend;
 };
+
+#endif

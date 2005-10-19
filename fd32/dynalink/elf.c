@@ -335,9 +335,13 @@ static int ELF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tab
     syms[i].name = s + symbol.st_name;
     syms[i].section = symbol.st_shndx;
     syms[i].offset = symbol.st_value;
+
     if (syms[i].section == SHN_UNDEF) {
       /* extern symbol */
-      syms[i].section = EXTERN_SYMBOL;
+      if (symbol.st_name != 0)
+        syms[i].section = EXTERN_SYMBOL;
+      else /* Mark the empty entry, external symbol with no name is not used :-) */
+        syms[i].section = NULL_SYMBOL;
     }
     if (syms[i].section == SHN_COMMON) {
       /* extern symbol */
