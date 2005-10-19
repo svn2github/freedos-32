@@ -22,6 +22,13 @@
  * \file
  * \brief Declarations of the facilities provided by the FAT driver.
  */
+/**
+ * \defgroup fat FAT file system driver
+ *
+ * The FreeDOS-32 FAT driver is a highly portable software to gain access to
+ * media formatted with the FAT file system.
+ *
+ * @{ */
 #ifndef __FD32_FAT_DRIVER_H
 #define __FD32_FAT_DRIVER_H
 
@@ -57,6 +64,7 @@
  #endif
 #else
  #include <dr-env.h>
+ #include <block/block.h>
  #define malloc fd32_kmem_get
  #define mfree fd32_kmem_free
  typedef int mode_t;
@@ -84,9 +92,9 @@ typedef enum { false = 0, true = !false } bool;
 typedef struct BlockDev BlockDev;
 struct BlockDev
 {
-	uint32_t        handle;
-	fd32_request_t *request;
-	void           *devid;
+	BlockOperations *bops;
+	void *handle;
+	bool is_open;
 };
 #else
 typedef FILE* BlockDev;
@@ -118,17 +126,6 @@ enum
 	FAT_UNLINKED = 1 /* value of de_sector if file unlinked */
 };
 
-/**
- * \mainpage
- * The FreeDOS-32 FAT driver is a highly portable software to gain access to
- * media formatted with the FAT file system.
- *
- * \section Reference
- * \ref api
- */
-/**
- * \defgroup api Public Functions (API)
- */
 
 typedef enum { FAT12, FAT16, FAT32 } FatType;
 typedef uint32_t Sector;
@@ -348,22 +345,20 @@ int fat_dirtybuf(Buffer *b, bool write_through);
 #endif
 int fat_readbuf (Volume *v, Sector sector, Buffer **buffer, bool read_through);
 #if FAT_CONFIG_FD32
-int fat_mount(DWORD blk_handle, Volume **volume);
 int fat_get_fsinfo(fd32_fs_info_t *fsinfo);
 int fat_get_fsfree(fd32_getfsfree_t *fsfree);
-#else
-int fat_mount(const char *blk_name, Volume **volume);
 #endif
+int fat_mount(const char *blk_name, Volume **volume);
 int fat_unmount(Volume *v);
 int fat_partcheck(unsigned id);
-#if FAT_CONFIG_REMOVABLE //&& FAT_CONFIG_FD32
-int fat_mediachange(Volume *v);
+#if FAT_CONFIG_REMOVABLE && FAT_CONFIG_FD32
+int fat_handle_attention(Volume *v);
 #endif
 
 /* Portability */
-ssize_t fat_blockdev_read       (BlockDev *bd, void *data, size_t count, Sector from);
-ssize_t fat_blockdev_write      (BlockDev *bd, const void *data, size_t count, Sector from);
-int     fat_blockdev_mediachange(BlockDev *bd);
+ssize_t fat_blockdev_read(Volume *v, void *data, size_t count, Sector from);
+ssize_t fat_blockdev_write(Volume *v, const void *data, size_t count, Sector from);
+int     fat_blockdev_test_unit_ready(Volume *v);
 
 /* Functions with pathname resolution */
 int fat_open_pr  (Dentry *dentry, const char *pn, size_t pnsize, int flags, mode_t mode, Channel **channel);
@@ -374,5 +369,5 @@ int fat_rmdir_pr (Dentry *dentry, const char *pn, size_t pnsize);
 int fat_mkdir_pr (Dentry *dentry, const char *pn, size_t pnsize, mode_t mode);
 int fat_findfirst_pr(Dentry *dentry, const char *pn, size_t pnsize, int attr, fd32_fs_dosfind_t *df);
 
-
+/* @} */
 #endif /* #ifndef __FD32_FAT_DRIVER_H */

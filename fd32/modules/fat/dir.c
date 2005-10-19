@@ -22,6 +22,10 @@
  * \file
  * \brief Facilities to access directories.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #include "fat.h"
 
 
@@ -864,7 +868,6 @@ error:
  * \remarks If there are other active references to the cached directory node
  *          of the deleted file, they shall be marked as invalid.
  * \remarks The cached directory node shall not identify a directory.
- * \ingroup api
  */
 int fat_unlink(Dentry *d)
 {
@@ -881,7 +884,6 @@ int fat_unlink(Dentry *d)
  * \return  0 on success, or a negative error.
  * \remarks The two cached directory nodes shall be valid and contained
  *          in the same file system volume.
- * \ingroup api
  */
 int fat_rename(Dentry *od, Dentry *ndparent, const char *nn, size_t nnsize)
 {
@@ -1019,7 +1021,6 @@ error:
  * \brief  Backend for the "rmdir" POSIX system call.
  * \param  d cached directory node of the directory to remove.
  * \return 0 on success, or a negative error.
- * \ingroup api
  */
 int fat_rmdir(Dentry *d)
 {
@@ -1034,7 +1035,6 @@ int fat_rmdir(Dentry *d)
  * \param  fnsize length in bytes of the directory name;
  * \param  mode   permissions for the new directory.
  * \return 0 on success, or a negative error.
- * \ingroup api
  */
 int fat_mkdir(Dentry *dparent, const char *fn, size_t fnsize, mode_t mode)
 {
@@ -1086,3 +1086,5 @@ error:
 	return res;
 }
 #endif /* #if FAT_CONFIG_WRITE */
+
+/* @} */

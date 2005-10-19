@@ -22,6 +22,10 @@
  * \file
  * \brief File system facilities with pathname resolution support.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #include "fat.h"
 
 //TODO: Check trailing slash everywhere but open
@@ -325,3 +329,5 @@ struct dir_operations
 	int  (*mkdir) (void *dparent, const char *fn, size_t fnsize, mode_t mode);
 };
 #endif
+
+/* @} */

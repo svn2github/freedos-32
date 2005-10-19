@@ -21,6 +21,25 @@
 
 
 /**
+\name Error reporting
+
+Block device facilities shall return a negative error value in case of failure.
+The error values are formed as follows:
+<table class="datatable">
+<tr><th>bits</th><th>field</th><th>purpose</th></tr>
+<tr><td>30..22</td><td>category code</td><td>to let the caller know this error comes from a block device facility</td></tr>
+<tr><td>21..16</td><td>sense key</td><td>broad description of the error and hint for the action to take</td></tr>
+<tr><td>15..0</td><td>additional error code</td><td>to provide more details about the error condition</td></tr>
+</table>
+The category code for block device errors is ::BLOCK_ERROR_CATEGORY. The sense key is
+a value defined in enum ::BlockSenseKeys.
+Block device drivers should use the ::BLOCK_ERROR macro to format error values.
+A so formed error value is non-negative, thus it should be turned into negative by inverting
+its sign before returning it. This allows negative error codes regardless the bit size of the
+the return value of a function (assuming it is at least 32-bit).
+@{ */
+
+/**
  * \brief Error category code for block devices.
  */
 #define BLOCK_ERROR_CATEGORY 2
@@ -32,14 +51,19 @@
  *          they return. This macro formats a non-negative value (for human
  *          readability), thus block device driver should explicitly invert its
  *          sign before returning it.
- * \sa enum BlockSenseKeys
  */
 #define BLOCK_ERROR(sense, code) (((BLOCK_ERROR_CATEGORY & 0x1FF) << 22) | (sense) | ((code) & 0xFFFF))
-
+/**
+ * \brief Gets the sense key from a block device error value.
+ */
+#define BLOCK_GET_SENSE(value) ((value) & (0x3F << 16))
+/**
+ * \brief Checks if an error value belongs to the block devices category.
+ */
+#define BLOCK_IS_ERROR(value) ((((value) & 0x1FF) << 22) == BLOCK_ERROR_CATEGORY)
 
 /**
  * \brief Sense key values for block device error values.
- * \sa \ref block_error_reporting section, BLOCK_ERROR macro.
  */
 enum BlockSenseKeys
 {
@@ -55,7 +79,12 @@ enum BlockSenseKeys
 	BLOCK_SENSE_ABORTED    = 11 << 16, ///< Aborted command
 	BLOCK_SENSE_MISCOMPARE = 14 << 16  ///< Miscompare
 };
+/* @} Error reporting */
 
+
+/**
+\name Block device operations
+@{ */
 
 /**
  * \brief Block device information flags.
@@ -147,6 +176,7 @@ typedef struct BlockOperations BlockOperations;
 
 /**
  * \brief Structure of operations for block devices.
+ * \nosubgrouping
  */
 struct BlockOperations
 {
@@ -156,11 +186,13 @@ struct BlockOperations
 	 *          the \a open operation before calling the request function.
 	 * \remarks The caller shall release the device when it is no longer
 	 *          needed using ::REQ_RELEASE.
+	 * \remarks Arguments and return value depends on the specified function.
 	 */
 	int (*request)(int function, ...);
 	/**
 	 * \brief Opens a block device.
 	 * \param handle opaque identifier of the block device.
+	 * \return 0 on success, or a negative error.
 	 * \remarks This operation shall be called before using any other
 	 *          operation on a block device (unless the operation is marked
 	 *          with a specific exception) to claim the use of the device.
@@ -177,6 +209,7 @@ struct BlockOperations
 	/**
 	 * \brief Revalidates a block device.
 	 * \param handle opaque identifier of the block device.
+	 * \return 0 on success, or a negative error.
 	 * \remarks This operation shall be called when an error condition
 	 *          requiring to revalidate the device is reported, that is an
 	 *          "attention" sense key (this could happen, for example, due to media change).
@@ -196,6 +229,7 @@ struct BlockOperations
 	/**
 	 * \brief Closes a block device.
 	 * \param handle opaque identifier of the block device.
+	 * \return 0 on success, or a negative error.
 	 * \remarks This operation must be called when the block device is
 	 *          no longer needed to unclaim it.
 	 * \remarks The block device driver must perform any required cleanup,
@@ -207,6 +241,7 @@ struct BlockOperations
 	 * \brief Gets information about a block device.
 	 * \param handle opaque identifier of the block device;
 	 * \param buf    address of a buffer to obtain device information.
+	 * \return 0 on success, or a negative error.
 	 * \remarks Information returned by this operation is not dependent on
 	 *          the medium currently loaded (for example, the drive type), thus
 	 *          this function may be called even if the device has not been
@@ -217,6 +252,7 @@ struct BlockOperations
 	 * \brief Gets information about the medium implementing the block device.
 	 * \param handle opaque identifier of the block device;
 	 * \param buf    address of a buffer to obtain medium information.
+	 * \return 0 on success, or a negative error.
 	 * \remarks Information returned by this operation depends on the medium
 	 *          currently loaded, such as its capacity. Thus the medium must
 	 *          be first probed using the \a open or \a revalidate operations.
@@ -231,6 +267,9 @@ struct BlockOperations
 	 * \param start  block number of the first block to transfer;
 	 * \param count  number of block to transfer;
 	 * \param flags  a combination of flags specified by enum ::BlockReadWriteFlags.
+	 * \return The non-negative number of blocks transferred (may be less
+	 *         than the required count of blocks near to the end of the
+	 *         device), or a negative error.
 	 */
 	ssize_t (*read)(void *handle, void *buffer, uint64_t start, size_t count, int flags);
 	/**
@@ -240,11 +279,15 @@ struct BlockOperations
 	 * \param start  block number of the first block to transfer;
 	 * \param count  number of block to transfer.
 	 * \param flags  a combination of flags specified by enum ::BlockReadWriteFlags.
+	 * \return The non-negative number of blocks transferred (may be less
+	 *         than the required count of blocks near to the end of the
+	 *         device), or a negative error.
 	 */
 	ssize_t (*write)(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
 	/**
 	 * \brief Flushes any cached data to the block device.
 	 * \param handle opaque identifier of the block device.
+	 * \return 0 on success, or a negative error.
 	 * \remarks The block device driver must write any pending cached data
 	 *          to the block device.
 	 * \remarks In particular this operation should be called before closing
@@ -254,13 +297,16 @@ struct BlockOperations
 	 */
 	int (*sync)(void *handle);
 	/**
-	 * \brief Tests for unit attention.
+	 * \brief Queries the device for medium status.
 	 * \param handle opaque identifier of the block device.
-	 * \remarks At a minimum, this function shall report unit attention,
-	 *          but may also detect other error conditions.
+	 * \return 0 on success, or a negative error.
+	 * \remarks In particular this operation may fail with a BLOCK_SENSE_ATTENTION
+	 *          sense key, meaning that the medium may have been changed.
 	 */
-	int (*test)(void *handle);
+	int (*test_unit_ready)(void *handle);
 };
+
+/* @} Block device operations */
 
 
 /**
@@ -297,16 +343,26 @@ struct BlockOperations
 #define REQ_RELEASE 2
 
 
+/**
+\name Block device manager functions
+@{ */
+/* Nils: these belongs in this file?
+ * Salvo: Not eventually, I suppose. I'd like to replace the old device
+ *        manager altogether with this stuff.
+ */
+/** \brief Shortcut to perform a REQ_GET_OPERATIONS request */
 static inline int req_get_operations(int (*r)(int function, ...), int type, void **operations)
 {
 	return r(REQ_GET_OPERATIONS, type, operations);
 }
 
+/** \brief Shortcut to perform a REQ_GET_REFERENCES request */
 static inline int req_get_references(int (*r)(int function, ...))
 {
 	return r(REQ_GET_REFERENCES);
 }
 
+/** \brief Shortcut to perform a REQ_RELEASE request */
 static inline int req_release(int (*r)(int function, ...), void *handle)
 {
 	return r(REQ_RELEASE, handle);
@@ -316,6 +372,7 @@ const char *block_enumerate (void **iterator);
 int         block_get       (const char *name, int type, void **operations, void **handle);
 int         block_register  (const char *name, int (*request)(int function, ...), void *handle);
 int         block_unregister(const char *name);
+/* @} */
 
 /* @} */
 

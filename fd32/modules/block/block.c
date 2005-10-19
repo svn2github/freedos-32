@@ -70,23 +70,6 @@ specify what device or facility to operate on. The opaque identifier is usually
 the address of a structure used by the driver to store the state of the device or
 facility.
  
-\section block_error_reporting Error reporting
-
-Block device facilities shall return a negative error value in case of failure.
-The error values are formed as follows:
-<table class="datatable">
-<tr><th>bits</th><th>field</th><th>purpose</th></tr>
-<tr><td>30..22</td><td>category code</td><td>to let the caller know this error comes from a block device facility</td></tr>
-<tr><td>21..16</td><td>sense key</td><td>broad description of the error and hint for the action to take</td></tr>
-<tr><td>15..0</td><td>additional error code</td><td>to provide more details about the error condition</td></tr>
-</table>
-The category code for block device errors is ::BLOCK_ERROR_CATEGORY. The sense key is
-a value defined in enum ::BlockSenseKeys.
-Block device drivers should use the ::BLOCK_ERROR macro to format error values.
-A so formed error value is non-negative, thus it should be turned into negative by inverting
-its sign before returning it. This allows negative error codes regardless the bit size of the
-the return value of a function (assuming it is at least 32-bit).
-
 @{
 */
 
@@ -102,9 +85,21 @@ struct BlockDevice
 	const char *name;
 };
 
+/* Linked list of registered devices */
+static List list =
+{
+	.begin = NULL,
+	.end   = NULL,
+	.size  = 0
+};
 
-static List      list; /* Linked list of registered devices */
-static slabmem_t slab; /* Slab cache to store registered devices */
+/* Slab cache to store registered devices */
+static slabmem_t slab =
+{
+	.pages     = NULL,
+	.obj_size  = sizeof(BlockDevice),
+	.free_objs = NULL
+};
 
 
 /**
@@ -193,6 +188,7 @@ int block_register(const char *name, int (*request)(int function, ...), void *ha
 	d->handle  = handle;
 	d->name    = name;
 	list_push_back(&list, (ListItem *) d);
+	message("[BLOCK] Device \"%s\" registered\n", name);
 	return 0;
 }
 
@@ -230,6 +226,7 @@ int block_unregister(const char *name)
 #include <ll/i386/error.h>
 static const struct { /*const*/ char *name; DWORD address; } symbols[] =
 {
+	{ "block_enumerate",  (DWORD) block_enumerate  },
 	{ "block_get",        (DWORD) block_get        },
 	{ "block_register",   (DWORD) block_register   },
 	{ "block_unregister", (DWORD) block_unregister },
@@ -242,8 +239,6 @@ void block_init(void)
 {
 	int k;
 	message("Going to install the Block Device Manager... ");
-	list_init(&list);
-	slabmem_create(&slab, sizeof(BlockDevice));
 	for (k = 0; symbols[k].name; k++)
 		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
 			message("Cannot add %s to the symbol table\n", symbols[k].name);

@@ -22,6 +22,10 @@
  * \file
  * \brief FreeDOS-32 specific part of the driver: initialization and requests.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #include "fat.h"
 #include <kernel.h>
 #if FAT_CONFIG_DEBUG
@@ -31,42 +35,48 @@
 #endif
 
 
-ssize_t fat_blockdev_read(BlockDev *bd, void *data, size_t count, Sector from)
+ssize_t fat_blockdev_read(Volume *v, void *data, size_t count, Sector from)
 {
-	fd32_blockread_t p =
+	ssize_t res;
+	unsigned k;
+	for (k = 0;; k++)
 	{
-		.Size      = sizeof(fd32_blockread_t),
-		.DeviceId  = bd->devid,
-		.Start     = from,
-		.Buffer    = data,
-		.NumBlocks = count
-	};
-	return bd->request(FD32_BLOCKREAD, &p);
+		if (k == 3) return -EIO;
+		res = v->blk.bops->read(v->blk.handle, data, from, count, 0);
+		if (res >= 0) break;
+		if (!BLOCK_IS_ERROR(-res)) break;
+		if (BLOCK_GET_SENSE(-res) != BLOCK_SENSE_ATTENTION) break;
+		res = fat_handle_attention(v);
+		if (res < 0) return res;
+	}
+	return res;
 }
 
 
-ssize_t fat_blockdev_write(BlockDev *bd, const void *data, size_t count, Sector from)
+ssize_t fat_blockdev_write(Volume *v, const void *data, size_t count, Sector from)
 {
-	fd32_blockwrite_t p =
+	ssize_t res;
+	unsigned k;
+	for (k = 0;; k++)
 	{
-		.Size      = sizeof(fd32_blockwrite_t),
-		.DeviceId  = bd->devid,
-		.Start     = from,
-		.Buffer    = (void *) data,
-		.NumBlocks = count
-	};
-	return bd->request(FD32_BLOCKWRITE, &p);
+		if (k == 3) return -EIO;
+		res = v->blk.bops->write(v->blk.handle, data, from, count, 0);
+		if (res >= 0) break;
+		if (!BLOCK_IS_ERROR(-res)) break;
+		if (BLOCK_GET_SENSE(-res) != BLOCK_SENSE_ATTENTION) break;
+		res = fat_handle_attention(v);
+		if (res < 0) return res;
+	}
+	return res;
 }
 
 
-int fat_blockdev_mediachange(BlockDev *bd)
+int fat_blockdev_test_unit_ready(Volume *v)
 {
-	fd32_mediachange_t mc =
-	{
-		.Size     = sizeof(fd32_mediachange_t),
-		.DeviceId = bd->devid
-	};
-	return bd->request(FD32_MEDIACHANGE, &mc);
+	int res = v->blk.bops->test_unit_ready(v->blk.handle);
+	if ((res < 0) && BLOCK_IS_ERROR(-res) && (BLOCK_GET_SENSE(-res) == BLOCK_SENSE_ATTENTION))
+		res = fat_handle_attention(v);
+	return res;
 }
 
 
@@ -81,7 +91,7 @@ int fat_request(DWORD function, void *params)
 			Channel *c = (Channel *) p->DeviceId;
 			LOG_PRINTF(("[FAT2] FD32_READ: %lu bytes... \n", p->BufferBytes));
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(c->f->v);
+			res = fat_blockdev_test_unit_ready(c->f->v);
 			if (res < 0) return res;
 			#endif
 			res = fat_read(c, p->Buffer, p->BufferBytes);
@@ -95,7 +105,7 @@ int fat_request(DWORD function, void *params)
 			Channel *c = (Channel *) p->DeviceId;
 			LOG_PRINTF(("[FAT2] FD32_WRITE: %lu bytes... \n", p->BufferBytes));
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(c->f->v);
+			res = fat_blockdev_test_unit_ready(c->f->v);
 			if (res < 0) return res;
 			#endif
 			res = fat_write(c, p->Buffer, p->BufferBytes);
@@ -120,7 +130,7 @@ int fat_request(DWORD function, void *params)
 			Volume *v = (Volume *) p->DeviceId;
 			LOG_PRINTF(("[FAT2] FD32_OPENFILE: %s mode %lx... \n", p->FileName, p->Mode));
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			res = fat_open_pr(&v->root_dentry, p->FileName, strlen(p->FileName), p->Mode, p->Attr, (Channel **) &p->FileId);
@@ -133,7 +143,7 @@ int fat_request(DWORD function, void *params)
 			Channel *c = (Channel *) p->DeviceId;
 			LOG_PRINTF(("[FAT2] FD32_CLOSE... \n"));
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(c->f->v);
+			res = fat_blockdev_test_unit_ready(c->f->v);
 			if (res < 0) return res;
 			#endif
 			res = fat_close(c);
@@ -147,7 +157,7 @@ int fat_request(DWORD function, void *params)
 			LOG_PRINTF(("[FAT2] FD32_FINDFIRST: %s attrib %02xh... \n", p->path, p->attrib));
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			res = fat_findfirst_pr(&v->root_dentry, p->path, strlen(p->path), p->attrib, (fd32_fs_dosfind_t *) p->find_data);
@@ -161,7 +171,7 @@ int fat_request(DWORD function, void *params)
 			LOG_PRINTF(("[FAT2] FD32_FINDNEXT... \n"));
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			res = fat_findnext(v, (fd32_fs_dosfind_t *) p->find_data);
@@ -175,7 +185,7 @@ int fat_request(DWORD function, void *params)
 			LOG_PRINTF(("[FAT2] FD32_FINDFILE: %s flags %08xh\n", p->name, p->flags));
 			if (c->magic != FAT_CHANNEL_MAGIC) return -EBADF;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(c->f->v);
+			res = fat_blockdev_test_unit_ready(c->f->v);
 			if (res < 0) return res;
 			#endif
 			res = fat_findfile(c, p->name, strlen(p->name), p->flags, (fd32_fs_lfnfind_t *) p->find_data);
@@ -189,7 +199,7 @@ int fat_request(DWORD function, void *params)
 			Channel *c = (Channel *) p->DeviceId;
 			LOG_PRINTF(("[FAT2] FD32_FFLUSH\n"));
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(c->f->v);
+			res = fat_blockdev_test_unit_ready(c->f->v);
 			if (res < 0) return res;
 			#endif
 			return fat_fsync(c, false);
@@ -216,7 +226,7 @@ int fat_request(DWORD function, void *params)
 			LOG_PRINTF(("[FAT2] FD32_SETATTR\n"));
 			if (c->magic != FAT_CHANNEL_MAGIC) return -EBADF;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(c->f->v);
+			res = fat_blockdev_test_unit_ready(c->f->v);
 			if (res < 0) return res;
 			#endif
 			return fat_set_attr(c, (const fd32_fs_attr_t *) p->Attr);
@@ -227,7 +237,7 @@ int fat_request(DWORD function, void *params)
 			Volume *v = (Volume *) p->DeviceId;
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			return fat_unlink_pr(&v->root_dentry, p->FileName, strlen(p->FileName)); //p->Flags ignored
@@ -238,7 +248,7 @@ int fat_request(DWORD function, void *params)
 			Volume *v = (Volume *) p->DeviceId;
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			return fat_rename_pr(&v->root_dentry, p->OldName, strlen(p->OldName),
@@ -250,7 +260,7 @@ int fat_request(DWORD function, void *params)
 			Volume *v = (Volume *) p->DeviceId;
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			return fat_mkdir_pr(&v->root_dentry, p->DirName, strlen(p->DirName), 0); //fake mode
@@ -261,7 +271,7 @@ int fat_request(DWORD function, void *params)
 			Volume *v = (Volume *) p->DeviceId;
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			return fat_rmdir_pr(&v->root_dentry, p->DirName, strlen(p->DirName));
@@ -270,7 +280,7 @@ int fat_request(DWORD function, void *params)
 		case FD32_MOUNT:
 		{
 			fd32_mount_t *p = (fd32_mount_t *) params;
-			return fat_mount(p->hDev, (Volume **) &p->FsDev);
+			return fat_mount(p->BlkDev, (Volume **) &p->FsDev);
 		}
 		case FD32_UNMOUNT:
 		{
@@ -278,7 +288,7 @@ int fat_request(DWORD function, void *params)
 			Volume *v = (Volume *) p->DeviceId;
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 			#if FAT_CONFIG_REMOVABLE
-			res = fat_mediachange(v);
+			res = fat_blockdev_test_unit_ready(v);
 			if (res < 0) return res;
 			#endif
 			return fat_unmount(v);
@@ -311,3 +321,5 @@ int fat_init()
 	fd32_message("[FAT2] FAT driver installed.\n");
 	return 0;
 }
+
+/* @} */

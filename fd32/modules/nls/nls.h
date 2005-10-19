@@ -25,10 +25,8 @@
 #define __FD32_NLS_H
 
 /**
- * \file
- * \brief NLS Manager facilities.
- *
- * Include this header file to use the facilities of the NLS Manager.
+ * \addtogroup nls
+ * @{
  */
 
 #if 0 /* Standard headers */
@@ -174,14 +172,9 @@ struct nls_operations
 };
 
 
-/// Gets NLS operations for a code page.
-int nls_get(const char *name, int type, void **operations);
-
-/// Registers a code page to the NLS manager liked list.
-int nls_register(struct nls_code_page *cp);
-
-/// Unregisters a code page from the NLS manager linked list.
+int nls_get       (const char *name, int type, void **operations);
+int nls_register  (struct nls_code_page *cp);
 int nls_unregister(struct nls_code_page *cp);
 
-
+/* @} */
 #endif /* #ifndef __FD32_NLS_H */

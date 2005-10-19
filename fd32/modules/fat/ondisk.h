@@ -22,6 +22,10 @@
  * \file
  * \brief Format for the on-disk data structures for the FAT file system.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #ifndef __FAT_ONDISK_H
 #define __FAT_ONDISK_H
 
@@ -195,3 +199,5 @@ struct fat_lfnentry
 
 
 #endif /* #ifndef __FAT_ONDISK_H */
+
+/* @} */

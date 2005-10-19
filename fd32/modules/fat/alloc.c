@@ -19,6 +19,10 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 /**
+ * \addtogroup fat
+ * @{
+ */
+/**
  * \file
  * \brief Manages allocation of clusters and the File Allocation Table.
  */
@@ -434,3 +438,5 @@ int fat_delete_clusters(Volume *v, Cluster from)
 	return 0;
 }
 #endif /* #if FAT_CONFIG_WRITE */
+
+/* @} */

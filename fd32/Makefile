@@ -12,9 +12,9 @@ LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
 OBJS =	boot/fdboot.a devices/devices.a dynalink/dynalink.a \
-	kernel/kernel.a filesys/filesys.a cons/cons.a
+	kernel/kernel.a filesys/filesys.a cons/cons.a modules/block/block.o
 
-KERNEL_DIRS = $(OSLIB) boot cons devices dynalink filesys kernel
+KERNEL_DIRS = $(OSLIB) boot cons devices dynalink filesys kernel modules/block
 
 .PHONY: all modules kern_subdirs clean allclean
 
@@ -29,6 +29,7 @@ clean: $(OSLIB)/config.mk
 	make -C filesys clean
 	make -C kernel clean
 	make -C modules clean
+	make -C modules/block clean
 
 allclean: clean
 	make -C $(OSLIB) allclean

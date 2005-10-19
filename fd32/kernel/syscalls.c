@@ -32,6 +32,12 @@
 #include "fd32time.h"
 #include "slabmem.h"
 
+/* TODO: Remove the following from the kernel */
+extern const char *block_enumerate (void **iterator);
+extern int         block_get       (const char *name, int type, void **operations, void **handle);
+extern int         block_register  (const char *name, int (*request)(int function, ...), void *handle);
+extern int         block_unregister(const char *name);
+
 /* "not used" extern DWORD ll_exc_table[16]; */
 extern struct handler exc_table[32];
 extern struct gate IDT[256];
@@ -350,6 +356,11 @@ static struct symbol syscall_table[] = {
   { "fd32_sfn_truename",      (DWORD) fd32_sfn_truename      },
   /* in unicode module: Symbols for Unicode support (from unicode.h) */
   /* in nls module: Symbols for NLS support (from nls.h) */
+  /* TODO: Remove the following from the kernel */
+	{ "block_enumerate",  (DWORD) block_enumerate  },
+	{ "block_get",        (DWORD) block_get        },
+	{ "block_register",   (DWORD) block_register   },
+	{ "block_unregister", (DWORD) block_unregister },
 
   { "event_post", (DWORD) (&event_post) },
   { "event_delete", (DWORD) (&event_delete) },

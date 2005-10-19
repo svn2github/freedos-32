@@ -10,6 +10,9 @@
 ifndef FD32
 FD32 = ../..
 endif
+ifndef MODULES
+MODULES = ..
+endif
 ifndef OSLIB
 OSLIB = ../../../oslib
 endif
@@ -20,12 +23,12 @@ endif
 include $(FD32)/config.mk
 
 OBJS     = fdc.o bootsect.o blockio.o fd32.o
-C_OPT    = -Wall -O3 -fno-builtin -nostdinc -D__GNU__ -I. -I$(FD32)/include -I$(OSLIB) -I$(PORTAB)
+C_OPT    = -Wall -O3 -fno-builtin -nostdinc -D__GNU__ -I. -I$(FD32)/include -I$(MODULES) -I$(OSLIB) -I$(PORTAB)
 LINK_OPT = -Bstatic
 
 .PHONY: all clean
 
-all: floppy.o
+all: floppy.o floppytest.o
 
 fdc.o: fdc.c fdc.h
 	$(CC) -c $(C_OPT) fdc.c -o $@
@@ -41,6 +44,9 @@ fd32.o: fd32/fd32.c blockio.h fdc.h
 
 floppy.o: $(OBJS)
 	$(LD) $(LINK_OPT) $(OBJS) -r -s -o $@
+
+floppytest.o: floppytest.c
+	$(CC) -c $(C_OPT) floppytest.c -o $@
 
 clean :
 	$(RM) *.o

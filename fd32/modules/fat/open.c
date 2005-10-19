@@ -22,6 +22,10 @@
  * \file
  * \brief Facilities to open and close files.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #include "fat.h"
 
 
@@ -77,7 +81,6 @@ static void file_put(File *f)
 /**
  * \brief Increases the reference count of a cached directory node.
  * \param d the cached directory node; the behavior is undefined if it is not valid.
- * \ingroup api
  */
 void fat_dget(Dentry *d)
 {
@@ -143,7 +146,6 @@ static Dentry *dentry_get(Dentry *parent, unsigned de_entcnt, Sector de_sector, 
  *          decreased. If it reaches zero, the directory node itself shall
  *          be deallocated, and the procedure shall be repeated recursively
  *          for any parent cached directory node of the file system volume.
- * \ingroup api
  */
 void fat_dput(Dentry *d)
 {
@@ -206,7 +208,6 @@ static Channel *channel_get(File *f, Dentry *d, int flags)
  * \return 0 on success, or a negative error (\c channel unchanged).
  * \remarks On success, the cached directory node shall be associated to the
  *          open file description, thus its reference count shall be increased.
- * \ingroup api
  */
 int fat_open(Dentry *dentry, int flags, Channel **channel)
 {
@@ -266,7 +267,6 @@ int fat_open(Dentry *dentry, int flags, Channel **channel)
  * \param  channel to receive the pointer to the open file description.
  * \return 0 on success, or a negative error.
  * \remarks The cached directory node of the parent directory shall be released.
- * \ingroup api
  */
 int fat_create(Dentry *dparent, const char *fn, size_t fnsize, int flags, mode_t mode, Channel **channel)
 {
@@ -354,7 +354,6 @@ int fat_reopen_dir(Volume *v, Cluster first_cluster, unsigned entry_count, Chann
  * \param  c        open instance of the file to commit;
  * \param  datasync if nonzero, do not commit the directory entry, only the buffered data.
  * \return 0 on success, or a negative error.
- * \ingroup api
  */
 int fat_fsync(Channel *c, bool datasync)
 {
@@ -382,7 +381,6 @@ int fat_fsync(Channel *c, bool datasync)
  * \return  0 on success, or a negative error.
  * \remarks If there are no other open instances, the file description and the
  *          associated cached directory node shall be released even on I/O error.
- * \ingroup api
  */
 int fat_close(Channel *c)
 {
@@ -455,7 +453,6 @@ static int compare_without_wildcards(const char *s1, size_t n1, const wchar_t *s
  *          directory node shall be released. On error the input cached
  *          directory node shall be unchanged.
  * \return  0 on success, or a negative error.
- * \ingroup api
  */
 int fat_lookup(Dentry **dentry, const char *fn, size_t fnsize)
 {
@@ -526,3 +523,5 @@ quit:
 	fat_close(c);
 	return res;
 }
+
+/* @} */

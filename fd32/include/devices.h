@@ -31,12 +31,14 @@ enum
   FD32_FINDFILE,
   FD32_FINDFIRST, /* DOS-style short file names only */
   FD32_FINDNEXT,  /* DOS-style short file names only */
+  #if 0
   /* Block device functions */
   FD32_BLOCKWRITE = 0x100,
   FD32_BLOCKREAD,
   FD32_BLOCKINFO,
   FD32_MEDIACHANGE,
   FD32_ISMOUNTED,
+  #endif
 
   FD32_GET_DEV_INFO
 };
@@ -184,7 +186,7 @@ fd32_rmdir_t;
 typedef struct fd32_mount
 {
   DWORD  Size;     /* Size in bytes of this structure             */
-  DWORD  hDev;     /* Handle of the hosting block device          */
+  const char *BlkDev; /* Name of the hosting block device */
   void  *FsDev;    /* OUT: Identifier of the new FS device        */
 }
 fd32_mount_t;
@@ -362,6 +364,7 @@ struct fd32_findnext
 };
 
 
+#if 0
 /****************************************************************************/
 /* BLOCKWRITE - Write a block of data with random access                    */
 /****************************************************************************/
@@ -445,6 +448,7 @@ typedef struct fd32_ismounted
   void           *FSDevId;  /* OUT: Device identifier of the FS device */
 }
 fd32_ismounted_t;
+#endif
 
 
 /***************************/

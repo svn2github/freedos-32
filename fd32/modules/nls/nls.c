@@ -23,17 +23,24 @@
  */
 #include <errno.h>
 #include "nls.h"
- 
+
+/** 
+\defgroup nls Native Language Support (NLS)
+
+@{ */
+
 /* Head of the NLS manager linked list of code pages */
 static struct nls_code_page *nls_head = NULL;
 
 
-/** \param name name of the requested code page, case insensitive in ASCII range ('a'..'z');
- *  \param type the requested type of operations;
- *  \param[out] operations the address of a pointer to the returned operations;
- *              it can be NULL to just check if the requested type is available.
- *  \retval 0 success, \c operations points to the structure of operations;
- *  \retval -ENOTSUP request or type of operations not available.
+/**
+ * \brief Gets NLS operations for a code page.
+ * \param name name of the requested code page, case insensitive in ASCII range ('a'..'z');
+ * \param type the requested type of operations;
+ * \param[out] operations the address of a pointer to the returned operations;
+ *             it can be NULL to just check if the requested type is available.
+ * \retval 0 success, \c operations points to the structure of operations;
+ * \retval -ENOTSUP request or type of operations not available.
  */
 int nls_get(const char *name, int type, void **operations)
 {
@@ -52,11 +59,13 @@ int nls_get(const char *name, int type, void **operations)
 }
 
 
-/** \param cp the code page structure to register.
- *  \retval 0 success;
- *  \retval -EINVAL the code page structure is not valid;
- *  \retval -EBUSY  the code page structure is already linked (the \c next field is not null).
- *  \remarks The NLS Manager updates the \c next field of the code page structure.
+/**
+ * \brief Registers a code page to the NLS manager liked list.
+ * \param cp the code page structure to register.
+ * \retval 0 success;
+ * \retval -EINVAL the code page structure is not valid;
+ * \retval -EBUSY  the code page structure is already linked (the \c next field is not null).
+ * \remarks The NLS Manager updates the \c next field of the code page structure.
  */
 int nls_register(struct nls_code_page *cp)
 {
@@ -72,13 +81,15 @@ int nls_register(struct nls_code_page *cp)
 }
 
 
-/** \param cp the code page to unregister.
- *  \retval 0 success;
- *  \retval -EINVAL code page structure not found in the linked list;
- *  \retval -EBUSY  the reference count of the code page structure is
- *                  not zero (somebody is using the code page).
- *  \remarks The NLS Manager sets the \c next field of the code page
- *           structure back to a null pointer.
+/**
+ * \brief Unregisters a code page from the NLS manager linked list.
+ * \param cp the code page to unregister.
+ * \retval 0 success;
+ * \retval -EINVAL code page structure not found in the linked list;
+ * \retval -EBUSY  the reference count of the code page structure is
+ *                 not zero (somebody is using the code page).
+ * \remarks The NLS Manager sets the \c next field of the code page
+ *          structure back to a null pointer.
  */
 int nls_unregister(struct nls_code_page *cp)
 {
@@ -245,3 +256,5 @@ void nls_init(void)
 	if (k < 0) message("Error %i registering the ISO-8859-1 code page\n", k);
 	message("Done\n");
 }
+
+/* @} */

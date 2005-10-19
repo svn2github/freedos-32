@@ -22,6 +22,10 @@
  * \file
  * \brief Facilities to access open files.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #include "fat.h"
 
 
@@ -101,7 +105,6 @@ void fat_timestamps(uint16_t *dos_time, uint16_t *dos_date, uint8_t *dos_hund)
  *                is not allowed for directories.
  * \return On success, the new byte offset from the beginning of the file,
  *         or a negative error.
- * \ingroup api
  */
 off_t fat_lseek(Channel *c, off_t offset, int whence)
 {
@@ -129,7 +132,6 @@ off_t fat_lseek(Channel *c, off_t offset, int whence)
  * \param  buffer pointer to a buffer to receive the data;
  * \param  size   the number of bytes to read;
  * \return The number of bytes read on success (may be less than \c size, 0 at EOF), or a negative error.
- * \ingroup api
  */
 ssize_t fat_read(Channel *c, void *buffer, size_t size)
 {
@@ -276,7 +278,6 @@ ssize_t fat_do_write(Channel *c, const void *buffer, size_t size, off_t offset)
  * \param  buffer pointer to the data to be written;
  * \param  size   the number of bytes to write.
  * \return The number of bytes written on success (may be less than \c size), or a negative error.
- * \ingroup api
  */
 ssize_t fat_write(Channel *c, const void *buffer, size_t size)
 {
@@ -316,7 +317,6 @@ ssize_t fat_write(Channel *c, const void *buffer, size_t size)
  * \remarks If \c length is greater than the file size, the file is extended
  *          by zero padding. If it is smaller it is truncated to the specified
  *          size. If \c length is equal to the file size, this is a no-op.
- * \ingroup api
  */
 int fat_ftruncate(Channel *c, off_t length)
 {
@@ -441,3 +441,5 @@ int fat_set_attr(Channel *c, const fd32_fs_attr_t *a)
 	return 0;
 }
 #endif
+
+/* @} */

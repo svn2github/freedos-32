@@ -46,6 +46,7 @@
 
 #define MAXDRIVES 2 /* Newer controllers don't support 4 drives, just 2 */
 #define SAFESEEK  5 /* Track to seek before issuing a recalibrate       */
+#define REPORT_ATTENTION 1
 //#define HAS2FDCS
 //#define __DEBUG__
 
@@ -558,6 +559,13 @@ int fdc_read(Fdd *fdd, const Chs *chs, BYTE *buffer, unsigned num_sectors)
     while (busy); /* Wait while the floppy driver is already busy: BUSY WAIT! */
     busy = 1;
     motor_on(fdd);
+    #if REPORT_ATTENTION
+    if (fd32_inb(fdd->fdc->base_port + FDC_DIR) & 0x80)
+    {
+        res = FDC_ATTENTION;
+        goto quit;
+    }
+    #endif
     specify(fdd);
     for (tries = 0; tries < 3; tries++)
     {
@@ -569,7 +577,7 @@ int fdc_read(Fdd *fdd, const Chs *chs, BYTE *buffer, unsigned num_sectors)
             {
                 LOG_PRINTF(("[FDC] fdc_read: no disk in drive\n"));
                 res = FDC_NODISK;
-                break;
+                goto quit;
             }
             res = fdc_xfer(fdd, chs, dma_addr, num_sectors, FDC_READ);
             if (res == FDC_OK) break;
@@ -580,6 +588,7 @@ int fdc_read(Fdd *fdd, const Chs *chs, BYTE *buffer, unsigned num_sectors)
     /* Copy data from the DMA buffer into the caller's buffer */
     if ((res == FDC_OK) && buffer)
         fd32_memcpy_from_lowmem(buffer, dma_sel, 0, 512 * num_sectors);
+quit:
     motor_down(fdd);
     busy = 0;
     return res;
@@ -597,6 +606,13 @@ int fdc_write(Fdd *fdd, const Chs *chs, const BYTE *buffer, unsigned num_sectors
     while (busy); /* Wait while the floppy driver is already busy: BUSY WAIT! */
     busy = 1;
     motor_on(fdd);
+    #if REPORT_ATTENTION
+    if (fd32_inb(fdd->fdc->base_port + FDC_DIR) & 0x80)
+    {
+        res = FDC_ATTENTION;
+        goto quit;
+    }
+    #endif
     specify(fdd);
     fd32_memcpy_to_lowmem(dma_sel, 0, buffer, 512 * num_sectors);
     for (tries = 0; tries < 3; tries++)
@@ -617,6 +633,7 @@ int fdc_write(Fdd *fdd, const Chs *chs, const BYTE *buffer, unsigned num_sectors
         else res = FDC_ERROR; /* Seek error */
         if (tries != 2) recalibrate(fdd); /* Error, try again... */
     }
+quit:
     motor_down(fdd);
     busy = 0;
     return res;
@@ -638,6 +655,13 @@ static int fdc_xfer_cylinder(Fdd *fdd, unsigned cyl, FdcTransfer op)
     int      res = FDC_ERROR;     /* This function's result...           */
 
     motor_on(fdd);
+    #if REPORT_ATTENTION
+    if (fd32_inb(fdd->fdc->base_port + FDC_DIR) & 0x80)
+    {
+        res = FDC_ATTENTION;
+        goto quit;
+    }
+    #endif
     specify(fdd);
     for (tries = 0; tries < 3; tries++)
     {
@@ -651,7 +675,8 @@ static int fdc_xfer_cylinder(Fdd *fdd, unsigned cyl, FdcTransfer op)
                 res = FDC_NODISK;
                 break;
             }
-            readid(fdd, &cur);
+            res = readid(fdd, &cur);
+            if (res < 0) return res;
             LOG_PRINTF(("[FDC] fdc_xfer_cylinder: readid=%u,%u,%u\n", cur.c, cur.h, cur.s));
             /* Transfer from the current sector of head 0 to the end of cylinder */
             cur.s++; /* The sector we read the Id is gone. Advance a bit */
@@ -680,6 +705,7 @@ static int fdc_xfer_cylinder(Fdd *fdd, unsigned cyl, FdcTransfer op)
         else res = FDC_ERROR; /* Seek error */
         if (tries != 2) recalibrate(fdd); /* Error, try again... */
     }
+quit:
     motor_down(fdd);
     return res;
 }
@@ -804,7 +830,7 @@ int fdc_setup(FdcSetupCallback *setup_cb)
     LOG_PRINTF(("IRQ6 handler installed\n"));
     /* TODO: Find a decent size for the DMA buffer */
     dma_sel = fd32_dmamem_get(512 * 18 * 2, &dma_seg, &dma_off);
-    if (dma_sel == 0) return FDC_ERROR; /* Unable to allocate DMA buffer */
+    if (!dma_sel) return FDC_ERROR; /* Unable to allocate DMA buffer */
     dma_addr = ((DWORD) dma_seg << 4) + (DWORD) dma_off;
     LOG_PRINTF(("DMA buffer allocated at physical address %08lxh\n", dma_addr));
 

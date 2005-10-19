@@ -1,43 +1,39 @@
-/**************************************************************************
- * FreeDOS32 Floppy Driver                                                *
- * by Salvo Isaja                                                         *
- *                                                                        *
- * Copyright (C) 2003-2005, Salvatore Isaja                               *
- *                                                                        *
- * This is "fdc.h" - Header file for portable code for FDC support        *
- *                                                                        *
- *                                                                        *
- * This file is part of the FreeDOS32 Floppy Driver.                      *
- *                                                                        *
- * The FreeDOS32 Floppy Driver is free software; you can redistribute     *
- * it and/or modify it under the terms of the GNU General Public License  *
- * as published by the Free Software Foundation; either version 2 of the  *
- * License, or (at your option) any later version.                        *
- *                                                                        *
- * The FreeDOS32 Floppy Driver is distributed in the hope that it will    *
- * be useful, but WITHOUT ANY WARRANTY; without even the implied warranty *
- * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the       *
- * GNU General Public License for more details.                           *
- *                                                                        *
- * You should have received a copy of the GNU General Public License      *
- * along with the FreeDOS32 Floppy Driver; see the file COPYING.txt;      *
- * if not, write to the Free Software Foundation, Inc.,                   *
- * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
- **************************************************************************/
-
+/* The FreeDOS-32 Floppy Driver
+ * Copyright (C) 2003-2005  Salvatore ISAJA
+ *
+ * This is "fdc.h" - Header file for portable code for FDC support
+ * This file is part of the FreeDOS-32 Floppy Driver (the Program).
+ *
+ * The Program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * The Program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with the Program; see the file GPL.txt; if not, write to
+ * the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
 #ifndef __FD32FLOPPY_FDC_H
 #define __FD32FLOPPY_FDC_H
 
 #include <dr-env.h>
+#include <block/block.h>
 
 
 /* Error codes for FDC routines */
 enum
 {
-    FDC_OK      =  0, /* successful completion */
-    FDC_ERROR   = -1, /* abnormal termination  */
-    FDC_NODISK  = -2, /* no disk in drive      */
-    FDC_TIMEOUT = -3, /* timed out             */
+    FDC_OK        =  0, /* successful completion */
+    FDC_ERROR     = -BLOCK_ERROR(BLOCK_SENSE_MEDIUM, 0),   /* abnormal termination */
+    FDC_NODISK    = -BLOCK_ERROR(BLOCK_SENSE_NOTREADY, 0), /* no disk in drive */
+    FDC_TIMEOUT   = -BLOCK_ERROR(BLOCK_SENSE_ABORTED, 0),  /* timed out */
+    FDC_ATTENTION = -BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0) /* change line active */
 };
 
 

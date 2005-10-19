@@ -22,6 +22,10 @@
  * \file
  * \brief Driver services only relevant to a DOS system.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #include "fat.h"
 
 
@@ -135,7 +139,6 @@ static int dos_find(Channel *c, fd32_fs_dosfind_t *df)
  *          namespace, and it is rather inefficient, since it requires that
  *          the lookup directory is opened and closed for every file to search.
  * \sa      fat_findnext(), fat_findfile()
- * \ingroup api
  */
 int fat_findfirst(Dentry *dparent, const char *fn, size_t fnsize, int attr, fd32_fs_dosfind_t *df)
 {
@@ -158,7 +161,6 @@ int fat_findfirst(Dentry *dparent, const char *fn, size_t fnsize, int attr, fd32
  * \param  df buffer containing the DOS FindData record (44 bytes).
  * \return 0 on success, or a negative error.
  * \sa     fat_findfirst(), fat_findfile()
- * \ingroup api
  */
 int fat_findnext(Volume *v, fd32_fs_dosfind_t *df)
 {
@@ -306,7 +308,6 @@ static int compare_with_wildcards_compat(const char *s1, size_t n1, const wchar_
  * \remarks This function works on both the short and long namespaces, and
  *          uses an open file description for the lookup directory.
  * \sa      fat_findfirst(), fat_findnext()
- * \ingroup api
  */
 int fat_findfile(Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_lfnfind_t *lfnfind)
 {
@@ -351,3 +352,5 @@ int fat_findfile(Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_l
 	}
 	return res;
 }
+
+/* @} */

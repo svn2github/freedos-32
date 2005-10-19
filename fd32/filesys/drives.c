@@ -3,7 +3,7 @@
  * Wrappers for file system driver functions and JFT support              *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2002-2003, Salvatore Isaja                               *
+ * Copyright (C) 2002-2005, Salvatore Isaja                               *
  *                                                                        *
  * This is "drives.c" - Services to handle drives and assign letters.     *
  *                                                                        *
@@ -31,17 +31,31 @@
 #include <ll/i386/error.h>
 #include <ll/ctype.h>
 
-#include <devices.h>
+//#include <devices.h>
+#include <dr-env.h> /* temp hack for uint??_t */
+#include <block/block.h>
 #include <errno.h>
 #include <filesys.h>
 
 #define NULBOOTDEV 0xFFFFFFFF
 
 //#define DRIVES_FIXED /* Define this to enable fixed letter assignment */
+#ifdef DRIVES_FIXED
+ #error "Fixed drive letter assignment is broken"
+#endif
+
+typedef struct Drive
+{
+	const char *blk_name;
+	fd32_request_t *req;
+	void *handle;
+}
+Drive;
+
+Drive drives[26];
 
 static DWORD BootDevice   = NULBOOTDEV; /* From MultiBoot info */
 static char  DefaultDrive = 0; /* Drive letter, or 0 if not defined */
-static int   Drives[26]; /* Bind drive letters to FD32 device handles */
 #ifdef DRIVES_FIXED
 static char *FixedLetters[26];
 #endif
@@ -52,50 +66,58 @@ static int             NumFSReq = 20;
 static fd32_request_t *fsreq[20];
 
 
-/* Assign drive letters dynamically, searching for block devices of the  */
-/* specified type, as enumerated, starting from the passed drive number. */
-/* Returns 0 on success, or a negative error code on failure.            */
-/* Called by assign_drive_letters.                                       */
-static int dynamic_assign(DWORD Type, int d)
+/* Assign drive letters dynamically, searching for block devices of the 
+ * specified type, as enumerated, starting from the passed drive number.
+ * Returns 0 on success, or a negative error code on failure.
+ */
+static int dynamic_assign(unsigned type, int d)
 {
-  int                hDev, Res;
-  fd32_request_t    *request;
-  void              *DeviceId;
-  fd32_blockinfo_t   Bi;
-  char               DevName[51];
+	BlockDeviceInfo  bdi;
+	BlockOperations *bops;
+	void            *iterator = NULL;
+	const char      *name;
+	void            *handle;
+	unsigned         partid;
+	int              res;
 
-  for (hDev = fd32_dev_first(); hDev != -ENODEV; hDev = fd32_dev_next(hDev))
-  {
-    /* Check if this device is already assigned (even with fixed letters) */
-    for (Res = 0; Res < 26; Res++) if (Drives[Res] == hDev) continue;
-    /* Get block device informations */
-    fd32_dev_get(hDev, &request, &DeviceId, DevName, 50);
-    Bi.Size     = sizeof(fd32_blockinfo_t);
-    Bi.DeviceId = DeviceId;
-    if (request(FD32_BLOCKINFO, &Bi) < 0) continue;
-    /* If the block device type is not what we are searching we skip it */
-    if (FD32_BITYP(Bi.Type) != Type) continue;
-    /* If no file system driver can handle such a partition we skip it */
-    if (FD32_BIPAR(Bi.Type))
-    {
-      fd32_partcheck_t Pc;
-      Pc.Size   = sizeof(fd32_partcheck_t);
-      Pc.PartId = FD32_BIPAR(Bi.Type);
-      for (Res = 0; Res < NumFSReq; Res++)
-        if (fsreq[Res]) if (fsreq[Res](FD32_PARTCHECK, &Pc) == 0) break;
-      if (Res == NumFSReq) continue;
-    }
-    /* Assign the next available drive number (0 is 'A') to the device */
-    while (Drives[d] != -ENODEV) if (d++ == 'Z' - 'A') return -ENODEV;
-    Drives[d] = hDev;
-    message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', DevName);
-    /* Set the default drive to this drive if boot device is known, */
-    /* otherwise set the default drive to the first drive detected. */
-    if (DefaultDrive == 0)
-      if ((BootDevice == NULBOOTDEV) || (BootDevice == Bi.MultiBootId))
-        DefaultDrive = d + 'A';
-  }
-  return 0;
+	while ((name = block_enumerate(&iterator)) != NULL)
+	{
+		res = block_get(name, BLOCK_OPERATIONS_TYPE, &bops, &handle);
+		if (res < 0) continue;
+		res = bops->get_device_info(handle, &bdi);
+		bops->request(REQ_RELEASE);
+		if (res < 0) continue;
+		/* Check if this device is already assigned */
+		for (res = 0; res < 26; res++)
+			if (drives[res].handle == handle) break;
+		if (res != 26) continue;
+		/* If the block device type is not what we are searching we skip it */
+		if ((bdi.flags & BLOCK_DEVICE_INFO_TYPEMASK) != type) continue;
+		/* If no file system driver can handle such a partition we skip it */
+		partid = bdi.flags & BLOCK_DEVICE_INFO_PARTID;
+		if (partid)
+		{
+			fd32_partcheck_t p;
+			p.Size = sizeof(fd32_partcheck_t);
+			p.PartId = partid;
+			for (res = 0; res < NumFSReq; res++)
+				if ((fsreq[res]) && (fsreq[res](FD32_PARTCHECK, &p) == 0))
+					break;
+			if (res == NumFSReq) continue;
+		}
+		/* Assign the next available drive number (0 is 'A') to the device */
+		while (drives[d].blk_name) if (d++ == 'Z' - 'A') return -ENODEV;
+		drives[d].blk_name = name;
+		drives[d].req = NULL;
+		drives[d].handle = NULL;
+		message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', name);
+		/* Set the default drive to this drive if boot device is known,
+		 * otherwise set the default drive to the first drive detected. */
+		if (!DefaultDrive)
+			if ((BootDevice == NULBOOTDEV) || (BootDevice == bdi.multiboot_id))
+				DefaultDrive = d + 'A';
+	}
+	return 0;
 }
 
 
@@ -103,11 +125,11 @@ static int assign_drive_letters(void)
 {
   #ifdef DRIVES_FIXED
   int hDev;
-  #endif
   int k;
+  #endif
 
   /* Initialize the Drives array with all drives unassigned */
-  for (k = 0; k < 26; k++) Drives[k] = -ENODEV;
+  memset(drives, 0, sizeof(drives));
 
   #ifdef DRIVES_FIXED
   /* Assign fixed drive letters */
@@ -127,106 +149,66 @@ static int assign_drive_letters(void)
   #endif
 
   /* Assign remaining drive letters according to the Win2000 behaviour */
-  dynamic_assign(FD32_BIACT, 'C' - 'A'); /* All active partitions first */
-  dynamic_assign(FD32_BILOG, 'C' - 'A'); /* Logical drives or removable */
-  dynamic_assign(FD32_BIPRI, 'C' - 'A'); /* Other primary partitions    */
-  dynamic_assign(FD32_BIFLO, 'A' - 'A'); /* Floppy drives               */
-  dynamic_assign(FD32_BICD,  'D' - 'A'); /* CD-ROM drives (CD-R? DVD?)  */
+  dynamic_assign(BLOCK_DEVICE_INFO_TACTIVE,  'C' - 'A');
+  dynamic_assign(BLOCK_DEVICE_INFO_TLOGICAL, 'C' - 'A');
+  dynamic_assign(BLOCK_DEVICE_INFO_TPRIMARY, 'C' - 'A');
+  dynamic_assign(BLOCK_DEVICE_INFO_TFLOPPY,  'A' - 'A');
+  dynamic_assign(BLOCK_DEVICE_INFO_TCDDVD,   'D' - 'A');
   return 0;
 }
 
 
-/* Uses all the registered file system drivers to try to   */
-/* mount a file system in the specified device.            */
-/* On success, returns the index of the file system driver */
-/* request function and fills FsDev with a pointer to the  */
-/* device identifier for the mounted.                      */
-/* On failure, returns a negative error code.              */
-/* At present it is only called by fd32_get_drive.         */
-static int fd32_mount(DWORD hDev, void **FsDev)
+/* Gets the file system driver request funciton and the file system device
+ * identifier for the drive specified in a file name, if present, or to the
+ * default drive letter if not.
+ * If the device is not mounted the fd32_mount function is called in order
+ * to try to mount a file system.
+ * On success, returns the detected drive letter (if defined, 0 if not),
+ * fills request with the pointer to the file system driver request function,
+ * DeviceId with the file system device identifier, and Path with a pointer
+ * to the beginning of the path, removing the drive specification.
+ * Returns a negative error code on failure.
+ */
+int fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId, char **Path)
 {
-  int          k, Res;
-  fd32_mount_t M;
+	int res;
+	int letter = DefaultDrive;
+	Drive *drive;
+	char *colon = strchr(FileSpec, ':');
 
-  M.Size = sizeof(fd32_mount_t);
-  M.hDev = hDev;
-
-  for (k = 0; k < NumFSReq; k++)
-    if (fsreq[k])
-    {
-      if ((Res = fsreq[k](FD32_MOUNT, &M)) == 0)
-      {
-        *FsDev = M.FsDev;
-        return k;
-      }
-      if (Res != -ENODEV /* Unknown FS */) return Res;
-    }
-  return -ENODEV; /* Unknown FS */
-}
-
-
-/* Gets the file system driver request funciton and the file system device    */
-/* identifier for the drive specified in a file name, if present, or to the   */
-/* default drive letter if not.                                               */
-/* A drive specification can be a drive letter or a valid device name.        */
-/* If the device is not mounted the fd32_mount function is called in order    */
-/* to try to mount a file system.                                             */
-/* On success, returns the detected drive letter (if defined, 0 if not),      */
-/* fills request with the pointer to the file system driver request function, */
-/* DeviceId with the file system device identifier, and Path with a pointer   */
-/* to the beginning of the path, removing the drive specification.            */
-/* Returns a negative error code on failure.                                  */
-/* TODO: Doesn't fill Path if device name is provided */
-int fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId,
-                   char **Path)
-{
-  fd32_request_t   *blkreq; /* Request function for the block device    */
-  void             *BlkDev; /* Identifier of the block device           */
-  fd32_ismounted_t  Im;     /* To check if the drive is already mounted */
-  char              Drive[FD32_LFNPMAX]; /* To store the drive specification */
-  int               Res; /* Return codes */
-  int               Letter    = DefaultDrive; /* Default drive if nothing is specified */
-  int               hDev      = Drives[DefaultDrive - 'A']; /* Default drive if nothing is specified */
-  char             *pDrive    = Drive;    /* Pointer into the Drive string     */
-  char             *pFileName = FileSpec; /* Pointer into the FileSpec string */
-
-  /* Copy the drive specification (if present) into the Drive string */
-  if (Path) *Path = FileSpec;
-  for (; *pFileName && (*pFileName != ':'); *(pDrive++) = *(pFileName++));
-  /* If a drive has been specified, use it instead of the default drive */
-  if (*pFileName)
-  {
-    *pDrive = 0;
-    /* If a 1-byte drive has been specified, use the drive letters array */
-    if (Drive[1] == 0)
-    {
-      Letter = toupper(Drive[0]);
-      if ((Letter < 'A') || (Letter > 'Z')) return -ENODEV;
-      if (Path) *Path = pFileName + 1;
-      hDev = Drives[Letter - 'A'];
-    }
-    else /* search for a device with the specified name */
-    {
-      Letter = 0;
-      if ((hDev = fd32_dev_search(Drive)) < 0) return -ENODEV;
-    }
-  }
-  if ((Res = fd32_dev_get(hDev, &blkreq, &BlkDev, NULL, 0)) < 0) return Res;
-  /* Check if it's mounted */
-  Im.Size     = sizeof(fd32_ismounted_t);
-  Im.DeviceId = BlkDev;
-  Res = blkreq(FD32_ISMOUNTED, &Im);
-  if (Res == 0)
-  {
-    *request  = Im.fsreq;
-    *DeviceId = Im.FSDevId;
-    return Letter;
-  }
-  if (Res != -ENOTSUP) return Res; /* TODO: Function not supported */
-  /* If it's not mounted, mount it */
-  if ((Res = fd32_mount(hDev, DeviceId)) < 0) return Res;
-  *request = fsreq[Res];
-  return Letter;
+	if (Path) *Path = FileSpec;
+	if (colon)
+	{
+		if (colon != FileSpec + 1) return -ENODEV;
+		letter = toupper(FileSpec[0]);
+		if ((letter < 'A') || (letter > 'Z')) return -ENODEV;
+		if (Path) *Path = colon + 1;
+	}
+	drive = &drives[letter - 'A'];
+	if (!drive->blk_name) return -ENODEV;
+	if (!drive->req)
+	{
+		int k;
+		fd32_mount_t m;
+		m.Size   = sizeof(fd32_mount_t);
+		m.BlkDev = drive->blk_name;
+		for (k = 0; k < NumFSReq; k++)
+			if (fsreq[k])
+			{
+				res = fsreq[k](FD32_MOUNT, &m);
+				if (res == 0)
+				{
+					drive->req = fsreq[k];
+					drive->handle = m.FsDev;
+					break;
+				}
+				if (res != -ENODEV /* Unknown FS */) return res;
+			}
+		if (k == NumFSReq) return -ENODEV; /* Unknown FS */
+	}
+	*request  = drive->req;
+	*DeviceId = drive->handle;
+	return letter;
 }
 
 
@@ -250,7 +232,7 @@ int fd32_set_default_drive(char Drive)
 {
   /* TODO: LASTDRIVE should be read frm Config.sys */
   if ((toupper(Drive) < 'A') || (toupper(Drive) > 'Z')) return -ENODEV;
-  if (Drives[Drive - 'A'] != -ENODEV)
+  if (drives[Drive - 'A'].blk_name != NULL)
     DefaultDrive = toupper(Drive);
   /* TODO: From the RBIL (INT 21h, AH=0Eh)
            under DOS 3.0+, the return value is the greatest of 5,

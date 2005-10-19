@@ -22,6 +22,10 @@
  * \file
  * \brief Low level part of the driver dealing with the hosting block device.
  */
+/**
+ * \addtogroup fat
+ * @{
+ */
 #include "fat.h"
 
 
@@ -58,7 +62,7 @@ static int flush_buffer(Buffer *b)
 	if ((b->flags & (BUF_VALID | BUF_DIRTY)) == (BUF_VALID | BUF_DIRTY))
 	{
 		Volume *v = b->v;
-		ssize_t res = fat_blockdev_write(&v->blk, b->data, b->count, b->sector);
+		ssize_t res = fat_blockdev_write(v, b->data, b->count, b->sector);
 		if ((res < 0) || (res != b->count)) return -EIO;
 		b->flags &= ~BUF_DIRTY;
 	}
@@ -135,7 +139,7 @@ int fat_readbuf(Volume *v, Sector sector, Buffer **buffer, bool read_through)
 		#endif
 		b->flags = 0;
 		b->sector = sector & ~(v->sectors_per_buffer - 1);
-		res = fat_blockdev_read(&v->blk, b->data, v->sectors_per_buffer, b->sector);
+		res = fat_blockdev_read(v, b->data, v->sectors_per_buffer, b->sector);
 		if ((res < 0) || (sector >= b->sector + res)) return -EIO;
 		b->count = res;
 		b->flags = BUF_VALID;
@@ -148,7 +152,7 @@ int fat_readbuf(Volume *v, Sector sector, Buffer **buffer, bool read_through)
 }
 
 
-#if FAT_CONFIG_FD32
+#if 0 //FAT_CONFIG_FD32
 /* This function replaces the hosting block device's request funciton */
 /* when a volume is mounted on it.                                    */
 static fd32_request_t mounted_request;
@@ -195,7 +199,14 @@ static void free_volume(Volume *v)
 			mfree(v->buffers, sizeof(Buffer) * v->num_buffers);
 		}
 		if (v->nls) v->nls->release();
-		#if !FAT_CONFIG_FD32
+		#if FAT_CONFIG_FD32
+		if (v->blk.is_open)
+		{
+			v->blk.bops->close(v->blk.handle);
+			v->blk.is_open = false;
+		}
+		if (v->blk.bops) v->blk.bops->request(REQ_RELEASE);
+		#else
 		if (v->blk) fclose(v->blk);
 		#endif
 		v->magic = 0; /* Invalidate signature against bad pointers */
@@ -208,11 +219,11 @@ static void free_volume(Volume *v)
 /* TODO: Add forced unmount */
 int fat_unmount(Volume *v)
 {
-	#if FAT_CONFIG_FD32
+	#if 0 //FAT_CONFIG_FD32
 	int res;
 	#endif
 	if (v->channels_open.size) return -EBUSY;
-	#if FAT_CONFIG_FD32
+	#if 0 //FAT_CONFIG_FD32
 	/* Restore the original device data for the hosting block device */
 	res = fd32_dev_replace(v->blk.handle, v->blk.request, v->blk.devid);
 	if (res < 0) return res;
@@ -228,15 +239,10 @@ int fat_unmount(Volume *v)
 
 
 /* Mounts a FAT volume initializing its state structure */
-#if FAT_CONFIG_FD32
-int fat_mount(DWORD blk_handle, Volume **volume)
-#else
 int fat_mount(const char *blk_name, Volume **volume)
-#endif
 {
 	#if FAT_CONFIG_FD32
-	char blk_name[20];
-	fd32_blockinfo_t bi;
+	BlockMediumInfo bmi;
 	#endif
 	struct fat16_bpb *bpb;
 	Volume  *v = NULL;
@@ -246,7 +252,6 @@ int fat_mount(const char *blk_name, Volume **volume)
 	int      res, k;
 
 	/* Allocate the FAT volume structure */
-	if (!volume) return -EFAULT;
 	v = (Volume *) malloc(sizeof(Volume));
 	if (!v) return -ENOMEM;
 	memset(v, 0, sizeof(Volume));
@@ -261,18 +266,27 @@ int fat_mount(const char *blk_name, Volume **volume)
 	slabmem_create(&v->files_slab, sizeof(File));
 	slabmem_create(&v->channels_slab, sizeof(Channel));
 
+	/* Open the block device, allocate a sector buffer and read the boot sector */
 	#if FAT_CONFIG_FD32
-	res = fd32_dev_get(blk_handle, &v->blk.request, &v->blk.devid, blk_name, 19);
-	if (res < 0) ABORT_MOUNT(("[FAT2] Couldn't get device\n"));
-	v->blk.handle = blk_handle;
 	LOG_PRINTF(("[FAT2] Trying to mount a volume on device '%s'\n", blk_name));
-	/* Get block size and number of blocks in bi.BlockSize and bi.TotalBlocks */
-	bi.Size     = sizeof(fd32_blockinfo_t);
-	bi.DeviceId = v->blk.devid;
-	res = v->blk.request(FD32_BLOCKINFO, &bi);
-	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot get block device parameters\n"));
-	block_size   = bi.BlockSize;
-	total_blocks = bi.TotalBlocks;
+	res = block_get(blk_name, BLOCK_OPERATIONS_TYPE, &v->blk.bops, &v->blk.handle);
+	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot get operations\n", blk_name));
+	res = v->blk.bops->open(v->blk.handle);
+	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot open the device\n"));
+	v->blk.is_open = true;
+	res = v->blk.bops->get_medium_info(v->blk.handle, &bmi);
+	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot get medium information\n"));
+	block_size   = bmi.block_bytes;
+	total_blocks = bmi.blocks_count;
+	res = -ENOMEM;
+	secbuf = (uint8_t *) malloc(block_size);
+	if (!secbuf) ABORT_MOUNT(("[FAT2] Cannot allocate a sector buffer\n"));
+	res = v->blk.bops->read(v->blk.handle, secbuf, 0, 1, 0);
+	if (res < 0)
+	{
+		res = -EIO;
+		ABORT_MOUNT(("[FAT2] Cannot read the boot sector\n"));
+	}
 	#else /* !FAT_CONFIG_FD32 */
 	res = -EIO;
 	#if FAT_CONFIG_WRITE
@@ -280,18 +294,29 @@ int fat_mount(const char *blk_name, Volume **volume)
 	#else
 	v->blk = fopen(blk_name, "rb");
 	#endif
-	if (!v->blk) ABORT_MOUNT(("[FAT2] Could not open the disk image\n"));
-	#endif
-	/* Read the first block of the device */
+	if (!v->blk) ABORT_MOUNT(("[FAT2] Cannot open the disk image\n"));
 	res = -ENOMEM;
 	secbuf = (uint8_t *) malloc(block_size);
-	if (!secbuf) ABORT_MOUNT(("[FAT2] Could not allocate a sector buffer\n"));
+	if (!secbuf) ABORT_MOUNT(("[FAT2] Cannot allocate a sector buffer\n"));
 	res = fat_blockdev_read(&v->blk, secbuf, 1, 0);
 	if (res < 0)
 	{
 		res = -EIO;
 		ABORT_MOUNT(("[FAT2] Cannot read the boot sector\n"));
 	}
+	#endif
+	#if 0
+	/* Read the first block of the device */
+	res = -ENOMEM;
+	secbuf = (uint8_t *) malloc(block_size);
+	if (!secbuf) ABORT_MOUNT(("[FAT2] Cannot allocate a sector buffer\n"));
+	res = fat_blockdev_read(&v->blk, secbuf, 1, 0);
+	if (res < 0)
+	{
+		res = -EIO;
+		ABORT_MOUNT(("[FAT2] Cannot read the boot sector\n"));
+	}
+	#endif
 
 	/* Check if the BPB is valid */
 	res = -EFTYPE;
@@ -419,7 +444,7 @@ int fat_mount(const char *blk_name, Volume **volume)
 	res = nls_get("default", OT_NLS_OPERATIONS, (void **) &v->nls);
 	if (res < 0) ABORT_MOUNT(("[FAT2] Could not get NLS operations"));
 
-	#if FAT_CONFIG_FD32
+	#if 0 //FAT_CONFIG_FD32
 	/* Request function and DeviceId of the hosting block device are backed up
 	 * in v->blk_request and v->blk_devid, so we replace the device. */
 	res = fd32_dev_replace(blk_handle, mounted_request, v);
@@ -448,33 +473,21 @@ abort_mount:
 
 
 #if FAT_CONFIG_REMOVABLE && FAT_CONFIG_FD32
-/** Checks if the medium hosting a FAT volume has been changed.
- * \retval 0 medium not changed;
- * \retval 1 medium changed, no open files (safe to unmount)
- * \retval -EBUSY medium changed, there are open files
- * \retval <0 other error
- */
-int fat_mediachange(Volume *v)
+int fat_handle_attention(Volume *v)
 {
-	int res;
-	fd32_blockinfo_t bi;
+	BlockMediumInfo bmi;
+	uint8_t  volume_label[11];
+	int      res;
 	uint8_t *secbuf;
 	uint32_t serial_number;
-	uint8_t  volume_label[11];
 
-	/* Sense the block device for media change (fast) */
-	res = fat_blockdev_mediachange(&v->blk);
-	if (res == -ENOTSUP) return 0; /* Device without removable media */
-	if (res <= 0) return res;
-
-	/* Check for media change in software (slow) */
-	bi.Size     = sizeof(fd32_blockinfo_t);
-	bi.DeviceId = v->blk.devid;
-	res = v->blk.request(FD32_BLOCKINFO, &bi);
+	res = v->blk.bops->revalidate(&v->blk.handle);
 	if (res < 0) return res;
-	secbuf = (uint8_t *) malloc(bi.BlockSize);
+	res = v->blk.bops->get_medium_info(v->blk.handle, &bmi);
+	if (res < 0) return res;
+	secbuf = (uint8_t *) malloc(bmi.block_bytes);
 	if (!secbuf) return -ENOMEM;
-	res = fat_blockdev_read(&v->blk, secbuf, 1, 0);
+	res = v->blk.bops->read(&v->blk.handle, secbuf, 0, 1, BLOCK_RW_NOCACHE);
 	if (res < 0) return -EIO;
 	if (v->fat_type == FAT32)
 	{
@@ -486,7 +499,7 @@ int fat_mediachange(Volume *v)
 		serial_number = ((struct fat16_bpb *) secbuf)->serial_number;
 		memcpy(volume_label, ((struct fat16_bpb *) secbuf)->volume_label, 11);
 	}
-	mfree(secbuf, bi.BlockSize);
+	mfree(secbuf, bmi.block_bytes);
 	if ((v->serial_number != serial_number) || memcmp(v->volume_label, volume_label, 11))
 	{
 		if (v->channels_open.size) return -EBUSY;
@@ -515,7 +528,7 @@ int fat_mediachange(Volume *v)
 	}
 	return res;
 }
-#endif
+#endif /* #if FAT_CONFIG_REMOVABLE */
 
 
 /* Partition types supported by the FAT driver */
@@ -577,7 +590,7 @@ int fat_get_fsfree(fd32_getfsfree_t *fsfree)
 	v = (Volume *) fsfree->DeviceId;
 	if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
 	#if FAT_CONFIG_REMOVABLE
-	res = fat_mediachange(v);
+	res = fat_blockdev_test_unit_ready(v);
 	if (res < 0) return res;
 	#endif
 	fsfree->SecPerClus  = v->sectors_per_cluster;
@@ -587,3 +600,5 @@ int fat_get_fsfree(fd32_getfsfree_t *fsfree)
 	return 0;
 }
 #endif
+
+/* @} */

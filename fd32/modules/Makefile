@@ -1,4 +1,5 @@
-MODULES = ata biosdisk cdrom clock console dpmi fat fat2 floppy keyb nls psmouse unicode wrapper
+#MODULES = ata biosdisk cdrom clock console dpmi fat fat2 floppy keyb nls psmouse unicode wrapper
+MODULES = clock console dpmi fat2 floppy keyb nls psmouse unicode wrapper
 
 .PHONY: all clean
 
