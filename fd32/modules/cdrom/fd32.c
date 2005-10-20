@@ -23,7 +23,7 @@
 #include <ata-interf.h>
 #include "cd-interf.h"
 #include "pck-cmd.h"
-#include "../block/block.h" /* FIXME! */
+#include <block/block.h>
 
 static int cd_bi_open(void *handle);
 static int cd_bi_revalidate(void *handle);
@@ -48,7 +48,7 @@ static struct BlockOperations block_ops =
         .read = &cd_bi_read,
         .write = &cd_bi_write,
         .sync = &cd_bi_sync,
-        .test = &cd_bi_test
+        .test_unit_ready = &cd_bi_test
     };
 
 

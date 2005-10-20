@@ -1,6 +1,7 @@
 #include <dr-env.h>
 #include <filesys.h>
 #include <devices.h>
+#include <block/block.h>
 
 #include "cd-interf.h"
 
@@ -9,61 +10,52 @@ unsigned long sectors_to_read;
 
 int process()
 {
-    int dev;
-    fd32_request_t *req;
+    BlockMediumInfo bmi;
+    const char* dev_name;
+    BlockOperations* bops;
+    void* iterator = NULL;
     void* cd_devid;
-    cd_dev_parm_t prm;
-    fd32_blockinfo_t inf;
-    char dev_name[9];
-    int i;
     unsigned long n;
     int res;
     int fhandle;
     char filename[12];
-    fd32_blockread_t r;
 
 
     fd32_message("Searching for CD-ROM drives...\n");
     /* Search for all devices with name hd<letter> an test if they respond to FD32_ATAPI_INFO */
-    for(i=0;; i++)
+    while ((dev_name = block_enumerate(&iterator)) != NULL)
     {
-        ksprintf(dev_name, "cdrom%i", i);
-        dev = fd32_dev_search(dev_name);
-        if (dev < 0)
+        if (strncasecmp(dev_name, "cdrom", 5))
         {
-            break;
+            continue;
         }
-        if (fd32_dev_get(dev, &req, &cd_devid, NULL, 0) < 0)
+        if (block_get(dev_name, BLOCK_OPERATIONS_TYPE, &bops, &cd_devid) < 0)
         {
             fd32_message("Error: Failed to get device data for device %s!\n", dev_name);
             return 1;
         }
-        prm.Size = sizeof(cd_dev_parm_t);
-        prm.DeviceId = cd_devid;
-        res = req(CD_PREMOUNT, (void*)&prm);
+        res = bops->open(cd_devid);
         if(res<0)
         {
             fd32_message("Device %s could not be mounted. No medium?\nReturned %i\n", dev_name, res);
             continue;
         }
-        inf.Size = sizeof(fd32_blockinfo_t);
-        inf.DeviceId = cd_devid;
-        res = req(FD32_BLOCKINFO, (void*)&inf);
+        res = bops->get_medium_info(cd_devid, &bmi);
         if(res < 0)
         {
-            fd32_message("Error: Block info failed for device %s\nReturned %i\n", dev_name, res);
+            fd32_message("Error: Block medium info failed for device %s\nReturned %i\n", dev_name, res);
             return 1;
         }
-        if(inf.BlockSize != 2048)
+        if(bmi.block_bytes != 2048)
         {
-            fd32_message("Error: Strange sector size %lu\n", inf.BlockSize);
+            fd32_message("Error: Strange sector size %u\n", bmi.block_bytes);
             return 1;
         }
-        fd32_message("Disk contains %lu sectors\n", inf.TotalBlocks);
-        if(sectors_to_read >= inf.TotalBlocks)
+        fd32_message("Disk contains %llu sectors\n", bmi.blocks_count);
+        if(sectors_to_read >= bmi.blocks_count)
         {
             ksprintf(filename, "%s.iso", dev_name);
-            sectors_to_read = inf.TotalBlocks;
+            sectors_to_read = bmi.blocks_count;
         }
         else
         {
@@ -76,14 +68,9 @@ int process()
             fd32_message("Error: Unable to open file %s\n", filename);
             return 1;
         }
-        r.Size = sizeof(fd32_blockread_t);
-        r.DeviceId = cd_devid;
-        r.Buffer = buffer;
-        r.NumBlocks = 1;
         for(n=0; n < sectors_to_read; n++)
         {
-            r.Start = n;
-            res = req(FD32_BLOCKREAD, (void*)&r);
+            res = bops->read(cd_devid, buffer, n, 1, 0);
             if(res < 0)
             {
                 fd32_message("Error: Block read failed for device %s\nReturned %i\n", dev_name, res);
