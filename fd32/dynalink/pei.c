@@ -398,10 +398,7 @@ int pei_relocate_section(struct kern_funcs *kf, DWORD image_base, struct table_i
 
 void pei_free_tables(struct kern_funcs *kf, struct table_info *tables, struct symbol_info *syms, struct section_info *scndata)
 {
-  struct pei_extra_info *pee_info;
-  pee_info = (struct pei_extra_info *)tables->private_info;
-  
-  mem_free((DWORD)pee_info, sizeof(struct pei_extra_info));
+  mem_free(tables->private_info, sizeof(struct pei_extra_info));
   if(scndata[0].reloc != NULL)
     mem_free((DWORD)scndata[0].reloc, sizeof(struct pe_reloc_info));
   mem_free((DWORD)scndata, sizeof(struct section_info)*tables->num_sections);
