@@ -10,13 +10,13 @@
 #include "ata-detect.h"
 #include "ata-wait.h"
 
-extern unsigned ref_counter;
+extern unsigned ata_ref_counter;
 
-static int ata_global_flags;
+int ata_global_flags;
 static char* ata_args;
-static BYTE standby_timer;
-static int max_pio_mode;
-static int block_mode;
+BYTE ata_standby_timer;
+int ata_max_pio_mode;
+int ata_block_mode;
 
 struct ide_interface iface[4] =
     {
@@ -145,27 +145,27 @@ static int ata_parse_args(char* args)
             j = ata_fetch_number(&args, &n);
             if( j > 4 )
             {
-                standby_timer = 0;
+                ata_standby_timer = 0;
                 result = ATA_ESYNTAX;
                 break;
             }
             if(j == 0 || n > 20)
                 n = 20;            /* 20 minutes default */
             n *= 12;
-            standby_timer = (BYTE) n;
+            ata_standby_timer = (BYTE) n;
             break;
         case 3:
             ata_global_flags |= ATA_GFLAG_PIO_MODE;
             j = ata_fetch_number(&args, &n);
             if( j > 1 )
             {
-                max_pio_mode = 0;
+                ata_max_pio_mode = 0;
                 result = ATA_ESYNTAX;
                 break;
             }
             if(j == 0 || n > 4)
                 n = 0;            /* PIO mode 0 default */
-            max_pio_mode = n;
+            ata_max_pio_mode = n;
             break;
         case 4:
             j = ata_fetch_number(&args, &n);
@@ -179,7 +179,7 @@ static int ata_parse_args(char* args)
             if(n == 1)
                 n = 0;
             ata_global_flags |= ATA_GFLAG_BLOCK_MODE;
-            block_mode = n;
+            ata_block_mode = n;
             break;
         }
 
@@ -193,7 +193,7 @@ int ata_init(struct process_info *p)
     int res;
     void disk_add(struct ata_device *d, char *name);
 
-    ref_counter = 0;
+    ata_ref_counter = 0;
     ata_global_flags = 0;
     ata_args = args_get(p);
     res = ata_parse_args(ata_args);

@@ -13,9 +13,9 @@
 
 
 extern int ata_global_flags;
-extern int max_pio_mode;
-extern BYTE standby_timer;
-extern int block_mode;
+extern int ata_max_pio_mode;
+extern BYTE ata_standby_timer;
+extern int ata_block_mode;
 
 #define _DEBUG_
 #define _LOGGER_
@@ -149,8 +149,8 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
         else
             (*d)->total_blocks = (*d)->cyls * (*d)->heads * (*d)->sectors;
         /* Enable block mode */
-        if((ata_global_flags & ATA_GFLAG_BLOCK_MODE) && ((*d)->max_multiple_rw > block_mode) )
-            (*d)->max_multiple_rw = block_mode;
+        if((ata_global_flags & ATA_GFLAG_BLOCK_MODE) && ((*d)->max_multiple_rw > ata_block_mode) )
+            (*d)->max_multiple_rw = ata_block_mode;
         if((*d)->max_multiple_rw != 0)
         {
             if(ata_set_multiple( *d, (*d)->max_multiple_rw ) < 0)
@@ -161,7 +161,7 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
         /* Set standby timer */
         if(ata_global_flags & ATA_GFLAG_STANDBY_EN)
         {
-            if(ata_idle( *d, standby_timer) < 0)
+            if(ata_idle( *d, ata_standby_timer) < 0)
                 fd32_message("Error: Failed to enable standby timer for %s!\n", (*d)->device_name);
             else
                 (*d)->flags |= DEV_FLG_ST_TIMER_ACTIVE;
@@ -182,7 +182,7 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
         j |= 1 << (DEV_FLG_SUPP_PIO_BITS - 1); /* allways supports mode 0 */
         while(i >= 0)
         {
-            if(i <= max_pio_mode && (j & (1 << 31)))
+            if(i <= ata_max_pio_mode && (j & (1 << 31)))
             {
                 if(ata_set_pio_mode( *d, i ) < 0)
                     fd32_message("Error: Failed to set PIO transfer mode %i for %s!\n", i, (*d)->device_name);

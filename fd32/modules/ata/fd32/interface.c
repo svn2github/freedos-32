@@ -12,7 +12,7 @@
 #include "ata-ops.h"
 #include "partscan.h"
 #include "ata-interf.h"
-#include "../../block/block.h" /* FIXME! */
+#include <block/block.h>
 
 
 extern int ata_global_flags;
@@ -26,9 +26,9 @@ static int ata_bi_get_medium_info(void *handle, BlockMediumInfo *buf);
 static ssize_t ata_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
 static ssize_t ata_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
 static int ata_bi_stub(void *handle);
-static int ata_request(int function, ...);
+int ata_request(int function, ...);
 
-static unsigned ref_counter;
+unsigned ata_ref_counter;
 static struct BlockOperations block_ops =
     {
         .request = &ata_request,
@@ -40,7 +40,7 @@ static struct BlockOperations block_ops =
         .read = &ata_bi_read,
         .write = &ata_bi_write,
         .sync = &ata_bi_stub,
-        .test = &ata_bi_stub
+        .test_unit_ready = &ata_bi_stub
     };
 
 int ata_bi_open(void *handle)
@@ -157,16 +157,16 @@ int ata_request(int function, ...)
                 return -EINVAL;
             if(operations != NULL)
                 *operations = &block_ops;
-            ref_counter++;
+            ata_ref_counter++;
             return 0;
         }
     case REQ_GET_REFERENCES:
         {
-            return ref_counter;
+            return ata_ref_counter;
         }
     case REQ_RELEASE:
         {
-            ref_counter--;
+            ata_ref_counter--;
             return 0;
         }
     case REQ_ATA_STANBY_IMM:

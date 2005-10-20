@@ -8,7 +8,8 @@ clean :
 	$(RM) *.exe
 
 fd32:
-	cp ../shared/partscan/partscan.c ./src  # This is a bit dirty...
+	#Commented out because fails to replace the read-only file in the src directory --Salvo
+	#cp ../shared/partscan/partscan.c ./src  # This is a bit dirty...
 	$(MAKE) -C fd32
 djgpp:
 	$(MAKE) -C djgpp

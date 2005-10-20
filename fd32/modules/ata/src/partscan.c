@@ -58,7 +58,7 @@
 #include "partscan.h"
 #include "ata-ops.h"
 
-static int ata_request(int function, ...); /* FIXME */
+int ata_request(int function, ...); /* FIXME */
 
 #define PS_DEVICE struct ata_device
 #define PS_READ ata_read
@@ -72,7 +72,7 @@ static int ata_request(int function, ...); /* FIXME */
 
 #endif
 
-#include "../../block/block.h" /* FIXME! */
+#include <block/block.h>
 
 typedef struct
 {
@@ -175,15 +175,15 @@ static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, Pa
             && (p->type != PART_EXT_LINUX))
     {
         ksprintf(new_name, "%s%u", name, part);
-        type = FD32_BILOG;
+        type = BLOCK_DEVICE_INFO_TLOGICAL;
         if (part < 5)
         {
             if (p->active)
-                type = FD32_BIACT;
+                type = BLOCK_DEVICE_INFO_TACTIVE;
             else
-                type = FD32_BIPRI;
+                type = BLOCK_DEVICE_INFO_TPRIMARY;
         }
-        type |= (DWORD) p->type << 4;
+        type |= (DWORD) p->type;
 #ifdef SHOWMSG
 
         fd32_message("%s is %s (%02xh), Start: %lu, Size: %lu (%lu MiB)\n",

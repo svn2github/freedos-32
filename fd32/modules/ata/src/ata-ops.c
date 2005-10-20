@@ -12,7 +12,7 @@
 #include "ata-detect.h"
 
 extern int ata_global_flags;
-extern int max_pio_mode;
+extern int ata_max_pio_mode;
 
 #ifdef _DEBUG_
 void reg_dump(const struct ata_device* dev)
@@ -579,7 +579,7 @@ int ata_sreset( struct ata_device* dev)
     if(!(ata_global_flags & ATA_GFLAG_PIO_MODE))
     {
         ata_global_flags |= ATA_GFLAG_PIO_MODE;
-        max_pio_mode = 2;
+        ata_max_pio_mode = 2;
     }
     if(dev->interface->dev0 != 0)
         ata_detect_single(0, dev->interface, &(dev->interface->dev0), NULL);
