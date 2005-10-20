@@ -70,6 +70,7 @@ int process()
         }
         for(n=0; n < sectors_to_read; n++)
         {
+            fd32_log_printf("[CDTEST] Write sector %lu/%lu\n", n, sectors_to_read);
             res = bops->read(cd_devid, buffer, n, 1, 0);
             if(res < 0)
             {
