@@ -1,6 +1,7 @@
 /* FD32's Keyborad Driver
  *
- * Copyright (C) 2004,2005 by Luca Abeni and Hanzac Chen
+ * Copyright (C) 2003,2004 by Luca Abeni
+ * Copyright (C) 2004,2005 by Hanzac Chen
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,62 +39,73 @@ void keyb_handler(int n)
 	/* We are the int handler... If we are called, we assume that there is
 		 something to be read... (so, we do not read the status port...)
 	*/
-	code = keyb_get_data(); /* Input datum */
+	code = keyb_get_data();		/* Input datum */
 
 	/* Well, we do not check the error code, for now... */
-	if(!preprocess(code)) { /* Do that leds stuff... */
+	if(!preprocess(code)) {	/* Do that leds stuff... */
 		rawqueue_put(code);
-		fd32_sti();         /* Reenable interrupts... */
+		fd32_sti();				/* Re-enable interrupts... */
 		postprocess();
 	}
 
 	fd32_master_eoi();
 }
 
-/* Note: N = 0 Nonblock mode, N = -1 Block mode both read BIOS key
- *       N != 0 && N != -1 supporting console read
- */
-static int read(void *id, DWORD n, BYTE *buf)
+static int keyb_dev_read(void *buffer, size_t count)
+{
+	int ret = count;
+	static int flag = 0;
+	static BYTE b;
+
+	/* Process the non-extended key, get rid of the scan code */
+	while (count > 0) {
+		if (flag == 0) {
+			/* Wait for the next keystroke */
+			WFC(keyqueue_empty());
+			b = *(BYTE *)buffer++ = keyqueue_get(), count--;
+		} else if (b == 0) { /* If keyqueue not empty, rawqueue can't be empty */
+			*(BYTE *)buffer++ = rawqueue_get(), count--;
+		} else {
+			rawqueue_get();
+		}
+		flag = !flag;
+	}
+
+	return ret;
+}
+
+/* Block mode to read BIOS key */
+static uint16_t keyb_dev_get_keycode(void)
+{
+	WFC(keyqueue_empty());
+	return keyqueue_get()|(rawqueue_get()<<8);
+}
+
+/* Nonblock mode to read BIOS key */
+static uint16_t keyb_dev_check_keycode(void)
+{
+	return keyqueue_check()|(rawqueue_check()<<8);
+}
+
+static int keyb_read(void *id, size_t n, BYTE *buf)
 {
 	int res = -EIO;
-	DWORD count;
 
 	/* Convention: n = 0 --> nonblock; n != 0 --> block */
 	if (n == 0) {
 		WORD w;
-		if ((w = keyqueue_gethead()) == 0) {
+		if ((w = keyb_dev_check_keycode()) == 0) {
 			res = 0;
 		} else {
 			((WORD *)buf)[0] = w;
 			res = 1;
 		}
 	} else if (n == -1) {
-		WORD w;
 		WFC(keyqueue_empty());
-		/* Get the total BIOS key */
-		w = keyqueue_get();
-		w |= keyqueue_get()<<8;
-
-		((WORD *)buf)[0] = w;
+		((WORD *)buf)[0] = keyb_dev_get_keycode();
 		res = 1;
 	} else { /* Normal console get char or get string */
-		BYTE b;
-		count = n;
-		while (count > 0) {
-			WFC(keyqueue_empty());
-			b = keyqueue_get();
-			*buf++ = b, count--;
-
-			/* Handle the extended key and get rid of scan code */
-			if (count > 0 && b == 0) {
-				*buf++ = keyqueue_get(), count--;
-			} else if (b != 0) {
-				/* only the extended code preserved on the queue */
-				b = keyqueue_get();
-			}
-		}
-
-		res = n;
+		res = keyb_dev_read(buf, n);
 	}
 
 	return res;
@@ -116,7 +128,7 @@ static int keyb_request(DWORD function, void *params)
 			if (r->Size < sizeof(fd32_read_t)) {
 				res = -EINVAL;
 			} else {
-				res = read(r->DeviceId, r->BufferBytes, r->Buffer);
+				res = keyb_read(r->DeviceId, r->BufferBytes, r->Buffer);
 			}
 			break;
 		default:
@@ -176,7 +188,7 @@ void keyb_init(struct process_info *pi)
 	/* Ctrl+M print memory dump */
 	keyb_hook(0x32, 1, 0, (DWORD)mem_dump);
 	fd32_message("Installing new call keyb_read...\n");
-	if (add_call("keyb_read", (DWORD)read, ADD) == -1) {
+	if (add_call("keyb_read", (DWORD)keyb_read, ADD) == -1) {
 		fd32_error("Failed to install a new kernel call!!!\n");
 	}
 	fd32_message("Installing new call keyb_hook...\n");

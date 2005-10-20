@@ -1,10 +1,3 @@
-/* Keyborad Driver for FD32
- * by Luca Abeni and Hanzac Chen
- *
- * 2004 - 2005
- * This is free software; see GPL.txt
- */
-
 #ifndef __KEY_H__
 #define __KEY_H__
 

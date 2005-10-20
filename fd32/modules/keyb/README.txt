@@ -16,3 +16,19 @@ The default file-name is A:\fd32\keyboard.sys
 NOTE
 The layouts are from FD-KEYB:
 http://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/dos/keyb/kblayout/kpdos21x.zip
+
+
+________________________________________
+
+QUEUE
+head - - - - tail
+There two cursors, one is the head and the other is tail
+Initially, the head = 0, tail = 1, when putting a byte,
+the head = 0, tail = 2
+
+at the mean time, after putting a byte to the keyqueue,
+bios_da.keyb_bufhead = 1
+bios_da.keyb_buftail = 2
+
+TODO
+* only handle the raw queue in the keyboard driver?
