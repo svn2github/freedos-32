@@ -321,9 +321,9 @@ static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s
   
   if (out != NULL) {
     ll_context_load(X_VM86_TSS);
-  } /* else {
+  } else {
     ll_context_to(X_VM86_TSS);
-  } */
+  }
   /* Back from the APP, through a software INT, see chandler.c */
 
   /* Send back in the X_*REGS structure the value obtained with
