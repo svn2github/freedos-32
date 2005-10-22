@@ -66,7 +66,10 @@ struct table_info {
   DWORD section_names_size;
   
   DWORD image_base;
-  /* In PEI, it's a pei extra info; in COFF, it's a local_bss and local_bss_size */
+  
+  DWORD local_bss;
+  DWORD local_bss_size;
+  /* In PEI, it's a pei extra info */
   DWORD private_info;
 };
 

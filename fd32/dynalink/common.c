@@ -21,27 +21,13 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
   int i, idx;
   DWORD address, destination;
   int j, done;
-  DWORD local_bss;
-  DWORD local_bss_size;
+  DWORD local_bss = tables->local_bss;
   struct reloc_info *rel = s[sect].reloc;
 
-  /* Allocate for common space-uninitialized symbols at the first section relocation
-   *	First calculate the local BSS size then allocate for each symbol
+  /* Setup the common space-uninitialized symbols at the first section relocation
+   *	Pre-calculate the local BSS size (in read_symbols) then allocate for each symbol (in load_relocatable)
    */
-  if (sect == 0) {
-    for (i = 0, local_bss_size = 0; i < tables->num_symbols; i++)
-      if (syms[i].section == COMMON_SYMBOL) {
-        local_bss_size += syms[i].offset;
-      }
-  
-    if (local_bss_size != 0) {
-      tables->private_info = local_bss = mem_get(local_bss_size+sizeof(DWORD));
-      *((DWORD *)local_bss) = local_bss_size;
-      local_bss += sizeof(DWORD);
-    } else {
-      local_bss = 0;
-	}
-  
+  if (sect == 0)
     for (i = 0; i < tables->num_symbols; i++) {
       if (syms[i].section == COMMON_SYMBOL) {
         j = syms[i].offset;
@@ -64,7 +50,6 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
         }
       }
     }
-  }
 
   for (i = 0; i < s[sect].num_reloc; i++) {
 #ifdef __COFF_DEBUG__
@@ -262,7 +247,14 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *
   for (i = 0; i < n; i++) {
     needed_mem += s[i].size;
   }
+  needed_mem += tables->local_bss_size;
   mem_space = (BYTE *)kf->mem_alloc(needed_mem);
+  /* Allocate for the local bss at the mean time */
+  if (tables->local_bss_size != 0) {
+    tables->local_bss = (DWORD)mem_space+needed_mem-tables->local_bss_size;
+  } else {
+    tables->local_bss = 0;
+  }
 
 #ifdef __ELF_DEBUG__
   kf->log("Loading relocatable @%p; size 0x%lx\n", mem_space, needed_mem);
@@ -318,10 +310,6 @@ void common_free_tables(struct kern_funcs *kf, struct table_info *tables, struct
   }
   if (tables->section_names_size != 0) {
     kf->mem_free((DWORD)tables->section_names, tables->section_names_size);
-  }
-  if (tables->private_info != 0) {
-    DWORD local_bss_size = *((DWORD *)(tables->private_info));
-    kf->mem_free(tables->private_info, local_bss_size+sizeof(DWORD));
   }
 }
 

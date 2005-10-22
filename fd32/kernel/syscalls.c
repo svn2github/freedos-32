@@ -48,8 +48,6 @@ extern union gdt_entry *GDT_base;
 
 #define EMPTY_SLOT {0, (DWORD)0xFFFFFFFF}
 
-extern void process_dos_module(struct kern_funcs *p, int file,
-	struct read_funcs *parser, char *cmdline);
 int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num,
 	struct symbol *symbol_array);
 
@@ -251,6 +249,7 @@ static struct symbol syscall_table[] = {
   { "vm86_init", (DWORD)vm86_init },
   { "ll_context_save", (DWORD)ll_context_save },
   { "ll_context_load", (DWORD)ll_context_load },
+  { "ll_context_to",   (DWORD)ll_context_to },
 /*
  * { "DOS_alloc", (DWORD)DOS_alloc },
  * { "DOS_free", (DWORD)DOS_free },
