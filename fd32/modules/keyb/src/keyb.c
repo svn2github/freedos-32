@@ -212,6 +212,8 @@ int preprocess(BYTE code)
 				ret = 0;
 				break;
 			default:
+				if (!(BREAK&code))
+					ret = 0;
 				break;
 		}
 		stdst.s.e0_prefix = 0;
@@ -305,12 +307,11 @@ int preprocess(BYTE code)
 				fd32_message("SYSRQ released ...\n");
 				break;
 			default:
+				if (!(BREAK&code))
+					ret = 0;
 				break;
 		}
 	}
-
-	if (!(BREAK&code))
-		ret = 0;
 
 	return ret;
 }

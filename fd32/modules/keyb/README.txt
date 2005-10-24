@@ -31,4 +31,5 @@ bios_da.keyb_bufhead = 1
 bios_da.keyb_buftail = 2
 
 TODO
-* only handle the raw queue in the keyboard driver?
+* Support key-(combination)-command, rename the hook.c to cmd.c
+* Only handle the raw queue in the keyboard driver?
