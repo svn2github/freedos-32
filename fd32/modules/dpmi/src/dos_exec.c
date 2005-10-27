@@ -24,10 +24,9 @@
 #define __DOS_EXEC_DEBUG__
 
 /* Sets the JFT for the current process. */
-static void fd32_set_jft(void *Jft, int JftSize)
+static void local_set_psp_jft(struct psp *ppsp, void *Jft, int JftSize)
 {
   struct process_info *cur_P = fd32_get_current_pi();
-  struct psp *ppsp = cur_P->psp;
 
   if (Jft == NULL)
     Jft = fd32_init_jft(MAX_OPEN_FILES);
@@ -37,36 +36,57 @@ static void fd32_set_jft(void *Jft, int JftSize)
   cur_P->jft        = Jft;
 }
 
-static void set_psp(struct psp *npsp, WORD env_sel, char *args, WORD info_sel, DWORD base, DWORD end)
+static void local_set_psp_commandline(struct psp *ppsp, char *args)
+{
+  if (args != NULL) {
+    ppsp->command_line_len = strlen(args);
+    memcpy(ppsp->command_line, args, ppsp->command_line_len);
+    ppsp->command_line[ppsp->command_line_len] = '\r';
+  } else {
+    ppsp->command_line_len = 0;
+    ppsp->command_line[0] = '\r';
+  }
+}
+
+/* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
+static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
+static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *args)
 {
   /* Set the PSP */
-  npsp->ps_environ = env_sel;
-  npsp->info_sel = info_sel;
-  fd32_get_current_pi()->psp = npsp;
+  fd32_get_current_pi()->psp = ppsp;
+  /* Init PSP */
+  ppsp->ps_size = ps_size; /* segment of first byte beyond memory allocated to program  */
+  ppsp->ps_parent = ps_parent;
+  if (fcb_1 != NULL) {
+    fcb_1 = (fcb_1>>12)+(fcb_1&0x0000FFFF);
+    memcpy(ppsp->def_fcb_1, (void *)fcb_1, 16);
+  }
+  if (fcb_2 != NULL) {
+    fcb_2 = (fcb_2>>12)+(fcb_2&0x0000FFFF);
+    memcpy(ppsp->def_fcb_2, (void *)fcb_2, 20);
+  }
+
+  ppsp->ps_environ = env_sel;
+  ppsp->stubinfo_sel = stubinfo_sel;
+  ppsp->dta = &ppsp->command_line_len;
+  /* And now... Set the arg list!!! */
+  local_set_psp_commandline(ppsp, args);
 #ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DOSEXEC] New PSP: 0x%x\n", (int)npsp);
+  fd32_log_printf("[DOSEXEC] New PSP: 0x%x\n", (int)ppsp);
 #endif
-  /* npsp->old_stack = current_SP; */
-  /* npsp->memlimit = base + end; */
-
   /* Create the Job File Table */
-
   /* TODO: Why!?!? Help me Luca!
            For the moment I always create a new JFT */
   /* if (npsp->link == NULL) Create new JFT
      else Copy JFT from npsp->link->Jft
   */
-  fd32_set_jft(NULL, MAX_OPEN_FILES);
-  npsp->dta      = &npsp->command_line_len;
-  /* npsp->cds_list = 0; */
+  local_set_psp_jft(ppsp, NULL, MAX_OPEN_FILES);
 
-  /* And now... Set the arg list!!! */
-  if (args != NULL) {
-    npsp->command_line_len = strlen(args);
-    strcpy(npsp->command_line, args);
-  } else {
-    npsp->command_line_len = 0;
-  }
+  /* Deprecated FD32 PSP members */
+  /* npsp->info_sel = stubinfo_sel; */
+  /* npsp->old_stack = current_SP; */
+  /* npsp->memlimit = base + end; */
+  /* npsp->cds_list = 0; */
 }
 
 /* NOTE: Move the structure here, Correct? */
@@ -95,11 +115,10 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   struct stubinfo *info;
   struct psp *newpsp;
   char *envspace;
-  int sel, psp_selector, env_selector;
-  DWORD m;
   BYTE *allocated;
   int size;
   int env_size;
+  int stubinfo_selector, psp_selector, env_selector;
 
   /*Environment lenght + 2 zeros + 1 word + program name... */
   env_size = 2 + 2 + strlen(filename) + 1;
@@ -113,16 +132,16 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   }
 
   info = (struct stubinfo *)allocated;
-  sel = fd32_allocate_descriptors(1);
+  stubinfo_selector = fd32_allocate_descriptors(1);
 #ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DOSEXEC] StubInfo Selector Allocated: = 0x%x\n", sel);
+  fd32_log_printf("[DOSEXEC] StubInfo Selector Allocated: = 0x%x\n", stubinfo_selector);
 #endif
-  if (sel == ERROR_DESCRIPTOR_UNAVAILABLE) {
+  if (stubinfo_selector == ERROR_DESCRIPTOR_UNAVAILABLE) {
     mem_free((DWORD)allocated, size);
     return NULL;
   }
-  fd32_set_segment_base_address(sel, (DWORD)info);
-  fd32_set_segment_limit(sel, sizeof(struct stubinfo));
+  fd32_set_segment_base_address(stubinfo_selector, (DWORD)info);
+  fd32_set_segment_limit(stubinfo_selector, sizeof(struct stubinfo));
 
   newpsp = (struct psp *)(allocated + sizeof(struct stubinfo));
   psp_selector = fd32_allocate_descriptors(1);
@@ -131,7 +150,7 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
 #endif
   if (psp_selector == ERROR_DESCRIPTOR_UNAVAILABLE) {
     mem_free((DWORD)allocated, size);
-    fd32_free_descriptor(sel);
+    fd32_free_descriptor(stubinfo_selector);
     return NULL;
   }
   fd32_set_segment_base_address(psp_selector, (DWORD)newpsp);
@@ -148,7 +167,7 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
 #endif
   if (env_selector == ERROR_DESCRIPTOR_UNAVAILABLE) {
     mem_free((DWORD)allocated , size);
-    fd32_free_descriptor(sel);
+    fd32_free_descriptor(stubinfo_selector);
     fd32_free_descriptor(psp_selector);
     return NULL;
   }
@@ -162,8 +181,8 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   /* Memory pre-allocated by the kernel... */
   info->initial_size = initial_size; /* align? */
   info->minkeep = 0x1000;        /* DOS buffer size... */
-  info->dosbuf_handler = m = dosmem_get(0x1010);
-  info->ds_segment = m >> 4;
+  info->dosbuf_handler = dosmem_get(0x1010);
+  info->ds_segment = info->dosbuf_handler >> 4;
   info->ds_selector = get_ds();
   info->cs_selector = get_cs();
   info->psp_selector = psp_selector;
@@ -172,9 +191,9 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   info->basename[0] = 0;
   info->argv0[0] = 0;
 
-  set_psp(newpsp, env_selector, args, sel, base, initial_size);
+  local_set_psp(newpsp, 0xFFFF/* fake, above 1M */, 0, env_selector, stubinfo_selector, g_fcb1, g_fcb2, args);
   
-  return sel;
+  return stubinfo_selector;
 }
 
 void restore_psp(void)
@@ -187,7 +206,7 @@ void restore_psp(void)
   struct psp *curpsp = cur_P->psp;
 
   /* Free memory & selectors... */
-  stubinfo_sel = curpsp->info_sel;
+  stubinfo_sel = curpsp->stubinfo_sel;
   fd32_get_segment_base_address(stubinfo_sel, &base);
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DOSEXEC] Stubinfo Sel: 0x%x --- 0x%lx\n", stubinfo_sel, base);
@@ -347,8 +366,6 @@ static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s
   return 1;
 }
 
-/* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
-static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
@@ -406,27 +423,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] ENVSEG: %x - %x %x %x %s\n", (int)g_env_segment, env_data[0], env_data[1], env_data[2], env_data+3);
 #endif
-  /* Init PSP */
-  ppsp->ps_size = (exec+exec_size*0x10)>>4;
-  ppsp->ps_parent = 0;
-  ppsp->ps_environ = g_env_segment;
-  if (g_fcb1 != NULL) {
-    g_fcb1 = (g_fcb1>>12)+(g_fcb1&0x0000FFFF);
-    memcpy(ppsp->def_fcb_1, (void *)g_fcb1, 16);
-  }
-  if (g_fcb2 != NULL) {
-    g_fcb2 = (g_fcb2>>12)+(g_fcb2&0x0000FFFF);
-    memcpy(ppsp->def_fcb_2, (void *)g_fcb2, 20);
-  }
 
-  if (args != NULL) {
-    ppsp->command_line_len = strlen(args);
-    strcpy(ppsp->command_line, args);
-  } else {
-    ppsp->command_line_len = 0;
-    ppsp->command_line[0] = 0;
-  }
-  ppsp->dta = &ppsp->command_line_len;
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] FCB: %x %x content: %x %x\n", (int)g_fcb1, (int)g_fcb2, *((BYTE *)g_fcb1), *((BYTE *)g_fcb2));
 #endif
@@ -443,9 +440,8 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   /* NOTE: Set the current process info */
   pi.name = filename;
   pi.args = args;
-  pi.psp = ppsp;
   fd32_set_current_pi(&pi);
-  fd32_set_jft(NULL, MAX_OPEN_FILES);
+  local_set_psp(ppsp, (exec+exec_size*0x10)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, args);
   /* Call in VM86 mode */
   vm86_call(hdr.e_ip, hdr.e_sp, &in, &out, &s);
   /* Back to the previous process */

@@ -58,7 +58,7 @@ typedef struct psp {
   BYTE ps_fill3[3];             /* 53 */
   /* FD/32 items */
   void *dta;                    /* 56 FD32 use allocated from ps_fill3, under DOS this pointer is stored in the SDA */
-  WORD info_sel;
+  WORD stubinfo_sel;
   BYTE def_fcb_1[16];
   BYTE def_fcb_2[20];
   /* Offset 80h (128): this is also the start of the default DTA */

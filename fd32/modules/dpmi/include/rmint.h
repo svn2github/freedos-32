@@ -50,14 +50,8 @@ typedef union rmregs
 }
 tRMRegs;
 
-#if 0
-  #define RM_SET_CARRY   r->flags |= 0x0001
-  #define RM_CLEAR_CARRY r->flags &= 0xFFFFFFFE
-#else
-  #define RMREGS_SET_CARRY   r->x.flags |= 0x0001
-  #define RMREGS_CLEAR_CARRY r->x.flags &= 0xFFFE
-#endif
-
+#define RMREGS_SET_CARRY   r->x.flags |= 0x0001
+#define RMREGS_CLEAR_CARRY r->x.flags &= 0xFFFE
 
 int fd32_real_mode_int(int intnum, DWORD rmcs_address);
 
