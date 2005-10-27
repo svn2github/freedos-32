@@ -26,7 +26,7 @@
 
 #define FLOPPY_CONFIG_WRITE 1
 #define FLOPPY_CONFIG_CACHE 1
-#define FLOPPY_CONFIG_DEBUG 1
+#define FLOPPY_CONFIG_DEBUG 0
 #define MAX_BUFFERS 1 /* Number of cacheable cylinders */
 
 #ifndef __cplusplus

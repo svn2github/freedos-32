@@ -151,7 +151,7 @@ ssize_t floppy_read(void *handle, void *buffer, uint64_t start, size_t count, in
 			if (!(floppy->buffers[0].flags & BUF_BAD))
 			{
 				/* Read as many contiguous sectors as possible from the cache */
-				size_t partial = floppy->cylinder_size;
+				size_t partial = floppy->buffers[0].start + floppy->cylinder_size - start;
 				if (fdc_disk_changed(floppy->fdd))
 					return -BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0);
 				if (num_read + partial > count)
