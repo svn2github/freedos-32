@@ -431,7 +431,7 @@ static inline void lfn_get_and_set_attributes(union rmregs *r)
 		fd = fd32_open(fn, O_RDWR | O_DIRECTORY, FD32_ANONE, 0, NULL);
 	if (fd < 0)
 	{
-		res2dos(res, r);
+		res2dos(fd, r);
 		return;
 	}
 	a.Size = sizeof(fd32_fs_attr_t);
