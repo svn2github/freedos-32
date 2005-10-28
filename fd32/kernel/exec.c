@@ -52,47 +52,26 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 
   bss_sect = rf->read_section_headers(kf, file, &tables, sections);
 
-  /* TODO: Modify the PEI format parsing to be compatible with the other formats parsing */
-  if (!(tables.flags & NEED_SECTION_RELOCATION)) {
-    if (tables.flags & NEED_LOAD_RELOCATABLE) {
-      exec_space = rf->load_relocatable(kf, file, &tables,
-		tables.num_sections, sections, &size);
-    } else {
-      exec_space = rf->load_executable(kf, file, &tables,
-		tables.num_sections, sections, &size);
+  /* Load symbols (if it's objects, calculate the local bss size) */
+  if (tables.num_symbols != 0) {
+    symbols = (struct symbol_info *)mem_get(tables.num_symbols * sizeof (struct symbol_info));
+    if (symbols == 0) {
+      error("Error allocating symbols table\n");
+      rf->free_tables(kf, &tables, symbols, sections);
+      /* Should provide some error code... */
+      return -1;
     }
-
-    if (tables.num_symbols != 0) {
-      symbols = (struct symbol_info *)mem_get(tables.num_symbols * sizeof (struct symbol_info));
-      if (symbols == 0) {
-        error("Error allocating symbols table\n");
-        rf->free_tables(kf, &tables, symbols, sections);
-        /* Should provide some error code... */
-        return -1;
-      }
-      rf->read_symbols(kf, file, &tables, symbols);
-    }
-  } else { /* COFF and ELF ... format */
-    /* Load symbols and calculate the local bss size */
-    if (tables.num_symbols != 0) {
-      symbols = (struct symbol_info *)mem_get(tables.num_symbols * sizeof (struct symbol_info));
-      if (symbols == 0) {
-        error("Error allocating symbols table\n");
-        rf->free_tables(kf, &tables, symbols, sections);
-        /* Should provide some error code... */
-        return -1;
-      }
-      rf->read_symbols(kf, file, &tables, symbols);
-    }
-
-    if (tables.flags & NEED_LOAD_RELOCATABLE) {
-      exec_space = rf->load_relocatable(kf, file, &tables,
-		tables.num_sections, sections, &size);
-    } else {
-      exec_space = rf->load_executable(kf, file, &tables,
-		tables.num_sections, sections, &size);
-    }
+    rf->read_symbols(kf, file, &tables, symbols);
   }
+
+  if (tables.flags & NEED_LOAD_RELOCATABLE) {
+    exec_space = rf->load_relocatable(kf, file, &tables,
+		tables.num_sections, sections, &size);
+  } else {
+    exec_space = rf->load_executable(kf, file, &tables,
+		tables.num_sections, sections, &size);
+  }
+
   if (exec_space == 0) {
 #ifdef __EXEC_DEBUG__
     message("Error decoding the Executable data\n");
@@ -102,7 +81,7 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
     return -1;
   }
 
-  if ((tables.flags & NEED_SECTION_RELOCATION) || (tables.flags & NEED_IMAGE_RELOCATION)) {
+  if (tables.flags & (NEED_SECTION_RELOCATION|NEED_IMAGE_RELOCATION)) {
     int res;
     void *kernel_symbols;
     int reloc_sections;

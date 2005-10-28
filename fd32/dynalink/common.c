@@ -344,8 +344,8 @@ static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
   kf->file_seek(f, hdr.e_lfanew, kf->seek_set);
   kf->file_read(f, &nt_sgn, 4);
   
-  kf->message("The magic : %lx\n", nt_sgn);
   if (nt_sgn == 0x00004550) {
+    kf->message("Identified as a Win32-PE (%lx) program ...\n", nt_sgn);
     if (isPEI(kf, f, rf)) {
       return 1;
     }

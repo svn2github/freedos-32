@@ -576,7 +576,7 @@ struct dll_table *get_dll_table(char *dll_name)
   }
 
   /* Find and Load the DLL */
-  message("Find and Load %s\n", dll_name);
+  message("Find and Load %s ...\n", dll_name);
   /* dos_exec(dll_name, 0, 0, 0, 0, &retval); */
   /* TODO: load the DLL, add the DLL table */
 

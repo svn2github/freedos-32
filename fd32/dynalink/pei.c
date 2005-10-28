@@ -9,7 +9,6 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/mem.h>
 #include <ll/i386/string.h>
-char *strstr(const char *haystack, const char *needle); /* FIXME: Place this in oslib/ll/i386/string.h */
 
 #include "kmem.h"
 #include "format.h"
@@ -22,12 +21,12 @@ char *strstr(const char *haystack, const char *needle); /* FIXME: Place this in 
 struct pei_extra_info {
   DWORD export_symbol;
   DWORD export_symbol_size;
+  DWORD export_symbol_fileptr;
   DWORD import_symbol;
   DWORD import_symbol_size;
   DWORD base_reloc;
   DWORD base_reloc_size;
   DWORD base_reloc_offset;
-  DWORD section_0_base;
 };
 
 
@@ -37,7 +36,7 @@ DWORD pei_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
   struct external_filehdr header;
   struct pe_aouthdr optheader;
   struct pei_extra_info *pee_info = (struct pei_extra_info *)kf->mem_alloc(sizeof(struct pei_extra_info));
-  kf->file_seek(f, kf->file_offset, 0);
+  kf->file_seek(f, kf->file_offset, kf->seek_set);
   kf->file_read(f, &header, sizeof(struct external_filehdr));
   
   /* Note: check for the target machine */
@@ -72,7 +71,7 @@ DWORD pei_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
         }
       }
       /* Note: Otherwise the DLL could be a FD32 driver */
-      tables->image_base = optheader.image_base;
+      tables->image_base = optheader.image_base;	  
       pee_info->export_symbol = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_EXPORT].vaddr;
       pee_info->export_symbol_size = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_EXPORT].size;
       pee_info->base_reloc = optheader.data_dir[IMAGE_DIRECTORY_ENTRY_BASERELOC].vaddr;
@@ -91,14 +90,14 @@ DWORD pei_read_headers(struct kern_funcs *kf, int f, struct table_info *tables)
 
 int pei_read_section_headers(struct kern_funcs *kf, int f, struct table_info *tables, struct section_info *s)
 {
-  int i, n;
+  DWORD i, n;
   char name[9];
   int e_section = -1;
   struct pe_scnhdr h;
   struct pei_extra_info *pee_info;
   pee_info = (struct pei_extra_info *)tables->private_info;
 
-  kf->file_seek(f, tables->section_header, 0);
+  kf->file_seek(f, tables->section_header, kf->seek_set);
   n = tables->num_sections;
   for (i = 0; i < n; i++)
   {
@@ -120,8 +119,6 @@ int pei_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
     if(h.s_vaddr <= pee_info->export_symbol && h.s_vaddr+h.s_vsize > pee_info->export_symbol)
       e_section = i;    
   }
-  /* Save the section[0] base */
-  pee_info->section_0_base = s[0].base;
 
   /* The number of symbols should be export symbols */
   tables->num_symbols = 0;
@@ -129,7 +126,8 @@ int pei_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
   if(pee_info->export_symbol_size != 0 && e_section != -1)
   {
     struct exp_dir edir;
-    kf->file_seek(f, s[e_section].fileptr+pee_info->export_symbol-s[e_section].base, 0);
+    pee_info->export_symbol_fileptr = s[e_section].fileptr+pee_info->export_symbol-s[e_section].base;
+    kf->file_seek(f, pee_info->export_symbol_fileptr, kf->seek_set);
     kf->file_read(f, (void *)&edir, sizeof(struct exp_dir));
     #ifdef __pei_DEBUG__
     kf->log("Export symbol number: %d\n", edir.func_num);
@@ -143,8 +141,7 @@ int pei_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
 
 DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, struct section_info *s, int *size)
 {
-  int res;
-  int i, j;
+  DWORD i;
   DWORD reloc_offset = 0;
   DWORD image_memory_size;
   DWORD image_memory_start;
@@ -171,8 +168,7 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
     kf->log("Relocated offset: %lx\n", reloc_offset);
     #endif
   } else {
-    res = kf->mem_alloc_region(image_memory_start, image_memory_size);
-    if(res == -1)
+    if(kf->mem_alloc_region(image_memory_start, image_memory_size) == -1)
     {
       kf->message("WARNING: The PE image memory base isn't available and image not relocatable!\n");
       return -1;
@@ -207,13 +203,13 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
   for (i = 0; i < n; i++) {
     section_memory_start = image_base+s[i].base;
     #ifdef __PEI_DEBUG__
-    kf->log("Loaded section %d at 0x%lx [file offset %x]\n", i, section_memory_start, s[i].fileptr);
+    kf->log("[PECOFF] Loaded section %d at 0x%lx [file offset %x]\n", i, section_memory_start, s[i].fileptr);
     #endif
     if (s[i].fileptr != 0) {
-      kf->file_seek(f, s[i].fileptr, 0);
+      kf->file_seek(f, s[i].fileptr, kf->seek_set);
       kf->file_read(f, (void *)section_memory_start, s[i].filesize);
       #ifdef __pei_DEBUG__
-      kf->log("The first binary: %x section size: %x\n\n", ((DWORD *)section_memory_start)[0], s[i].size);
+      kf->log("\tDATA: %x section size: %x\n\n", ((DWORD *)section_memory_start)[0], s[i].size);
       #endif
     }
   }
@@ -226,9 +222,8 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
     struct dll_table *dt = NULL;
     char *dll_name;
     struct imp_name *imp;
-    DWORD *hint;
-    DWORD entry;
-    DWORD *func;
+    DWORD *hint, *func;
+    DWORD j, entry;
     /* 
      * desc->tstamp is used to decide whether the symbol entry is set
      * desc->fchain is used to do forwarding
@@ -275,36 +270,42 @@ DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, s
 
 int pei_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables, struct symbol_info *syms)
 {
-  int i;
+  DWORD i;
   struct pei_extra_info *pee_info;
-  DWORD image_base = tables->image_base;
   pee_info = (struct pei_extra_info *)tables->private_info;
   
   /* Process the export symbols : anyway we read export symbols here */
   if(tables->num_symbols != 0)
   {
-    struct exp_dir *edir = (struct exp_dir *)(image_base+pee_info->export_symbol);
-    struct symbol *symbol_array;
-    DWORD *edir_funcname = (DWORD *)(image_base+edir->name_addr);
-    DWORD *edir_funcaddr = (DWORD *)(image_base+edir->func_addr);
-    DWORD handle = image_base;
+    struct symbol *symbol_table;
+	DWORD handle = kf->mem_alloc(pee_info->export_symbol_size);
+	/* Located to the address based on the RVAs */
+    DWORD virtual_base = handle-pee_info->export_symbol;
+    struct exp_dir *edir = (struct exp_dir *)handle;
+    DWORD *edir_funcname, *edir_funcaddr;
+
+    kf->file_seek(f, pee_info->export_symbol_fileptr, kf->seek_set);
+    kf->file_read(f, (void *)handle, pee_info->export_symbol_size);
 #ifdef __PEI_DEBUG__
     kf->log("[PECOFF] DLL name: %s symbol number: %x\n", image_base+edir->name, edir->func_num);
 #endif
-    symbol_array = (struct symbol *)kf->mem_alloc(sizeof(struct symbol)*edir->func_num);
+	edir_funcname = (DWORD *)(virtual_base+edir->name_addr);
+	edir_funcaddr = (DWORD *)(virtual_base+edir->func_addr);
+    symbol_table = (struct symbol *)kf->mem_alloc(sizeof(struct symbol)*edir->func_num);
     for(i = 0; i < edir->func_num; i++)
     {
-      syms[i].name = (char *)image_base+edir_funcname[i];
+      syms[i].name = (char *)virtual_base+edir_funcname[i];
       /* Get the symbol's memory offset to section */
-      syms[i].offset = edir_funcaddr[i]-pee_info->section_0_base;
+      syms[i].offset = edir_funcaddr[i];
       syms[i].section = 0;
-      symbol_array[i].name = (char *)image_base+edir_funcname[i];
-      symbol_array[i].address = image_base+edir_funcaddr[i];
+      symbol_table[i].name = (char *)virtual_base+edir_funcname[i];
+      /* TODO: The symbols address need relocation */
+      symbol_table[i].address = edir_funcaddr[i];
       #ifdef __pei_DEBUG__
-      kf->log("[PECOFF] Symbol name: %s\taddress: 0x%08x RVA 0x%08x\n", symbol_array[i].name, symbol_array[i].address, edir_funcaddr[i]);
+      kf->log("[PECOFF] Symbol name: %s\taddress: 0x%08x RVA 0x%08x\n", symbol_table[i].name, symbol_table[i].address, edir_funcaddr[i]);
       #endif
     }
-    kf->add_dll_table((char *)image_base+edir->name, handle, edir->func_num, symbol_array);
+    kf->add_dll_table((char *)virtual_base+edir->name, handle, edir->func_num, symbol_table);
   }
   
   return 1;
@@ -312,7 +313,7 @@ int pei_read_symbols(struct kern_funcs *kf, int f, struct table_info *tables, st
 
 DWORD pei_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *syms, char *name, int *sect)
 {
-  int i;
+  DWORD i;
   
   for(i = 0; i < n; i++)
     if(strstr(syms[i].name, name) != 0)
@@ -327,7 +328,7 @@ DWORD pei_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *syms, 
 
 int pei_relocate_section(struct kern_funcs *kf, DWORD image_base, struct table_info *tables, int n, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
-  int i;
+  DWORD i;
   /* DWORD image_base = base-s[0].base; */
   /* Use to prevent the duplicated reloc block */
   DWORD reloc_memory_first_start = 0;
