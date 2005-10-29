@@ -118,7 +118,7 @@ int ata_detect_single(int device_no, struct ide_interface* intf, struct ata_devi
     }
     (*d)->interface = intf;
     (*d)->capabilities = drvdata[49];
-    (*d)->multiboot_id = 0;
+    (*d)->multiboot_id = ((0x80|device_no) << 24) | 0x00FFFFFF;
     string_parse((*d)->model, drvdata + 27, 20);
     (*d)->model[40] = '\0';
     string_parse((*d)->serial, drvdata + 10, 10);
