@@ -70,7 +70,6 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 		DWORD fcb1, DWORD fcb2, WORD *return_val);
 
 #define RUN_RING   0
-#define ENV_SIZE 256
 #define MAX_OPEN_FILES  0x30
 #define DOS_VM86_EXEC   0
 #define DOS_DIRECT_EXEC 1 /* Support COFF-GO32 only */

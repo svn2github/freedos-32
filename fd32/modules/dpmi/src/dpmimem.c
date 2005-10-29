@@ -52,7 +52,17 @@ DWORD dpmi_alloc(DWORD size, DWORD *base)
   fd32_log_printf("DPMI Alloc 0x%lx\n", size);
 #endif
   
-  /* NOTE: Use a normal mem_get 'cause Dj libc can support memory anywhere */
+/* area = mem_get_region_after(fd32_get_current_pi()->memlimit, size + sizeof(struct dpmimem_info));
+  if (area == 0) {
+    return 0;
+  }
+  fd32_get_current_pi()->memlimit = area + (size + sizeof(struct dpmimem_info));
+*/
+
+  /* NOTE: Use a normal mem_get 'cause Djlibc can support memory anywhere
+   *       althought it maybe result a negative memory address in an DPMI environment ...
+   *       (from Hanzac)
+   */
   area = mem_get(size + sizeof(struct dpmimem_info));
   if (area == 0) {
     return 0;

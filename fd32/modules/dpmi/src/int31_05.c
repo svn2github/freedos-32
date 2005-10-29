@@ -22,7 +22,6 @@ void int31_0501(union regs *r)
   DWORD blocksize;
   DWORD handle;
   DWORD base;
-  /* DWORD user_base; */
 
   blocksize = ((r->d.ebx & 0xFFFF) << 16) | (r->d.ecx & 0xFFFF);
 #ifdef __DEBUG__
@@ -47,18 +46,14 @@ void int31_0501(union regs *r)
 #endif
 
   /* The allocated address is referred to the kernel DS (base = 0)
-   * It must be translated to the user data segment (remember: we
-   * have the user DS in the stack)
+   * But It need not be translated to the user data segment
+   * (remember: we have the user DS in the stack)
+   *
+   * Because it should be linear address, and DjLibC also compares
+   * it with the djgpp base, see DjLibC: src/libc/crt0/crt0.S
+   * (from Hanzac)
    */
-  /* Disable it 'cause it should be linear address, and Dj LibC also
-     compares it with the segment base, see DJ src/libc/crt0/crt0.S
-  user_base = gdt_read(r->x.ds, NULL, NULL, NULL);
-#ifdef __DPMIMEM_DEBUG__
-  fd32_log_printf("User Base[0x%x] = 0x%lx\n", r->x.ds, user_base);
-#endif
-  base -= user_base;
-  */
-  
+
   CLEAR_CARRY;
   r->x.ax = 0;
   r->x.bx = (base >> 16) & 0x0000FFFF;

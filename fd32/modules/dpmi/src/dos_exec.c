@@ -23,6 +23,8 @@
 
 #define __DOS_EXEC_DEBUG__
 
+#define ENV_SIZE 0x100
+
 /* Sets the JFT for the current process. */
 static void local_set_psp_jft(struct psp *ppsp, void *Jft, int JftSize)
 {
@@ -50,8 +52,9 @@ static void local_set_psp_commandline(struct psp *ppsp, char *args)
 
 /* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
-static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *args)
+static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *filename, char *args)
 {
+  BYTE *env_data;
   /* Set the PSP */
   fd32_get_current_pi()->psp = ppsp;
   /* Init PSP */
@@ -81,6 +84,17 @@ static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD e
      else Copy JFT from npsp->link->Jft
   */
   local_set_psp_jft(ppsp, NULL, MAX_OPEN_FILES);
+  
+  /* Environment setup */
+  env_data = (BYTE *)(g_env_segment<<4);
+  strcpy(env_data, "PATH=.");
+  env_data[7] = 0;
+  *((WORD *)(env_data+8)) = 1; /* Count of the env-strings */
+  /* NOTE: filename is only the filepath */
+  strcpy(env_data + 10, filename);
+#ifdef __DOS_EXEC_DEBUG__
+  fd32_log_printf("[DPMI] ENVSEG: %x - %x %x %x %s\n", (int)g_env_segment, env_data[0], env_data[1], env_data[2], env_data+10);
+#endif
 
   /* Deprecated FD32 PSP members */
   /* npsp->info_sel = stubinfo_sel; */
@@ -114,19 +128,15 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
 {
   struct stubinfo *info;
   struct psp *newpsp;
-  char *envspace;
   BYTE *allocated;
-  int size;
-  int env_size;
+  DWORD size, env_size;
   int stubinfo_selector, psp_selector, env_selector;
 
   /*Environment lenght + 2 zeros + 1 word + program name... */
   env_size = 2 + 2 + strlen(filename) + 1;
-  size = sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE;
-  /* Always allocate a fixed amount of memory...
-   * Keep some space for adding environment variables
-   */
-  allocated = (BYTE *)mem_get(sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE);
+  size = sizeof(struct stubinfo) + sizeof(struct psp);
+  /* Always allocate a fixed amount of memory... */
+  allocated = (BYTE *)mem_get(size);
   if (allocated == NULL) {
     return NULL;
   }
@@ -156,11 +166,7 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   fd32_set_segment_base_address(psp_selector, (DWORD)newpsp);
   fd32_set_segment_limit(psp_selector, sizeof(struct psp));
 
-  /* Allocate Environment Space & Selector */
-  envspace = (char *)(allocated + sizeof(struct stubinfo) + sizeof(struct psp));
-  memset(envspace, 0, env_size);
-  *((WORD *)envspace + 2) = 1;
-  strcpy(envspace + 2 + sizeof(WORD), filename); /* No environment... */
+  /* Allocate Environment Selector */
   env_selector = fd32_allocate_descriptors(1);
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DOSEXEC] Environment Selector Allocated: = 0x%x\n", env_selector);
@@ -171,10 +177,10 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
     fd32_free_descriptor(psp_selector);
     return NULL;
   }
-  fd32_set_segment_base_address(env_selector, (DWORD)envspace);
+  fd32_set_segment_base_address(env_selector, g_env_segment<<4);
   fd32_set_segment_limit(env_selector, ENV_SIZE);
 
-  strcpy(info->magic, "go32stub, v 2.00");
+  strcpy(info->magic, "go32stub, v 2.02");
   info->size = sizeof(struct stubinfo);
   info->minstack = 0x40000;      /* FIXME: Check this!!! */
   info->memory_handle = mem_handle;
@@ -190,8 +196,9 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   info->env_size = env_size;
   info->basename[0] = 0;
   info->argv0[0] = 0;
+  memcpy(info->dpmi_server, "FD32.BIN", sizeof("FD32.BIN"));
 
-  local_set_psp(newpsp, 0xFFFF/* fake, above 1M */, 0, env_selector, stubinfo_selector, g_fcb1, g_fcb2, args);
+  local_set_psp(newpsp, 0xFFFF/* fake, above 1M */, 0, env_selector, stubinfo_selector, g_fcb1, g_fcb2, filename, args);
   
   return stubinfo_selector;
 }
@@ -376,7 +383,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   X_SREGS16 s;
   DWORD mem;
   BYTE *exec_text;
-  BYTE *env_data;
   DWORD exec;
   DWORD exec_size;
 
@@ -413,16 +419,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
       *p += seg;
     }
   }
-  /* Environment setup */
-  env_data = (BYTE *)(g_env_segment<<4);
-  env_data[0] = 0;
-  env_data[1] = 1;
-  env_data[2] = 0;
-  /* NOTE: filename is only the filepath */
-  strcpy(env_data + 3, filename);
-#ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DPMI] ENVSEG: %x - %x %x %x %s\n", (int)g_env_segment, env_data[0], env_data[1], env_data[2], env_data+3);
-#endif
 
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] FCB: %x %x content: %x %x\n", (int)g_fcb1, (int)g_fcb2, *((BYTE *)g_fcb1), *((BYTE *)g_fcb2));
@@ -441,7 +437,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   pi.name = filename;
   pi.args = args;
   fd32_set_current_pi(&pi);
-  local_set_psp(ppsp, (exec+exec_size*0x10)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, args);
+  local_set_psp(ppsp, (exec+exec_size*0x10)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   /* Call in VM86 mode */
   vm86_call(hdr.e_ip, hdr.e_sp, &in, &out, &s);
   /* Back to the previous process */
@@ -474,13 +470,13 @@ int dos_exec_switch(int option)
 {
   int res = 0;
 
+  if (g_env_segtmp == 0) {
+    g_env_segtmp = dosmem_get(ENV_SIZE);
+    g_env_segment = g_env_segtmp>>4;
+  }
   switch(option)
   {
     case DOS_VM86_EXEC:
-      if (g_env_segtmp == 0) {
-        g_env_segtmp = dosmem_get(0x100);
-        g_env_segment = g_env_segtmp>>4;
-      }
       /* dos_exec_mode16 */
       if (dos_exec_mode16 == NULL) {
         BYTE *p = (BYTE *)dosmem_get(0x10);
