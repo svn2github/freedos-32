@@ -444,7 +444,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   fd32_set_current_pi(pi.prev_P);
   dosmem_free(mem, sizeof(struct psp)+exec_size*0x10);
 
-  return 0;
+  return out.x.ax; /* Return value */
 }
 
 /* MZ format handling for VM86 */
