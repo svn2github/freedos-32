@@ -18,6 +18,9 @@
 #include "mods.h"
 #include "logger.h"
 
+/* Enable the memory alignment optimization */
+#define CONFIG_MEMORY_ALIGNMENT
+
 struct mempool high_mem_pool;
 struct mempool dos_mem_pool;
 
@@ -207,35 +210,52 @@ void dosmem_init(DWORD base, DWORD size)
   pmm_add_region(&dos_mem_pool, base, size);
 }
 
+/* Memory alligned at 4-bytes */
 int dosmem_get_region(DWORD base, DWORD size)
 {
+#ifdef CONFIG_MEMORY_ALIGNMENT
+  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+#endif
   return pmm_alloc_address(&dos_mem_pool, base, size);
 }
 
 int dosmem_free(DWORD base, DWORD size)
 {
+#ifdef CONFIG_MEMORY_ALIGNMENT
+  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+#endif
   return pmm_free(&dos_mem_pool, base, size);
 }
 
 DWORD dosmem_get(DWORD amount)
 {
-  DWORD m;
-  m = pmm_alloc(&dos_mem_pool, amount);
-  return m;
+#ifdef CONFIG_MEMORY_ALIGNMENT
+  amount = (amount + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+#endif
+  return pmm_alloc(&dos_mem_pool, amount);
 }
 
 int mem_get_region(DWORD base, DWORD size)
 {
+#ifdef CONFIG_MEMORY_ALIGNMENT
+  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+#endif
   return pmm_alloc_address(&high_mem_pool, base, size);
 }
 
 int mem_free(DWORD base, DWORD size)
 {
+#ifdef CONFIG_MEMORY_ALIGNMENT
+  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+#endif
   return pmm_free(&high_mem_pool, base, size);
 }
 
 DWORD mem_get(DWORD amount)
 {
+#ifdef CONFIG_MEMORY_ALIGNMENT
+  amount = (amount + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+#endif
   return pmm_alloc(&high_mem_pool, amount);
 }
 
