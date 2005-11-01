@@ -69,10 +69,11 @@ typedef struct psp {
 int dos_exec(char *filename, DWORD env_segment, char *args,
 		DWORD fcb1, DWORD fcb2, WORD *return_val);
 
-#define RUN_RING   0
-#define MAX_OPEN_FILES  0x30
-#define DOS_VM86_EXEC   0
-#define DOS_DIRECT_EXEC 1 /* Support COFF-GO32 only */
+#define RUN_RING		0
+#define MAX_OPEN_FILES	0x30
+#define DOS_VM86_EXEC		0
+#define DOS_DIRECT_EXEC		1 /* Support COFF-GO32 only */
+#define DOS_WRAPPER_EXEC	2
 int dos_exec_switch(int option); /* Return TRUE(1) or FALSE(0) */
 extern void (*dos_exec_mode16)(void); /* 16bit DPMI mode-switch */
 

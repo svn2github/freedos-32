@@ -13,7 +13,7 @@
 #include "dos_exec.h"
 
 extern void chandler(DWORD intnum, struct registers r);
-extern WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
+extern WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel);
 extern void restore_psp(void);
 extern int use_lfn;
 
@@ -56,6 +56,8 @@ void DPMI_init(struct process_info *p)
             dos_exec_switch(DOS_VM86_EXEC);
           else if (strcmp(optarg, "direct") == 0)
             dos_exec_switch(DOS_DIRECT_EXEC);
+          else if (strcmp(optarg, "wrapper") == 0)
+            dos_exec_switch(DOS_WRAPPER_EXEC);
           break;
         default:
           break;

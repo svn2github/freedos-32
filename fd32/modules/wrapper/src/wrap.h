@@ -16,7 +16,7 @@
 extern WORD user_cs, user_ds;
 
 /* from dpmi/src/dos_exec.c, using dynamic linking */
-WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args);
+WORD stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel);
 void restore_psp(void);
 
 /* similar with fd32/kernel/exec.c */

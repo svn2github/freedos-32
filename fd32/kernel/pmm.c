@@ -33,20 +33,15 @@ void pmm_init(struct mempool *mp)
   mp->first = 0;
 }
 
-#define MEM_AT		0
-#define MEM_AFTER	1
-
-/* Modified by Hanzac Chen to enable a feature */
 int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
 {
-  struct memheader *p, *h1, *p1;
+  struct memheader *p, *pnew, *pprev;
   DWORD size2, b, b_end, new_start;
-  const DWORD flag = MEM_AT;
 
 #ifdef __DEBUG__
   fd32_log_printf("[PMM] Alloc Address  0x%lx 0x%lx...\n", base, size);
 #endif
-  for (p1 = 0, p = mp->first; p!= 0; p1 = p, p = p->next) {
+  for (pprev = 0, p = mp->first; p!= 0; pprev = p, p = p->next) {
     b = (DWORD)p;
 #ifdef __DEBUG__
     fd32_log_printf("        Block 0x%lx-0x%lx\n", b, b + p->size);
@@ -54,79 +49,89 @@ int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
 
     b_end = b+p->size;
     new_start = b_end-size;
-    if (new_start >= b && new_start >= base) {
-      if (flag == MEM_AFTER) {
-        if (b >= base) {
-          new_start = b;
-          h1 = (struct memheader *)(new_start + size);
-          size2 = b_end-(DWORD)h1;
-        } else {
-          h1 = (struct memheader *)b;
-          size2 = new_start-b;
-        }
-        if (size2 < sizeof(struct memheader)) {
+    if (new_start >= base && base >= b) {
+      /* OK, we have to remove from this chunk... */
+      size2 = (b_end - (base + size));
+      if (size2 < sizeof(struct memheader)) {
+        if (size2 != 0)
           message("[PMM] alloc address: WARNING - loosing %ld bytes\n", size2);
-          if (p1 == 0) {
+        if (b >= base - sizeof(struct memheader)) {
+          if (b != base)
+            message("[PMM] alloc address: WARNING - loosing %ld bytes\n", base - b);
+          if (pprev == 0) {
             mp->first = p->next;
           } else {
-            p1->next = p->next;
+            pprev->next = p->next;
           }
         } else {
-          h1->size = size2;
-          h1->next = p->next;
-          if (p1 == 0) {
-            mp->first = h1;
-          } else {
-            p1->next = h1;
-          }
-        }
-        return new_start;
-      } else if (flag == MEM_AT) {
-        if (b <= base) {
-          /* OK, we have to remove from this chunk... */
-          size2 = (b + p->size - (base + size));
-          if (size2 < sizeof(struct memheader)) {
-            if (size2 != 0)
-              message("[PMM] alloc address: WARNING - loosing %ld bytes\n", size2);
-            if (b >= base - sizeof(struct memheader)) {
-        	  if (b != base)
-                message("[PMM] alloc address: WARNING - loosing %ld bytes\n", base - b);
-              if (p1 == 0) {
-                mp->first = p->next;
-              } else {
-                p1->next = p->next;
-              }
-            } else {
-              p->size -= size;
-            }
-          } else {
-            h1 = (struct memheader *)(base + size);
-            h1->size = size2;
-            h1->next = p->next;
-            if (b >= base - sizeof(struct memheader)) {
-              if (b != base)
-                message("[PMM] alloc address: WARNING - loosing %ld bytes\n", base - b);
-              if (p1 == 0) {
-                mp->first = h1;
-              } else {
-                p1->next = h1;
-              }
-            } else {
-              p->size = (base - b);
-              p->next = h1;
-            }
-          }
-          return 1;
+          p->size -= size;
         }
       } else {
-        break; /* Not supported */
+        pnew = (struct memheader *)(base + size);
+        pnew->size = size2;
+        pnew->next = p->next;
+        if (b >= base - sizeof(struct memheader)) {
+          if (b != base)
+            message("[PMM] alloc address: WARNING - loosing %ld bytes\n", base - b);
+          if (pprev == 0) {
+            mp->first = pnew;
+          } else {
+            pprev->next = pnew;
+          }
+        } else {
+          p->size = (base - b);
+          p->next = pnew;
+        }
       }
+      return 1;
     }
-      
+    
     /* Old check for MEM_AT: if ((b <= base) && ((b + p->size) >= (base + size))) */
   }
   error("[PMM] alloc address: memory not available...\n");
   return -1;
+}
+
+/* Allocate memory from a certain address (by Hanzac Chen) */
+DWORD pmm_alloc_from(struct mempool *mp, DWORD base, DWORD size)
+{
+  struct memheader *p, *pnew, *pprev;
+  DWORD size2, b, b_end, new_start;
+
+  for (pprev = 0, p = mp->first; p!= 0; pprev = p, p = p->next) {
+    b = (DWORD)p;
+    b_end = b+p->size;
+    new_start = b_end-size;
+    if (new_start >= b && new_start >= base) {
+        if (b >= base) {
+          new_start = b;
+          pnew = (struct memheader *)(new_start + size);
+          size2 = b_end-(DWORD)pnew;
+        } else {
+          pnew = (struct memheader *)b;
+          size2 = new_start-b;
+        }
+        if (size2 < sizeof(struct memheader)) {
+          message("[PMM] alloc address: WARNING - loosing %ld bytes\n", size2);
+          if (pprev == 0) {
+            mp->first = p->next;
+          } else {
+            pprev->next = p->next;
+          }
+        } else {
+          pnew->size = size2;
+          pnew->next = p->next;
+          if (pprev == 0) {
+            mp->first = pnew;
+          } else {
+            pprev->next = pnew;
+          }
+        }
+        return new_start;
+    }
+  }
+  
+  return 0;
 }
 
 DWORD pmm_alloc(struct mempool *mp, DWORD size)
@@ -182,7 +187,7 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
     fd32_log_printf("        No: 0x%lx < 0x%lx...", p->size, size);
 #endif
   }
-  error("[PMM] alloc: not enough memory\n");
+  error("[PMM] alloc: not enough memory...\n");
   pmm_dump(mp);
   message("(Want %lu 0x%lx)\n", size, size);
   return 0;

@@ -100,7 +100,6 @@ static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD e
   /* npsp->info_sel = stubinfo_sel; */
   /* npsp->old_stack = current_SP; */
   /* npsp->memlimit = base + end; */
-  /* npsp->cds_list = 0; */
 }
 
 /* NOTE: Move the structure here, Correct? */
@@ -124,7 +123,7 @@ struct stubinfo {
 };
 
 /* NOTE: FD32 module can't export ?_init name so make it internal with prefix `_' */
-WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args)
+WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel)
 {
   struct stubinfo *info;
   struct psp *newpsp;
@@ -189,8 +188,8 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   info->minkeep = 0x1000;        /* DOS buffer size... */
   info->dosbuf_handler = dosmem_get(0x1010);
   info->ds_segment = info->dosbuf_handler >> 4;
-  info->ds_selector = get_ds();
-  info->cs_selector = get_cs();
+  info->ds_selector = ds_sel;
+  info->cs_selector = cs_sel;
   info->psp_selector = psp_selector;
   /* TODO: There should be some error down here... */
   info->env_size = env_size;
@@ -253,6 +252,128 @@ void restore_psp(void)
   current_SP = curpsp->old_stack; */
 }
 
+static DWORD funky_base;
+static WORD user_cs, user_ds;
+static int wrapper_alloc_region(DWORD base, DWORD size)
+{
+  message("Wrapper allocating region: 0x%lx, 0x%lx...\n",
+		  base, size);
+  funky_base = base;
+
+  return -1;
+}
+
+static DWORD wrapper_alloc(DWORD size)
+{
+  DWORD tmp;
+  int data_selector, code_selector;
+  
+  if (funky_base == 0)
+    return mem_get(size);
+
+  message("Wrapper allocating 0x%lx = 0x%lx + 0x%lx...\n", size + funky_base, size, funky_base);
+  /* NOTE: DjLibc doesn't need the memory address to be above the image base anymore */
+  if ((tmp = mem_get(size + funky_base)) == 0)
+    return 0;
+
+  /* NOTE: The DS access rights is different with CS */
+  if ((data_selector = fd32_allocate_descriptors(1)) == ERROR_DESCRIPTOR_UNAVAILABLE) {
+    message("Cannot allocate data selector!\n");
+    return 0;
+  } else {
+    fd32_set_segment_base_address(data_selector, (DWORD)tmp);
+    fd32_set_segment_limit(data_selector, size + funky_base);
+    fd32_set_descriptor_access_rights(data_selector, 0xC092);
+  }
+
+  if ((code_selector = fd32_allocate_descriptors(1)) == ERROR_DESCRIPTOR_UNAVAILABLE) {
+    fd32_free_descriptor(data_selector);
+    message("Cannot allocate code selector!\n");
+    return 0;
+  } else {
+    fd32_set_segment_base_address(code_selector, (DWORD)tmp);
+    fd32_set_segment_limit(code_selector, size + funky_base);
+    fd32_set_descriptor_access_rights(code_selector, 0xC09A);
+  }
+
+  tmp += funky_base;
+  funky_base = 0;
+
+  user_cs = code_selector;
+  user_ds = data_selector;
+  fd32_log_printf("User CS, DS = 0x%x, 0x%x\n", code_selector, data_selector);
+
+  return tmp;
+}
+
+/* FIXME: Simplify ---> user_stack is probably not needed! */
+static int wrapper_create_process(DWORD entry, DWORD base, DWORD size,
+		DWORD user_stack, char *filename, char *args)
+{
+  WORD stubinfo_sel;
+  int res;
+  int wrap_run(DWORD, WORD, DWORD, WORD, WORD, DWORD);
+
+#ifdef __WRAP_DEBUG__
+  fd32_log_printf("[WRAP] Going to run 0x%lx, size 0x%lx\n",
+		entry, size);
+#endif
+  /* HACKME!!! size + stack_size... */
+  /* FIXME!!! WTH is user_stack (== base + size) needed??? */
+  stubinfo_sel = _stubinfo_init(base, size, 0, filename, args, user_cs, user_ds);
+  if (stubinfo_sel == 0) {
+    error("Error! No stubinfo!!!\n");
+    return -1;
+  }
+#ifdef __WRAP_DEBUG__
+  fd32_log_printf("[WRAP] Calling run 0x%lx 0x%lx (0x%x 0x%x) --- 0x%lx\n",
+		entry, size, user_cs, user_ds, user_stack);
+#endif
+
+  res = wrap_run(entry, stubinfo_sel, 0, user_cs, user_ds, user_stack);
+#ifdef __WRAP_DEBUG__
+  fd32_log_printf("[WRAP] Returned 0x%x: now restoring PSP\n", res);
+#endif
+
+  restore_psp();
+
+  return res;
+}
+
+static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
+		char *filename, char *args)
+{
+  struct process_info pi;
+  int retval;
+  int size;
+  DWORD exec_space;
+  DWORD entry;
+  DWORD base;
+
+  /* Use wrapper memory allocation to create separate segments */
+  kf->mem_alloc = wrapper_alloc;
+  kf->mem_alloc_region = wrapper_alloc_region;
+
+  entry = fd32_load_process(kf, f, rf, &exec_space, &base, &size);
+  if (entry == -1) {
+    return -1;
+  }
+
+  fd32_set_current_pi(&pi);
+
+  /* Note: use the real entry */
+  retval = wrapper_create_process(entry, exec_space, size,
+		(DWORD)dpmi_stack+DPMI_STACK_SIZE, filename, args);
+  message("Returned: %d!!!\n", retval);
+  mem_free(exec_space, size);
+
+  /* Back to the previous process NOTE: TSR native programs? */
+  fd32_set_current_pi(pi.prev_P);
+
+  return retval;
+}
+
+
 static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
@@ -271,6 +392,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
   }
 
   fd32_set_current_pi(&pi);
+
   if (exec_space == 0) {
     retval = fd32_create_process(entry, base, size, 0, filename, args);
   } else if (exec_space == -1) {
@@ -280,7 +402,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", entry);
 #endif
-    stubinfo_sel = _stubinfo_init(exec_space, size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args);
+    stubinfo_sel = _stubinfo_init(exec_space, size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args, get_cs(), get_ds());
     if (stubinfo_sel == 0) {
       error("No stubinfo!!!\n");
       return -1;
@@ -436,6 +558,8 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   /* NOTE: Set the current process info */
   pi.name = filename;
   pi.args = args;
+  pi.memlimit = 0;
+  pi.cds_list = NULL; /* Pointer set by FS */
   fd32_set_current_pi(&pi);
   local_set_psp(ppsp, (exec+exec_size*0x10)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   /* Call in VM86 mode */
@@ -468,7 +592,7 @@ void (*dos_exec_mode16)(void) = NULL;
 
 int dos_exec_switch(int option)
 {
-  int res = 0;
+  int res = 1;
 
   if (g_env_segtmp == 0) {
     g_env_segtmp = dosmem_get(ENV_SIZE);
@@ -496,13 +620,15 @@ int dos_exec_switch(int option)
           }
       }
       fd32_set_binfmt("mz", isMZ, vm86_exec_process);
-      res = 1;
       break;
     case DOS_DIRECT_EXEC:
       fd32_set_binfmt("mz", p_isMZ, direct_exec_process);
-      res = 1;
+      break;
+    case DOS_WRAPPER_EXEC:
+      fd32_set_binfmt("mz", p_isMZ, wrapper_exec_process);
       break;
     default:
+      res = 0;
       break;
   }
   

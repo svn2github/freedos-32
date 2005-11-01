@@ -181,28 +181,27 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
   int retval;
   int size;
   DWORD exec_space;
-  DWORD dyn_entry;
+  DWORD entry;
   DWORD base;
   DWORD offset;
 
-  dyn_entry = fd32_load_process(kf, file, rf, &exec_space, &base, &size);
+  entry = fd32_load_process(kf, file, rf, &exec_space, &base, &size);
 
-  if (dyn_entry == -1) {
-    /* We failed... */
+  if (entry == -1)
     return -1;
-  }
+
   fd32_set_current_pi(&pi);
   if (exec_space == 0) {
-    retval = fd32_create_process(dyn_entry, base, size, 0, filename, args);
+    retval = fd32_create_process(entry, base, size, 0, filename, args);
   } else if (exec_space == -1) {
-    create_dll(dyn_entry, base, size);
+    create_dll(entry, base, size);
     retval = 0;
   } else {
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
     offset = exec_space - base;
-    retval = fd32_create_process(dyn_entry + offset, exec_space, size, 0, filename, args);
+    retval = fd32_create_process(entry + offset, exec_space, size, 0, filename, args);
     mem_free(exec_space, size);
   }
   /* Back to the previous process NOTE: TSR native programs? */

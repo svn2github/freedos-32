@@ -38,6 +38,7 @@
 #include <filesys.h>
 
 #define NULBOOTDEV 0xFFFFFFFF
+#define DRIVE_MAX_NUM 26
 
 //#define DRIVES_FIXED /* Define this to enable fixed letter assignment */
 #ifdef DRIVES_FIXED
@@ -52,12 +53,12 @@ typedef struct Drive
 }
 Drive;
 
-Drive drives[26];
+static Drive drives[DRIVE_MAX_NUM];
 
 static DWORD BootDevice   = NULBOOTDEV; /* From MultiBoot info */
 static char  DefaultDrive = 0; /* Drive letter, or 0 if not defined */
 #ifdef DRIVES_FIXED
-static char *FixedLetters[26];
+static char *FixedLetters[DRIVE_MAX_NUM];
 #endif
 
 /* Registered file system driver request functions */
@@ -88,9 +89,9 @@ static int dynamic_assign(unsigned type, int d)
 		bops->request(REQ_RELEASE);
 		if (res < 0) continue;
 		/* Check if this device is already assigned */
-		for (res = 0; res < 26; res++)
+		for (res = 0; res < DRIVE_MAX_NUM; res++)
 			if (drives[res].handle == handle) break;
-		if (res != 26) continue;
+		if (res != DRIVE_MAX_NUM) continue;
 		/* If the block device type is not what we are searching we skip it */
 		if ((bdi.flags & BLOCK_DEVICE_INFO_TYPEMASK) != type) continue;
 		/* If no file system driver can handle such a partition we skip it */
@@ -136,7 +137,7 @@ static int assign_drive_letters(void)
   memset(FixedLetters, 0, sizeof(FixedLetters));
 //  FixedLetters['C' - 'A'] = "hda5";
 //  FixedLetters['D' - 'A'] = "hda5";
-  for (k = 0; k < 26; k++)
+  for (k = 0; k < DRIVE_MAX_NUM; k++)
     if (FixedLetters[k])
     {
       if ((hDev = fd32_dev_search(FixedLetters[k])) < 0)
@@ -223,6 +224,18 @@ static char *get_name_without_drive(char *FileName)
   return FileName;
 }
 #endif
+
+
+/* Get the drive letter from device name */
+char fd32_get_drive_letter(char *device_name)
+{
+	int i;
+	for (i = 0; i < DRIVE_MAX_NUM; i++)
+		if (strcmp(device_name, drives[i].blk_name) == 0)
+			return 'A'+i;
+
+	return 0;
+}
 
 
 /* The SET DEFAULT DRIVE system call.                 */

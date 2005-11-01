@@ -19,18 +19,6 @@
 
 #define __WRAP_DEBUG__
 
-static void stubinfo_set_segments(WORD stubinfo_sel, WORD cs, WORD ds)
-{
-  DWORD base;
-  struct stubinfo *p;
-
-  base = gdt_read(stubinfo_sel, NULL, NULL, NULL);
-  p = (struct stubinfo *)base;
-
-  p->cs_selector = cs;
-  p->ds_selector = ds;
-}
-
 /* FIXME: Simplify ---> user_stack is probably not needed! */
 int my_create_process(DWORD entry, DWORD base, DWORD size,
 		DWORD user_stack, char *filename, char *args)
@@ -45,12 +33,11 @@ int my_create_process(DWORD entry, DWORD base, DWORD size,
 #endif
   /* HACKME!!! size + stack_size... */
   /* FIXME!!! WTH is user_stack (== base + size) needed??? */
-  stubinfo_sel = stubinfo_init(base, size + /*STACKSIZE*/base, 0, filename, args);
+  stubinfo_sel = stubinfo_init(base, size + /*STACKSIZE*/base, 0, filename, args, user_cs, user_ds);
   if (stubinfo_sel == 0) {
     error("Error! No stubinfo!!!\n");
     return -1;
   }
-  stubinfo_set_segments(stubinfo_sel, user_cs, user_ds);
 #ifdef __WRAP_DEBUG__
   fd32_log_printf("[WRAP] Calling run 0x%lx 0x%lx (0x%x 0x%x) --- 0x%lx\n",
 		entry, size, user_cs, user_ds, user_stack);
@@ -106,7 +93,6 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
   /* Note: use the real entry */
   retval = my_create_process(dyn_entry, exec_space, size + STACKSIZE,
 		base + size + STACKSIZE, filename, args);
-  #undef ENTRY_CALL_OFFSET
 #ifdef __WRAP_DEBUG__
   message("Returned: %d!!!\n", retval);
 #endif

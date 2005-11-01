@@ -102,19 +102,22 @@ void process_modules(int mods_count, DWORD mods_addr)
     /* Reset the file status in kf */
     kf.file_offset = 0;
 
-    args = command_line;
-    while ((*args != 0) && (*args != ' ')) {
-      args++;
+    for (args = command_line; ; args++) {
+      if (*args == 0) {
+        args = NULL;
+        break;
+      } else if (*args == ' ') {
+        *args++ = 0;
+        break;
+      }
     }
-    if (*args == 0) {
-      *args = 0;
-      args++;
-      args = NULL;
-    } else {
-      *args++ = 0;
-    }
-    message(": %s\n", command_line);
 
+    message(": %s\n", command_line);
+    if (*((DWORD *)(command_line+1)) == *((DWORD *)"hd0,")) {
+      command_line[5] = 'C';
+      command_line[6] = ':';
+      command_line = command_line+5;
+    }
     /* Load different modules in various binary format */
     for (j = 0; binfmt[j].name != NULL; j++)
     {
