@@ -3,6 +3,7 @@
  * while waiting for a better solution...
  *
  * Copyright (C) 2002,2003,2005 by Luca Abeni
+ * Copyright (C) 2005 by Hanzac Chen
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,69 +24,64 @@
 #include <ll/i386/error.h>
 #include <ll/i386/hw-data.h>
 
+/* #define __DEBUG__ */
+
 #include "pmm.h"
 #include "kernel.h"
 #include "logger.h"
 
 void pmm_init(struct mempool *mp)
 {
-  mp->free = 0;
-  mp->first = 0;
+  mp->top.size = 0; /* Free memory size */
+  mp->top.next = 0;
 }
 
 int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
 {
   struct memheader *p, *pnew, *pprev;
-  DWORD size2, b, b_end, new_start;
+  DWORD lsize, start, end;
 
 #ifdef __DEBUG__
   fd32_log_printf("[PMM] Alloc Address  0x%lx 0x%lx...\n", base, size);
 #endif
-  for (pprev = 0, p = mp->first; p!= 0; pprev = p, p = p->next) {
-    b = (DWORD)p;
+  for (pprev = &mp->top, p = pprev->next; p!= 0; pprev = p, p = pprev->next) {
+    start = (DWORD)p;
 #ifdef __DEBUG__
-    fd32_log_printf("        Block 0x%lx-0x%lx\n", b, b + p->size);
+    fd32_log_printf("        Block 0x%lx-0x%lx\n", start, start + p->size);
 #endif
-
-    b_end = b+p->size;
-    new_start = b_end-size;
-    if (new_start >= base && base >= b) {
-      /* OK, we have to remove from this chunk... */
-      size2 = (b_end - (base + size));
-      if (size2 < sizeof(struct memheader)) {
-        if (size2 != 0)
-          message("[PMM] alloc address: WARNING - loosing %ld bytes\n", size2);
-        if (b >= base - sizeof(struct memheader)) {
-          if (b != base)
-            message("[PMM] alloc address: WARNING - loosing %ld bytes\n", base - b);
-          if (pprev == 0) {
-            mp->first = p->next;
-          } else {
-            pprev->next = p->next;
-          }
-        } else {
-          p->size -= size;
-        }
+    end = start+p->size;
+    if ( end-size >= base && base >= start) {
+      lsize = base-start;
+      if (lsize < sizeof(struct memheader)) {
+        mp->top.size -= lsize;
+        if (lsize != 0)
+          message("[PMM] alloc address: WARNING - losing %ld bytes\n", lsize);
+        pprev->next = p->next;
+        p = pprev;
       } else {
-        pnew = (struct memheader *)(base + size);
-        pnew->size = size2;
+        pnew = (struct memheader *)start;
+        pnew->size = lsize;
         pnew->next = p->next;
-        if (b >= base - sizeof(struct memheader)) {
-          if (b != base)
-            message("[PMM] alloc address: WARNING - loosing %ld bytes\n", base - b);
-          if (pprev == 0) {
-            mp->first = pnew;
-          } else {
-            pprev->next = pnew;
-          }
-        } else {
-          p->size = (base - b);
-          p->next = pnew;
-        }
+        pprev->next = pnew;
+        p = pnew;
       }
+
+      lsize = end-(base+size);
+      if (lsize < sizeof(struct memheader)) {
+        mp->top.size -= lsize;
+        if (lsize != 0)
+          message("[PMM] alloc address: WARNING - loosing %ld bytes\n", lsize);
+      } else {
+        pnew = (struct memheader *)(base+size);
+        pnew->size = lsize;
+        pnew->next = p->next;
+        p->next = pnew;
+      }
+
+      mp->top.size -= size;
       return 1;
     }
-    
+
     /* Old check for MEM_AT: if ((b <= base) && ((b + p->size) >= (base + size))) */
   }
   error("[PMM] alloc address: memory not available...\n");
@@ -96,193 +92,145 @@ int pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size)
 DWORD pmm_alloc_from(struct mempool *mp, DWORD base, DWORD size)
 {
   struct memheader *p, *pnew, *pprev;
-  DWORD size2, b, b_end, new_start;
+  DWORD lsize, start, end, new_start;
 
-  for (pprev = 0, p = mp->first; p!= 0; pprev = p, p = p->next) {
-    b = (DWORD)p;
-    b_end = b+p->size;
-    new_start = b_end-size;
-    if (new_start >= b && new_start >= base) {
-        if (b >= base) {
-          new_start = b;
-          pnew = (struct memheader *)(new_start + size);
-          size2 = b_end-(DWORD)pnew;
-        } else {
-          pnew = (struct memheader *)b;
-          size2 = new_start-b;
-        }
-        if (size2 < sizeof(struct memheader)) {
-          message("[PMM] alloc address: WARNING - loosing %ld bytes\n", size2);
-          if (pprev == 0) {
-            mp->first = p->next;
-          } else {
-            pprev->next = p->next;
-          }
-        } else {
-          pnew->size = size2;
-          pnew->next = p->next;
-          if (pprev == 0) {
-            mp->first = pnew;
-          } else {
-            pprev->next = pnew;
-          }
-        }
-        return new_start;
+  for (pprev = &mp->top, p = pprev->next; p!= 0; pprev = p, p = pprev->next) {
+    start = (DWORD)p;
+    end = start+p->size;
+    new_start = end-size;
+    if (new_start >= start && new_start >= base) {
+      if (start >= base) {
+        new_start = start;
+        pnew = (struct memheader *)(start + size);
+        lsize = end-(DWORD)pnew;
+      } else {
+        pnew = (struct memheader *)start;
+        lsize = new_start-start;
+      }
+      if (lsize < sizeof(struct memheader)) {
+        message("[PMM] alloc address: WARNING - loosing %ld bytes\n", lsize);
+        pprev->next = p->next;
+      } else {
+        pnew->size = lsize;
+        pnew->next = p->next;
+        pprev->next = pnew;
+      }
+      return new_start;
     }
   }
-  
+
   return 0;
 }
 
 DWORD pmm_alloc(struct mempool *mp, DWORD size)
 {
-  struct memheader *p, *p1, *p2;
-  DWORD size2, b;
+  struct memheader *p, *pnew, *pprev;
+  DWORD lsize, start;
 
 #ifdef __DEBUG__
   fd32_log_printf("[PMM] Alloc 0x%lx...\n", size);
 #endif
-  for (p1 = 0, p = mp->first; p!= 0; p1 = p, p = p->next) {
-    b = (DWORD)p;
+  for (pprev = &mp->top, p = pprev->next; p!= 0; pprev = p, p = pprev->next) {
+    start = (DWORD)p;
 #ifdef __DEBUG__
-    fd32_log_printf("        Block 0x%lx-0x%lx\n", b, b + p->size);
+    fd32_log_printf("        Block 0x%lx-0x%lx", start, start + p->size);
 #endif
-    if (p->size >= size) {
+    if (p->size >= size) { /* OK, we found enough memory */
 #ifdef __DEBUG__
-      fd32_log_printf("        Found: 0x%lx\n", b + p->size - size);
+      fd32_log_printf("        Found: 0x%lx\n", start);
 #endif
-      /* OK, we found enough memory */
-      size2 = (p->size - size);
-      if (size2 < sizeof(struct memheader)) {
-        if (size2 != 0) {
-          message("[PMM] alloc: WARNING - loosing %ld bytes\n", size2);
-        }
-        if (p1 == 0) {
-          mp->first = p->next;
-        } else {
-            p1->next = p->next;
-        }
-        return b;
+      lsize = (p->size - size);
+      if (lsize < sizeof(struct memheader)) {
+        mp->top.size -= lsize;
+        if (lsize != 0)
+          message("[PMM] alloc: WARNING - loosing %ld bytes\n", lsize);
+        pprev->next = p->next;
       } else {
 #ifdef __ALLOC_FROM_END__
         p->size -= size;
-        return (b + p->size);
+        return (start + p->size);
 #else
-        struct memheader tmp;
-        p2 = (struct memheader *)(b + size);
-        tmp.next = p->next;
-        tmp.size = p->size - size;
-        p2->next = tmp.next;
-        p2->size = tmp.size;
-        if (p1 == 0) {
-          mp->first = p2;
-        } else {
-          p1->next = p2;
-        }
-        return b;
+        pnew = (struct memheader *)(start + size);
+        pnew->next = p->next;
+        pnew->size = p->size - size;
+        pprev->next = pnew;
 #endif
       }
+      mp->top.size -= size;
+      return start;
     }
 #ifdef __DEBUG__
-    fd32_log_printf("        No: 0x%lx < 0x%lx...", p->size, size);
+    fd32_log_printf("        No: 0x%lx < 0x%lx...\n", p->size, size);
 #endif
   }
-  error("[PMM] alloc: not enough memory...\n");
+  error("[PMM] alloc: not enough memory... "); message("need %lx bytes\n", size);
   pmm_dump(mp);
-  message("(Want %lu 0x%lx)\n", size, size);
   return 0;
+}
+
+static void local_pmm_error_overlap(DWORD base, DWORD size, DWORD o_base, DWORD o_size, DWORD f_base, DWORD f_size)
+{
+  message("Free Chunk: %lx - %lx\n", f_base, f_base + f_size);
+  message("Region to Free: %lx - %lx\n", base, base + size);
+  message("Overlapping region: %lx - %lx\n", o_base, o_base + o_size);
+  error("[PMM] Free: strange overlap...\n");
+  fd32_abort();
 }
 
 int pmm_free(struct mempool *mp, DWORD base, DWORD size)
 {
-  struct memheader *h, *p, *p1, tmp;
-  DWORD b;
-  
+  struct memheader *p, *pnew, *pprev;
+  DWORD start, end;
+
 #ifdef __DEBUG__
   fd32_log_printf("[PMM] Free 0x%lx 0x%lx...\n", base, size);
 #endif
-  if (mp->first == 0) {
-    h = (struct memheader *)base;
-    h->size = size;
-    h->next = 0;
-  
-    mp->free += size;
-    mp->first = h;
-  
-    return 1;
-  }
-  
-  for (p1 = 0, p = mp->first; p!= 0; p1 = p, p = p->next) {
-    b = (DWORD)p;
-  
-    if (base <= b + p->size) {
-      if (base == b + p->size) {
-        if (base + size == (DWORD)(p->next)) {
-          p->size += (size + p->next->size);
-          p->next = p->next->next;
-          mp->free += size;
-          return 1;
-        } else {
-          if ((base + size > (DWORD)p->next) && ((DWORD)p->next != 0)) {
-            /* Error: there is an overlap... */
-            message("Free Chunk: %lx ---\n", (DWORD)p->next);
-            message("Region to Free: %lx - %lx\n", base, base + size);
-            message("Overlapping region: %lx - %lx\n", b, b + p->size);
-            error("PMM Free: strange overlap...\n");
-            fd32_abort();
-          }
-          p->size +=size;
-          mp->free += size;
-          return 1;
-        }
+
+  for (pprev = &mp->top, p = pprev->next; p!= 0; pprev = p, p = pprev->next) {
+    start = (DWORD)p;
+    end = start + p->size;
+    if (base == end) {
+      pnew = p->next;
+      if (pnew == 0) {
+        p->size += size;
+      } else if (base + size == (DWORD)pnew) {
+        p->size += size + pnew->size;
+        p->next = pnew->next;
+      } else if (base + size < (DWORD)pnew) {
+        p->size += size;
+      } else {  /* Error: there is an overlap... */
+        local_pmm_error_overlap(base, size, (DWORD)p, p->size, (DWORD)pnew, pnew->size);
       }
-      /* Here, base < b + p->size... */
-  
+      break;
+    } else if (base < end) {
       /*
        * Sanity check: The region to free must not overlap with
        * any free chunk...
        */
-      if (base + size > b) {
-        /* Error: there is an overlap... */
-        message("Free Chunk: %lx - %lx\n", b, b + p->size);
-        message("Region to Free: %lx - %lx\n", base, base + size);
-        error("PMM Free: strange overlap...\n");
-        fd32_abort();
-      }
-      if (base + size == b) {
-        h = (struct memheader *)base;
-        tmp.size = size + p->size;
-        tmp.next = p->next;
-        mp->free += size;
-        if (p1 == 0) {
-          mp->first = h;
+      if (base + size <= start) {
+        pnew = (struct memheader *)base;
+        if (base + size == start) {
+          pnew->next = p->next;
+          pnew->size = size + p->size;
         } else {
-          p1->next = h;
+          pnew->next = p;
+          pnew->size = size;
         }
-        h->next = tmp.next;
-        h->size = tmp.size;
-        return 1;
+        pprev->next = pnew;
+      } else {  /* Error: there is an overlap... */
+        local_pmm_error_overlap(base, size, (DWORD)p, p->size, (DWORD)p, p->size);
       }
-
-      h = (struct memheader *)base;
-      h->size = size;
-      h->next = p;
-      if (p1 == 0) {
-        mp->first = h;
-      } else {
-        p1->next = h;
-      }
-      mp->free += size;
-  
-      return 1;
+      break;
     }
   }
-  h = (struct memheader *)base;
-  h->size = size;
-  h->next = 0;
-  
-  mp->free += size;
-  p1->next = h;
+  if (p == 0) {
+    pnew = (struct memheader *)base;
+    pnew->next = 0;
+    pnew->size = size;
+    pprev->next = pnew;
+  }
+
+  mp->top.size += size;
   return 1;
 }
 
@@ -290,13 +238,13 @@ void pmm_dump(struct mempool *mp)
 {
   struct memheader *p;
 
-  for (p = mp->first; p!= 0; p = p->next) {
+  for (p = mp->top.next; p!= 0; p = p->next) {
 #ifdef __DEBUG__
-    fd32_log_printf("Memory Chunk: %lx ---> %lx (%ld ---> %ld)\n",
+    fd32_log_printf("Memory Chunk: 0x%lx ---> 0x%lx (%ld ---> %ld)\n",
 		(DWORD)p, (DWORD)p + p->size,
 		(DWORD)p, (DWORD)p + p->size);
 #endif
-    message("Memory Chunk: %lx ---> %lx (%ld ---> %ld)\n",
+    message("Memory Chunk: 0x%lx ---> 0x%lx (%ld ---> %ld)\n",
 		(DWORD)p, (DWORD)p + p->size,
 		(DWORD)p, (DWORD)p + p->size);
   }

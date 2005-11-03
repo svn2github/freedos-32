@@ -21,8 +21,8 @@
 /* Enable the memory alignment optimization */
 #define CONFIG_MEMORY_ALIGNMENT
 
-struct mempool high_mem_pool;
-struct mempool dos_mem_pool;
+static struct mempool high_mem_pool;
+static struct mempool dos_mem_pool;
 
 static void mem_init2(DWORD ks, DWORD ke, DWORD mstart, int mnum)
 {
@@ -44,10 +44,10 @@ static void mem_init2(DWORD ks, DWORD ke, DWORD mstart, int mnum)
 
     module_address(mstart, i, &ms, &me);
     if (me > end) {
-	end = me;
+      end = me;
     }
     if (ms < start) {
-	start = ms;
+      start = ms;
     }
   }
 
@@ -85,9 +85,9 @@ static void mem_init_from_mmap(DWORD mmap_addr, WORD mmap_size)
     if (type == 1) {
       if (bal >= 0x100000) {
 #ifdef __MEM_DEBUG__
-	message("Adding region %lx - %lx (Type = %ld)\n", bal, bal + ll, type);
+        message("Adding region %lx - %lx (Type = %ld)\n", bal, bal + ll, type);
 #endif
-	pmm_add_region(&high_mem_pool, bal, ll);
+        pmm_add_region(&high_mem_pool, bal, ll);
       } else {
 	/* DOS mem is not currently managed :( */
 	/* FIXME: Implement something here... */
@@ -138,7 +138,7 @@ void mem_init(void *p)
         message("Loader Name provided: %s\n", (char *)mbp->boot_loader_name);
 #endif
         if (*((char *)(mbp->boot_loader_name)) == 'X') {
-#if 0
+#ifdef ALLOW_WEIRDNESS_WITH_X
           hbase = mbp->mem_upbase; /* Weirdness with X? */
 #else
           hbase = 0x100000;

@@ -13,8 +13,7 @@ struct memheader {
 };
 
 struct mempool {
-  DWORD free;
-  struct memheader *first;
+  struct memheader top;
 };
 
 void pmm_init(struct mempool *mp);
