@@ -206,7 +206,7 @@ struct multiboot_info
 /* Is there video information?  */
 #define MB_INFO_VIDEO_INFO		0x00000800
 
-#if 0
+#ifdef __DOS_BOOT_LOADER__
 /* Gerardo: Added this!
    --------------------
    The idea is that the BootLoader provides an interface
@@ -219,7 +219,7 @@ struct multiboot_info
  *  The following value must be present in the EAX register.
  */
 
-#define MULTIBOOT_VALID         0x2BADB002
+#define MULTIBOOT_VALID     0x2BADB002
 
 struct multiboot_info * mbi_address(void);
 

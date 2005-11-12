@@ -94,14 +94,14 @@ int process()
 }
 
 
-void cd_test_init(struct process_info *pi)
+void cd_test_init(process_info_t *pi)
 {
     int res;
     char* args;
     char c;
 
     sectors_to_read = 0;
-    args = args_get(pi);
+    args = pi->args;
     while(*args == ' ')
         args++;
     if(args[0] == '-' && args[1] == 'a')

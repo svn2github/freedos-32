@@ -18,6 +18,7 @@
 #include <dr-env/datetime.h>
 
 #include <kmem.h>
+#include <exec.h>
 #include <kernel.h>
 #include <logger.h>
 

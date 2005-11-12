@@ -180,7 +180,7 @@ DWORD common_import_symbol(struct kern_funcs *kf, int n, struct symbol_info *sym
 }
 
 
-DWORD common_load_executable(struct kern_funcs *kf, int file, struct table_info *tables, int n, struct section_info *s, int *size)
+DWORD common_load_executable(struct kern_funcs *kf, int file, struct table_info *tables, int n, struct section_info *s, DWORD *size)
 {
   int i;
   DWORD where_to_place;
@@ -237,7 +237,7 @@ DWORD common_load_executable(struct kern_funcs *kf, int file, struct table_info 
   return exec_space;
 }
 
-DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *tables, int n, struct section_info *s, int *size)
+DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *tables, int n, struct section_info *s, DWORD *size)
 {
   int i;
   DWORD needed_mem = 0;

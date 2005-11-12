@@ -9,15 +9,8 @@
 #define DLL_PROCESS_ATTACH 1
 
 .bss
-#if 0
-retval:
-	.long
-param:
-	.long
-#else
 .lcomm retval, 4
 .lcomm param, 4
-#endif
 
 .data
 .globl SYMBOL_NAME(current_SP)
@@ -42,6 +35,7 @@ SYMBOL_NAME_LABEL(dll_run)
 /* The DLL init function follows the pascal parameters passing
    convenction: no need to pop the parameters from the stack!!! */
 	popa
+	movl $0, %eax
 	ret
 
 SYMBOL_NAME_LABEL(run)

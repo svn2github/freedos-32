@@ -24,33 +24,24 @@ struct symbol {
 /* Kernel process management
  * from fd32/include/kernel.h
  */
-struct process_info {
-  struct process_info *prev_P;
+typedef struct process_info {
+  struct process_info *prev;
+  DWORD type;
   void *psp;      /* Optional DOS PSP */
   void *cds_list; /* Under DOS this is a global array            */
   char *args;
-  uint32_t memlimit;
-  char *name;
+  char *filename;
+  DWORD memlimit;
   void *jft;
-  uint16_t jft_size;
-};
-struct process_info *fd32_get_current_pi(void);
+  WORD  jft_size;
+} process_info_t;
+
+process_info_t *fd32_get_current_pi(void);
 int fd32_get_argv(char *filename, char *args, char ***_pargv);
 int fd32_unget_argv(int _argc, char *_argv[]); /* Recover the original args and free the argv */
-static inline char *args_get(struct process_info *p)
-{
-  return p->args;
-}
-static inline char *name_get(struct process_info *p)
-{
-  return p->name;
-}
-static inline uint32_t maxmem_get(struct process_info *p)
-{
-  return p->memlimit;
-}
 /* Turn back the previous running state, after running a program */
 void restore_sp(int res) __attribute__ ((noreturn));
+
 /* Clear-up the local heaps */
 void winb_mem_clear_up(void);
 

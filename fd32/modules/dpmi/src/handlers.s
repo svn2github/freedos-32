@@ -11,6 +11,7 @@
 
 .text
 .extern SYMBOL_NAME(memcpy)
+.extern SYMBOL_NAME(ll_context_stack)
 .extern SYMBOL_NAME(dpmi_chandler)
 .extern SYMBOL_NAME(dpmi_stack)
 .extern SYMBOL_NAME(dpmi_stack_top)
@@ -45,7 +46,7 @@ STACK_SWITCH:
     
     call   SYMBOL_NAME(dpmi_chandler)
     
-	subl   $0x10, %esp
+    subl   $0x10, %esp
     /* Copy back the parameters */
     movl   $(INT_HANDLER_PARAMS_SIZE), 0x8(%esp)
     movl   %ebp, (%esp)

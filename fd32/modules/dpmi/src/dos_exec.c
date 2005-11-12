@@ -28,7 +28,7 @@
 /* Sets the JFT for the current process. */
 static void local_set_psp_jft(struct psp *ppsp, void *Jft, int JftSize)
 {
-  struct process_info *cur_P = fd32_get_current_pi();
+  process_info_t *cur_P = fd32_get_current_pi();
 
   if (Jft == NULL)
     Jft = fd32_init_jft(MAX_OPEN_FILES);
@@ -208,7 +208,7 @@ void restore_psp(void)
   DWORD base, base1;
   int res;
   struct stubinfo *info;
-  struct process_info *cur_P = fd32_get_current_pi();
+  process_info_t *cur_P = fd32_get_current_pi();
   struct psp *curpsp = cur_P->psp;
 
   /* Free memory & selectors... */
@@ -343,12 +343,10 @@ static int wrapper_create_process(DWORD entry, DWORD base, DWORD size,
 static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
-  struct process_info pi;
+  process_info_t pi;
   int retval;
-  int size;
-  DWORD exec_space;
-  DWORD entry;
-  DWORD base;
+  DWORD stack_mem;
+  DWORD size, exec_space, entry, base;
 
   /* Use wrapper memory allocation to create separate segments */
   kf->mem_alloc = wrapper_alloc;
@@ -359,16 +357,23 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
     return -1;
   }
 
+  pi.filename = filename;
+  pi.args = args;
+  pi.cds_list = NULL;
+  pi.memlimit = base + size;
   fd32_set_current_pi(&pi);
 
+  stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
+  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   /* Note: use the real entry */
   retval = wrapper_create_process(entry, exec_space, size,
-		(DWORD)dpmi_stack+DPMI_STACK_SIZE, filename, args);
+		stack_mem+DPMI_STACK_SIZE, filename, args);
   message("Returned: %d!!!\n", retval);
+  mem_free(stack_mem, DPMI_STACK_SIZE);
   mem_free(exec_space, size);
 
   /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev_P);
+  fd32_set_current_pi(pi.prev);
 
   return retval;
 }
@@ -377,133 +382,69 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
 static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
-  struct process_info pi;
+  process_info_t pi;
+  process_params_t params;
   int retval;
-  int size;
+  int tsr = TRUE;
   DWORD exec_space;
-  DWORD entry;
-  DWORD base;
   DWORD offset;
   WORD stubinfo_sel;
 
-  entry = fd32_load_process(kf, f, rf, &exec_space, &base, &size);
-  if (entry == -1) {
+  params.normal.entry = fd32_load_process(kf, f, rf, &exec_space, &params.normal.base, &params.normal.size);
+  if (params.normal.entry == -1) {
     return -1;
   }
+  params.normal.fs_sel = 0;
 
   fd32_set_current_pi(&pi);
+  pi.filename = filename;
+  pi.args = args;
 
   if (exec_space == 0) {
-    retval = fd32_create_process(entry, base, size, 0, filename, args);
+    pi.type = NORMAL_PROCESS;
   } else if (exec_space == -1) {
-    /* create_dll(entry, base, size + LOCAL_BSS); */
-    retval = 0;
+    pi.type = DLL_PROCESS;
   } else {
+    pi.type = NORMAL_PROCESS;
 #ifdef __DOS_EXEC_DEBUG__
-    fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", entry);
+    fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", params.normal.entry);
 #endif
-    stubinfo_sel = _stubinfo_init(exec_space, size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args, get_cs(), get_ds());
+    stubinfo_sel = _stubinfo_init(exec_space, params.normal.size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args, get_cs(), get_ds());
     if (stubinfo_sel == 0) {
       error("No stubinfo!!!\n");
       return -1;
     }
-    offset = exec_space - base;
-    retval = fd32_create_process(entry + offset, exec_space, size, stubinfo_sel, filename, args);
+    offset = exec_space - params.normal.base;
+	params.normal.entry += offset;
+	params.normal.base = exec_space;
+	params.normal.fs_sel = stubinfo_sel;
+    tsr = FALSE;	
+  }
+
+  retval = fd32_create_process(&pi, &params);
 #ifdef __DOS_EXEC_DEBUG__
-    fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
+  fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
 #endif
+  if (!tsr) {
     restore_psp();
-    mem_free(exec_space, size);
+    mem_free(exec_space, params.normal.size);
   }
   /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev_P);
+  fd32_set_current_pi(pi.prev);
 
   return retval;
-}
-
-
-static int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
-{
-  struct tss * p_vm86_tss = vm86_get_tss();
-
-  if (p_vm86_tss->back_link != 0) {
-    message("WTF? VM86 called with CS = 0x%x, IP = 0x%x\n", p_vm86_tss->cs, ip);
-    fd32_abort();
-  }
-  /* Setup the stack frame */
-  p_vm86_tss->ss = s->ss;
-  p_vm86_tss->ebp = 0x91E; /* this is more or less random but some programs expect 0x9 in the high byte of BP!! */
-  p_vm86_tss->esp = sp;
-
-  /* Wanted VM86 mode + IOPL = 3! */
-  p_vm86_tss->eflags = CPU_FLAG_VM | CPU_FLAG_IOPL | CPU_FLAG_IF;
-  /* Ring0 system stack */
-  p_vm86_tss->ss0 = X_FLATDATA_SEL;
-  p_vm86_tss->esp0 = (DWORD)&dpmi_stack[DPMI_STACK_SIZE];
-
-  /* Copy the parms from the X_*REGS structures in the vm86 TSS */
-  p_vm86_tss->eax = (DWORD)in->x.ax;
-  p_vm86_tss->ebx = (DWORD)in->x.bx;
-  p_vm86_tss->ecx = (DWORD)in->x.cx;
-  p_vm86_tss->edx = (DWORD)in->x.dx;
-  p_vm86_tss->esi = (DWORD)in->x.si;
-  p_vm86_tss->edi = (DWORD)in->x.di;
-  /* IF Segment registers are required, copy them... */
-  if (s != NULL) {
-      p_vm86_tss->es = (WORD)s->es;
-      p_vm86_tss->ds = (WORD)s->ds;
-  } else {
-      p_vm86_tss->ds = p_vm86_tss->ss;
-      p_vm86_tss->es = p_vm86_tss->ss;
-  }
-  p_vm86_tss->gs = p_vm86_tss->ss;
-  p_vm86_tss->fs = p_vm86_tss->ss;
-  /* Execute the BIOS call, fetching the CS:IP of the real interrupt
-   * handler from 0:0 (DOS irq table!)
-   */
-  p_vm86_tss->cs = s->cs;
-  p_vm86_tss->eip = ip;
-
-  /* Let's use the ll standard call... */
-  p_vm86_tss->back_link = ll_context_save();
-  
-  if (out != NULL) {
-    ll_context_load(X_VM86_TSS);
-  } else {
-    ll_context_to(X_VM86_TSS);
-  }
-  /* Back from the APP, through a software INT, see chandler.c */
-
-  /* Send back in the X_*REGS structure the value obtained with
-   * the real-mode interrupt call
-   */
-  if (out != NULL) {
-    if (p_vm86_tss->back_link != 0) {message("Panic!\n"); fd32_abort();}
-
-    out->x.ax = p_vm86_tss->eax;
-    out->x.bx = p_vm86_tss->ebx;
-    out->x.cx = p_vm86_tss->ecx;
-    out->x.dx = p_vm86_tss->edx;
-    out->x.si = p_vm86_tss->esi;
-    out->x.di = p_vm86_tss->edi;
-    out->x.cflag = p_vm86_tss->eflags;
-  }
-  if (s != NULL) {
-    s->es = p_vm86_tss->es;
-    s->ds = p_vm86_tss->ds;
-  }
-  return 1;
 }
 
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
-  struct process_info pi;
+  process_info_t pi;
+  process_params_t params;
   struct dos_header hdr;
   struct psp *ppsp;
   X_REGS16 in, out;
   X_SREGS16 s;
-  DWORD mem;
+  DWORD mem, stack_mem;
   BYTE *exec_text;
   DWORD exec;
   DWORD exec_size;
@@ -555,18 +496,26 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   in.x.di = hdr.e_sp;
   in.x.si = hdr.e_ip;
   fd32_log_printf("[DPMI] ES: %x DS: %x IP: %x\n", s.es, s.ds, hdr.e_ip);
-  /* NOTE: Set the current process info */
-  pi.name = filename;
-  pi.args = args;
-  pi.memlimit = 0;
-  pi.cds_list = NULL; /* Pointer set by FS */
   fd32_set_current_pi(&pi);
   local_set_psp(ppsp, (exec+exec_size*0x10)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   /* Call in VM86 mode */
-  vm86_call(hdr.e_ip, hdr.e_sp, &in, &out, &s);
-  /* Back to the previous process */
-  fd32_set_current_pi(pi.prev_P);
+  /* NOTE: Set the current process info */
+  pi.filename = filename;
+  pi.args = args;
+  pi.type = VM86_PROCESS;
+  params.vm86.ip = hdr.e_ip;
+  params.vm86.sp = hdr.e_sp;
+  params.vm86.in_regs = &in;
+  params.vm86.out_regs = &out;
+  params.vm86.seg_regs = &s;
+  stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
+  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
+  out.x.ax = fd32_create_process(&pi, &params);
+  mem_free(stack_mem, DPMI_STACK_SIZE);
   dosmem_free(mem, sizeof(struct psp)+exec_size*0x10);
+
+  /* Back to the previous process */
+  fd32_set_current_pi(pi.prev);
 
   return out.x.ax; /* Return value */
 }

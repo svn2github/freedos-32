@@ -43,7 +43,7 @@ JmpSel:
 .word	0		 
 
 .text
-
+		.extern SYMBOL_NAME(_stkesp)
 		.globl SYMBOL_NAME(context_save)
 		.globl SYMBOL_NAME(context_change)
 		.globl SYMBOL_NAME(context_load)
@@ -78,7 +78,7 @@ SYMBOL_NAME_LABEL(context_save)
 /* In 32 bit systems, context_load is an alias for context_change!*/
 
 SYMBOL_NAME_LABEL(context_load)
-SYMBOL_NAME_LABEL(context_change)	
+SYMBOL_NAME_LABEL(context_change)
 			pushl   %ebp
 			movl    %esp,%ebp
 			movw	$(X_FLATDATA_SEL),%ax

@@ -23,12 +23,12 @@
 
 /* #define __EXEC_DEBUG__ */
 
-DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *ex_exec_space, DWORD *image_base, int *ex_size)
+DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *ex_exec_space, DWORD *image_base, DWORD *ex_size)
 {
   #ifdef __EXEC_DEBUG__
   DWORD offset;
   #endif
-  int size;
+  DWORD size;
   DWORD exec_space;
   int bss_sect, i;
   DWORD dyn_entry;
@@ -121,9 +121,9 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
   /* The size of the execution space */
   *ex_size = size;
 
-  if (tables.flags & NO_ENTRY) {
+  if (tables.flags & NO_ENTRY) { 
     int init_sect;
-
+    /* No entry point... We assume that we need dynamic linking */	 
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] Searcing for the initialization function...");
 #endif
@@ -177,35 +177,42 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 /* Read an executable in memory, and execute it... */
 int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args)
 {
-  struct process_info pi;
+  process_info_t pi;
+  process_params_t params;
   int retval;
-  int size;
+  int tsr = TRUE;
   DWORD exec_space;
-  DWORD entry;
-  DWORD base;
   DWORD offset;
 
-  entry = fd32_load_process(kf, file, rf, &exec_space, &base, &size);
+  params.normal.entry = fd32_load_process(kf, file, rf, &exec_space, &params.normal.base, &params.normal.size);
 
-  if (entry == -1)
+  if (params.normal.entry == -1)
     return -1;
+  params.normal.fs_sel = 0;
 
   fd32_set_current_pi(&pi);
+  pi.filename = filename;
+  pi.args = args;
   if (exec_space == 0) {
-    retval = fd32_create_process(entry, base, size, 0, filename, args);
+    pi.type = NORMAL_PROCESS;
   } else if (exec_space == -1) {
-    create_dll(entry, base, size);
-    retval = 0;
+    pi.type = DLL_PROCESS;
   } else {
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
-    offset = exec_space - base;
-    retval = fd32_create_process(entry + offset, exec_space, size, 0, filename, args);
-    mem_free(exec_space, size);
+    pi.type = NORMAL_PROCESS;
+    offset = exec_space - params.normal.base;
+    params.normal.entry += offset;
+    params.normal.base = exec_space;
+    tsr = FALSE;
   }
+  
+  retval = fd32_create_process(&pi, &params);
+  if (!tsr)
+    mem_free(exec_space, params.normal.size);
   /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev_P);
+  fd32_set_current_pi(pi.prev);
 #ifdef __EXEC_DEBUG__
   message("Returned: %d!!!\n", retval);
 #endif

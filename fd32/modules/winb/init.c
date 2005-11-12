@@ -52,7 +52,7 @@ void *sbrk(int incr)
       /* Get 0x2000 bytes of memory and slice it at FD32_PAGE_SIZE boundary */
       prev_heap_end = mem_get(FD32_SBRK_SIZE+sizeof(sbrk_mem_track_t));
       if (prev_heap_end == 0) {
-        message("[WINB] SBRK problem: cannot memget(%x %x)\n", maxmem_get(fd32_get_current_pi()), incr);
+        message("[WINB] SBRK problem: cannot memget(%x %x)\n", fd32_get_current_pi()->memlimit, incr);
         mem_dump();
         return 0;
       } else {

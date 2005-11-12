@@ -150,7 +150,7 @@ static VOID WINAPI fd32_imp__ExitProcess( UINT ecode )
 
 static LPSTR WINAPI fd32_imp__GetCommandLineA(VOID)
 {
-  return args_get(fd32_get_current_pi());
+  return fd32_get_current_pi()->args;
 }
 
 static LPSTR WINAPI fd32_imp__GetEnvironmentStringsA(void)

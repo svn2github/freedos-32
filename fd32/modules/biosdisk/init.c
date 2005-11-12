@@ -34,7 +34,7 @@
 #include "biosdisk.h"
 
 
-void biosdisk_init(struct process_info *p)
+void biosdisk_init(process_info_t *p)
 {
     char *c, *cmdline;
     int done;
@@ -43,7 +43,7 @@ void biosdisk_init(struct process_info *p)
     message("Initing BIOSDisk...\n");
 
     /* Parse the command line */
-    cmdline = args_get(p);
+    cmdline = p->args;
     c = cmdline;
     done = 0;
     want_fd = 1; want_hd = 1;

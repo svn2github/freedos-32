@@ -8,9 +8,49 @@
 #define __EXEC_H__
 
 #include "format.h"
-int dos_exec(char *filename, DWORD env_segment, char * args, DWORD fcb1, DWORD fcb2, WORD *return_value);
+
+#define NORMAL_PROCESS	0
+#define DLL_PROCESS		1
+#define VM86_PROCESS	2
+
+/* Kernel Process management */
+typedef struct process_info {
+  struct process_info *prev;
+  DWORD type;
+  void *psp;      /* Optional DOS PSP */
+  void *cds_list; /* Under DOS this is a global array            */
+  char *args;
+  char *filename;
+  DWORD memlimit;
+  void *jft;
+  WORD  jft_size;
+} process_info_t;
+process_info_t *fd32_get_current_pi(void);
+void fd32_set_current_pi(process_info_t *ppi);
+int fd32_get_argv(char *filename, char *args, char ***_pargv);
+int fd32_unget_argv(int _argc, char *_argv[]); /* Recover the original args and free the argv */
+
+typedef union process_params {
+  struct {
+    DWORD entry;
+    DWORD base;
+    DWORD size;
+    WORD fs_sel;
+  } normal;
+
+  struct {
+    void *in_regs;
+    void *out_regs;
+    void *seg_regs;
+    WORD ip;
+    WORD sp;
+  } vm86;
+} process_params_t;
+int fd32_create_process(process_info_t *ppi, process_params_t *pparams);
 int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args);
-int fd32_create_process(DWORD entry, DWORD base, DWORD size, WORD fs_sel, char *filename, char *args);
-DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *exec_space, DWORD *image_base, int *s);
+DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *exec_space, DWORD *image_base, DWORD *size);
+
+void create_dll(DWORD entry, DWORD base, DWORD size);
+void restore_sp(int res) __attribute__ ((noreturn)); /* Turn back the previous running state, after running a program */
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef __FD32_EXEC_H
-#define __FD32_EXEC_H
+#ifndef __DOS_EXEC_H__
+#define __DOS_EXEC_H__
 
 #include <ll/i386/hw-data.h>
 

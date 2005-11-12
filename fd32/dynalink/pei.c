@@ -139,7 +139,7 @@ int pei_read_section_headers(struct kern_funcs *kf, int f, struct table_info *ta
   return -1;
 }
 
-DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, struct section_info *s, int *size)
+DWORD pei_load(struct kern_funcs *kf, int f, struct table_info *tables, int n, struct section_info *s, DWORD *size)
 {
   DWORD i;
   DWORD reloc_offset = 0;

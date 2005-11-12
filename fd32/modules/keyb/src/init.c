@@ -150,10 +150,10 @@ static struct option keyb_options[] =
   {0, 0, 0, 0}
 };
 
-void keyb_init(struct process_info *pi)
+void keyb_init(process_info_t *pi)
 {
 	char **argv;
-	int argc = fd32_get_argv(name_get(pi), args_get(pi), &argv);
+	int argc = fd32_get_argv(pi->filename, pi->args, &argv);
 
 	if (argc > 1) {
 		char *layoutname = "US";

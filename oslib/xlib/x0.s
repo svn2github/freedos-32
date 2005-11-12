@@ -104,10 +104,7 @@ SYMBOL_NAME_LABEL(mbi) .long 0
 SYMBOL_NAME_LABEL(IDT)
 	.fill 256,8,0		# idt is uninitialized
 
-/* Protected mode stack */
-base:
-.space 	8192,0
-tos:
+/* Protected mode stack, none (use the top of memory) */
 
 .text
 .globl	SYMBOL_NAME(_start)
@@ -201,20 +198,27 @@ addl	$146,%edi
 movb	$'0',%gs:0(%edi)
 incl	%edi
 movb	$6,%gs:0(%edi)
-		
+
 GDT_is_OK:	movw	$(X_FLATDATA_SEL),%ax
 		movw	%ax,%ds
 		movw	%ax,%es
 		movw	%ax,%ss
 		movw	%ax,%fs
 		movw	%ax,%gs
-		movl	$tos,%esp
-		movl	$base,SYMBOL_NAME(_stkbase)
-		movl	$tos,SYMBOL_NAME(_stktop)
 		
 		/* Store the MULTIBOOT informations */
 		movl	%eax,SYMBOL_NAME(mb_signature)
 		movl	%ebx,SYMBOL_NAME(mbi)
+		
+		/* Use the top of the total memory as the stack top (esp) */
+		movl	%gs:8(%ebx),%eax /* 0x100000 + mbi->mem_upper*1024 */
+		imul	$0x400, %eax
+		addl	$0x100000, %eax
+		movl	%eax, %esp
+		subl	$0x1000, %eax
+		
+		movl	%eax, SYMBOL_NAME(_stkbase)
+		movl	%esp, SYMBOL_NAME(_stktop)
 		
 		/* Store the X passed GDT address!
 		 * If GDT is not available is a dummy instruction!

@@ -12,6 +12,7 @@
 #include <ll/string.h>
 
 #include <logger.h>
+#include <exec.h>
 #include <kernel.h>
 #include <kmem.h>
 
@@ -45,7 +46,7 @@ void chandler1(DWORD eax, DWORD ebx, DWORD ecx, DWORD edx, DWORD intnum)
   message("edx = 0x%lx\n", edx);
 }
 
-static void return_to_dos(union regs *r)
+void return_to_dos(union regs *r)
 {
   struct tss * p_vm86_tss = vm86_get_tss();
   WORD bl = p_vm86_tss->back_link;
@@ -66,9 +67,6 @@ static void return_to_dos(union regs *r)
   }
 }
 
-
-BYTE dpmi_stack[DPMI_STACK_SIZE];
-DWORD dpmi_stack_top = (DWORD)&dpmi_stack[DPMI_STACK_SIZE];
 void dpmi_chandler(DWORD intnum, union regs r)
 {
   /* DWORD eax, ebx, ecx, edx, esi, edi, ees; */
@@ -311,7 +309,7 @@ void dpmi_chandler(DWORD intnum, union regs r)
         fd32_log_printf("[DPMI] VM86 switch: %x ES: %x DI: %x eflags: %x\n", (int)dos_exec_mode16, (int)r.d.vm86_es, r.x.di, (int)r.d.flags);
       #endif
       } else if (r.x.ax == 0xFD32) {
-        DWORD p_vm86_stack, p_vm86_app_stack;
+        DWORD p_vm86_app_stack;
         struct tss *p_vm86_tss = vm86_get_tss();
         struct psp *ppsp = (struct psp *)(p_vm86_tss->es<<4);
         WORD retf_cs;
@@ -325,14 +323,14 @@ void dpmi_chandler(DWORD intnum, union regs r)
         /* NOTE: The DS access rights is different with CS */
         r.d.eds = fd32_segment_to_descriptor(r.d.vm86_ds);
         /* NOTE: The CS in the VM86 stack is replaced with the new CS selector */
-        p_vm86_stack = r.d.esp+sizeof(DWORD)*3;    /* use the ring0/system(vm86_tss:ss0) stack and skip eip, ecs, flags */
+        /* p_vm86_stack = r.d.esp+sizeof(DWORD)*3; */		/* use the ring0/system(vm86_tss:ss0) stack and skip eip, ecs, flags */
         p_vm86_app_stack = (r.d.vm86_ss<<4)+r.d.vm86_esp;
         retf_cs = fd32_allocate_descriptors(1);
         fd32_set_segment_base_address(retf_cs, ((WORD *)p_vm86_app_stack)[1]<<4);
         fd32_set_segment_limit(retf_cs, 0xFFFF);
         fd32_set_descriptor_access_rights(retf_cs, 0x009A);
-        ((WORD *)p_vm86_stack)[0] = ((WORD *)p_vm86_app_stack)[0];
-        ((WORD *)p_vm86_stack)[1] = retf_cs;
+        r.d.vm86_esp /* vm86 system stack */ = (((WORD *)p_vm86_app_stack)[0]) | (retf_cs<<16);
+        /* ((WORD *)p_vm86_stack)[0] = ((WORD *)p_vm86_app_stack)[0]; ((WORD *)p_vm86_stack)[1] = retf_cs; */
         /* NOTE: The ES = selector to program's PSP (100h byte limit) */
         r.d.ees = fd32_segment_to_descriptor(p_vm86_tss->es);
         /* NOTE: The ENV selector is also created */

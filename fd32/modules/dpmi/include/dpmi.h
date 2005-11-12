@@ -1,7 +1,7 @@
 #ifndef __FD32_DPMI_H
 #define __FD32_DPMI_H
 
-#define DPMI_STACK_SIZE 0xC000
+#define DPMI_STACK_SIZE 1024
 
 /* VM86 extended */
 #define VM86_EXT 1
@@ -85,7 +85,8 @@ union regs {
   } h;
 };
 
-extern BYTE dpmi_stack[DPMI_STACK_SIZE];
+extern DWORD dpmi_stack;
+extern DWORD dpmi_stack_top;
 
 extern inline void dpmi_return(int res, union regs *r)
 {

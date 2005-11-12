@@ -20,7 +20,7 @@
  */
 
 /* File: X1.C       */
-/* Startup code:        */
+/* Startup code:    */
 /* Build parameters list & make info accessible */
 
 #include <ll/i386/hw-func.h>
@@ -32,7 +32,7 @@
 
 FILE(X1);
 
-/* #define __DUMP_MEM__  */
+/* #define __DUMP_MEM__ */
 
 /* We need to copy from X address space to the application space  */
 /* the info structure to allow pointer access using flat model    */
@@ -45,32 +45,31 @@ FILE(X1);
 /* since the file is already relocated starting from address 0!   */
 /* Then the PM application cannot see a real flat memory (segment */
 /* with 0 base) but CS,DS & SS MUST have the base correctly set.  */
-/* Refer to this figure:                      */
+/* Refer to this figure:          */
 /*                                */
-/* DOS Memory <- X is there                   */
-/*                                        */
-/* EXTENDED Memory -----[                     */
+/* DOS Memory <- X is there       */
+/*                                */
+/* EXTENDED Memory -----[         */
 /*          [                     */
 /*  Address  xxxx   [ <- Application code is here!        */
 /*          [                     */
 /*  Address  yyyy   [ <- Application Data & Stack!        */
 /*                                */
-/* Then CS has xxxx base while DS & SS have yyyy base!        */
+/* Then CS has xxxx base while DS & SS have yyyy base!    */
 
-/* Stack base address; use this to check stack overflow!    */
+/* Stack base address; use this to check stack overflow!  */
 /* With Flat model I do not think we can use 386 protection     */
 /* to detect a stack overflow; anyway Watcom C use a standard   */
 /* function __CHK to detect it! The compiler place it whenever  */
-/* it calls a function to detect overflow           */
+/* it calls a function to detect overflow */
 
-DWORD _stkbase; 
-DWORD _stktop;
+DWORD _stkbase; /* TODO: Dynamically change the stack base */
+DWORD _stktop; /* Stack top is at the top of the total memory */
 
 /* This is some extra stuff we need to compile with argument    */
 /* passing and math extensions                  */
-DWORD _argc = 0;
-typedef char *charp;
-charp _argv[100];
+static DWORD _argc = 0;
+static char * _argv[0x40];
 
 #ifndef MAIN
 #define MAIN main
@@ -108,14 +107,14 @@ void _startup(void)
   }
 	
   if (mbi->flags & MB_INFO_CMDLINE) {
-    /* Build parameter list, up to 100 parms... */
+    /* Build parameter list, up to 64 parms... */
     memcpy(private_args, (char *)mbi->cmdline, MAX_ARG_SIZE);
     private_args[MAX_ARG_SIZE - 1] = 0;
     while (private_args[i] != 0) {
       _argv[_argc] = &(private_args[i]);
       while (private_args[i] != ' ' && private_args[i] != 0) i++;
       if (private_args[i] == ' ') {
-	private_args[i] = 0; i++; _argc++;
+        private_args[i] = 0; i++; _argc++;
       }
     }
     _argc++;
@@ -129,11 +128,10 @@ void _startup(void)
 #ifdef __DUMP_MEM__
   message("X/MEM   : %u\n",mbi->mem_upper);
   message("DOS/MEM : %u\n",mbi->mem_lower);
-  message("x_bios Size : %u\n",sizeof(X_BIOSCALL));
   message("mbi Size : %u\n",sizeof(struct multiboot_info));
   message("Cmdline : %s\n",mbi->cmdline);
   message("Argc : %u",_argc);
-  message("Argv[0] : %s / %s\n",_argv[0]);
+  message("Argv[0] : %s\n",_argv[0]);
   message("Argv[1] : %s\n",_argv[1]);
   message("Argv[2] : %s\n",_argv[2]);
   message("Argv[3] : %s\n",_argv[3]);

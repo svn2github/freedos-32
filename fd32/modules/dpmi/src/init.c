@@ -9,13 +9,18 @@
 #include <ll/i386/error.h>
 #include <ll/getopt.h>
 
+#include <exec.h>
 #include <kernel.h>
+#include "dpmi.h"
 #include "dos_exec.h"
 
 extern void chandler(DWORD intnum, struct registers r);
 extern WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel);
 extern void restore_psp(void);
 extern int use_lfn;
+
+DWORD dpmi_stack;
+DWORD dpmi_stack_top;
 
 static struct option dpmi_options[] =
 {
@@ -28,10 +33,10 @@ static struct option dpmi_options[] =
 };
 
 /*void DPMI_init(DWORD cs, char *cmdline) */
-void DPMI_init(struct process_info *p)
+void DPMI_init(process_info_t *pi)
 {
   char **argv;
-  int argc = fd32_get_argv(name_get(p), args_get(p), &argv);
+  int argc = fd32_get_argv(pi->filename, pi->args, &argv);
 
   if (add_call("stubinfo_init", (DWORD)_stubinfo_init, ADD) == -1)
     message("Cannot add stubinfo_init to the symbol table\n");
@@ -49,6 +54,7 @@ void DPMI_init(struct process_info *p)
     for ( ; (c = getopt_long (argc, argv, "X:", dpmi_options, &option_index)) != -1; ) {
       switch (c) {
         case 0:
+          use_lfn = 0;
           message("LFN disabled\n");
           break;
         case 'X':

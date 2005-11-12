@@ -135,10 +135,10 @@ struct read_funcs {
 		struct table_info *tables, struct symbol_info *syms);
   DWORD (* load_relocatable)(struct kern_funcs *kf, int f,
 		struct table_info *tables,
-		int n, struct section_info *s, int *size);
+		int n, struct section_info *s, DWORD *size);
   DWORD (* load_executable)(struct kern_funcs *kf, int f,
 		struct table_info *tables,
-		int n, struct section_info *s, int *size);
+		int n, struct section_info *s, DWORD *size);
   int (* relocate_section)(struct kern_funcs *kf, DWORD base,
 		struct table_info *tables,
 		int n, struct section_info *s, int sect,

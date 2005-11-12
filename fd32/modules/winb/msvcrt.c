@@ -198,9 +198,9 @@ static int * fd32_imp__p___argc(void)
 static void fd32_imp__getmainargs(int *argc, char** *argv, char** *envp, int expand_wildcards, int *new_mode)
 {
   fd32_log_printf("[WINB] GETMAINARGS: %x, %x, %x, %x, %x\n", (uint32_t)argc, (uint32_t)argv, (uint32_t)envp, (uint32_t)expand_wildcards, (uint32_t)new_mode);
-  fd32_log_printf("[WINB] Current process cmdline: %s\n", args_get(fd32_get_current_pi()));
+  fd32_log_printf("[WINB] Current process cmdline: %s\n", fd32_get_current_pi()->args);
 
-  *argc = fd32_get_argv(name_get(fd32_get_current_pi()), args_get(fd32_get_current_pi()), argv);
+  *argc = fd32_get_argv(fd32_get_current_pi()->filename, fd32_get_current_pi()->args, argv);
   local_argv_ptr = *argv;
 }
 

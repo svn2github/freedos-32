@@ -3,6 +3,9 @@
  *
  * This header is intented to implement the FD32 Flat Programming Interface
  */
+
+#ifndef __LDTMANAG_H__
+#define __LDTMANAG_H__
  
 #include<ll/i386/hw-data.h> /* for basic data types WORD, DWORD */
 
@@ -61,3 +64,4 @@ int fd32_get_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD B
 /* Implementation of DPMI 1.0 service 000Fh "Set Multiple Descriptors" */
 int fd32_set_multiple_descriptors(WORD Descriptors, WORD BufferSelector, DWORD BufferOffset);
 
+#endif

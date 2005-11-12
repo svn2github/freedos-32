@@ -36,7 +36,7 @@ int read(unsigned bpr, unsigned rqsts, fd32_blockread_t* r, void* b)
     return 0;
 }    
 
-int ata_test_init(struct process_info *p)
+int ata_test_init(process_info_t *p)
 {
     int part;
     fd32_blockread_t ata_read;
@@ -47,7 +47,7 @@ int ata_test_init(struct process_info *p)
     char c;
     
     mtr = 0;
-    args = args_get(p);
+    args = p->args;
     while(*args == ' ')
         args++;
     while(!(*args < '0' || *args > '9'))

@@ -213,7 +213,7 @@ int fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId, ch
 }
 
 
-#if 0
+#if __FILENAME_WITHOUT_DRIVE__
 /* Returns the file name without the drive specification part. */
 /* At present it is useless.                                   */
 static char *get_name_without_drive(char *FileName)

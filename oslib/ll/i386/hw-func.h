@@ -71,7 +71,7 @@ void    ll_context_load(CONTEXT c);
 
 CONTEXT ll_context_from(void);
 void    ll_context_to(CONTEXT c);
-
+DWORD   ll_context_stack(void);
 
 
 void *l1_init(void);

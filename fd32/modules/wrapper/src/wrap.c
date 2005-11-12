@@ -183,10 +183,10 @@ static struct option wrapper_options[] =
   {0, 0, 0, 0}
 };
 
-int wrap_init(struct process_info *pi)
+int wrap_init(process_info_t *pi)
 {
   char **argv;
-  int argc = fd32_get_argv(name_get(pi), args_get(pi), &argv);
+  int argc = fd32_get_argv(pi->filename, pi->args, &argv);
 
   if (argc > 1) {
     DWORD res;

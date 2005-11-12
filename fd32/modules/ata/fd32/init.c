@@ -188,21 +188,20 @@ static int ata_parse_args(char* args)
 }
 
 
-int ata_init(struct process_info *p)
+int ata_init(process_info_t *p)
 {
     int res;
     void disk_add(struct ata_device *d, char *name);
 
     ata_ref_counter = 0;
     ata_global_flags = 0;
-    ata_args = args_get(p);
+    ata_args = p->args;
     res = ata_parse_args(ata_args);
     if(res<0)
     {
         fd32_message("WARNING: Syntax error in argument(s)\n");
         ata_wait(5*1000*1000);
     }
-
 
     fd32_message("ATA Driver Initialization\n");
     res = ata_detect(iface, disk_add);

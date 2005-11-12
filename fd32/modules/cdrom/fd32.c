@@ -178,7 +178,7 @@ static int cd_request(int function, ...)
 }
 
 
-int cd_init(struct process_info *p)
+int cd_init(process_info_t *p)
 {
     int dev;
     fd32_request_t *req;
@@ -190,7 +190,7 @@ int cd_init(struct process_info *p)
     struct cd_device* d;
     int i;
 
-    args = args_get(p);
+    args = p->args;
     ref_counter = 0;
     fd32_message("[CDROM] Searching for CD-ROM drives...\n");
     /* Search for all devices with name hd<letter> an test if they respond to FD32_ATAPI_INFO */
