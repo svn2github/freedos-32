@@ -319,7 +319,7 @@ int fat_mount(const char *blk_name, Volume **volume)
 	#endif
 
 	/* Check if the BPB is valid */
-	res = -EFTYPE;
+	res = -ENODEV; /* FIXME: Use custom error code for "unknown/invalid file system" */
 	bpb = (struct fat16_bpb *) secbuf;
 	if (*((uint16_t *) &secbuf[510]) != 0xAA55)
 		ABORT_MOUNT(("[FAT2] Boot sector signature 0xAA55 not found\n"));
@@ -416,12 +416,12 @@ int fat_mount(const char *blk_name, Volume **volume)
 		struct fat32_bpb *bpb32 = (struct fat32_bpb *) secbuf;
 		struct fat_fsinfo *fsi;
 		Buffer *b = NULL;
-		res = -EFTYPE;
+		res = -ENODEV; /* FIXME: Use custom error code for "unknown/invalid file system" */
 		if (bpb32->fs_version) ABORT_MOUNT(("[FAT2] Unknown FAT32 version in BPB: %04xh\n", bpb32->fs_version));
 		res = fat_readbuf(v, bpb32->fsinfo_sector, &b, false);
 		if (res < 0) ABORT_MOUNT(("[FAT2] Error reading the FAT32 FSInfo sector\n"));
 		fsi = (struct fat_fsinfo *) &b->data[res];
-		res = -EFTYPE;
+		res = -ENODEV; /* FIXME: Use custom error code for "unknown/invalid file system" */
 		if ((fsi->sig1 != FAT_FSI_SIG1) || (fsi->sig2 != FAT_FSI_SIG2) || (fsi->sig3 != FAT_FSI_SIG3))
 			ABORT_MOUNT(("[FAT2] Wrong signatures in the FAT32 FSInfo sector\n"));
 		v->free_clusters = fsi->free_clusters;
