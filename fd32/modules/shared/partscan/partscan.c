@@ -58,7 +58,7 @@
 #include "partscan.h"
 #include "ata-ops.h"
 
-int ata_request(int function, ...); /* FIXME */
+extern int ata_request(int function, ...); /* FIXME */
 
 #define PS_DEVICE struct ata_device
 #define PS_READ ata_read

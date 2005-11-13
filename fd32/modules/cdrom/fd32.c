@@ -106,12 +106,16 @@ static int cd_bi_get_medium_info(void *handle, BlockMediumInfo *buf)
 
 static ssize_t cd_bi_read(void *handle, void *buffer, uint64_t start, size_t count, int flags)
 {
+    int res;
     struct cd_device *d = handle;
 
     if(!((d->flags & CD_FLAG_IS_OPEN) && (d->flags & CD_FLAG_IS_VALID )))
         return -EBUSY;
     /* We ignore the flags parameter for now since we have no cache yet. */
-    return cd_read(d, start, count, buffer);
+    res = cd_read(d, start, count, buffer);
+    if(res<0)
+        return res;
+    return (int)count; /* No partial reads currently implemented.  */
 }
 
 static ssize_t cd_bi_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags)
