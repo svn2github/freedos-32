@@ -1,0 +1,18 @@
+OBJS   = dentry.o dos.o file.o volume.o pathreso.o slabmem.o lintest.o 
+BIN    = iso9660
+CC     = gcc
+#CFLAGS = -Wall -O3 -I.
+CFLAGS = -Wall -g3 -I.
+
+.PHONY: all clean
+
+all: $(BIN)
+
+clean:
+	rm -f $(BIN) $(OBJS)
+
+$(BIN): $(OBJS)
+	$(CC) -o $(BIN) $(OBJS)
+
+%.o : %.c
+	$(CC) $(CFLAGS) -c $<
