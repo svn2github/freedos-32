@@ -151,8 +151,8 @@ DWORD pmm_alloc(struct mempool *mp, DWORD size)
         return (start + p->size);
 #else
         pnew = (struct memheader *)(start + size);
-        pnew->next = p->next;
-        pnew->size = p->size - size;
+        pnew->next = p->next; /* NOTE: if the size < 8 bytes, will cause memory corruption, so use lsize (actually it's faster too) */
+        pnew->size = lsize;
         pprev->next = pnew;
 #endif
       }
@@ -210,12 +210,12 @@ int pmm_free(struct mempool *mp, DWORD base, DWORD size)
       if (base + size <= start) {
         pnew = (struct memheader *)base;
         if (base + size == start) {
-          pnew->next = p->next;
-          pnew->size = size + p->size;
-        } else {
-          pnew->next = p;
-          pnew->size = size;
+          /* Merge the next entry if adjacent */
+          size += p->size;
+          p = p->next;
         }
+        pnew->next = p;
+        pnew->size = size;
         pprev->next = pnew;
       } else {  /* Error: there is an overlap... */
         local_pmm_error_overlap(base, size, (DWORD)p, p->size, (DWORD)p, p->size);
