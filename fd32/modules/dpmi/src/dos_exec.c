@@ -421,6 +421,8 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
     tsr = FALSE;	
   }
 
+  dpmi_stack = 0; /* Disable the stack switch in chandler */
+  dpmi_stack_top = 0xFFFFFFFF;
   retval = fd32_create_process(&pi, &params);
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
