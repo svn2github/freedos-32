@@ -1,7 +1,22 @@
 /* FD/32 Process Creation routines
- * by Luca Abeni & Hanzac Chen
- * 
- * This is free software; see GPL.txt
+ *
+ * Copyright (C) 2002-2005 by Luca Abeni
+ * Copyright (C) 2005 by Hanzac Chen
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 #include <ll/i386/hw-data.h>
@@ -99,11 +114,16 @@ int fd32_get_argv(char *filename, char *args, char ***_pargv)
 
   /* Get the argc */
   if (args != NULL) {
-    for (i = 0; args[i] != 0; i++)
-      if (args[i] == ' ')
-        _argc++;
-    /* Add one at the end */
-    _argc++;
+    /* Add one at the beginning */
+    for (i = 0, _argc++, is_newarg = 1; args[i] != 0; i++) {
+      if (is_newarg) {
+        if (args[i] == ' ')
+          is_newarg = 0;
+      } else {
+        if (args[i] != ' ')
+          _argc++, is_newarg = 1;
+      }
+    }
   }
 
   /* Allocate a argv and fill */
@@ -111,14 +131,16 @@ int fd32_get_argv(char *filename, char *args, char ***_pargv)
   (*_pargv)[0] = filename; /* The first argument is the filename */
   _argc = 1;
   if (args != NULL) {
-    for (i = 0, is_newarg = 1; args[i] != 0; i++) {
-      if (is_newarg)
-        (*_pargv)[_argc] = args+i, is_newarg = 0;
-      if (args[i] == ' ')
-        args[i] = 0, _argc++, is_newarg = 1;
+    /* Add one at the beginning */
+    for (i = 0, (*_pargv)[1] = args, _argc++, is_newarg = 1; args[i] != 0; i++) {
+      if (is_newarg) {
+        if (args[i] == ' ')
+          args[i] = 0, is_newarg = 0;
+      } else {
+        if (args[i] != ' ')
+          (*_pargv)[_argc] = args+i, _argc++, is_newarg = 1;
+      }
     }
-    /* Add one at the end */
-    _argc ++;
   }
 
   return _argc;
