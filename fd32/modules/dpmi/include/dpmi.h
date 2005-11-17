@@ -1,7 +1,7 @@
 #ifndef __FD32_DPMI_H
 #define __FD32_DPMI_H
 
-#define DPMI_STACK_SIZE 1024
+#define DPMI_STACK_SIZE 0x2000
 
 /* VM86 extended */
 #define VM86_EXT 1
