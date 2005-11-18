@@ -19,7 +19,7 @@ C_OPT   += -I$(KERNEL)/include -I$(MODULES) -I$(PORTAB)
 LINK_OPT = -Bstatic
 
 OBJS = alloc.o dir.o dos.o file.o open.o volume.o fd32.o pathreso.o
-BIN  = fat2.o
+BIN  = fat.o
 
 .PHONY: all clean
 

@@ -1,5 +1,5 @@
 OBJS    = alloc.o dir.o dos.o file.o open.o volume.o test.o pathreso.o
-BIN     = fat2
+BIN     = fat
 CC      = gcc
 #CFLAGS  = -Wall -O3 -I.
 CFLAGS  = -Wall -g3 -I.
