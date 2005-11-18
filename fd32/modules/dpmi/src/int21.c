@@ -26,6 +26,7 @@
 
 #include <ll/i386/hw-data.h>
 #include <ll/i386/string.h>
+#include <ll/i386/cons.h>
 #include <exec.h>
 #include <kernel.h>
 #include <filesys.h>

@@ -54,7 +54,7 @@ static void local_set_psp_commandline(struct psp *ppsp, char *args)
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
 static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *filename, char *args)
 {
-  BYTE *env_data;
+  char *env_data;
   /* Set the PSP */
   fd32_get_current_pi()->psp = ppsp;
   /* Init PSP */
@@ -86,7 +86,7 @@ static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD e
   local_set_psp_jft(ppsp, NULL, MAX_OPEN_FILES);
   
   /* Environment setup */
-  env_data = (BYTE *)(g_env_segment<<4);
+  env_data = (char *)(g_env_segment<<4);
   strcpy(env_data, "PATH=.");
   env_data[7] = 0;
   *((WORD *)(env_data+8)) = 1; /* Count of the env-strings */

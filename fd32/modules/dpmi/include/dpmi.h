@@ -88,7 +88,7 @@ union regs {
 extern DWORD dpmi_stack;
 extern DWORD dpmi_stack_top;
 
-extern inline void dpmi_return(int res, union regs *r)
+static inline void dpmi_return(int res, union regs *r)
 {
   r->x.ax = res;
   if (res < 0) {
@@ -97,5 +97,9 @@ extern inline void dpmi_return(int res, union regs *r)
     CLEAR_CARRY;
   }
 }
+
+/* INT 2fh handler for Multiplex for PM execution (AX=function) */
+void int2f_handler(union regs *r); /* TODO: find a more suitable location ... */
+
 #endif /* __FD32_DPMI_H */
 
