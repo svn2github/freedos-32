@@ -190,7 +190,6 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
     return -1;
   params.normal.fs_sel = 0;
 
-  fd32_set_current_pi(&pi);
   pi.filename = filename;
   pi.args = args;
   if (exec_space == 0) {
@@ -207,7 +206,8 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
     params.normal.base = exec_space;
     tsr = FALSE;
   }
-  
+
+  fd32_set_current_pi(&pi);
   retval = fd32_create_process(&pi, &params);
   if (!tsr)
     mem_free(exec_space, params.normal.size);

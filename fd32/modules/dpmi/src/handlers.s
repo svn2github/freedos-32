@@ -11,7 +11,6 @@
 
 .text
 .extern SYMBOL_NAME(memcpy)
-.extern SYMBOL_NAME(ll_context_stack)
 .extern SYMBOL_NAME(dpmi_chandler)
 .extern SYMBOL_NAME(dpmi_stack)
 .extern SYMBOL_NAME(dpmi_stack_top)

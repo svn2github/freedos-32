@@ -26,16 +26,12 @@
 #define ENV_SIZE 0x100
 
 /* Sets the JFT for the current process. */
-static void local_set_psp_jft(struct psp *ppsp, void *Jft, int JftSize)
+static void local_set_psp_jft(process_info_t *ppi, struct psp *ppsp, void *Jft, int JftSize)
 {
-  process_info_t *cur_P = fd32_get_current_pi();
-
   if (Jft == NULL)
     Jft = fd32_init_jft(MAX_OPEN_FILES);
-  ppsp->ps_maxfiles = JftSize;
-  ppsp->ps_filetab  = Jft;
-  cur_P->jft_size   = JftSize;
-  cur_P->jft        = Jft;
+  ppi->jft_size = ppsp->ps_maxfiles = JftSize;
+  ppi->jft = ppsp->ps_filetab = Jft;
 }
 
 static void local_set_psp_commandline(struct psp *ppsp, char *args)
@@ -52,11 +48,11 @@ static void local_set_psp_commandline(struct psp *ppsp, char *args)
 
 /* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
-static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *filename, char *args)
+static void local_set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *filename, char *args)
 {
   char *env_data;
   /* Set the PSP */
-  fd32_get_current_pi()->psp = ppsp;
+  ppi->psp = ppsp;
   /* Init PSP */
   ppsp->ps_size = ps_size; /* segment of first byte beyond memory allocated to program  */
   ppsp->ps_parent = ps_parent;
@@ -83,7 +79,7 @@ static void local_set_psp(struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD e
   /* if (npsp->link == NULL) Create new JFT
      else Copy JFT from npsp->link->Jft
   */
-  local_set_psp_jft(ppsp, NULL, MAX_OPEN_FILES);
+  local_set_psp_jft(ppi, ppsp, NULL, MAX_OPEN_FILES);
   
   /* Environment setup */
   env_data = (char *)(g_env_segment<<4);
@@ -123,7 +119,7 @@ struct stubinfo {
 };
 
 /* NOTE: FD32 module can't export ?_init name so make it internal with prefix `_' */
-WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel)
+WORD _stubinfo_init(process_info_t *ppi, DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel)
 {
   struct stubinfo *info;
   struct psp *newpsp;
@@ -197,7 +193,7 @@ WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *file
   info->argv0[0] = 0;
   memcpy(info->dpmi_server, "FD32.BIN", sizeof("FD32.BIN"));
 
-  local_set_psp(newpsp, 0xFFFF/* fake, above 1M */, 0, env_selector, stubinfo_selector, g_fcb1, g_fcb2, filename, args);
+  local_set_psp(ppi, newpsp, 0xFFFF/* fake, above 1M */, 0, env_selector, stubinfo_selector, g_fcb1, g_fcb2, filename, args);
   
   return stubinfo_selector;
 }
@@ -307,7 +303,7 @@ static DWORD wrapper_alloc(DWORD size)
 }
 
 /* FIXME: Simplify ---> user_stack is probably not needed! */
-static int wrapper_create_process(DWORD entry, DWORD base, DWORD size,
+static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, DWORD size,
 		DWORD user_stack, char *filename, char *args)
 {
   WORD stubinfo_sel;
@@ -320,7 +316,7 @@ static int wrapper_create_process(DWORD entry, DWORD base, DWORD size,
 #endif
   /* HACKME!!! size + stack_size... */
   /* FIXME!!! WTH is user_stack (== base + size) needed??? */
-  stubinfo_sel = _stubinfo_init(base, size, 0, filename, args, user_cs, user_ds);
+  stubinfo_sel = _stubinfo_init(ppi, base, size, 0, filename, args, user_cs, user_ds);
   if (stubinfo_sel == 0) {
     error("Error! No stubinfo!!!\n");
     return -1;
@@ -361,19 +357,19 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   pi.args = args;
   pi.cds_list = NULL;
   pi.memlimit = base + size;
-  fd32_set_current_pi(&pi);
 
   stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   /* Note: use the real entry */
-  retval = wrapper_create_process(entry, exec_space, size,
+  fd32_set_current_pi(&pi);
+  retval = wrapper_create_process(&pi, entry, exec_space, size,
 		stack_mem+DPMI_STACK_SIZE, filename, args);
+  /* Back to the previous process NOTE: TSR native programs? */
+  fd32_set_current_pi(pi.prev);  
+
   message("Returned: %d!!!\n", retval);
   mem_free(stack_mem, DPMI_STACK_SIZE);
   mem_free(exec_space, size);
-
-  /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev);
 
   return retval;
 }
@@ -396,7 +392,6 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
   }
   params.normal.fs_sel = 0;
 
-  fd32_set_current_pi(&pi);
   pi.filename = filename;
   pi.args = args;
 
@@ -409,7 +404,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", params.normal.entry);
 #endif
-    stubinfo_sel = _stubinfo_init(exec_space, params.normal.size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args, get_cs(), get_ds());
+    stubinfo_sel = _stubinfo_init(&pi, exec_space, params.normal.size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args, get_cs(), get_ds());
     if (stubinfo_sel == 0) {
       error("No stubinfo!!!\n");
       return -1;
@@ -423,7 +418,11 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 
   dpmi_stack = 0; /* Disable the stack switch in chandler */
   dpmi_stack_top = 0xFFFFFFFF;
+  fd32_set_current_pi(&pi);
   retval = fd32_create_process(&pi, &params);
+  /* Back to the previous process NOTE: TSR native programs? */
+  fd32_set_current_pi(pi.prev);
+
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
 #endif
@@ -431,8 +430,6 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
     restore_psp();
     mem_free(exec_space, params.normal.size);
   }
-  /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev);
 
   return retval;
 }
@@ -446,16 +443,16 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   struct psp *ppsp;
   X_REGS16 in, out;
   X_SREGS16 s;
-  DWORD mem, stack_mem;
+  DWORD mem, stack_mem, pre_stack_mem;
   BYTE *exec_text;
   DWORD exec;
   DWORD exec_size;
 
   kf->file_read(f, &hdr, sizeof(struct dos_header));
 
-  exec_size = hdr.e_cp*0x20-hdr.e_cparhdr+hdr.e_minalloc;
+  exec_size = (hdr.e_cp*0x20+hdr.e_minalloc+0x400)*0x10;
 
-  mem = dosmem_get(sizeof(struct psp)+exec_size*0x10);
+  mem = dosmem_get(sizeof(struct psp)+exec_size);
   /* NOTE: Align exec text at 0x10 boundary */
   if ((mem&0x0F) != 0) {
     message("[EXEC] Dos memory not at 0x10 boundary!\n");
@@ -465,8 +462,12 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   exec = mem+sizeof(struct psp);
   exec_text = (BYTE *)exec;
 
+  /* NOTE: the last paragraph size */
+  if (hdr.e_cblp != 0)
+    hdr.e_cblp = 0x200-hdr.e_cblp;
+
   kf->file_seek(f, hdr.e_cparhdr*0x10, kf->seek_set);
-  kf->file_read(f, exec_text, exec_size*0x10);
+  kf->file_read(f, exec_text, exec_size-hdr.e_cparhdr*0x10-hdr.e_cblp);
 
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] Exec at 0x%x: %x %x %x ... %x %x ...\n", (int)exec_text, exec_text[0], exec_text[1], exec_text[2], exec_text[0x100], exec_text[0x101]);
@@ -490,7 +491,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
 #endif
 
   s.ds = s.cs = (exec>>4)+hdr.e_cs;
-  s.ss = s.cs+hdr.e_ss;
+  s.ss = (exec>>4)+hdr.e_ss;
   s.es = (DWORD)ppsp>>4;
   in.x.ax = 0;
   in.x.bx = 0;
@@ -498,10 +499,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   in.x.di = hdr.e_sp;
   in.x.si = hdr.e_ip;
   fd32_log_printf("[DPMI] ES: %x DS: %x IP: %x\n", s.es, s.ds, hdr.e_ip);
-  fd32_set_current_pi(&pi);
-  local_set_psp(ppsp, (exec+exec_size*0x10)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
-  /* Call in VM86 mode */
-  /* NOTE: Set the current process info */
+  local_set_psp(&pi, ppsp, (exec+exec_size)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   pi.filename = filename;
   pi.args = args;
   pi.type = VM86_PROCESS;
@@ -510,14 +508,22 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   params.vm86.in_regs = &in;
   params.vm86.out_regs = &out;
   params.vm86.seg_regs = &s;
+  params.vm86.prev_tss_ptr = &pi.saved_tss;
+  /* Use the new dpmi stack */
+  pre_stack_mem = dpmi_stack;
   stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
+  /* NOTE: Set the current process info */
+  fd32_set_current_pi(&pi);
+  /* Call in VM86 mode */
   out.x.ax = fd32_create_process(&pi, &params);
-  mem_free(stack_mem, DPMI_STACK_SIZE);
-  dosmem_free(mem, sizeof(struct psp)+exec_size*0x10);
-
   /* Back to the previous process */
   fd32_set_current_pi(pi.prev);
+  /* Restore the previous stack */
+  dpmi_stack = pre_stack_mem;
+  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
+  mem_free(stack_mem, DPMI_STACK_SIZE);
+  dosmem_free(mem, sizeof(struct psp)+exec_size);
 
   return out.x.ax; /* Return value */
 }

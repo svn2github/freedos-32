@@ -93,7 +93,7 @@ int fd32_create_process(process_info_t *ppi, process_params_t *pparams)
       break;
     case VM86_PROCESS:
       ppi->memlimit = 0;
-      res = vm86_call(pparams->vm86.ip, pparams->vm86.sp, pparams->vm86.in_regs, pparams->vm86.out_regs, pparams->vm86.seg_regs);
+      res = vm86_call(pparams->vm86.ip, pparams->vm86.sp, pparams->vm86.in_regs, pparams->vm86.out_regs, pparams->vm86.seg_regs, pparams->vm86.prev_tss_ptr, NULL);
       break;
     default:
       res = 1;

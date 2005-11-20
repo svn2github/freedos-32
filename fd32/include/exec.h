@@ -7,6 +7,7 @@
 #ifndef __EXEC_H__
 #define __EXEC_H__
 
+#include <ll/i386/hw-data.h>
 #include "format.h"
 
 #define NORMAL_PROCESS	0
@@ -17,14 +18,16 @@
 typedef struct process_info {
   struct process_info *prev;
   DWORD type;
-  void *psp;      /* Optional DOS PSP */
-  void *cds_list; /* Under DOS this is a global array            */
+  void *psp;		/* Optional DOS PSP */
+  void *cds_list;	/* Under DOS this is a global array */
   char *args;
   char *filename;
   DWORD memlimit;
   void *jft;
-  WORD  jft_size;
+  DWORD jft_size;
+  struct tss saved_tss;	/* TSS saved when switching to another process */
 } process_info_t;
+
 process_info_t *fd32_get_current_pi(void);
 void fd32_set_current_pi(process_info_t *ppi);
 int fd32_get_argv(char *filename, char *args, char ***_pargv);
@@ -39,6 +42,7 @@ typedef union process_params {
   } normal;
 
   struct {
+    struct tss *prev_tss_ptr;
     void *in_regs;
     void *out_regs;
     void *seg_regs;

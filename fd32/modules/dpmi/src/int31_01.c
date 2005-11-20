@@ -42,7 +42,6 @@ void int31_0101(union regs *r)
     if ( (res = fd32_get_segment_limit(r->x.dx, &limit)) >= 0) {
       dosmem_free(dosmem, limit);
     }
-    
   }
 
   dpmi_return(res, r);
