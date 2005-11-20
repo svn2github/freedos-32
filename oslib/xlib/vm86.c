@@ -316,97 +316,133 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
   return 1;
 }
 
-static struct {
-  WORD ip;
-  WORD sp;
+/* TODO: How to make vm86_callBIOS and vm86_call co-exist */
+
+#define KERNEL_TEMP_STACK_SIZE 512
+/* NOTE: FD32 memory functions */
+extern DWORD mem_get(DWORD amount);
+extern int mem_free(DWORD base, DWORD size);
+
+typedef struct vm86_call_params {
+  DWORD ret_eip;
+  DWORD ip;
+  DWORD sp;
   X_REGS16 *in_regs;
   X_REGS16 *out_regs;
   X_SREGS16 *seg_regs;
-} vm86_call_status;
+  struct tss *ps_tss_ptr;
+  struct vm86_call_params *params_handle;
+} vm86_call_params_t;
 
-int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
+int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struct tss *ps_tss, void *params_handle)
 {
+  int res;
   WORD bl = vm86_tss.t.back_link;
 
-  if (bl != 0) {
+  if (params_handle != NULL) {
+    /* Save the previous vm86 tss, ret_eip not used
+       ((vm86_call_params_t *)params_handle)->ret_eip = vm86_tss.t.eip; 
+     */
+    memcpy(((vm86_call_params_t *)params_handle)->ps_tss_ptr, &vm86_tss.t, sizeof(struct tss));
+  }
+
+  if (bl != 0) { /* Nested vm86 process */
+    struct tss prev_kernel_tss;
+    DWORD kernel_stack;
+    vm86_call_params_t *p_vm86_call_params;
+    struct tss * kernel_tss_ptr = (struct tss *)gdt_read(bl, NULL, NULL, NULL);
+
     /* Go back to the kernel process and run vm86_call again ... */
-    vm86_call_status.ip = ip;
-    vm86_call_status.sp = sp;
-    vm86_call_status.in_regs = in;
-    vm86_call_status.out_regs = out;
-    vm86_call_status.seg_regs = s;
     vm86_tss.t.back_link = 0;
+    memcpy(&prev_kernel_tss, kernel_tss_ptr, sizeof(struct tss));
+    /* Load another kernel mode process */
+    kernel_tss_ptr->eip = (DWORD)vm86_call;
+    kernel_tss_ptr->ss  = X_FLATDATA_SEL;
+    /* Create a new kernel stack */
+    kernel_stack = mem_get(KERNEL_TEMP_STACK_SIZE);
+    kernel_tss_ptr->esp = kernel_stack+KERNEL_TEMP_STACK_SIZE-sizeof(vm86_call_params_t);
+    p_vm86_call_params = (vm86_call_params_t *)kernel_tss_ptr->esp;
+    p_vm86_call_params->ip = ip;
+    p_vm86_call_params->sp = sp;
+    p_vm86_call_params->in_regs = in;
+    p_vm86_call_params->out_regs = out;
+    p_vm86_call_params->seg_regs = s;
+    p_vm86_call_params->ps_tss_ptr = ps_tss;
+    p_vm86_call_params->params_handle = p_vm86_call_params;
     ll_context_load(bl);
-/*
+    mem_free(kernel_stack, KERNEL_TEMP_STACK_SIZE);
+    memcpy(kernel_tss_ptr, &prev_kernel_tss, sizeof(struct tss));
+#ifdef __LL_DEBUG__
+    message("Nested vm86 call returned!\n");
+#endif
+    res = vm86_tss.t.eax;
+/*  The vm86 application in vm86 mode is done
     message("WTF? VM86 called with CS = 0x%x, IP = 0x%x\n", vm86_tss.t.cs, ip);
     fd32_abort();
 */
   } else {
-    vm86_call_status.in_regs = 0;
-  }
-  /* Setup the stack frame */
-  vm86_tss.t.ss = s->ss;
-  vm86_tss.t.ebp = 0x91E; /* this is more or less random but some programs expect 0x9 in the high byte of BP!! */
-  vm86_tss.t.esp = sp;
+    /* Setup the stack frame */
+    vm86_tss.t.ss = s->ss;
+    vm86_tss.t.ebp = 0x91E; /* this is more or less random but some programs expect 0x9 in the high byte of BP!! */
+    vm86_tss.t.esp = sp;
+    /* Wanted VM86 mode + IOPL = 3! */
+    vm86_tss.t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL | CPU_FLAG_IF;
+    /* Ring0 system stack */
+    vm86_tss.t.ss0 = X_FLATDATA_SEL;
+    vm86_tss.t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE;
+    /* Copy the parms from the X_*REGS structures in the vm86 TSS */
+    vm86_tss.t.eax = in->x.ax;
+    vm86_tss.t.ebx = in->x.bx;
+    vm86_tss.t.ecx = in->x.cx;
+    vm86_tss.t.edx = in->x.dx;
+    vm86_tss.t.esi = in->x.si;
+    vm86_tss.t.edi = in->x.di;
+    /* IF Segment registers are required, copy them... */
+    vm86_tss.t.es = s->es;
+    vm86_tss.t.ds = s->ds;
+    vm86_tss.t.gs = s->ss;
+    vm86_tss.t.fs = s->ss;
+    /* Execute the CS:IP */
+    vm86_tss.t.cs = s->cs;
+    vm86_tss.t.eip = ip;
+    /* Let's use the ll standard call... */
+    vm86_tss.t.back_link = ll_context_save();
 
-  /* Wanted VM86 mode + IOPL = 3! */
-  vm86_tss.t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL | CPU_FLAG_IF;
-  /* Ring0 system stack */
-  vm86_tss.t.ss0 = X_FLATDATA_SEL;
-  vm86_tss.t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE;
+    if (out != NULL) {
+      ll_context_load(X_VM86_TSS);
+    } else {
+      ll_context_to(X_VM86_TSS);
+    }
 
-  /* Copy the parms from the X_*REGS structures in the vm86 TSS */
-  vm86_tss.t.eax = in->x.ax;
-  vm86_tss.t.ebx = in->x.bx;
-  vm86_tss.t.ecx = in->x.cx;
-  vm86_tss.t.edx = in->x.dx;
-  vm86_tss.t.esi = in->x.si;
-  vm86_tss.t.edi = in->x.di;
-  /* IF Segment registers are required, copy them... */
-  vm86_tss.t.es = s->es;
-  vm86_tss.t.ds = s->ds;
-  vm86_tss.t.gs = s->ss;
-  vm86_tss.t.fs = s->ss;
-  /* Execute the CS:IP */
-  vm86_tss.t.cs = s->cs;
-  vm86_tss.t.eip = ip;
-
-  /* Let's use the ll standard call... */
-  vm86_tss.t.back_link = ll_context_save();
+    /* Send back in the X_*REGS structure the value obtained with
+     * the real-mode interrupt call
+     */
+    if (out != NULL) {
+      if (vm86_tss.t.back_link != 0) {message("Panic!\n"); halt();}
   
-  if (out != NULL) {
+      out->x.ax = vm86_tss.t.eax;
+      out->x.bx = vm86_tss.t.ebx;
+      out->x.cx = vm86_tss.t.ecx;
+      out->x.dx = vm86_tss.t.edx;
+      out->x.si = vm86_tss.t.esi;
+      out->x.di = vm86_tss.t.edi;
+      out->x.cflag = vm86_tss.t.eflags;
+    }
+    if (s != NULL) {
+      s->es = vm86_tss.t.es;
+      s->ds = vm86_tss.t.ds;
+    }
+
+    res = vm86_tss.t.eax;
+  }
+
+  /* Load and back to the previous vm86 application */
+  if (params_handle != NULL) {
+    memcpy(&vm86_tss.t, ((vm86_call_params_t *)params_handle)->ps_tss_ptr, sizeof(struct tss));
+    vm86_tss.t.back_link = ll_context_save();
+    vm86_tss.t.eax = res;
     ll_context_load(X_VM86_TSS);
-  } else {
-    ll_context_to(X_VM86_TSS);
-  }
-  /* Back from the vm86 application, through a software INT, see chandler.c */
-  if (vm86_call_status.in_regs != 0) {
-/*  struct tss * p_tss = (struct tss *)mem_get(sizeof(struct tss));
-Copy the vm86 TSS 
-    *p_tss = vm86_tss.t;
-Append a task
-    list_push_back(&vm86_tlist, (ListItem *)p_tss); */
-    vm86_call(vm86_call_status.ip, vm86_call_status.ip, vm86_call_status.in_regs, vm86_call_status.out_regs, vm86_call_status.seg_regs);
-  } /* TODO: What about the normal dos exit to this point? */
-
-  /* Send back in the X_*REGS structure the value obtained with
-   * the real-mode interrupt call
-   */
-  if (out != NULL) {
-    if (vm86_tss.t.back_link != 0) {message("Panic!\n"); halt();}
-
-    out->x.ax = vm86_tss.t.eax;
-    out->x.bx = vm86_tss.t.ebx;
-    out->x.cx = vm86_tss.t.ecx;
-    out->x.dx = vm86_tss.t.edx;
-    out->x.si = vm86_tss.t.esi;
-    out->x.di = vm86_tss.t.edi;
-    out->x.cflag = vm86_tss.t.eflags;
-  }
-  if (s != NULL) {
-    s->es = vm86_tss.t.es;
-    s->ds = vm86_tss.t.ds;
   }
 
-  return vm86_tss.t.eax;
+  return res;
 }

@@ -65,7 +65,7 @@ void X_callBIOS(int service,X_REGS16 *in,X_REGS16 *out,X_SREGS16 *s);
 void vm86_init(LIN_ADDR buff, DWORD size);
 struct tss *vm86_get_tss(void);
 DWORD vm86_get_stack(void);
-int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s);
+int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struct tss *ps_tss, void *params_handle);
 int vm86_callBIOS(int service,X_REGS16 *in,X_REGS16 *out,X_SREGS16 *s);
 
 END_DEF
