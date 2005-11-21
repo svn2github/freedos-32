@@ -1,8 +1,7 @@
 #include <errno.h>
-#undef errno
-extern int errno;
-
 #include <unistd.h>
+
+#include "sys/syscalls.h"
 
 int _fork(void)
 {

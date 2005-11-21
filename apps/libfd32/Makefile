@@ -1,8 +1,5 @@
 ifndef FD32
-FD32 = ../fd32
-endif
-ifndef OSLIB
-OSLIB = ../oslib
+FD32 = ../newlib-port/sys/fd32
 endif
 ifndef NEWLIBC
 NEWLIBC = ../newlib
@@ -10,19 +7,18 @@ endif
 
 include config.mk
 
-OBJS     = execve.o exit.o io.o isatty.o sbrk.o stubs.o unlink.o time.o
-C_OPT +=  -I$(NEWLIBC)/include -I$(FD32)/include -I$(OSLIB) -I./include
+OBJS = execve.o exit.o io.o isatty.o sbrk.o stubs.o unlink.o time.o
+C_OPT += -I$(NEWLIBC)/include -I$(FD32)/include -I$(FD32)/sys
 LINK_OPT = -Bstatic
-VPATH = src
+VPATH = $(FD32)
+
 .PHONY: all clean
 
 all: crt0.o libfd32.a
 
-libfd32.a : $(OBJS)
+libfd32.a: $(OBJS)
 	$(AR) cru libfd32.a $(OBJS)
-%.o : %.c
-	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -c $<
 
-clean :
+clean:
 	$(RM) *.o
 	$(RM) *.a

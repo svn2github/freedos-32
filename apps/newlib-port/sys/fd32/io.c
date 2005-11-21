@@ -30,7 +30,7 @@ ssize_t	_write(int fd, const void *ptr, size_t len)
 {
   int res;
   
-  res = fd32_write(fd, ptr, len);
+  res = fd32_write(fd, (void *)ptr, len);
 
   return res;
 }
@@ -85,7 +85,7 @@ int _open(const char *name, int flags, int mode)
 #endif
 
 //  message("0x%x --> 0x%lx\n", flags, dosflags);
-  res = fd32_open(name, /*uint32_t(*/flags/*)*/, dosattr/*mode*/, 0, NULL /*&action*/);
+  res = fd32_open((char *)name, /*uint32_t(*/flags/*)*/, dosattr/*mode*/, 0, NULL /*&action*/);
 
   return res;
 }
