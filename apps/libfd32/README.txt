@@ -1,4 +1,5 @@
-libfd32 is using the newlib-port as a common source
+libfd32 is using the newlib-port as a common source, the local src
+is deprecated.
 NOTE: maybe the newlib "system calls" name is the problem because
       each name has a '_' as the prefix.
 --------------------------------------------------------------------
