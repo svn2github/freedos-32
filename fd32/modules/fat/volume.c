@@ -269,7 +269,7 @@ int fat_mount(const char *blk_name, Volume **volume)
 	/* Open the block device, allocate a sector buffer and read the boot sector */
 	#if FAT_CONFIG_FD32
 	LOG_PRINTF(("[FAT2] Trying to mount a volume on device '%s'\n", blk_name));
-	res = block_get(blk_name, BLOCK_OPERATIONS_TYPE, &v->blk.bops, &v->blk.handle);
+	res = block_get(blk_name, BLOCK_OPERATIONS_TYPE, (void **)&v->blk.bops, &v->blk.handle);
 	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot get operations\n", blk_name));
 	res = v->blk.bops->open(v->blk.handle);
 	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot open the device\n"));

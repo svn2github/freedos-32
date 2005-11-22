@@ -83,7 +83,7 @@ static int dynamic_assign(unsigned type, int d)
 
 	while ((name = block_enumerate(&iterator)) != NULL)
 	{
-		res = block_get(name, BLOCK_OPERATIONS_TYPE, &bops, &handle);
+		res = block_get(name, BLOCK_OPERATIONS_TYPE, (void **)&bops, &handle);
 		if (res < 0) continue;
 		res = bops->get_device_info(handle, &bdi);
 		bops->request(REQ_RELEASE);

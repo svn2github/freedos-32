@@ -822,7 +822,7 @@ int fdc_setup(FdcSetupCallback *setup_cb)
     unsigned cmos_drive0;
     unsigned cmos_drive1;
     int      res;
-    WORD     dma_seg, dma_off;
+    WORD     dma_seg = 0, dma_off = 0;
 
     /* Setup IRQ and DMA */
     /* TODO: Provide a way to save the old IRQ6 handler */

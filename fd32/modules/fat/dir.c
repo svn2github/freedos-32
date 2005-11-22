@@ -68,7 +68,7 @@ static int build_fcb_name_part(const struct nls_operations *nls, uint8_t *dest, 
 			memset(dest, '?', dest_size);
 			break;
 		}
-		skip = nls->wctomb(dest, wc, dest_size);
+		skip = nls->wctomb((char *)dest, wc, dest_size);
 		if (skip > 0)
 		{
 			const char *c;
@@ -79,7 +79,7 @@ static int build_fcb_name_part(const struct nls_operations *nls, uint8_t *dest, 
 					if (*dest == *c) return -EINVAL;
 			*dest = nls->toupper(*dest);
 		}
-		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size), res = 1;
+		if (skip == -EINVAL) skip = nls->wctomb((char *)dest, '_', dest_size), res = 1;
 		if (skip == -ENAMETOOLONG) return 1;
 		if (skip < 0) return skip;
 		dest_size -= skip;
@@ -387,7 +387,7 @@ static int gen_short_fname_part(const struct nls_operations *nls, uint8_t *dest,
 				res |= 2;
 				break;
 			}
-		skip = nls->wctomb(dest, wc, dest_size);
+		skip = nls->wctomb((char *)dest, wc, dest_size);
 		if (skip > 0)
 		{
 			int up = nls->toupper(*dest);
@@ -402,7 +402,7 @@ static int gen_short_fname_part(const struct nls_operations *nls, uint8_t *dest,
 			}
 			else skip = -EINVAL;
 		}
-		if (skip == -EINVAL) skip = nls->wctomb(dest, '_', dest_size), res |= 2;
+		if (skip == -EINVAL) skip = nls->wctomb((char *)dest, '_', dest_size), res |= 2;
 		if (skip == -ENAMETOOLONG) return 2;
 		if (skip < 0) return skip;
 		dest_size -= skip;
@@ -509,7 +509,7 @@ static int gen_short_fname(Channel *c, uint8_t *dest, const char *src, size_t sr
 		memcpy(aux, dest, sizeof(aux));
 		for (k = 8 - len; k && (*b != ' '); k -= res, b += res)
 		{
-			res = v->nls->mblen(b, k);
+			res = v->nls->mblen((char *)b, k);
 			if (res < 0) break;
 		}
 		memcpy(b, strcounter, len);
