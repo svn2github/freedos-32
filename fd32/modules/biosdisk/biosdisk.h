@@ -72,8 +72,8 @@ struct Disk
 /* common.c */
 int biosdisk_std_xfer   (int operation, const Disk *d, DWORD lba, unsigned num_sectors);
 int biosdisk_ext_xfer   (int operation, const Disk *d, DWORD lba, unsigned num_sectors);
-int biosdisk_read       (const Disk *d, DWORD start, DWORD count, void *buffer);
-int biosdisk_write      (const Disk *d, DWORD start, DWORD count, const void *buffer);
+ssize_t biosdisk_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
+ssize_t biosdisk_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags);
 int biosdisk_mediachange(const Disk *d);
 /* detect.c */
 int biosdisk_detect     (int floppy, int hd);
@@ -83,6 +83,6 @@ void biosdisk_timer     (void *p);
 /* reflect.c */
 void biosdisk_reflect   (unsigned intnum, BYTE dummy);
 /* request.c */
-fd32_request_t biosdisk_request;
+int biosdisk_request(int function, ...);
 
 #endif /* #ifndef __FD32_BIOSDISK_H */

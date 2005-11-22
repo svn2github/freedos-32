@@ -58,10 +58,11 @@
 #include "partscan.h"
 #include "ata-ops.h"
 
-extern int ata_request(int function, ...); /* FIXME */
+int ata_request(int function, ...); /* FIXME */
+ssize_t ata_sp_read(void *handle, void *buffer, uint64_t start, size_t count, int flags);
 
 #define PS_DEVICE struct ata_device
-#define PS_READ ata_read
+#define PS_READ ata_sp_read
 #define PS_HEADS heads
 #define PS_SECTS sectors
 #define PS_BLOCK_SIZE bytes_per_sector
@@ -175,15 +176,15 @@ static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, Pa
             && (p->type != PART_EXT_LINUX))
     {
         ksprintf(new_name, "%s%u", name, part);
-        type = FD32_BILOG;
+        type = BLOCK_DEVICE_INFO_TLOGICAL;
         if (part < 5)
         {
             if (p->active)
-                type = FD32_BIACT;
+                type = BLOCK_DEVICE_INFO_TACTIVE;
             else
-                type = FD32_BIPRI;
+                type = BLOCK_DEVICE_INFO_TPRIMARY;
         }
-        type |= (DWORD) p->type << 4;
+        type |= (DWORD) p->type;
 #ifdef SHOWMSG
 
         fd32_message("%s is %s (%02xh), Start: %lu, Size: %lu (%lu MiB)\n",
@@ -240,7 +241,7 @@ int PS_SCANPART(B_CONST PS_DEVICE *d, const char *dev_name)
     }
 
     /* Read the MBR and copy the partition table in the tbl array */
-    res = PS_READ(d, 0, 1, buffer);
+    res = PS_READ((void *)d, buffer, 0, 1, 0/* flags */);
     if (res < 0)
         return res;
     memcpy(tbl, buffer + 446, 64);
@@ -276,7 +277,7 @@ int PS_SCANPART(B_CONST PS_DEVICE *d, const char *dev_name)
 #endif
 
             ext_start = tbl[k].lba_start;
-            res = PS_READ(d, ext_start, 1, buffer);
+            res = PS_READ((void *)d, buffer, ext_start, 1, 0/* flags */);
             if (res < 0)
                 return res;
             break;
@@ -309,7 +310,7 @@ int PS_SCANPART(B_CONST PS_DEVICE *d, const char *dev_name)
             {
                 ext_start1 = tbl[k].lba_start;
                 check_lba(&tbl[k], d);
-                res = PS_READ(d, ext_start + ext_start1, 1, buffer);
+                res = PS_READ((void *)d, buffer, ext_start + ext_start1, 1, 0/* flags */);
                 if (res < 0)
                     return res;
                 break;

@@ -23,51 +23,131 @@
  * BIOSDisk driver request function.
  */
 
+#include <dr-env.h>
 #include <errno.h>
+#include <devices.h>
+#include <block/block.h>
 #include "biosdisk.h"
 
-int biosdisk_request(DWORD function, void *params)
+/* Implementation of BlockOperations::open() */
+static int biosdisk_open(void *handle)
 {
-    Disk *d;
-    switch (function)
-    {
-        case FD32_MEDIACHANGE:
-        {
-            fd32_mediachange_t *x = (fd32_mediachange_t *) params;
-            if (x->Size < sizeof(fd32_mediachange_t)) return -EINVAL;
-            d = (Disk *) x->DeviceId;
-            if (!(d->priv_flags & REMOVABLE)) return -ENOTSUP;
-            if (d->priv_flags & CHANGELINE) return biosdisk_mediachange(d);
-            /* If disk does not support change line, always report a disk change */
-            return 1;
-        }
-        case FD32_BLOCKREAD:
-        {
-            fd32_blockread_t *x = (fd32_blockread_t *) params;
-            if (x->Size < sizeof(fd32_blockread_t)) return -EINVAL;
-            d = (Disk *) x->DeviceId;
-            return biosdisk_read(d, x->Start, x->NumBlocks, x->Buffer);
-        }
-        #ifdef BIOSDISK_WRITE
-        case FD32_BLOCKWRITE:
-        {
-            fd32_blockwrite_t *x = (fd32_blockwrite_t *) params;
-            if (x->Size < sizeof(fd32_blockwrite_t)) return -EINVAL;
-            d = (Disk *) x->DeviceId;
-            return biosdisk_write(d, x->Start, x->NumBlocks, x->Buffer);
-        }
-        #endif
-        case FD32_BLOCKINFO:
-        {
-            fd32_blockinfo_t *x = (fd32_blockinfo_t *) params;
-            if (x->Size < sizeof(fd32_blockinfo_t)) return -EINVAL;
-            d = (Disk *) x->DeviceId;
-            x->BlockSize   = d->block_size;
-            x->TotalBlocks = d->total_blocks;
-            x->Type        = d->type;
-            x->MultiBootId = d->multiboot_id;
-            return 0;
-        }
-    }
-    return -ENOTSUP;
+	Disk *d = (Disk *) handle;
+	if (d->open_count == 1)
+		return -EBUSY;
+	else
+		d->open_count = 1;
+	return 0;
+}
+
+
+/* Implementation of BlockOperations::revalidate() */
+static int biosdisk_revalidate(void *handle)
+{
+	return 0;
+}
+
+
+/* Implementation of BlockOperations::close() */
+static int biosdisk_close(void *handle)
+{
+	Disk *d = (Disk *) handle;
+	d->open_count = 0;
+	return 0;
+}
+
+
+/* Implementation of BlockOperations::get_device_info() */
+static int biosdisk_get_device_info(void *handle, BlockDeviceInfo *buf)
+{
+	Disk *d = (Disk *) handle;
+	buf->flags = d->type;
+#ifdef BIOSDISK_WRITE
+	buf->flags |= BLOCK_DEVICE_INFO_WRITABLE;
+#endif
+	/* The following assumes that a single FDC is installed */
+	buf->multiboot_id = d->multiboot_id;
+	return 0;
+}
+
+
+/* Implementation of BlockOperations::get_medium_info() */
+static int biosdisk_get_medium_info(void *handle, BlockMediumInfo *buf)
+{
+	Disk *d = (Disk *) handle;
+
+	if(d->open_count == 0)
+		return -EBUSY;
+	buf->blocks_count = (uint64_t)d->total_blocks;
+	buf->block_bytes = d->block_size;
+	return 0;
+}
+
+
+/* Implementation of BlockOperations::sync() */
+static int biosdisk_sync(void *handle)
+{
+	return 0; /* No write-back caching at present */
+}
+
+
+/* Implementation of BlockOperations::test_unit_ready() */
+/* TODO: Is it correct? */
+static int biosdisk_test_unit_ready(void *handle)
+{
+	Disk *d = handle;
+	if (!(d->priv_flags & REMOVABLE)) return -ENOTSUP;
+	if (d->priv_flags & CHANGELINE) return biosdisk_mediachange(d);
+	return 0;
+}
+
+static BlockOperations bops =
+{
+	.request	= biosdisk_request,
+	.open		= biosdisk_open,
+	.revalidate	= biosdisk_revalidate,
+	.close		= biosdisk_close,
+	.get_device_info = biosdisk_get_device_info,
+	.get_medium_info = biosdisk_get_medium_info,
+	.read		= biosdisk_read,
+	.write		= biosdisk_write,
+	.sync		= biosdisk_sync,
+	.test_unit_ready = biosdisk_test_unit_ready
+};
+
+static unsigned refcount = 0;
+
+int biosdisk_request(int function, ...)
+{
+	int res = -ENOTSUP;
+	va_list ap;
+	va_start(ap, function);
+	switch (function)
+	{
+		case REQ_GET_OPERATIONS:
+		{
+			int type = va_arg(ap, int);
+			void **operations = va_arg(ap, void **);
+			if (type == BLOCK_OPERATIONS_TYPE)
+				if (operations)
+				{
+					*operations = (void *) &bops;
+					refcount++;
+					res = 0;
+				}
+			break;
+		}
+		case REQ_GET_REFERENCES:
+			res = refcount;
+			break;
+		case REQ_RELEASE:
+			res = -EINVAL;
+			if (refcount) res = --refcount;
+			break;
+		default:
+			res = -ENOTSUP;
+			break;
+	}
+	va_end(ap);
+	return res;
 }

@@ -133,6 +133,11 @@ int ata_bi_stub(void *handle)
     return 0;
 }
 
+ssize_t ata_sp_read(void *handle, void *buffer, uint64_t start, size_t count, int flags)
+{
+	return ata_read(handle, start, count, buffer);
+}
+
 
 /*static*/
 int ata_request(int function, ...)

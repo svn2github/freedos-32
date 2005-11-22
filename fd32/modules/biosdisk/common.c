@@ -122,10 +122,12 @@ static int biosdisk_reset(const Disk *d)
 /* Reads sectors from the disk using the appropriate transfer function.
  * Returns the number of sector transferred on success, <0 on error.
  */
-int biosdisk_read(const Disk *d, DWORD start, DWORD count, void *buffer)
+/* Implementation of BlockOperations::read() */
+ssize_t biosdisk_read(void *handle, void *buffer, uint64_t start, size_t count, int flags)
 {
-	int res;
+	ssize_t res;
 	unsigned k;
+	const Disk *d = handle;
 	if (start + count > d->total_blocks) count = d->total_blocks - start;
 	res = count;
 	while (count)
@@ -150,10 +152,12 @@ int biosdisk_read(const Disk *d, DWORD start, DWORD count, void *buffer)
 /* Writes sectors to the disk using the appropriate transfer function.
  * Returns the number of sector transferred on success, <0 on error.
  */
-int biosdisk_write(const Disk *d, DWORD start, DWORD count, const void *buffer)
+/* Implementation of BlockOperations::write() */
+ssize_t biosdisk_write(void *handle, const void *buffer, uint64_t start, size_t count, int flags)
 {
-	int res;
+	ssize_t res;
 	unsigned k;
+	const Disk *d = handle;
 	if (start + count > d->total_blocks) count = d->total_blocks - start;
 	res = count;
 	while (count)

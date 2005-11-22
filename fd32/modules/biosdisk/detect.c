@@ -23,7 +23,9 @@
  * Detection and initialization of disk devices.
  */
 
+#include <dr-env.h>
 #include <errno.h>
+#include <block/block.h>
 #include "biosdisk.h"
 
 //#define __DEBUG__
@@ -300,7 +302,7 @@ static int biosdisk_detect_fd(void)
         d->bios_s       = d->phys_s = std.sectors;
         d->block_size   = 512;
         d->total_blocks = std.cylinders * std.heads * std.sectors;
-        d->type         = FD32_BIFLO;
+        d->type         = BLOCK_DEVICE_INFO_TFLOPPY | BLOCK_DEVICE_INFO_REMOVABLE;
         d->multiboot_id = 0x00FFFFFF | (disk << 24);
         d->xfer         = biosdisk_std_xfer;
         d->tb_selector  = fd32_dosmem_get(d->block_size, &d->tb_segment, &d->tb_offset);
@@ -332,7 +334,8 @@ static int biosdisk_detect_fd(void)
             return -ENOMEM;
         }
         strcpy(dev_name, name);
-        res = fd32_dev_register(biosdisk_request, (void *) d, dev_name);
+		res = block_register(dev_name, biosdisk_request, (void *) d);
+        /* res = fd32_dev_register(biosdisk_request, (void *) d, dev_name); */
         if (res < 0)
         {
             LOG_PRINTF(("[BIOSDISK] Unable to register the fd%d device to the FD32 kernel\n", disk));
@@ -381,7 +384,7 @@ static int biosdisk_detect_hd(void)
         d->bios_c       = std.cylinders;
         d->bios_h       = std.heads;
         d->bios_s       = std.sectors;
-        d->type         = FD32_BIGEN;
+        d->type         = BLOCK_DEVICE_INFO_TGENERIC;
         d->multiboot_id = 0x00FFFFFF | (disk << 24);
         d->xfer         = biosdisk_std_xfer;
         /* FIXME: Check for fd32_dosmem_get failure */
@@ -432,7 +435,8 @@ static int biosdisk_detect_hd(void)
             return -ENOMEM;
         }
         strcpy(dev_name, name);
-        res = fd32_dev_register(biosdisk_request, (void *) d, dev_name);
+        /* res = fd32_dev_register(biosdisk_request, (void *) d, dev_name); */
+		res = block_register(dev_name, biosdisk_request, (void *) d);
         if (res < 0)
         {
             LOG_PRINTF(("[BIOSDISK] Unable to register the %s device to the FD32 kernel\n", name));

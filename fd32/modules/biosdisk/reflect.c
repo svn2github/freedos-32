@@ -10,8 +10,6 @@
 #include <ll/i386/pic.h>
 #include "biosdisk.h"
 
-
-
 void biosdisk_reflect(unsigned intnum, BYTE dummy)
 {
   WORD ctx;
@@ -27,7 +25,7 @@ void biosdisk_reflect(unsigned intnum, BYTE dummy)
   if (intnum == 0x1c) {
     return;
   }
-  vm86_tss = (struct tss *)vm86_get_tss();
+  vm86_tss = (struct tss *)vm86_get_tss(X_VM86_CALLBIOS_TSS);
   bos = (DWORD *)vm86_tss->esp0;
 
 #ifdef __REFLECT_DEBUG__
@@ -40,7 +38,7 @@ void biosdisk_reflect(unsigned intnum, BYTE dummy)
 #endif
   ctx = ll_context_save();
 
-  if (ctx == X_VM86_TSS) {
+  if (ctx == X_VM86_CALLBIOS_TSS) {
 #ifdef __REFLECT_DEBUG__
     fd32_log_printf("[BIOSDISK] To be reflected in VM86 mode...\n");
 #endif
