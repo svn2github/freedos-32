@@ -3,6 +3,7 @@
 
 void int31_0501(union regs *r);
 void int31_0502(union regs *r);
+void int31_0503(union regs *r);
 void int31_0507(union regs *r);
 
 #endif /* __IN31_05__ */

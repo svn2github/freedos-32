@@ -44,7 +44,7 @@ static void chandler1(DWORD eax, DWORD ebx, DWORD ecx, DWORD edx, DWORD intnum)
 
 static void return_to_dos(union regs *r)
 {
-  struct tss * p_vm86_tss = vm86_get_tss();
+  struct tss * p_vm86_tss = vm86_get_tss(X_VM86_TSS);
   WORD bl = p_vm86_tss->back_link;
 
 #ifdef __DPMI_DEBUG__
@@ -63,7 +63,7 @@ static void return_to_dos(union regs *r)
   }
 }
 
-static void redirect_to_dos(DWORD intnum, volatile union regs *r)
+static void redirect_to_rmint(DWORD intnum, volatile union regs *r)
 {
   union rmregs r1;
 
@@ -93,6 +93,202 @@ static void redirect_to_dos(DWORD intnum, volatile union regs *r)
   r->x.flags = r1.x.flags;
 }
 
+#ifdef ENABLE_BIOSVGA
+static void redirect_to_bios(DWORD intnum, volatile union regs *r)
+{
+  DWORD f;
+  X_REGS16 regs_r;
+  X_SREGS16 selectors_r;
+  f = ll_fsave();
+  regs_r.x.ax = r->x.ax;
+  regs_r.x.bx = r->x.bx;
+  regs_r.x.cx = r->x.cx;
+  regs_r.x.dx = r->x.dx;
+  regs_r.x.si = r->x.si;
+  regs_r.x.di = r->x.di;
+  regs_r.x.cflag = r->x.flags;
+  selectors_r.es = r->x.es;
+  selectors_r.cs = r->x.cs;
+  selectors_r.ss = r->x.ss;
+  selectors_r.ds = r->x.ds;
+  vm86_callBIOS(intnum, &regs_r, &regs_r, &selectors_r);
+  r->x.ax = regs_r.x.ax;
+  r->x.bx = regs_r.x.bx;
+  r->x.cx = regs_r.x.cx;
+  r->x.dx = regs_r.x.dx;
+  r->x.si = regs_r.x.si;
+  r->x.di = regs_r.x.di;
+  r->x.flags = regs_r.x.cflag;
+  r->x.es = selectors_r.es;
+  r->x.ds = selectors_r.ds;
+  ll_frestore(f);
+}
+#endif
+
+/* Int 31h handler may better be put somewhere else */
+static void int31_handler(union regs *r)
+{
+  switch (r->x.ax) {
+    /* DPMI 0.9 service 0000h - Allocate LDT Descriptors */
+    case 0x0000 :
+      int31_0000(r);
+      break;
+  
+    /* DPMI 0.9 service 0001h - Free LDT Descriptor */
+    case 0x0001:
+      int31_0001(r);
+      break;
+  
+    /* DPMI 0.9 service 0002h - Segment to Descriptor */
+    case 0x0002:
+      int31_0002(r);
+      break;
+  
+    /* DPMI 0.9 service 0003h - Get Selector Increment Value */
+    case 0x0003:
+      int31_0003(r);
+      break;
+  
+    /* DPMI 0.9 services 0004h and 0005h are reserved for historical
+     * reasons and should not be called
+     */
+  
+    /* DPMI 0.9 service 0006h - Get Segment Base Address */
+    case 0x0006:
+      int31_0006(r);
+      break;
+  
+    /* DPMI 0.9 service 0007h - Set Segment Base Address */
+    case 0x0007:
+      int31_0007(r);
+      break;
+  
+    /* DPMI 0.9 service 0008h - Set Segment Limit */
+    case 0x0008:
+      int31_0008(r);
+      break;
+  
+    /* DPMI 0.9 service 0009h - Set Descriptor Access Rights */
+    case 0x0009:
+      int31_0009(r);
+      break;
+  
+    /* DPMI 0.9 service 000Ah - Create Alias Descriptor */
+    case 0x000A:
+      int31_000A(r);
+      break;
+  
+    /* DPMI 0.9 service 000Bh - Get Descriptor */
+    case 0x000B:
+      int31_000B(r);
+      break;
+  
+    /* DPMI 0.9 service 000Ch - Set Descriptor */
+    case 0x000C:
+      int31_000C(r);
+      break;
+  
+    case 0x0100:
+      int31_0100(r);
+      break;
+  
+    case 0x0101:
+      int31_0101(r);
+      break;
+  
+    case 0x0200:
+      int31_0200(r);
+      break;
+  
+    case 0x0201:
+      int31_0201(r);
+      break;
+  
+    case 0x0202:
+      int31_0202(r);
+      break;
+  
+    case 0x0203:
+      int31_0203(r);
+      break;
+  
+    case 0x0204:
+      int31_0204(r);
+      break;
+  
+    case 0x0205:
+      int31_0205(r);
+      break;
+  
+    case 0x0300:
+      int31_0300(r);
+      break;
+  
+    case 0x0303:
+      int31_0303(r);
+      break;
+  
+    case 0x0304:
+      int31_0303(r);
+      break;
+  
+    case 0x0400:
+      int31_0400(r);
+      break;
+  
+    case 0x0401:
+      int31_0401(r);
+      break;
+  
+    case 0x0501:
+      int31_0501(r);
+      break;
+  
+    case 0x0502:
+      int31_0502(r);
+      break;
+  
+    case 0x0503:
+      int31_0503(r);
+      break;
+  
+    case 0x0507:
+      int31_0507(r);
+      break;
+  
+    case 0x0600:
+      int31_0600(r);
+      break;
+  
+    case 0x0900:
+      int31_0900(r);
+      break;
+  
+    case 0x0901:
+      int31_0901(r);
+      break;
+  
+    case 0x0E01:
+      int31_0E01(r);
+      break;
+  
+    default: 
+      r->d.flags |= 0x01;
+      error("INT 31 Service not implemented\n");
+      message("Service number: 0x%x\n", r->x.ax);
+      fd32_log_printf("INT 31, Service 0x%x not implemented\n", r->x.ax);
+      fd32_log_printf("eax = 0x%lx\t", r->d.eax);
+      fd32_log_printf("ebx = 0x%lx\t", r->d.ebx);
+      fd32_log_printf("ecx = 0x%lx\t", r->d.ecx);
+      fd32_log_printf("edx = 0x%lx\n", r->d.edx);
+      fd32_log_printf("esi = 0x%lx\t", r->d.esi);
+      fd32_log_printf("edi = 0x%lx\t", r->d.edi);
+      fd32_log_printf("ees = 0x%lx\n", r->d.ees);
+      fd32_abort();
+      break;
+  }
+}
+
 void dpmi_chandler(DWORD intnum, union regs r)
 {
   /* DWORD eax, ebx, ecx, edx, esi, edi, ees; */
@@ -119,184 +315,39 @@ void dpmi_chandler(DWORD intnum, union regs r)
     fd32_abort();
   }
 
+  /* Clear carry flag first */
+  r.d.flags &= 0xFFFFFFFE;
+
   switch (intnum) {
-    /* FIX ME: Int 31h handler may be better to stay outside this routine
-     *
-     * NOTE: The actual DOS Protected Mode Interface, based on interrupts,
-     *       is performed by this handler, that simply translates the
-     *       DPMI calls into FD32 function calls.
-     */
-    case 0x31 : switch (r.d.eax & 0xFFFF) {
-      /* DPMI 0.9 service 0000h - Allocate LDT Descriptors */
-      case 0x0000 :
-        int31_0000(&r);
-        break;
-
-      /* DPMI 0.9 service 0001h - Free LDT Descriptor */
-      case 0x0001:
-        int31_0001(&r);
-        break;
-
-      /* DPMI 0.9 service 0002h - Segment to Descriptor */
-      case 0x0002:
-        int31_0002(&r);
-        break;
-
-      /* DPMI 0.9 service 0003h - Get Selector Increment Value */
-      case 0x0003:
-        int31_0003(&r);
-        break;
-
-      /* DPMI 0.9 services 0004h and 0005h are reserved for historical
-       * reasons and should not be called
-       */
-
-      /* DPMI 0.9 service 0006h - Get Segment Base Address */
-      case 0x0006:
-        int31_0006(&r);
-        break;
-
-      /* DPMI 0.9 service 0007h - Set Segment Base Address */
-      case 0x0007:
-        int31_0007(&r);
-        break;
-
-      /* DPMI 0.9 service 0008h - Set Segment Limit */
-      case 0x0008:
-        int31_0008(&r);
-        break;
-
-      /* DPMI 0.9 service 0009h - Set Descriptor Access Rights */
-      case 0x0009:
-        int31_0009(&r);
-        break;
-
-      /* DPMI 0.9 service 000Ah - Create Alias Descriptor */
-      case 0x000A:
-        int31_000A(&r);
-        break;
-
-      /* DPMI 0.9 service 000Bh - Get Descriptor */
-      case 0x000B:
-        int31_000B(&r);
-        break;
-
-      /* DPMI 0.9 service 000Ch - Set Descriptor */
-      case 0x000C:
-        int31_000C(&r);
-        break;
-
-      case 0x0100:
-        int31_0100(&r);
-        break;
-
-      case 0x0101:
-        int31_0101(&r);
-        break;
-
-      case 0x0200:
-        int31_0200(&r);
-        break;
-
-      case 0x0201:
-        int31_0201(&r);
-        break;
-
-      case 0x0202:
-        int31_0202(&r);
-        break;
-
-      case 0x0203:
-        int31_0203(&r);
-        break;
-
-      case 0x0204:
-        int31_0204(&r);
-        break;
-
-      case 0x0205:
-        int31_0205(&r);
-        break;
-
-      case 0x0300:
-        int31_0300(&r);
-        break;
-
-      case 0x0303:
-        int31_0303(&r);
-        break;
-
-      case 0x0304:
-        int31_0303(&r);
-        break;
-
-      case 0x0400:
-        int31_0400(&r);
-        break;
-
-      case 0x0401:
-        int31_0401(&r);
-        break;
-
-      case 0x0501:
-        int31_0501(&r);
-        break;
-
-      case 0x0502:
-        int31_0502(&r);
-        break;
-
-      case 0x0507:
-        int31_0507(&r);
-        break;
-
-      case 0x0600:
-        int31_0600(&r);
-        break;
-
-      case 0x0900:
-        int31_0900(&r);
-        break;
-
-      case 0x0901:
-        int31_0901(&r);
-        break;
-
-      case 0x0E01:
-        int31_0E01(&r);
-        break;
-
-      default: 
-        r.d.flags |= 0x01;
-        error("INT 31 Service not implemented\n");
-        message("Service number: 0x%lx\n", r.d.eax & 0xFFFF);
-        fd32_log_printf("INT 31, Service 0x%lx not implemented\n",
-			r.d.eax & 0xFFFF);
-        fd32_log_printf("eax = 0x%lx\t", r.d.eax);
-        fd32_log_printf("ebx = 0x%lx\t", r.d.ebx);
-        fd32_log_printf("ecx = 0x%lx\t", r.d.ecx);
-        fd32_log_printf("edx = 0x%lx\n", r.d.edx);
-        fd32_log_printf("esi = 0x%lx\t", r.d.esi);
-        fd32_log_printf("edi = 0x%lx\t", r.d.edi);
-        fd32_log_printf("ees = 0x%lx\n", r.d.ees);
-        if ((r.d.eax & 0xFFFF) != 0x507) {
-          fd32_abort();
-        }
-        break;
-      }
+    case 0x10:
+#ifdef ENABLE_BIOSVGA
+      redirect_to_bios(0x10, &r);
+#else
+      redirect_to_rmint(0x10, &r);
+#endif
       break;
     case 0x21:
-      if ((r.d.eax & 0xFF00) == 0x4C00) {
+      if ((r.x.ax & 0xFF00) == 0x4C00) {
         return_to_dos(&r);
         /* Should not arrive here... */
       } else {
         /* Redirect to call RM interrupts' handler */
-        redirect_to_dos(0x21, &r);
+        redirect_to_rmint(0x21, &r);
       }
       break;
     /* Multiplex for PM execution */
     case 0x2F:
       int2f_handler(&r);
+      break;
+    /* NOTE: The actual DOS Protected Mode Interface, based on interrupts,
+     *       is performed by this handler, that simply translates the
+     *       DPMI calls into FD32 function calls.
+     */
+    case 0x31 : 
+      int31_handler(&r);
+      break;
+    case 0x33:
+      redirect_to_rmint(0x33, &r);
       break;
     default:
       chandler1(r.d.eax, r.d.ebx, r.d.ecx, r.d.edx, intnum);

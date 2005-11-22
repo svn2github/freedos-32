@@ -54,7 +54,6 @@ int fd32_create_process(process_info_t *ppi, process_params_t *pparams);
 int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args);
 DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *exec_space, DWORD *image_base, DWORD *size);
 
-void create_dll(DWORD entry, DWORD base, DWORD size);
 void restore_sp(int res) __attribute__ ((noreturn)); /* Turn back the previous running state, after running a program */
 
 #endif

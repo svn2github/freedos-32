@@ -274,6 +274,18 @@ void vga_set_single_palette_reg(BYTE reg, BYTE value)
   }
 }
 
+void vga_set_all_dac_reg(WORD start, WORD count, BYTE *table)
+{
+  WORD i;
+  outp(VGAREG_DAC_WRITE_ADDRESS, start);
+  for(i=0; i<count; i++)
+  {
+    outp(VGAREG_DAC_DATA, *table++);
+    outp(VGAREG_DAC_DATA, *table++);
+    outp(VGAREG_DAC_DATA, *table++);
+  }
+}
+
 BYTE vga_get_video_mode(BYTE *colsnum, BYTE *activepage)
 {
   colsnum[0] = biosmem_p[BIOSMEM_NB_COLS];
@@ -317,7 +329,7 @@ static void vga_perform_gray_scale_summing (WORD start, WORD count)
 
 BYTE vga_set_video_mode(BYTE modenum)
 {/* modenum: Bit 7 is 1 if no clear screen */
-  DWORD i, ret = 0x20;
+  WORD i, ret = 0x20;
   WORD crtc_addr;
   BYTE line, *palette;
   BYTE modeset_ctl, video_ctl, vga_switches;

@@ -122,6 +122,9 @@ int videobios_int(union rmregs *r)
         case 0x09: /* VIDEO - READ ALL PALETTE REGISTERS AND OVERSCAN REGISTER (VGA) */
           vga_get_all_palette_reg((BYTE *)(r->x.es<<4)+r->x.dx);
           break;
+        case 0x12: /* VIDEO - SET BLOCK OF DAC REGISTERS (VGA/MCGA) */
+          vga_set_all_dac_reg(r->x.bx, r->x.cx, (BYTE *)(r->x.es<<4)+r->x.dx);
+          break;
         case 0x15: /* VIDEO - READ INDIVIDUAL DAC REGISTER (VGA/MCGA) */
           outp(VGAREG_DAC_READ_ADDRESS, r->h.bl);
           r->h.dh = inp(VGAREG_DAC_DATA); /* RED   */
@@ -134,8 +137,14 @@ int videobios_int(union rmregs *r)
       }
       break;
 
+    /* VIDEO - TEXT-MODE CHARGEN */
+    case 0x11:
+      fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);
+      break;
+
     /* VIDEO - ALTERNATE FUNCTIONS */
     case 0x12:
+      fd32_log_printf("VIDEO - Alternate Functions (AX=%x BX=%x)\n", r->x.ax, r->x.bx);
       switch (r->h.bl)
       {
         case 0x10: /* GET EGA INFO */

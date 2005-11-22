@@ -118,45 +118,34 @@ struct stubinfo {
   DWORD dosbuf_handler;
 };
 
+typedef struct stubinfo_ret {
+  WORD stubinfo_sel;
+  WORD env_sel;
+} stubinfo_ret_t;
+
 /* NOTE: FD32 module can't export ?_init name so make it internal with prefix `_' */
-WORD _stubinfo_init(process_info_t *ppi, DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel)
+stubinfo_ret_t _stubinfo_init(struct stubinfo *info, struct psp *newpsp, DWORD env_size, DWORD initial_size, DWORD mem_handle, WORD cs_sel, WORD ds_sel)
 {
-  struct stubinfo *info;
-  struct psp *newpsp;
-  BYTE *allocated;
-  DWORD size, env_size;
+  stubinfo_ret_t ret = {0, 0};
   int stubinfo_selector, psp_selector, env_selector;
 
-  /*Environment lenght + 2 zeros + 1 word + program name... */
-  env_size = 2 + 2 + strlen(filename) + 1;
-  size = sizeof(struct stubinfo) + sizeof(struct psp);
-  /* Always allocate a fixed amount of memory... */
-  allocated = (BYTE *)mem_get(size);
-  if (allocated == NULL) {
-    return NULL;
-  }
-
-  info = (struct stubinfo *)allocated;
   stubinfo_selector = fd32_allocate_descriptors(1);
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DOSEXEC] StubInfo Selector Allocated: = 0x%x\n", stubinfo_selector);
 #endif
   if (stubinfo_selector == ERROR_DESCRIPTOR_UNAVAILABLE) {
-    mem_free((DWORD)allocated, size);
-    return NULL;
+    return ret;
   }
   fd32_set_segment_base_address(stubinfo_selector, (DWORD)info);
   fd32_set_segment_limit(stubinfo_selector, sizeof(struct stubinfo));
 
-  newpsp = (struct psp *)(allocated + sizeof(struct stubinfo));
   psp_selector = fd32_allocate_descriptors(1);
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DOSEXEC] PSP Selector Allocated: = 0x%x\n", psp_selector);
 #endif
   if (psp_selector == ERROR_DESCRIPTOR_UNAVAILABLE) {
-    mem_free((DWORD)allocated, size);
     fd32_free_descriptor(stubinfo_selector);
-    return NULL;
+    return ret;
   }
   fd32_set_segment_base_address(psp_selector, (DWORD)newpsp);
   fd32_set_segment_limit(psp_selector, sizeof(struct psp));
@@ -167,10 +156,9 @@ WORD _stubinfo_init(process_info_t *ppi, DWORD base, DWORD initial_size, DWORD m
   fd32_log_printf("[DOSEXEC] Environment Selector Allocated: = 0x%x\n", env_selector);
 #endif
   if (env_selector == ERROR_DESCRIPTOR_UNAVAILABLE) {
-    mem_free((DWORD)allocated , size);
     fd32_free_descriptor(stubinfo_selector);
     fd32_free_descriptor(psp_selector);
-    return NULL;
+    return ret;
   }
   fd32_set_segment_base_address(env_selector, g_env_segment<<4);
   fd32_set_segment_limit(env_selector, ENV_SIZE);
@@ -193,16 +181,15 @@ WORD _stubinfo_init(process_info_t *ppi, DWORD base, DWORD initial_size, DWORD m
   info->argv0[0] = 0;
   memcpy(info->dpmi_server, "FD32.BIN", sizeof("FD32.BIN"));
 
-  local_set_psp(ppi, newpsp, 0xFFFF/* fake, above 1M */, 0, env_selector, stubinfo_selector, g_fcb1, g_fcb2, filename, args);
-  
-  return stubinfo_selector;
+  ret.env_sel = env_selector;
+  ret.stubinfo_sel = stubinfo_selector;
+  return ret;
 }
 
 void restore_psp(void)
 {
   WORD stubinfo_sel;
   DWORD base, base1;
-  int res;
   struct stubinfo *info;
   process_info_t *cur_P = fd32_get_current_pi();
   struct psp *curpsp = cur_P->psp;
@@ -227,14 +214,12 @@ void restore_psp(void)
 
   fd32_free_jft(cur_P->jft, cur_P->jft_size);
 
-  res = dosmem_free(info->dosbuf_handler, 0x1010);
-  if (res != 1) {
+  if (dosmem_free(info->dosbuf_handler, 0x1010) != 1) {
     error("Restore PSP panic while freeing DOS memory...\n");
     fd32_abort();
   }
-  
-  res = mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp) + ENV_SIZE);
-  if (res != 1) {
+
+  if (mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp)) != 1) {
     error("Restore PSP panic while freeing memory...\n");
     fd32_abort();
   }
@@ -302,32 +287,54 @@ static DWORD wrapper_alloc(DWORD size)
   return tmp;
 }
 
+static int _local_common_init(process_info_t *ppi, DWORD init_size, char *filename, char *args, WORD cs_sel, WORD ds_sel)
+{
+  DWORD mem;
+  DWORD mem_size, env_size;
+  struct stubinfo *info;
+  struct psp *newpsp;
+  stubinfo_ret_t init_ret;
+
+  mem_size = sizeof(struct stubinfo) + sizeof(struct psp);
+  /* Always allocate a fixed amount of memory... */
+  if ((mem = mem_get(mem_size)) == NULL)
+    return -1;
+  info = (struct stubinfo *)mem;
+  newpsp = (struct psp *)(mem + sizeof(struct stubinfo));
+  /*Environment lenght + 2 zeros + 1 word + program name... */
+  env_size = 2 + 2 + strlen(filename) + 1;
+
+  init_ret = _stubinfo_init(info, newpsp, env_size, init_size, 0, cs_sel, ds_sel);
+  if (init_ret.stubinfo_sel == 0) {
+    mem_free(mem, mem_size);
+    error("No stubinfo!!!\n");
+    return -1;
+  }
+
+  local_set_psp(ppi, newpsp, 0xFFFF/* fake, above 1M */, 0, init_ret.env_sel, init_ret.stubinfo_sel, g_fcb1, g_fcb2, filename, args);
+  return init_ret.stubinfo_sel;
+}
+
 /* FIXME: Simplify ---> user_stack is probably not needed! */
 static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, DWORD size,
 		DWORD user_stack, char *filename, char *args)
 {
-  WORD stubinfo_sel;
   int res;
   int wrap_run(DWORD, WORD, DWORD, WORD, WORD, DWORD);
 
-#ifdef __WRAP_DEBUG__
+#ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Going to run 0x%lx, size 0x%lx\n",
 		entry, size);
 #endif
-  /* HACKME!!! size + stack_size... */
-  /* FIXME!!! WTH is user_stack (== base + size) needed??? */
-  stubinfo_sel = _stubinfo_init(ppi, base, size, 0, filename, args, user_cs, user_ds);
-  if (stubinfo_sel == 0) {
-    error("Error! No stubinfo!!!\n");
+  if ((res = _local_common_init(ppi, size, filename, args, user_cs, user_ds)) == -1)
     return -1;
-  }
-#ifdef __WRAP_DEBUG__
+#ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Calling run 0x%lx 0x%lx (0x%x 0x%x) --- 0x%lx\n",
 		entry, size, user_cs, user_ds, user_stack);
 #endif
 
-  res = wrap_run(entry, stubinfo_sel, 0, user_cs, user_ds, user_stack);
-#ifdef __WRAP_DEBUG__
+  res = wrap_run(entry, res, 0, user_cs, user_ds, user_stack);
+#ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Returned 0x%x: now restoring PSP\n", res);
 #endif
 
@@ -384,7 +391,6 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
   int tsr = TRUE;
   DWORD exec_space;
   DWORD offset;
-  WORD stubinfo_sel;
 
   params.normal.entry = fd32_load_process(kf, f, rf, &exec_space, &params.normal.base, &params.normal.size);
   if (params.normal.entry == -1) {
@@ -404,16 +410,13 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", params.normal.entry);
 #endif
-    stubinfo_sel = _stubinfo_init(&pi, exec_space, params.normal.size, 0 /* TODO: the DPMI memory handle to the image memory */, filename, args, get_cs(), get_ds());
-    if (stubinfo_sel == 0) {
-      error("No stubinfo!!!\n");
+    if ((retval = _local_common_init(&pi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
       return -1;
-    }
     offset = exec_space - params.normal.base;
-	params.normal.entry += offset;
-	params.normal.base = exec_space;
-	params.normal.fs_sel = stubinfo_sel;
-    tsr = FALSE;	
+    params.normal.entry += offset;
+    params.normal.base = exec_space;
+    params.normal.fs_sel = retval;
+    tsr = FALSE;
   }
 
   dpmi_stack = 0; /* Disable the stack switch in chandler */
@@ -451,7 +454,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   kf->file_read(f, &hdr, sizeof(struct dos_header));
 
   exec_size = (hdr.e_cp*0x20+hdr.e_minalloc+0x400)*0x10;
-
   mem = dosmem_get(sizeof(struct psp)+exec_size);
   /* NOTE: Align exec text at 0x10 boundary */
   if ((mem&0x0F) != 0) {
@@ -545,7 +547,9 @@ static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 
 /* MZ format handling for direct execution */
 static int (*p_isMZ)(struct kern_funcs *kf, int f, struct read_funcs *rf) = NULL;
-void (*dos_exec_mode16)(void) = NULL;
+extern void _fd32_vm86_to_pmode();
+extern void _fd32_vm86_to_pmode_end();
+void (*fd32_vm86_to_pmode)(void) = NULL;
 
 int dos_exec_switch(int option)
 {
@@ -555,16 +559,20 @@ int dos_exec_switch(int option)
     g_env_segtmp = dosmem_get(ENV_SIZE);
     g_env_segment = g_env_segtmp>>4;
   }
+
   switch(option)
   {
     case DOS_VM86_EXEC:
-      /* dos_exec_mode16 */
-      if (dos_exec_mode16 == NULL) {
-        BYTE *p = (BYTE *)dosmem_get(0x10);
-        /* ".code16" "mov $0xfd32, %ax;" "int $0x2f;" "retf;" */
-        p[0] = 0xB8, p[1] = 0x32, p[2] = 0xFD;
-        p[3] = 0xCD, p[4] = 0x2F, p[5] = 0xCB;
-        dos_exec_mode16 = (void (*)(void))p;
+      /* Install the fd32_vm86_to_pmode */
+      if (fd32_vm86_to_pmode == NULL) {
+      	const DWORD psize = (DWORD)_fd32_vm86_to_pmode_end - (DWORD)_fd32_vm86_to_pmode;
+        BYTE *p = (BYTE *)dosmem_get((psize+0x10)&0xFFFFFFF0);
+        /* ".code16" "mov $0xfd32, %ax;" "int $0x2f;" "lret;" */
+        memcpy(p, _fd32_vm86_to_pmode, psize);
+        /* p[0] = 0xB8, p[1] = 0x32, p[2] = 0xFD;
+           p[3] = 0xCD, p[4] = 0x2F, p[5] = 0xCB; */
+        fd32_vm86_to_pmode = (void (*)(void))p;
+        
       }
       /* Store the previous check */
       if (p_isMZ == NULL) {

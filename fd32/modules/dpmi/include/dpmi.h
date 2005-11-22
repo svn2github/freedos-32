@@ -90,7 +90,10 @@ extern DWORD dpmi_stack_top;
 
 static inline void dpmi_return(int res, union regs *r)
 {
-  r->x.ax = res;
+  if (res != 0)
+    /* Set the ax only if needed */
+    r->x.ax = res;
+
   if (res < 0) {
     SET_CARRY;
   } else {

@@ -93,6 +93,27 @@ void int31_0502(union regs *r)
   return;
 }
 
+void int31_0503(union regs *r)
+{
+  DWORD blocksize;
+  DWORD handle;
+  DWORD base;
+
+  handle = (r->d.esi << 16) | r->x.di;
+  if (dpmi_free(handle) != 1)
+    fd32_abort();
+
+  blocksize = (r->d.ebx << 16) | r->x.cx;
+  handle = dpmi_alloc(blocksize, &base);
+
+  CLEAR_CARRY;
+  r->x.ax = 0;
+  r->x.bx = base >> 16;
+  r->x.cx = base;
+  r->x.si = handle >> 16;
+  r->x.di = handle;
+}
+
 void int31_0507(union regs *r)
 {
 #ifdef __DEBUG__

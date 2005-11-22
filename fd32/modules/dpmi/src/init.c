@@ -32,6 +32,39 @@ static struct option dpmi_options[] =
   {0, 0, 0, 0}
 };
 
+#ifdef ENABLE_BIOSVGA
+#include <ll/i386/x-bios.h>
+static void reflect(DWORD intnum, struct registers r)
+{
+    struct tss *vm86_tss;
+    DWORD *bos;
+    DWORD isr_cs, isr_eip;
+    WORD *old_esp;
+    DWORD *IRQTable_entry;
+    CONTEXT c = get_tr();
+
+
+	fd32_log_printf("[DPMI] Emulate interrupt %lx ...\n", intnum);
+
+    vm86_tss = vm86_get_tss(X_VM86_CALLBIOS_TSS);
+    bos = (DWORD *)vm86_tss->esp0;
+    if (c == X_VM86_CALLBIOS_TSS) {
+		old_esp = (WORD *)(*(bos - 6) + (*(bos - 5) << 4));
+		r.flags = CPU_FLAG_VM | CPU_FLAG_IOPL;
+		*(old_esp - 2) = (WORD)(*(bos - 8));
+		*(old_esp - 3) = (WORD)(*(bos - 9));
+		*(bos - 6) -= 6;
+		/* We are emulating INT 0x6d */
+		IRQTable_entry = (void *)(0L);
+		isr_cs= ((IRQTable_entry[0x6d]) & 0xFFFF0000) >> 16;
+		isr_eip = ((IRQTable_entry[0x6d]) & 0x0000FFFF);
+	
+		*(bos - 8) = isr_cs;
+		*(bos - 9) = isr_eip;
+    }
+}
+#endif
+
 /*void DPMI_init(DWORD cs, char *cmdline) */
 void DPMI_init(process_info_t *pi)
 {
@@ -71,8 +104,13 @@ void DPMI_init(process_info_t *pi)
     }
   }
   fd32_unget_argv(argc, argv);
+#ifdef ENABLE_BIOSVGA
+  l1_int_bind(0x6d, reflect);
+#endif
+  l1_int_bind(0x10, chandler);
   l1_int_bind(0x21, chandler);
   l1_int_bind(0x2F, chandler);
   l1_int_bind(0x31, chandler);
+  l1_int_bind(0x33, chandler);
   message("DPMI installed.\n");
 }

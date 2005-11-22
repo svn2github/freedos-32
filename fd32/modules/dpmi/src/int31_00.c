@@ -76,21 +76,19 @@ void int31_0001(union regs *r)
 {
   int ErrorCode;
 
-#if 0
-  /*fd32_log_printf("CS, DS: 0x%x 0x%x\n", r->x.cs, r->x.ds);*/
-  /* FIXME: WTF is DJGPP Trying to do such a funny thing??? */
-  /* If trying to free the kernel CS or DS, do nothing!!! */
-  if (((WORD)(r->d.ebx) == kern_CS) || ((WORD)(r->d.ebx) == kern_DS)) {
-    CLEAR_CARRY;
-    return;
-  }
-#endif
   /* If trying to free the application's CS or DS, do nothing!!! */
-  /* FIXME: Maybe this check makes the previous one useless... */
+  /* FIXME: WTF is DJGPP Trying to do such a funny thing??? */
+  /* FIXME: Maybe this check makes the check of kern_CS/kern_DS useless... */
   if (((WORD)(r->d.ebx) == r->x.cs) || ((WORD)(r->d.ebx) == r->x.ds)) {
     CLEAR_CARRY;
     return;
   }
+  /* Under DPMI 1.0 hosts, any segment registers which contain
+   * the selector being freed are zeroed by this function. (from DPMI api spec.)
+   */
+  if (r->x.es == r->x.bx) r->d.ees = 0;
+  if (r->x.fs == r->x.bx) r->d.efs = 0;
+  if (r->x.gs == r->x.bx) r->d.egs = 0;
   ErrorCode = fd32_free_descriptor((WORD) r->d.ebx);
 
   dpmi_return(ErrorCode, r);

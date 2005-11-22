@@ -48,7 +48,7 @@
 #endif
 
 /* Define the __DEBUG__ symbol in order to activate log output */
-/* #define __DEBUG__ */
+#define __DEBUG__
 #ifdef __DEBUG__
  #define LOG_PRINTF(s) fd32_log_printf s
 #else
@@ -719,11 +719,11 @@ void int21_handler(union rmregs *r)
 			   This procedure is very alike when doing on the Win32 platform
 			 */
 			/* This call doesn't check for Ctrl-C or Ctrl-Break.  */
-			fd32_get_attributes(0, &tmp);
+			fd32_get_attributes(0, (void *)&tmp);
 			res = 0; /* NOTE: res used to set the attributes (echo = 0) only once */
-			fd32_set_attributes(0, &res);
+			fd32_set_attributes(0, (void *)&res);
 			res = fd32_read(0, &(r->h.al), 1);
-			fd32_set_attributes(0, &tmp);
+			fd32_set_attributes(0, (void *)&tmp);
 			/* Return the character in AL */
 			/* TODO:
 			   1. Get rid of the warning: passing arg 2 of `fd32_get_attributes'
@@ -731,6 +731,17 @@ void int21_handler(union rmregs *r)
 			   2. from RBIL: if the interim console flag is set (see AX=6301h),
 			   partially-formed double-byte characters may be returned
 			*/
+			break;
+		}
+		case 0x09:
+		{
+			char *str = (char *)FAR2ADDR(r->x.ds, r->x.dx);
+			while (*str != '$') {
+				cputc(*str);
+				str++;
+			}
+			r->h.al = '$';
+			res = 0;
 			break;
 		}
 		/* DOS 1+ - Set default drive (DL=drive, 0=A, etc.) */
@@ -1178,6 +1189,13 @@ void int21_handler(union rmregs *r)
 			}
 			break;
 		}
+		case 0xFF:
+			fd32_log_printf("DOS/4GW - API ... AX: %x\n", r->x.ax);
+			if (r->h.al == 0x88) {
+				r->d.eax = 0x49443332; /* ID32 */
+				r->d.ebx = 0xFD32;
+			}
+			break;
 		/* Unsupported or invalid functions */
 		default:
 			res = -ENOTSUP;
