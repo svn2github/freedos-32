@@ -50,7 +50,8 @@ static DWORD vm86_stack_size;
 static BYTE  vm86_stack0[VM86_STACK_SIZE];
 
 static struct {
-  struct tss t;
+  struct tss bios_t;
+  struct tss app_t;
   DWORD io_map[2048];
 } vm86_tss;
 static LIN_ADDR vm86_stack;
@@ -61,9 +62,14 @@ struct registers *global_regs;
 
 static BYTE vm86_return_address[] = {0xcd, 0x48};	/* int 48h */
 
-struct tss *vm86_get_tss(void)
+struct tss *vm86_get_tss(WORD tss_sel)
 {
-  return &(vm86_tss.t);
+  if (tss_sel == X_VM86_TSS)
+    return &(vm86_tss.app_t);
+  else if (tss_sel == X_VM86_CALLBIOS_TSS)
+    return &(vm86_tss.bios_t);
+  else
+    return NULL;
 }
 
 /* This is the return point from V86 mode, called through int 0x48 
@@ -79,13 +85,13 @@ static void vm86_return(DWORD n, struct registers r)
   DWORD a;
 /*    message("Gotta code=%d [0 called from GPF/1 int 0x48]\n",code);*/
 #endif
-  if (c == X_VM86_TSS) {
+  if (c == X_VM86_CALLBIOS_TSS) {
     WORD bl;
 
     global_regs = &r;
 #ifdef __LL_DEBUG__
-    message("TSS CS=%x IP=%lx\n",vm86_tss.t.cs, vm86_tss.t.eip);
-		message("Switching to %x\n", vm86_tss.t.back_link);
+    message("TSS CS=%x IP=%lx\n",vm86_tss.bios_t.cs, vm86_tss.bios_t.eip);
+		message("Switching to %x\n", vm86_tss.bios_t.back_link);
     a = (DWORD)(vm86_iret_address);
     cs = (a & 0xFF000) >> 4;
     eip = (a & 0xFFF);
@@ -93,7 +99,7 @@ static void vm86_return(DWORD n, struct registers r)
 		cs, eip, a);
     esp = /* (void *)(tos)*/ 0x69;	/* ??? */
     message("Stack frame: %p %lx %lx\n", 
-		esp, vm86_tss.t.esp0, vm86_tss.t.esp);
+		esp, vm86_tss.bios_t.esp0, vm86_tss.bios_t.esp);
     message("%lx ", lmempeekd(esp));	/* bp */
     message("%lx ", lmempeekd(esp + 4));	/* eip */
     message("%lx ", lmempeekd(esp + 8));	/* 0x0d */
@@ -114,8 +120,8 @@ static void vm86_return(DWORD n, struct registers r)
     message("%lx ", lmempeekd(esp + 40));	/* old DS */
     message("%lx\n", lmempeekd(esp + 44));	/* old FS */
 #endif
-    bl = vm86_tss.t.back_link;
-    vm86_tss.t.back_link = 0;
+    bl = vm86_tss.bios_t.back_link;
+    vm86_tss.bios_t.back_link = 0;
     ll_context_load(bl);
   }
   
@@ -124,20 +130,20 @@ static void vm86_return(DWORD n, struct registers r)
 }
 
 /* Just a debugging function; it dumps the status of the TSS */
-void vm86_dump_tss(void)
+void vm86_dump_tss(WORD tss_sel, struct tss *ptss)
 {
   BYTE acc,gran;
   DWORD base,lim;
 
-  message("vm86_tss.t dump\n");
-  message("Flag: %lx\n", vm86_tss.t.eflags);
-  message("SS: %hx SP:%lx\n", vm86_tss.t.ss, vm86_tss.t.esp);
-  message("Stack0: %hx:%lx\n", vm86_tss.t.ss0, vm86_tss.t.esp0);
-  message("Stack1: %hx:%lx\n", vm86_tss.t.ss1, vm86_tss.t.esp1);
-  message("Stack2: %hx:%lx\n", vm86_tss.t.ss2, vm86_tss.t.esp2);
-  message("CS: %hx IP: %lx", vm86_tss.t.cs, vm86_tss.t.eip);
-  message("DS: %hx\n",vm86_tss.t.ds);
-  base = gdt_read(X_VM86_TSS, &lim, &acc, &gran);
+  message("vm86_tss: %x dump\n", tss_sel);
+  message("Flag: %lx\n", ptss->eflags);
+  message("SS: %hx SP:%lx\n", ptss->ss, ptss->esp);
+  message("Stack0: %hx:%lx\n", ptss->ss0, ptss->esp0);
+  message("Stack1: %hx:%lx\n", ptss->ss1, ptss->esp1);
+  message("Stack2: %hx:%lx\n", ptss->ss2, ptss->esp2);
+  message("CS: %hx IP: %lx", ptss->cs, ptss->eip);
+  message("DS: %hx\n",ptss->ds);
+  base = gdt_read(tss_sel, &lim, &acc, &gran);
   message("Base : %lx Lim : %lx Acc : %x Gran %x\n",
 		base,lim,(unsigned)(acc),(unsigned)(gran));
 }
@@ -151,8 +157,8 @@ void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size)
    * will be used to store the execution context of the virtual 8086
    * task
    */
-  gdt_place(X_VM86_TSS,(DWORD)(&vm86_tss),
-		sizeof(vm86_tss),FREE_TSS386,GRAN_16);
+  gdt_place(X_VM86_TSS, (DWORD)(&vm86_tss.app_t), sizeof(vm86_tss), FREE_TSS386, GRAN_16);
+  gdt_place(X_VM86_CALLBIOS_TSS, (DWORD)(&vm86_tss.bios_t), sizeof(vm86_tss), FREE_TSS386, GRAN_16);
 
   l1_int_bind(0x48, vm86_return);
 
@@ -175,15 +181,15 @@ void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size)
 #endif
 
   /* Zero the PM/Ring[1,2] ss:esp; they're unused! */
-  vm86_tss.t.esp1 = 0;
-  vm86_tss.t.esp2 = 0;
-  vm86_tss.t.ss1 = 0;
-  vm86_tss.t.ss2 = 0;
+  vm86_tss.bios_t.esp1 = vm86_tss.app_t.esp1 = 0;
+  vm86_tss.bios_t.esp2 = vm86_tss.app_t.esp2 = 0;
+  vm86_tss.bios_t.ss1 = vm86_tss.app_t.ss1 = 0;
+  vm86_tss.bios_t.ss2 = vm86_tss.app_t.ss2 = 0;
   /* Use only the GDT */
-  vm86_tss.t.ldt = 0;
+  vm86_tss.bios_t.ldt = vm86_tss.app_t.ldt = 0;
   /* No paging activated */
-  vm86_tss.t.cr3 = 0;
-  vm86_tss.t.trap = 0;
+  vm86_tss.bios_t.cr3 = vm86_tss.app_t.cr3 = 0;
+  vm86_tss.bios_t.trap = vm86_tss.app_t.trap = 0;
   /* Yeah, free access to any I/O port; we trust BIOS anyway! */
   /* Here is the explanation: we have 65536 I/O ports... each bit
    * in the io_map masks/unmasks the exception for the given I/O port
@@ -192,11 +198,13 @@ void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size)
    * Because of alignment problem, we need to add an extra byte all set
    * to 1, according to Intel manuals
    */
-  vm86_tss.t.io_base = (DWORD)(&(vm86_tss.io_map)) -
-		(DWORD)(&(vm86_tss));
+  vm86_tss.app_t.io_base = (DWORD)(&(vm86_tss.io_map)) -
+		(DWORD)(&(vm86_tss.app_t));
+  vm86_tss.bios_t.io_base = (DWORD)(&(vm86_tss.io_map)) -
+		(DWORD)(&(vm86_tss.bios_t));
   for (i = 0; i < 2047; i++) vm86_tss.io_map[i] = 0;
   vm86_tss.io_map[2047] = 0xFF000000;
-  vm86_tss.t.back_link = 0;
+  vm86_tss.bios_t.back_link = vm86_tss.app_t.back_link = 0;
 }
 
 int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
@@ -205,17 +213,17 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
   DWORD vm86_flags, vm86_cs, vm86_ip;
   LIN_ADDR vm86_stack_ptr;
   DWORD *irq_table_entry;
-  
+
   /* if (service < 0x10 || in == NULL) return -1; */
-  if (vm86_tss.t.back_link != 0) {
-    message("WTF? Interrupt 0x%x called with CS = 0x%x\n", service, vm86_tss.t.cs);
+  if (vm86_tss.bios_t.back_link != 0) {
+    message("WTF? Interrupt 0x%x called with CS = 0x%x\n", service, vm86_tss.bios_t.cs);
     halt();
   }
   /* Setup the stack frame */
   vm86_tmp_addr = (DWORD)(vm86_stack);
-  vm86_tss.t.ss = (vm86_tmp_addr & 0xFF000) >> 4;
-  vm86_tss.t.ebp = (vm86_tmp_addr & 0x0FFF) + vm86_stack_size - 6;
-  vm86_tss.t.esp = (vm86_tmp_addr & 0x0FFF) + vm86_stack_size - 6;
+  vm86_tss.bios_t.ss = (vm86_tmp_addr & 0xFF000) >> 4;
+  vm86_tss.bios_t.ebp = (vm86_tmp_addr & 0x0FFF) + vm86_stack_size - 6;
+  vm86_tss.bios_t.esp = (vm86_tmp_addr & 0x0FFF) + vm86_stack_size - 6;
   /* Build an iret stack frame which returns to vm86_iretAddress */
   vm86_tmp_addr = (DWORD)(vm86_iret_address);
   vm86_cs = (vm86_tmp_addr & 0xFF000) >> 4;
@@ -228,51 +236,51 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
 #ifdef __LL_DEBUG__
   message("Stack: %lx SS: %lx SP: %lx\n",
 	vm86_tmp_addr + vm86_stack_size,
-	(DWORD)vm86_tss.t.ss, vm86_tss.t.esp);
+	(DWORD)vm86_tss.bios_t.ss, vm86_tss.bios_t.esp);
 #endif
   /* Wanted VM86 mode + IOPL = 3! */
-  vm86_tss.t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
+  vm86_tss.bios_t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
   /* Preload some standard values into the registers */
-  vm86_tss.t.ss0 = X_FLATDATA_SEL;
-  vm86_tss.t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE; 
+  vm86_tss.bios_t.ss0 = X_FLATDATA_SEL;
+  vm86_tss.bios_t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE; 
   
   /* Copy the parms from the X_*REGS structures in the vm86 TSS */
-  vm86_tss.t.eax = (DWORD)in->x.ax;
-  vm86_tss.t.ebx = (DWORD)in->x.bx;
-  vm86_tss.t.ecx = (DWORD)in->x.cx;
-  vm86_tss.t.edx = (DWORD)in->x.dx;
-  vm86_tss.t.esi = (DWORD)in->x.si;
-  vm86_tss.t.edi = (DWORD)in->x.di;
+  vm86_tss.bios_t.eax = (DWORD)in->x.ax;
+  vm86_tss.bios_t.ebx = (DWORD)in->x.bx;
+  vm86_tss.bios_t.ecx = (DWORD)in->x.cx;
+  vm86_tss.bios_t.edx = (DWORD)in->x.dx;
+  vm86_tss.bios_t.esi = (DWORD)in->x.si;
+  vm86_tss.bios_t.edi = (DWORD)in->x.di;
   /* IF Segment registers are required, copy them... */
   if (s != NULL) {
-      vm86_tss.t.es = (WORD)s->es;
-      vm86_tss.t.ds = (WORD)s->ds;
+      vm86_tss.bios_t.es = (WORD)s->es;
+      vm86_tss.bios_t.ds = (WORD)s->ds;
   } else {
-      vm86_tss.t.ds = vm86_tss.t.ss;
-      vm86_tss.t.es = vm86_tss.t.ss; 
+      vm86_tss.bios_t.ds = vm86_tss.bios_t.ss;
+      vm86_tss.bios_t.es = vm86_tss.bios_t.ss; 
   }
-  vm86_tss.t.gs = vm86_tss.t.ss; 
-  vm86_tss.t.fs = vm86_tss.t.ss; 
+  vm86_tss.bios_t.gs = vm86_tss.bios_t.ss; 
+  vm86_tss.bios_t.fs = vm86_tss.bios_t.ss; 
   /* Execute the BIOS call, fetching the CS:IP of the real interrupt
    * handler from 0:0 (DOS irq table!)
    */
   irq_table_entry = (void *)(0L);
-  vm86_tss.t.cs = ((irq_table_entry[service]) & 0xFFFF0000) >> 16;
-  vm86_tss.t.eip = ((irq_table_entry[service]) & 0x0000FFFF);
+  vm86_tss.bios_t.cs = ((irq_table_entry[service]) & 0xFFFF0000) >> 16;
+  vm86_tss.bios_t.eip = ((irq_table_entry[service]) & 0x0000FFFF);
 #ifdef __LL_DEBUG__    
-  message("CS:%x IP:%lx\n", vm86_tss.t.cs, vm86_tss.t.eip);
+  message("CS:%x IP:%lx\n", vm86_tss.bios_t.cs, vm86_tss.bios_t.eip);
 #endif
   /* Let's use the ll standard call... */
-  vm86_tss.t.back_link = ll_context_save();
+  vm86_tss.bios_t.back_link = ll_context_save();
   if (out != NULL) {
-    ll_context_load(X_VM86_TSS);
+    ll_context_load(X_VM86_CALLBIOS_TSS);
   } else {
-    ll_context_to(X_VM86_TSS);
+    ll_context_to(X_VM86_CALLBIOS_TSS);
   }
 
 #ifdef __LL_DEBUG__    
   message("I am back...\n");
-  message("TSS CS=%hx IP=%lx\n", vm86_tss.t.cs, vm86_tss.t.eip);
+  message("TSS CS=%hx IP=%lx\n", vm86_tss.bios_t.cs, vm86_tss.bios_t.eip);
   { char *xp = (char *)(vm86_iret_address + 0xe);
     message("PM reentry linear address=%p\n", vm86_iret_address);
     message("Executing code: %x %x\n", xp[0], xp[1]);
@@ -282,15 +290,15 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
    * the real-mode interrupt call
    */
   if (out != NULL) {
-    if (vm86_tss.t.back_link != 0) {message("Panic!\n"); halt();}
+    if (vm86_tss.bios_t.back_link != 0) {message("Panic!\n"); halt();}
 /*
-    out->x.ax = (WORD)vm86_TSS.t.eax;
-    out->x.bx = (WORD)vm86_TSS.t.ebx;
-    out->x.cx = (WORD)vm86_TSS.t.ecx;
-    out->x.dx = (WORD)vm86_TSS.t.edx;
-    out->x.si = (WORD)vm86_TSS.t.esi;
-    out->x.di = (WORD)vm86_TSS.t.edi;
-    out->x.cflag = (WORD)vm86_TSS.t.eflags;
+    out->x.ax = (WORD)vm86_tss.bios_t.eax;
+    out->x.bx = (WORD)vm86_tss.bios_t.ebx;
+    out->x.cx = (WORD)vm86_tss.bios_t.ecx;
+    out->x.dx = (WORD)vm86_tss.bios_t.edx;
+    out->x.si = (WORD)vm86_tss.bios_t.esi;
+    out->x.di = (WORD)vm86_tss.bios_t.edi;
+    out->x.cflag = (WORD)vm86_tss.bios_t.eflags;
 */
 #ifdef __LL_DEBUG__
     message("EAX: 0x%lx\n", global_regs->eax);
@@ -310,8 +318,8 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
     out->x.cflag = global_regs->flags;
   }
   if (s != NULL) {
-    s->es = vm86_tss.t.es;
-    s->ds = vm86_tss.t.ds;
+    s->es = vm86_tss.bios_t.es;
+    s->ds = vm86_tss.bios_t.ds;
   }
   return 1;
 }
@@ -337,13 +345,13 @@ typedef struct vm86_call_params {
 int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struct tss *ps_tss, void *params_handle)
 {
   int res;
-  WORD bl = vm86_tss.t.back_link;
+  WORD bl = vm86_tss.app_t.back_link;
 
   if (params_handle != NULL) {
     /* Save the previous vm86 tss, ret_eip not used
-       ((vm86_call_params_t *)params_handle)->ret_eip = vm86_tss.t.eip; 
+       ((vm86_call_params_t *)params_handle)->ret_eip = vm86_tss.app_t.eip; 
      */
-    memcpy(((vm86_call_params_t *)params_handle)->ps_tss_ptr, &vm86_tss.t, sizeof(struct tss));
+    memcpy(((vm86_call_params_t *)params_handle)->ps_tss_ptr, &vm86_tss.app_t, sizeof(struct tss));
   }
 
   if (bl != 0) { /* Nested vm86 process */
@@ -353,7 +361,7 @@ int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struc
     struct tss * kernel_tss_ptr = (struct tss *)gdt_read(bl, NULL, NULL, NULL);
 
     /* Go back to the kernel process and run vm86_call again ... */
-    vm86_tss.t.back_link = 0;
+    vm86_tss.app_t.back_link = 0;
     memcpy(&prev_kernel_tss, kernel_tss_ptr, sizeof(struct tss));
     /* Load another kernel mode process */
     kernel_tss_ptr->eip = (DWORD)vm86_call;
@@ -375,38 +383,38 @@ int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struc
 #ifdef __LL_DEBUG__
     message("Nested vm86 call returned!\n");
 #endif
-    res = vm86_tss.t.eax;
+    res = vm86_tss.app_t.eax;
 /*  The vm86 application in vm86 mode is done
-    message("WTF? VM86 called with CS = 0x%x, IP = 0x%x\n", vm86_tss.t.cs, ip);
+    message("WTF? VM86 called with CS = 0x%x, IP = 0x%x\n", vm86_tss.app_t.cs, ip);
     fd32_abort();
 */
   } else {
     /* Setup the stack frame */
-    vm86_tss.t.ss = s->ss;
-    vm86_tss.t.ebp = 0x91E; /* this is more or less random but some programs expect 0x9 in the high byte of BP!! */
-    vm86_tss.t.esp = sp;
+    vm86_tss.app_t.ss = s->ss;
+    vm86_tss.app_t.ebp = 0x91E; /* this is more or less random but some programs expect 0x9 in the high byte of BP!! */
+    vm86_tss.app_t.esp = sp;
     /* Wanted VM86 mode + IOPL = 3! */
-    vm86_tss.t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL | CPU_FLAG_IF;
+    vm86_tss.app_t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL | CPU_FLAG_IF;
     /* Ring0 system stack */
-    vm86_tss.t.ss0 = X_FLATDATA_SEL;
-    vm86_tss.t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE;
+    vm86_tss.app_t.ss0 = X_FLATDATA_SEL;
+    vm86_tss.app_t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE;
     /* Copy the parms from the X_*REGS structures in the vm86 TSS */
-    vm86_tss.t.eax = in->x.ax;
-    vm86_tss.t.ebx = in->x.bx;
-    vm86_tss.t.ecx = in->x.cx;
-    vm86_tss.t.edx = in->x.dx;
-    vm86_tss.t.esi = in->x.si;
-    vm86_tss.t.edi = in->x.di;
+    vm86_tss.app_t.eax = in->x.ax;
+    vm86_tss.app_t.ebx = in->x.bx;
+    vm86_tss.app_t.ecx = in->x.cx;
+    vm86_tss.app_t.edx = in->x.dx;
+    vm86_tss.app_t.esi = in->x.si;
+    vm86_tss.app_t.edi = in->x.di;
     /* IF Segment registers are required, copy them... */
-    vm86_tss.t.es = s->es;
-    vm86_tss.t.ds = s->ds;
-    vm86_tss.t.gs = s->ss;
-    vm86_tss.t.fs = s->ss;
+    vm86_tss.app_t.es = s->es;
+    vm86_tss.app_t.ds = s->ds;
+    vm86_tss.app_t.gs = s->ss;
+    vm86_tss.app_t.fs = s->ss;
     /* Execute the CS:IP */
-    vm86_tss.t.cs = s->cs;
-    vm86_tss.t.eip = ip;
+    vm86_tss.app_t.cs = s->cs;
+    vm86_tss.app_t.eip = ip;
     /* Let's use the ll standard call... */
-    vm86_tss.t.back_link = ll_context_save();
+    vm86_tss.app_t.back_link = ll_context_save();
 
     if (out != NULL) {
       ll_context_load(X_VM86_TSS);
@@ -418,29 +426,29 @@ int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struc
      * the real-mode interrupt call
      */
     if (out != NULL) {
-      if (vm86_tss.t.back_link != 0) {message("Panic!\n"); halt();}
+      if (vm86_tss.app_t.back_link != 0) {message("Panic!\n"); halt();}
   
-      out->x.ax = vm86_tss.t.eax;
-      out->x.bx = vm86_tss.t.ebx;
-      out->x.cx = vm86_tss.t.ecx;
-      out->x.dx = vm86_tss.t.edx;
-      out->x.si = vm86_tss.t.esi;
-      out->x.di = vm86_tss.t.edi;
-      out->x.cflag = vm86_tss.t.eflags;
+      out->x.ax = vm86_tss.app_t.eax;
+      out->x.bx = vm86_tss.app_t.ebx;
+      out->x.cx = vm86_tss.app_t.ecx;
+      out->x.dx = vm86_tss.app_t.edx;
+      out->x.si = vm86_tss.app_t.esi;
+      out->x.di = vm86_tss.app_t.edi;
+      out->x.cflag = vm86_tss.app_t.eflags;
     }
     if (s != NULL) {
-      s->es = vm86_tss.t.es;
-      s->ds = vm86_tss.t.ds;
+      s->es = vm86_tss.app_t.es;
+      s->ds = vm86_tss.app_t.ds;
     }
 
-    res = vm86_tss.t.eax;
+    res = vm86_tss.app_t.eax;
   }
 
   /* Load and back to the previous vm86 application */
   if (params_handle != NULL) {
-    memcpy(&vm86_tss.t, ((vm86_call_params_t *)params_handle)->ps_tss_ptr, sizeof(struct tss));
-    vm86_tss.t.back_link = ll_context_save();
-    vm86_tss.t.eax = res;
+    memcpy(&vm86_tss.app_t, ((vm86_call_params_t *)params_handle)->ps_tss_ptr, sizeof(struct tss));
+    vm86_tss.app_t.back_link = ll_context_save();
+    vm86_tss.app_t.eax = res;
     ll_context_load(X_VM86_TSS);
   }
 

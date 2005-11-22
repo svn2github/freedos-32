@@ -35,6 +35,7 @@
 #define X_CALLBIOS_SEL		0x40
 #define X_CALLBIOS_GATE		0x48
 
+#define X_VM86_CALLBIOS_TSS X_CALLBIOS_GATE
 #define X_VM86_TSS		0x50
 #define X_MAIN_TSS		0x58
 #define X_FLATDATA3_SEL		0x60
