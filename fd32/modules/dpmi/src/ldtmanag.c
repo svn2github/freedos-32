@@ -13,7 +13,7 @@
 #include<ll/i386/cons.h>
 #include<logger.h>
 
-#define __DEBUG__
+/* #define __DEBUG__ */
 
 /* Descriptors Management Routines
  *

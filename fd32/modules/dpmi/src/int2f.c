@@ -14,7 +14,9 @@
 /* INT 2fh handler for Multiplex for PM execution (AX=function) */
 void int2f_handler(union regs *r)
 {
-	fd32_log_printf("[DPMI] INT 2fh handler, Multiplex for PM execution: %x\n", r->x.ax);
+#ifdef __DPMI_DEBUG__
+	fd32_log_printf("[DPMI] INT 2fh handler, multiplex for pm execution: %x\n", r->x.ax);
+#endif
 	switch (r->x.ax) {
 		case 0x1687:
 			r->x.ax	= 0x0000; /* DPMI installed */

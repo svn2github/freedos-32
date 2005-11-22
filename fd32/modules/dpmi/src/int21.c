@@ -48,7 +48,7 @@
 #endif
 
 /* Define the __DEBUG__ symbol in order to activate log output */
-#define __DEBUG__
+/* #define __DEBUG__ */
 #ifdef __DEBUG__
  #define LOG_PRINTF(s) fd32_log_printf s
 #else
@@ -1190,7 +1190,7 @@ void int21_handler(union rmregs *r)
 			break;
 		}
 		case 0xFF:
-			fd32_log_printf("DOS/4GW - API ... AX: %x\n", r->x.ax);
+			LOG_PRINTF(("DOS/4GW - API ... AX: %x\n", r->x.ax));
 			if (r->h.al == 0x88) {
 				r->d.eax = 0x49443332; /* ID32 */
 				r->d.ebx = 0xFD32;
