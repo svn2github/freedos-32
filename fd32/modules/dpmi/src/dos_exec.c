@@ -639,8 +639,9 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
       g_env_segment = env_segment;
       g_fcb1 = fcb1;
       g_fcb2 = fcb2;
-      /* NOTE: args[0] is the length of the args */
-      *return_val = binfmt[i].exec(&kf, (int)(&f), &rf, filename, args+1);
+      /* NOTE: args[0] is the space */
+      if (args != NULL) args++;
+      *return_val = binfmt[i].exec(&kf, (int)(&f), &rf, filename, args);
       break;
     }
 #ifdef __DOS_EXEC_DEBUG__

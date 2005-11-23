@@ -54,21 +54,22 @@ void keyb_handler(int n)
 static int keyb_dev_read(void *buffer, size_t count)
 {
 	int ret = count;
-	static int flag = 0;
-	static BYTE b;
+	static BYTE scancode = 0;
 
 	/* Process the non-extended key, get rid of the scan code */
 	while (count > 0) {
-		if (flag == 0) {
-			/* Wait for the next keystroke */
+		if (scancode == 0) {
 			WFC(keyqueue_empty());
-			b = *(BYTE *)buffer++ = keyqueue_get(), count--;
-		} else if (b == 0) { /* If keyqueue not empty, rawqueue can't be empty */
-			*(BYTE *)buffer++ = rawqueue_get(), count--;
+			*(BYTE *)buffer = keyqueue_get();
+			scancode = rawqueue_get(); /* If keyqueue not empty, rawqueue can't be empty */
+			if (*(BYTE *)buffer != 0)
+				scancode = 0; /* non-extended key, don't need the scancode */
 		} else {
-			rawqueue_get();
+			*(BYTE *)buffer = scancode;
+			scancode = 0;
 		}
-		flag = !flag;
+		buffer++;
+		count--;
 	}
 
 	return ret;
@@ -78,13 +79,13 @@ static int keyb_dev_read(void *buffer, size_t count)
 static uint16_t keyb_dev_get_keycode(void)
 {
 	WFC(keyqueue_empty());
-	return keyqueue_get()|(rawqueue_get()<<8);
+	return keyqueue_get()|rawqueue_get()<<8;
 }
 
 /* Nonblock mode to read BIOS key */
 static uint16_t keyb_dev_check_keycode(void)
 {
-	return keyqueue_check()|(rawqueue_check()<<8);
+	return keyqueue_check()|rawqueue_check()<<8;
 }
 
 static int keyb_read(void *id, size_t n, BYTE *buf)
