@@ -148,7 +148,7 @@ int pio_data_in(unsigned long max_wait, BYTE count, DWORD start,
     if(res)
         return res;
 
-    if(command != ATA_CMD_IDENTIFY)
+    if((command != ATA_CMD_IDENTIFY) && (command != ATA_CMD_IDENTIFY_PD))
     {
         write_reg_start_count(start, count, use_48bit, dev);
     }
