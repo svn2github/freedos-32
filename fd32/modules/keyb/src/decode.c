@@ -131,16 +131,17 @@ const s_key_type_t keymap[128] = {
 	{ {3, 0, 0, 0, 0, 1}, 0,  {0x8600, 0x8800, 0x8A00, 0x8C00} }  /* F12 */
 };
 
-WORD keyb_decode(BYTE c, keyb_std_status_t stdst, int lock)
+WORD keyb_decode(BYTE c, keyb_std_status_t stdst)
 {
 	int res, caps_or_num;
 
 	/* Layout decode first */
-	if ((res = keyb_layout_decode(c, stdst, lock)) < 0) {
+	if ((res = keyb_layout_decode(c, stdst)) < 0) {
 		/*	Letter keys have to be handled according to CAPSLOCK...
-			Keypad keys have to be handled according to NUMLOCK... */
-		caps_or_num = (keymap[c].flags.numlock_af && lock&LED_NUMLK) |
-						(keymap[c].flags.capslock_af && lock&LED_CAPSLK);
+			Keypad keys have to be handled according to NUMLOCK...
+		*/
+		caps_or_num = (keymap[c].flags.numlock_af & stdst.s.numlk_active) |
+						(keymap[c].flags.capslock_af & stdst.s.capslk_active);
 		/* Set the keymap index value according to the shift flags */
 		if (stdst.s.alt)
 			res = 3;

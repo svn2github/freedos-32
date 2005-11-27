@@ -34,7 +34,7 @@ static KeybCB cb;
 /* Decode the scancode based on the current layout
 	TODO: Implement user-defined flags
  */
-int keyb_layout_decode(BYTE c, keyb_std_status_t stdst, int lock)
+int keyb_layout_decode(BYTE c, keyb_std_status_t stdst)
 {
 	DWORD i;
 	int ret = -1;
@@ -155,7 +155,7 @@ int keyb_layout_choose(const char *filename, char *layout_name)
 					fd32_log_printf("%d ", cb.submaps[i].codepage);
 				fd32_log_printf("\n");
 				for (i = 0; i < 0x100; i++)
-				    keyb_layout_decode(i, stdst, 0);
+				    keyb_layout_decode(i, stdst);
 				/* Display additional planes */
 				for (i = 0; i < cb.ref->plane_num; i++) {
 					fd32_log_printf("[KEYB] Plane %ld: %x %x %x %x\n", i, cb.planes[i].wtStd, cb.planes[i].exStd, cb.planes[i].wtUsr, cb.planes[i].exUsr);

@@ -121,7 +121,6 @@ typedef struct keyb_command {
 } keyb_command_t;
 
 static keyb_std_status_t stdst;
-static WORD ecode;
 static WORD ack_left;
 static BYTE ack_cmd;
 static BYTE led_state;
@@ -168,150 +167,153 @@ static void keyb_ack_handler(void)
 	}
 }
 
+void keyb_state_reset(void)
+{
+	stdst.data = bios_da.keyb_flag;
+}
+
 /*
  * Function mostly handle the LEDs
  */
 int preprocess(BYTE code)
 {
 	int ret = 1;
+	BYTE pxcode = code;
+	static int e0_keycode = 0;
 
-	if (stdst.s.e0_prefix) {
-		/* Prepare the extended key */
-		ecode = 0xE000|code;
-		switch(ecode) {
-			/* FUNCTION KEY pressed ... */
-			case MK_RCTRL:
-				stdst.s.rctrl = 1;
-				stdst.s.ctrl = 1;
-				bios_da.keyb_mode |= MODE_RCTRL;
-				bios_da.keyb_flag |= FLAG_CTRL;
-				break;
-			case MK_RALT:
-				stdst.s.ralt = 1;
-				stdst.s.alt = 1;
-				bios_da.keyb_mode |= MODE_RALT;
-				bios_da.keyb_flag |= FLAG_ALT;
-				break;
-			/* FUNCTION KEY released ... */
-			case BREAK|MK_RCTRL:
-				stdst.s.rctrl = 0;
-				stdst.s.ctrl = stdst.s.lctrl|stdst.s.rctrl;
-				bios_da.keyb_mode &= ~MODE_RCTRL;
-				bios_da.keyb_flag &= ~(FLAG_CTRL*~stdst.s.ctrl);
-				break;
-			case BREAK|MK_RALT:
-				stdst.s.ralt = 0;
-				stdst.s.alt = stdst.s.lalt|stdst.s.ralt;
-				bios_da.keyb_mode &= ~MODE_RALT;
-				bios_da.keyb_flag &= ~(FLAG_ALT*~stdst.s.alt);
-				break;
-		
-			/* Extended KEY, manage the instert status */
-			case MK_INSERT:
-				bios_da.keyb_flag ^= ACT_INSERT;
-				ret = 0;
-				break;
-			default:
-				if (!(BREAK&code))
-					ret = 0;
-				break;
-		}
-		stdst.s.e0_prefix = 0;
-	} else {
-		switch(code) {
-			case 0xE0:
-				stdst.s.e0_prefix = 1;
-				break;
-			case 0xFA:
-				keyb_ack_handler();
-				break;
-			/* FUNCTION KEY pressed ... */
-			case MK_LCTRL:
-				stdst.s.ctrl = stdst.s.lctrl = 1;
-				bios_da.keyb_flag |= FLAG_LCTRL|FLAG_CTRL;
-				break;
-			case MK_LSHIFT:
-				stdst.s.shift = stdst.s.lshift = 1;
-				bios_da.keyb_flag |= FLAG_LSHIFT;
-				break;
-			case MK_RSHIFT:
-				stdst.s.shift = stdst.s.rshift = 1;
-				bios_da.keyb_flag |= FLAG_RSHIFT;
-				break;
-			case MK_LALT:
-				stdst.s.alt = stdst.s.lalt = 1;
-				bios_da.keyb_flag |= FLAG_LALT|FLAG_ALT;
-				break;
-			case MK_CAPS:
-				stdst.s.capslk_active ^= 1;
-				bios_da.keyb_flag |= FLAG_CAPS;
-				bios_da.keyb_flag ^= ACT_CAPSLK;
-				bios_da.keyb_led ^= LED_CAPSLK;
-				led_state ^= LED_CAPSLK;
-				keyb_send_cmd(KEYB_CMD_SET_LEDS);
-				break;
-			case MK_NUMLK:
-				stdst.s.numlk_active ^= 1;
-				bios_da.keyb_flag |= FLAG_NUMLK;
-				bios_da.keyb_flag ^= ACT_NUMLK;
-				bios_da.keyb_led ^= LED_NUMLK;
-				led_state ^= LED_NUMLK;
-				keyb_send_cmd(KEYB_CMD_SET_LEDS);
-				break;
-			case MK_SCRLK:
-				stdst.s.scrlk_active ^= 1;
-				bios_da.keyb_flag |= FLAG_SCRLK;
-				bios_da.keyb_flag ^= ACT_SCRLK;
-				bios_da.keyb_led ^= LED_SCRLK;
-				led_state ^= LED_SCRLK;
-				keyb_send_cmd(KEYB_CMD_SET_LEDS);
-				break;
-			case MK_SYSRQ:
-				bios_da.keyb_flag |= FLAG_SYSRQ;
-				fd32_message("SYSRQ pressed ...\n");
-				break;
-			/* FUNCTION KEY released ... */
-			case BREAK|MK_LCTRL:
-				stdst.s.lctrl = 0;
-				stdst.s.ctrl = stdst.s.lctrl|stdst.s.rctrl;
-				bios_da.keyb_flag &= ~FLAG_LCTRL;
-				bios_da.keyb_flag &= ~(FLAG_CTRL*~stdst.s.ctrl);
-				break;
-			case BREAK|MK_LSHIFT:
-				stdst.s.lshift = 0;
-				stdst.s.shift = stdst.s.lshift|stdst.s.rshift;
-				bios_da.keyb_flag &= ~FLAG_LSHIFT;
-				break;
-			case BREAK|MK_RSHIFT:
-				stdst.s.rshift = 0;
-				stdst.s.shift = stdst.s.lshift|stdst.s.rshift;
-				bios_da.keyb_flag &= ~FLAG_RSHIFT;
-				break;
-			case BREAK|MK_LALT:
-				stdst.s.lalt = 0;
-				stdst.s.alt = stdst.s.lalt|stdst.s.ralt;
-				bios_da.keyb_flag &= ~FLAG_LALT;
-				bios_da.keyb_flag &= ~(FLAG_ALT*~stdst.s.alt);
-				break;
-			case BREAK|MK_CAPS:
-				bios_da.keyb_flag &= ~FLAG_CAPS;
-				break;
-			case BREAK|MK_NUMLK:
-				bios_da.keyb_flag &= ~FLAG_NUMLK;
-				break;
-			case BREAK|MK_SCRLK:
-				bios_da.keyb_flag &= ~FLAG_SCRLK;
-				break;
-			case BREAK|MK_SYSRQ:
-				bios_da.keyb_flag &= ~FLAG_SYSRQ;
-				fd32_message("SYSRQ released ...\n");
-				break;
-			default:
-				if (!(BREAK&code))
-					ret = 0;
-				break;
-		}
+	/* Add the extended key prefix */
+	if (e0_keycode) {
+		pxcode |= 0x80; /* Extended keycode */
+		e0_keycode = 0;
 	}
+
+	switch(code) {
+		case 0xE0:
+			e0_keycode = 1;
+			break;
+		case 0xFA:
+			keyb_ack_handler();
+			break;
+		/* Extended KEY, manage the instert status */
+		case MK_INSERT:
+			bios_da.keyb_flag ^= ACT_INSERT;
+			ret = 0;
+			break;
+		/* Normal FUNCTION KEY pressed ... */
+		case MK_CTRL:
+			stdst.s.ctrl = 1;
+			bios_da.keyb_flag |= FLAG_CTRL;
+			if (!e0_keycode) {
+				stdst.s.lctrl = 1;
+				bios_da.keyb_flag |= FLAG_LCTRL;
+			} else { /* Extended RCTRL */
+				stdst.s.rctrl = 1;
+				bios_da.keyb_mode |= MODE_RCTRL;
+			}
+			break;
+		case MK_LSHIFT:
+			stdst.s.shift = stdst.s.lshift = 1;
+			bios_da.keyb_flag |= FLAG_LSHIFT;
+			/* Numlock and shift conditions automatically cared in extended key */
+			break;
+		case MK_RSHIFT:
+			stdst.s.shift = stdst.s.rshift = 1;
+			bios_da.keyb_flag |= FLAG_RSHIFT;
+			break;
+		case MK_ALT:
+			stdst.s.alt = 1;
+			bios_da.keyb_flag |= FLAG_ALT;
+			if (!e0_keycode) {
+				stdst.s.lalt = 1;
+				bios_da.keyb_flag |= FLAG_LALT;
+			} else { /* Extended RALT */
+				stdst.s.ralt = 1;
+				bios_da.keyb_mode |= MODE_RALT;
+			}
+			break;
+		case MK_CAPS:
+			stdst.s.capslk_active ^= 1;
+			bios_da.keyb_flag |= FLAG_CAPS;
+			bios_da.keyb_flag ^= ACT_CAPSLK;
+			bios_da.keyb_led ^= LED_CAPSLK;
+			led_state = bios_da.keyb_led&LEGS_MASK;
+			keyb_send_cmd(KEYB_CMD_SET_LEDS);
+			break;
+		case MK_NUMLK:
+			stdst.s.numlk_active ^= 1;
+			bios_da.keyb_flag |= FLAG_NUMLK;
+			bios_da.keyb_flag ^= ACT_NUMLK;
+			bios_da.keyb_led ^= LED_NUMLK;
+			led_state = bios_da.keyb_led&LEGS_MASK;
+			keyb_send_cmd(KEYB_CMD_SET_LEDS);
+			break;
+		case MK_SCRLK:
+			stdst.s.scrlk_active ^= 1;
+			bios_da.keyb_flag |= FLAG_SCRLK;
+			bios_da.keyb_flag ^= ACT_SCRLK;
+			bios_da.keyb_led ^= LED_SCRLK;
+			led_state = bios_da.keyb_led&LEGS_MASK;
+			keyb_send_cmd(KEYB_CMD_SET_LEDS);
+			break;
+		case MK_SYSRQ:
+			bios_da.keyb_flag |= FLAG_SYSRQ;
+			fd32_message("SYSRQ pressed ...\n");
+			break;
+		/* Normal FUNCTION KEY released ... */
+		case BREAK|MK_CTRL:
+			if (!e0_keycode) {
+				stdst.s.lctrl = 0;
+				bios_da.keyb_flag &= ~FLAG_LCTRL;
+			} else { /* Extended RCTRL */
+				stdst.s.rctrl = 0;
+				bios_da.keyb_mode &= ~MODE_RCTRL;
+			}
+			stdst.s.ctrl = stdst.s.lctrl|stdst.s.rctrl;
+			bios_da.keyb_flag &= ~(FLAG_CTRL*~stdst.s.ctrl);
+			break;
+		case BREAK|MK_LSHIFT:
+			stdst.s.lshift = 0;
+			stdst.s.shift = stdst.s.lshift|stdst.s.rshift;
+			bios_da.keyb_flag &= ~FLAG_LSHIFT;
+			/* Numlock and shift conditions automatically cared in extended key */
+			break;
+		case BREAK|MK_RSHIFT:
+			stdst.s.rshift = 0;
+			stdst.s.shift = stdst.s.lshift|stdst.s.rshift;
+			bios_da.keyb_flag &= ~FLAG_RSHIFT;
+			break;
+		case BREAK|MK_ALT:
+			if (!e0_keycode) {
+				stdst.s.lalt = 0;
+				bios_da.keyb_flag &= ~FLAG_LALT;
+			} else { /* Extended RALT */
+				stdst.s.ralt = 0;
+				bios_da.keyb_mode &= ~MODE_RALT;
+			}
+			stdst.s.alt = stdst.s.lalt|stdst.s.ralt;
+			bios_da.keyb_flag &= ~(FLAG_ALT*~stdst.s.alt);
+			break;
+		case BREAK|MK_CAPS:
+			bios_da.keyb_flag &= ~FLAG_CAPS;
+			break;
+		case BREAK|MK_NUMLK:
+			bios_da.keyb_flag &= ~FLAG_NUMLK;
+			break;
+		case BREAK|MK_SCRLK:
+			bios_da.keyb_flag &= ~FLAG_SCRLK;
+			break;
+		case BREAK|MK_SYSRQ:
+			bios_da.keyb_flag &= ~FLAG_SYSRQ;
+			fd32_message("SYSRQ released ...\n");
+			break;
+		default:
+			if (!(BREAK&code))
+				ret = 0;
+			break;
+	}
+
+	if (!ret)
+		rawqueue_put(pxcode);
 
 	return ret;
 }
@@ -323,11 +325,17 @@ void postprocess(void)
 	BYTE code = rawqueue_read();
 
 	while (code != 0) {
+		if (code&0x80) { /* Extended code */
+			stdst.s.e0_prefix = 1;
+			code &= 0x7F;
+		}
 		/* fire the hook if exists */
 		keyb_fire_hook(code, stdst.s.ctrl, stdst.s.alt);
 
 		/* Handle the basic key */
-		decoded = keyb_decode(code, stdst, bios_da.keyb_led);
+		decoded = keyb_decode(code, stdst);
+		/* Reset the e0_prefix flag */
+		stdst.s.e0_prefix = 0;
 		/* Decode it... And put the scancode and charcode into the keyqueue */
 		if (decoded == 0) {
 			fd32_log_printf("Strange key: %d (0x%x)\n", code, code);

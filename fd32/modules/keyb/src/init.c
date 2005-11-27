@@ -34,16 +34,12 @@
 
 void keyb_handler(int n)
 {
-	static BYTE code;
-
 	/* We are the int handler... If we are called, we assume that there is
 		 something to be read... (so, we do not read the status port...)
 	*/
-	code = keyb_get_data();		/* Input datum */
 
 	/* Well, we do not check the error code, for now... */
-	if(!preprocess(code)) {	/* Do that leds stuff... */
-		rawqueue_put(code);
+	if(!preprocess(keyb_get_data())) {	/* Input datum & Do that leds stuff... */
 		fd32_sti();				/* Re-enable interrupts... */
 		postprocess();
 	}
@@ -177,12 +173,14 @@ void keyb_init(process_info_t *pi)
 		keyb_layout_choose(filename, layoutname);
 	}
 	fd32_unget_argv(argc, argv);
+
+	/* Init the keyboard states, otherwise it won't work fine in some circumstances */
+	keyb_state_reset();
 	/* Handle the keyboard */
 	fd32_message("Setting Keyboard handler\n");
 	fd32_irq_bind(KEYB_IRQ, keyb_handler);
 	/* Clear the queue */
 	keyb_queue_clear();
-	/* TODO: Reset the keyboard, otherwise it won't work fine in some circumstances */
 
 	/* Ctrl+Alt+Del reboot PC */
 	keyb_hook(0x53, 1, 1, (DWORD)fd32_reboot);

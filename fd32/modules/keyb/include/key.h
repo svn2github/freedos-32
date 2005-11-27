@@ -37,27 +37,26 @@ typedef union keyb_std_status
 
 int preprocess(BYTE code);
 void postprocess(void);
+void keyb_state_reset(void);
 BYTE keyb_get_data(void);
 BYTE keyb_get_status(void);
 int keyb_send_cmd(BYTE cmd);
 WORD keyb_get_shift_flags(void);
 int keyb_set_shift_flags(WORD f);
-WORD keyb_decode(BYTE c, keyb_std_status_t stdst, int lock);
+WORD keyb_decode(BYTE c, keyb_std_status_t stdst);
 void keyb_hook(WORD key, int isCTRL, int isALT, DWORD hook_func);
 void keyb_fire_hook(WORD key, int isCTRL, int isALT);
 
 /* make code */
-#define MK_LCTRL      0x1D
+#define MK_CTRL       0x1D
 #define MK_LSHIFT     0x2A
 #define MK_RSHIFT     0x36
-#define MK_LALT       0x38
+#define MK_ALT        0x38
 #define MK_CAPS       0x3A
 #define MK_NUMLK      0x45
 #define MK_SCRLK      0x46
 #define MK_SYSRQ      0x54
-#define MK_RCTRL      0xE01D
-#define MK_RALT       0xE038
-#define MK_INSERT     0xE052
+#define MK_INSERT     0x52
 
 #define BREAK         0x0080
 

@@ -77,6 +77,6 @@ typedef struct KeybCB
 
 int keyb_layout_choose(const char *filename, char *layout_name);
 int keyb_layout_free(void);
-int keyb_layout_decode(BYTE c, keyb_std_status_t stdst, int lock);
+int keyb_layout_decode(BYTE c, keyb_std_status_t stdst);
 
 #endif
