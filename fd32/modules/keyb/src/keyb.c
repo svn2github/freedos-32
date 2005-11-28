@@ -178,12 +178,13 @@ void keyb_state_reset(void)
 int preprocess(BYTE code)
 {
 	int ret = 1;
-	BYTE pxcode = code;
+	int e0_keycode_1 = 0;
 	static int e0_keycode = 0;
 
 	/* Add the extended key prefix */
 	if (e0_keycode) {
-		pxcode |= 0x80; /* Extended keycode */
+		/* Extended keycode */
+		e0_keycode_1 = 0x80;
 		e0_keycode = 0;
 	}
 
@@ -203,7 +204,7 @@ int preprocess(BYTE code)
 		case MK_CTRL:
 			stdst.s.ctrl = 1;
 			bios_da.keyb_flag |= FLAG_CTRL;
-			if (!e0_keycode) {
+			if (!e0_keycode_1) {
 				stdst.s.lctrl = 1;
 				bios_da.keyb_flag |= FLAG_LCTRL;
 			} else { /* Extended RCTRL */
@@ -223,7 +224,7 @@ int preprocess(BYTE code)
 		case MK_ALT:
 			stdst.s.alt = 1;
 			bios_da.keyb_flag |= FLAG_ALT;
-			if (!e0_keycode) {
+			if (!e0_keycode_1) {
 				stdst.s.lalt = 1;
 				bios_da.keyb_flag |= FLAG_LALT;
 			} else { /* Extended RALT */
@@ -261,7 +262,7 @@ int preprocess(BYTE code)
 			break;
 		/* Normal FUNCTION KEY released ... */
 		case BREAK|MK_CTRL:
-			if (!e0_keycode) {
+			if (!e0_keycode_1) {
 				stdst.s.lctrl = 0;
 				bios_da.keyb_flag &= ~FLAG_LCTRL;
 			} else { /* Extended RCTRL */
@@ -283,7 +284,7 @@ int preprocess(BYTE code)
 			bios_da.keyb_flag &= ~FLAG_RSHIFT;
 			break;
 		case BREAK|MK_ALT:
-			if (!e0_keycode) {
+			if (!e0_keycode_1) {
 				stdst.s.lalt = 0;
 				bios_da.keyb_flag &= ~FLAG_LALT;
 			} else { /* Extended RALT */
@@ -313,7 +314,7 @@ int preprocess(BYTE code)
 	}
 
 	if (!ret)
-		rawqueue_put(pxcode);
+		rawqueue_put(code|e0_keycode_1);
 
 	return ret;
 }
@@ -339,8 +340,12 @@ void postprocess(void)
 		/* Decode it... And put the scancode and charcode into the keyqueue */
 		if (decoded == 0) {
 			fd32_log_printf("Strange key: %d (0x%x)\n", code, code);
+			/* Skip the keystroke */
+			keyqueue_put(0x0000);
+			keyqueue_get();
 		} else {
 			keyqueue_put(decoded);
+			decoded = 0;
 		}
 		/* Retrieve raw code again */
 		code = rawqueue_read();

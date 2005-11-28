@@ -37,6 +37,7 @@ typedef struct KeyType
 	BYTE cmdbits;
 	BYTE data[1];	/* a variable data */
 } KeyType;
+#define SIZEOF_KEYTYPE (4)
 
 typedef struct SubMapping
 {

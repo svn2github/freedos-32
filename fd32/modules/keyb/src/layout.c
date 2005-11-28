@@ -31,6 +31,12 @@
 static KeybCB cb;
 
 
+void keyb_layout_execute(int command)
+{
+	fd32_log_printf("[KEYB] Exec command: %x\n", command);
+}
+
+
 /* Decode the scancode based on the current layout
 	TODO: Implement user-defined flags
  */
@@ -42,6 +48,7 @@ int keyb_layout_decode(BYTE c, keyb_std_status_t stdst)
 	if (cb.ref != NULL) {
 		BYTE *p;
 		KeyType *blk;
+		BYTE is_command;
 		BYTE data_size;
 		BYTE submap_idx;
 		BYTE plane_idx = 0;
@@ -64,15 +71,39 @@ int keyb_layout_decode(BYTE c, keyb_std_status_t stdst)
 		p = (BYTE *)cb.ref+cb.submaps[submap_idx].keysofs;
 		/* Granularity (scancode-flag) check on the data_size */
 		for (blk = (KeyType *)p, data_size = blk->flags.data_maxidx>>blk->flags.s_flag; blk->scancode != 0;
-			p += sizeof(KeyType)+data_size,
+			p += SIZEOF_KEYTYPE+data_size,
 			blk = (KeyType *)p, data_size = blk->flags.data_maxidx>>blk->flags.s_flag) {
 			if (blk->scancode == c) {
-                #ifdef __KEYB_DEBUG__
-				fd32_log_printf("[KEYB] Scancode: 0x%02x, flags: 0x%02x, cmd: 0x%02x, data: %02x %02x ...\n",
-					blk->scancode, *(BYTE *)(&blk->flags), blk->cmdbits, blk->data[0], blk->data[1]);
-				#endif
-				if (blk->data[plane_idx])
-					ret = blk->data[plane_idx];
+				if (plane_idx == 0 || plane_idx == 1) {
+					int caps_or_num = (blk->flags.numlock_af && stdst.s.numlk_active) ||
+							(blk->flags.capslock_af && stdst.s.capslk_active);
+					/* Process the NumLock or CapsLock */
+					plane_idx ^= caps_or_num;
+				}
+				if (blk->flags.data_maxidx >= plane_idx) {
+					BYTE *pb = (BYTE *)blk->data;
+#ifdef __KEYB_DEBUG__
+					fd32_log_printf("[KEYB] Scancode: 0x%02x, flags: 0x%02x, cmd: 0x%02x, data: %02x %02x ...\n",
+						blk->scancode, *(BYTE *)(&blk->flags), blk->cmdbits, pb[0], pb[1]);
+#endif
+					if (blk->cmdbits & 0x01<<plane_idx)
+						is_command = 1;
+					else
+						is_command = 0;
+					if (blk->flags.s_flag) {
+						WORD *pw = (WORD *)blk->data;
+						if (is_command)
+							keyb_layout_execute(pw[plane_idx]);
+						else if (pw[plane_idx])
+							ret = pw[plane_idx];
+					} else {
+						if (is_command)
+							keyb_layout_execute(pb[plane_idx]);
+						else if (pb[plane_idx])
+							/* Makeup a (scancode,char) pair */
+							ret = c<<8 | pb[plane_idx];
+					}
+				}
 				/* If keycode is cmd 0 then return -1 */
 				break;
 			}
@@ -117,9 +148,9 @@ int keyb_layout_choose(const char *filename, char *layout_name)
 
 		/* The keyboard library header */
 		fd32_kernel_read(fileid, &kheader, SIZEOF_KHEADER);
-		#ifdef __KEYB_DEBUG__
+#ifdef __KEYB_DEBUG__
 		fd32_log_printf("[KEYB] KC header:\n\tsig: %c%c%c\n\tver: %x\n\tlength: %x\n", kheader.Sig[0], kheader.Sig[1], kheader.Sig[2], *((WORD *)kheader.version), kheader.length);
-		#endif
+#endif
 		/* The keyboard library description */
 		kheader.description = (BYTE *)mem_get(kheader.length+1);
 		fd32_kernel_read(fileid, kheader.description, kheader.length);
@@ -128,9 +159,9 @@ int keyb_layout_choose(const char *filename, char *layout_name)
 		mem_free((DWORD)kheader.description, kheader.length+1);
 
 		for ( ; fd32_kernel_read(fileid, &klheader, SIZEOF_KLHEADER) > 0; ) {
-			#ifdef __KEYB_DEBUG__
+#ifdef __KEYB_DEBUG__
 			fd32_log_printf("[KEYB] KL size: %x length: %x\n", klheader.klsize, klheader.length);
-			#endif
+#endif
 			klheader.id = (BYTE *)mem_get(klheader.length);
 			fd32_kernel_read(fileid, klheader.id, klheader.length);
 			/* Match the layout name (or id, not implemented) */
@@ -143,9 +174,9 @@ int keyb_layout_choose(const char *filename, char *layout_name)
 				fd32_kernel_read(fileid, cb.ref, cb.size);
 				cb.submaps = (SubMapping *)(keybcb+SIZEOF_CB);
 				cb.planes = (Plane *)(keybcb+SIZEOF_CB+cb.ref->submap_num*sizeof(SubMapping));
-				#ifdef __KEYB_DEBUG__
+#ifdef __KEYB_DEBUG__
 				/* Key layout debug output */
-				DWORD i;
+				{ DWORD i;
 				keyb_std_status_t stdst;
 				kl_print_id(klheader.id, klheader.length);
 				fd32_log_printf("[KEYB] KeybCB: next %lx:\n\tSubmap_num %d\n\tPlane_num %d\n\tDec_sep %x\n\tCur_submap %d\n\tMCBID %x\n",
@@ -159,8 +190,8 @@ int keyb_layout_choose(const char *filename, char *layout_name)
 				/* Display additional planes */
 				for (i = 0; i < cb.ref->plane_num; i++) {
 					fd32_log_printf("[KEYB] Plane %ld: %x %x %x %x\n", i, cb.planes[i].wtStd, cb.planes[i].exStd, cb.planes[i].wtUsr, cb.planes[i].exUsr);
-				}
-				#endif
+				} }
+#endif
 				mem_free((DWORD)klheader.id, klheader.length);
 				ret = 0;
 				break;
