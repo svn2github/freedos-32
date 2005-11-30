@@ -19,7 +19,7 @@
 #include "logger.h"
 
 /* Enable the memory alignment optimization */
-#define CONFIG_MEMORY_ALIGNMENT
+#define CONFIG_MEMORY_ALIGNMENT 8
 
 static struct mempool high_mem_pool;
 static struct mempool dos_mem_pool;
@@ -214,7 +214,7 @@ void dosmem_init(DWORD base, DWORD size)
 int dosmem_get_region(DWORD base, DWORD size)
 {
 #ifdef CONFIG_MEMORY_ALIGNMENT
-  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+  size = (size + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
 #endif
   return pmm_alloc_address(&dos_mem_pool, base, size);
 }
@@ -222,7 +222,7 @@ int dosmem_get_region(DWORD base, DWORD size)
 int dosmem_free(DWORD base, DWORD size)
 {
 #ifdef CONFIG_MEMORY_ALIGNMENT
-  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+  size = (size + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
 #endif
   return pmm_free(&dos_mem_pool, base, size);
 }
@@ -230,7 +230,7 @@ int dosmem_free(DWORD base, DWORD size)
 DWORD dosmem_get(DWORD amount)
 {
 #ifdef CONFIG_MEMORY_ALIGNMENT
-  amount = (amount + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+  amount = (amount + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
 #endif
   return pmm_alloc(&dos_mem_pool, amount);
 }
@@ -238,7 +238,7 @@ DWORD dosmem_get(DWORD amount)
 int mem_get_region(DWORD base, DWORD size)
 {
 #ifdef CONFIG_MEMORY_ALIGNMENT
-  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+  size = (size + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
 #endif
   return pmm_alloc_address(&high_mem_pool, base, size);
 }
@@ -246,7 +246,7 @@ int mem_get_region(DWORD base, DWORD size)
 int mem_free(DWORD base, DWORD size)
 {
 #ifdef CONFIG_MEMORY_ALIGNMENT
-  size = (size + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+  size = (size + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
 #endif
   return pmm_free(&high_mem_pool, base, size);
 }
@@ -254,7 +254,7 @@ int mem_free(DWORD base, DWORD size)
 DWORD mem_get(DWORD amount)
 {
 #ifdef CONFIG_MEMORY_ALIGNMENT
-  amount = (amount + sizeof(DWORD)-1) & ~(sizeof(DWORD)-1);
+  amount = (amount + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
 #endif
   return pmm_alloc(&high_mem_pool, amount);
 }
