@@ -122,14 +122,15 @@ int videobios_int(union rmregs *r)
         case 0x09: /* VIDEO - READ ALL PALETTE REGISTERS AND OVERSCAN REGISTER (VGA) */
           vga_get_all_palette_reg((BYTE *)(r->x.es<<4)+r->x.dx);
           break;
+        case 0x10: /* VIDEO - SET INDIVIDUAL DAC REGISTER (VGA/MCGA) */
+          outp(VGAREG_DAC_WRITE_ADDRESS, r->x.bx);
+          vga_set_single_dac_reg(r->x.bx, r->h.dh /* RED   */, r->h.ch /* GREEN */, r->h.cl /* BLUE  */);
+          break;
         case 0x12: /* VIDEO - SET BLOCK OF DAC REGISTERS (VGA/MCGA) */
           vga_set_all_dac_reg(r->x.bx, r->x.cx, (BYTE *)(r->x.es<<4)+r->x.dx);
           break;
         case 0x15: /* VIDEO - READ INDIVIDUAL DAC REGISTER (VGA/MCGA) */
-          outp(VGAREG_DAC_READ_ADDRESS, r->h.bl);
-          r->h.dh = inp(VGAREG_DAC_DATA); /* RED   */
-          r->h.ch = inp(VGAREG_DAC_DATA); /* GREEN */
-          r->h.cl = inp(VGAREG_DAC_DATA); /* BLUE  */
+          vga_read_single_dac_reg(r->h.bl, &r->h.dh /* RED   */, &r->h.ch /* GREEN */, &r->h.cl /* BLUE  */);
           break;
         default:
           fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);

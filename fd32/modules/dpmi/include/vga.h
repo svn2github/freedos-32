@@ -93,6 +93,8 @@ void vga_toggle_intensity(BYTE state);
 BYTE vga_get_single_palette_reg(BYTE reg);
 void vga_set_single_palette_reg(BYTE reg, BYTE value);
 void vga_set_all_dac_reg(WORD start, WORD count, BYTE *table);
+void vga_set_single_dac_reg(WORD reg, BYTE r, BYTE g, BYTE b);
+void vga_read_single_dac_reg(WORD reg, BYTE *r, BYTE *g, BYTE *b);
 BYTE vga_get_video_mode(BYTE *colsnum, BYTE *curpage);
 BYTE vga_set_video_mode(BYTE modenum);
 

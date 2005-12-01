@@ -286,6 +286,22 @@ void vga_set_all_dac_reg(WORD start, WORD count, BYTE *table)
   }
 }
 
+void vga_set_single_dac_reg(WORD reg, BYTE r, BYTE g, BYTE b)
+{
+  outp(VGAREG_DAC_WRITE_ADDRESS, reg);
+  outp(VGAREG_DAC_DATA, r);
+  outp(VGAREG_DAC_DATA, g);
+  outp(VGAREG_DAC_DATA, b);
+}
+
+void vga_read_single_dac_reg(WORD reg, BYTE *r, BYTE *g, BYTE *b)
+{
+  outp(VGAREG_DAC_READ_ADDRESS, reg);
+  *r = inp(VGAREG_DAC_DATA); /* RED   */
+  *g = inp(VGAREG_DAC_DATA); /* GREEN */
+  *b = inp(VGAREG_DAC_DATA); /* BLUE  */
+}
+
 BYTE vga_get_video_mode(BYTE *colsnum, BYTE *activepage)
 {
   colsnum[0] = biosmem_p[BIOSMEM_NB_COLS];
