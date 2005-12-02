@@ -71,7 +71,7 @@ extern struct bios_data_area {
   WORD video_cursor_pos[8];
   WORD video_cursor_shape;
   BYTE video_active_page;
-  WORD video_port;
+  WORD video_crtc_port;
   BYTE vdu_ctrl_reg;
   BYTE vdu_color_reg;
   BYTE temp_storage[5];

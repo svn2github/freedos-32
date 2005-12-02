@@ -8,11 +8,6 @@
  */
  
 #include <ll/i386/hw-data.h>
-#include <ll/i386/hw-instr.h>
-#include <ll/i386/hw-func.h>
-#include <ll/i386/x-bios.h>
-#include <ll/i386/mem.h>
-#include <ll/i386/string.h>
 #include <ll/i386/error.h>
 #include <ll/i386/cons.h>
 #include <logger.h>
@@ -38,7 +33,7 @@ int videobios_int(union rmregs *r)
   switch (r->h.ah) {
     /* VIDEO - SET VIDEO MODE */
     case 0x00:
-      r->h.al = vga_set_video_mode(r->h.al&0x7F);
+      r->h.al = vga_set_video_mode(r->h.al);
       break;
     /* VIDEO - SET TEXT-MODE CURSOR SHAPE */
     case 0x01:
@@ -56,20 +51,12 @@ int videobios_int(union rmregs *r)
     case 0x03:
       /* Get Cursor Position and Size...*/
       /* BH is the page number... For now, don't care about it! */
-      /*
-        r->ch = 0x06;
-        r->cl = 0x07;
-      */
       r->x.cx = 0x0607;
       /* CH - CL are the start and end scanline for the cursor (!!?)
        * The previous values 0x06 and 0x07 are hopefully the standard
        * ones...
        */
       getcursorxy(&x, &y);
-      /*
-        r->dh = y;
-        r->dl = x;
-      */
       r->h.dh = y;
       r->h.dl = x;
       RMREGS_CLEAR_CARRY;
@@ -105,10 +92,7 @@ int videobios_int(union rmregs *r)
           vga_set_single_palette_reg(r->h.bl, r->h.bh);
           break;
         case 0x01: /* VIDEO - SET BORDER (OVERSCAN) COLOR (PCjr,Tandy,EGA,VGA) */
-          inp(VGAREG_ACTL_RESET);
-          outp(VGAREG_ACTL_ADDRESS, 0x11);
-          outp(VGAREG_ACTL_WRITE_DATA, r->h.bh);
-          outp(VGAREG_ACTL_ADDRESS, 0x20);
+          vga_set_overscan_border_color(r->h.bh);
           break;
         case 0x02: /* VIDEO - SET ALL PALETTE REGISTERS (PCjr,Tandy,EGA,VGA) */
           vga_set_all_palette_reg((BYTE *)(r->x.es<<4)+r->x.dx);
@@ -123,7 +107,6 @@ int videobios_int(union rmregs *r)
           vga_get_all_palette_reg((BYTE *)(r->x.es<<4)+r->x.dx);
           break;
         case 0x10: /* VIDEO - SET INDIVIDUAL DAC REGISTER (VGA/MCGA) */
-          outp(VGAREG_DAC_WRITE_ADDRESS, r->x.bx);
           vga_set_single_dac_reg(r->x.bx, r->h.dh /* RED   */, r->h.ch /* GREEN */, r->h.cl /* BLUE  */);
           break;
         case 0x12: /* VIDEO - SET BLOCK OF DAC REGISTERS (VGA/MCGA) */
@@ -140,7 +123,24 @@ int videobios_int(union rmregs *r)
 
     /* VIDEO - TEXT-MODE CHARGEN */
     case 0x11:
-      fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);
+      
+      switch (r->h.al)
+      {
+        case 0x02:
+        case 0x12: /* VIDEO - TEXT-MODE CHARGEN - LOAD ROM 8x8 DBL-DOT PATTERNS (PS,EGA,VGA) */
+          vga_load_text_8_8_pat(r->h.al, r->h.bl);
+          break;
+        case 0x03:
+          vga_set_text_block_specifier(r->h.bl);
+          break;
+        case 0x04:
+        case 0x14: /* VIDEO - TEXT-MODE CHARGEN - LOAD ROM 8x16 CHARACTER SET (VGA) */
+          vga_load_text_8_16_pat(r->h.al, r->h.bl);
+          break;
+        default:
+          fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);
+          break;
+      }
       break;
 
     /* VIDEO - ALTERNATE FUNCTIONS */
@@ -174,15 +174,18 @@ int videobios_int(union rmregs *r)
 
     /* VIDEO - SET/GET DISPLAY COMBINATION CODE */
     case 0x1A:
-      if (r->h.al != 0x00)
-        r->h.al = 0;
       /* Get display combination mode (???)
        * let's say that it is used for checking if the video card is a VGA...
        */
-      r->h.al = 0x1A;
-      /* 7 Should be VGA!!! */
-      /* Alternate Display Code (BH) and Active Display Code (BL) */
-      r->x.bx = 0x0707;
+
+      if ( r->h.al == 0) {
+        /* Alternate Display Code (BH) and Active Display Code (BL) */
+        r->h.bh = 0x07; /* 7 Should be VGA!!! */
+        r->h.bl = vga_read_display_code();
+      } else if ( r->h.al == 1) {
+        vga_set_display_code(r->h.bl);
+      }
+      r->h.al = 0x1A; /* function supported */
       break;
 
     case 0x4F:

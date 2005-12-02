@@ -26,32 +26,8 @@
 #define ACTL_MAX_REG              0x14
 
 /*
- *
- * BIOS Memory 
- *
+ * mode definition
  */
-#define BIOSMEM_SEG 0x40
-
-#define BIOSMEM_INITIAL_MODE  0x10
-#define BIOSMEM_CURRENT_MODE  0x49
-#define BIOSMEM_NB_COLS       0x4A
-#define BIOSMEM_PAGE_SIZE     0x4C
-#define BIOSMEM_CURRENT_START 0x4E
-#define BIOSMEM_CURSOR_POS    0x50
-#define BIOSMEM_CURSOR_TYPE   0x60
-#define BIOSMEM_CURRENT_PAGE  0x62
-#define BIOSMEM_CRTC_ADDRESS  0x63
-#define BIOSMEM_CURRENT_MSR   0x65
-#define BIOSMEM_CURRENT_PAL   0x66
-#define BIOSMEM_NB_ROWS       0x84
-#define BIOSMEM_CHAR_HEIGHT   0x85
-#define BIOSMEM_VIDEO_CTL     0x87
-#define BIOSMEM_SWITCHES      0x88
-#define BIOSMEM_MODESET_CTL   0x89
-#define BIOSMEM_DCC_INDEX     0x8A
-#define BIOSMEM_VS_POINTER    0xA8
-#define BIOSMEM_VBE_FLAG      0xB9
-#define BIOSMEM_VBE_MODE      0xBA
 
 #define TEXT       0x00
 #define GRAPH      0x01
@@ -87,6 +63,9 @@ typedef struct
 } __attribute__ ((packed)) VGAMODE;
 
 
+void vga_set_cursor_shape(BYTE ch, BYTE cl);
+void vga_set_cursor_pos(BYTE page, WORD cursor);
+void vga_set_overscan_border_color(BYTE value);
 void vga_get_all_palette_reg(BYTE *pal);
 void vga_set_all_palette_reg(BYTE *pal);
 void vga_toggle_intensity(BYTE state);
@@ -97,5 +76,10 @@ void vga_set_single_dac_reg(WORD reg, BYTE r, BYTE g, BYTE b);
 void vga_read_single_dac_reg(WORD reg, BYTE *r, BYTE *g, BYTE *b);
 BYTE vga_get_video_mode(BYTE *colsnum, BYTE *curpage);
 BYTE vga_set_video_mode(BYTE modenum);
+BYTE vga_read_display_code(void);
+void vga_set_display_code(BYTE active_code);
+void vga_set_text_block_specifier(BYTE bl);
+void vga_load_text_8_16_pat(BYTE al, BYTE bl);
+void vga_load_text_8_8_pat(BYTE al, BYTE bl);
 
 #endif
