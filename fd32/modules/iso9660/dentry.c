@@ -123,7 +123,8 @@ int iso9660_open(Dentry *dentry, int flags, File **file)
 		f->extent         = ME(dr->extent);
 		f->data_length    = ME(dr->data_length);
 		f->len_ear        = dr->len_ear;
-		f->recording_time = 0;
+		//f->recording_time = 0;
+		memcpy(&f->timestamp, &dr->recording_time, sizeof(struct iso9660_dir_record_timestamp));
 		f->file_flags     = dr->flags;
 	}
 	else
@@ -133,7 +134,8 @@ int iso9660_open(Dentry *dentry, int flags, File **file)
 		f->extent         = dentry->v->root_extent;
 		f->data_length    = dentry->v->root_data_length;
 		f->len_ear        = dentry->v->root_len_ear;
-		f->recording_time = 0;
+		//f->recording_time = 0;
+		memcpy(&f->timestamp, &dentry->v->root_recording_time, sizeof(struct iso9660_dir_record_timestamp));
 		f->file_flags     = ISO9660_FL_DIR;
 	}
 	f->magic          = ISO9660_FILE_MAGIC;

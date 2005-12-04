@@ -34,6 +34,26 @@ typedef struct
 __attribute__ ((packed)) PrivateFindData;
 
 
+/* Converts an ISO 9660 time stamp to a 16-bit DOS date */
+static unsigned pack_dos_date(const struct iso9660_dir_record_timestamp *t)
+{
+	if ((t->year  >= 80) && (t->year  <= 207)
+	 && (t->month >= 1)  && (t->month <= 12)
+	 && (t->day   >= 1)  && (t->day   <= 31))
+		return ((unsigned) t->day) | ((unsigned) t->month << 5) | (((unsigned) t->year - 80) << 9);
+	return 0;
+}
+
+
+/* Converts an ISO 9660 time stamp to a 16-bit DOS time */
+static unsigned pack_dos_time(const struct iso9660_dir_record_timestamp *t)
+{
+	if ((t->seconds <= 60) && (t->minutes <= 59) && (t->hour <= 23))
+		return ((unsigned) t->seconds >> 1) | ((unsigned) t->minutes << 5) | ((unsigned) t->hour << 11);
+	return 0;
+}
+
+
 /* In real life, it is actually common to find file identifiers including
  * non-d-characters. Let's consider as valid all characters allowed for
  * DOS file names.
@@ -268,8 +288,8 @@ int iso9660_findnext(Volume *v, fd32_fs_dosfind_t *df)
 					df->Attr  = FD32_ARDONLY;
 					if (dr->flags & ISO9660_FL_DIR) df->Attr |= FD32_ADIR;
 					if (dr->flags & ISO9660_FL_EX)  df->Attr |= FD32_AHIDDEN;
-					df->MTime = 0;//de->mod_time;
-					df->MDate = 0;//de->mod_date;
+					df->MTime = pack_dos_time(&dr->recording_time);
+					df->MDate = pack_dos_date(&dr->recording_time);
 					df->Size  = ME(dr->data_length);
 					res = expand_fcb_name(df->Name, fcbname);
 					if (res < 0) return res;
@@ -296,8 +316,8 @@ int iso9660_findfirst(Dentry *dparent, const char *fn, size_t fnsize, int attr, 
 	if (attr == FD32_AVOLID)
 	{
 		df->Attr  = FD32_AVOLID;
-		df->MTime = 0;
-		df->MDate = 0;
+		df->MTime = pack_dos_time(&v->root_recording_time);
+		df->MDate = pack_dos_date(&v->root_recording_time);
 		df->Size  = 0;
 		memcpy(df->Name, v->vol_id, sizeof(df->Name));
 		df->Name[12] = '\0';
@@ -485,9 +505,9 @@ int iso9660_findfile(File *f, const char *fn, size_t fnsize, int flags, fd32_fs_
 			lfnfind->Attr  = FD32_ARDONLY;
 			if (dr->flags & ISO9660_FL_DIR) lfnfind->Attr |= FD32_ADIR;
 			if (dr->flags & ISO9660_FL_EX)  lfnfind->Attr |= FD32_AHIDDEN;
-			lfnfind->CTime  = 0;//(QWORD) de->cre_time | ((QWORD) de->cre_date << 16);
-			lfnfind->ATime  = 0;//(QWORD) de->acc_date << 16;
-			lfnfind->MTime  = 0;//(QWORD) de->mod_time | ((QWORD) de->mod_date << 16);
+			lfnfind->CTime  = (QWORD) pack_dos_time(&dr->recording_time) | ((QWORD) pack_dos_date(&dr->recording_time) << 16);
+			lfnfind->ATime  = 0;
+			lfnfind->MTime  = (QWORD) pack_dos_time(&dr->recording_time) | ((QWORD) pack_dos_date(&dr->recording_time) << 16);
 			lfnfind->SizeHi = 0;
 			lfnfind->SizeLo = ME(dr->data_length);
 			if (len >= sizeof(lfnfind->LongName)) continue;//return -ENAMETOOLONG;
@@ -531,11 +551,11 @@ int iso9660_get_attr(File *f, fd32_fs_attr_t *a)
 	a->Attr  = FD32_ARDONLY;
 	if (f->file_flags & ISO9660_FL_EX) a->Attr |= FD32_AHIDDEN;
 	if (f->file_flags & ISO9660_FL_DIR) a->Attr |= FD32_ADIR;
-	a->MDate = 0;
-	a->MTime = 0;
+	a->MDate = pack_dos_date(&f->timestamp);
+	a->MTime = pack_dos_time(&f->timestamp);
 	a->ADate = 0;
-	a->CDate = 0;
-	a->CTime = 0;
+	a->CDate = a->MDate;
+	a->CTime = a->MTime;
 	a->CHund = 0;
 	return 0;
 }
@@ -554,7 +574,7 @@ int iso9660_get_fsfree(fd32_getfsfree_t *fsfree)
 	fsfree->SecPerClus  = 1;
 	fsfree->BytesPerSec = v->bytes_per_sector;
 	fsfree->AvailClus   = 0;
-	fsfree->TotalClus   = 0; //FIXME
+	fsfree->TotalClus   = v->vol_space;
 	return 0;
 }
 #endif

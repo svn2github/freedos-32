@@ -108,11 +108,13 @@ int iso9660_mount(const char *device_name, Volume **volume)
 	v->block_size = 1 << v->log_block_size;
 	v->log_blocks_per_sector = v->log_bytes_per_sector - v->log_block_size;
 	v->blocks_per_sector = 1 << v->log_blocks_per_sector;
+	v->vol_space = ME(pvd->vol_space);
 
 	/* Files and root directory */
 	v->root_extent      = ME(pvd->root_directory.extent);
 	v->root_len_ear     = pvd->root_directory.len_ear;
 	v->root_data_length = ME(pvd->root_directory.data_length);
+	memcpy(&v->root_recording_time, &pvd->root_directory.recording_time, sizeof(struct iso9660_dir_record_timestamp));
 
 	/* Initialize files */
 	slabmem_create(&v->dentries_slab, sizeof(Dentry));
@@ -153,7 +155,7 @@ int iso9660_readbuf(Volume *v, Block block, Buffer **buffer)
 		v->buffer.sector = block >> v->log_blocks_per_sector;
 		v->buffer.block  = v->buffer.sector << v->log_blocks_per_sector;
 		res = iso9660_blockdev_read(v, v->buffer.data, 1, v->buffer.sector);
-		if (res <0/* != 1*/) return -EIO;
+		if (res != 1) return -EIO;
 		v->buffer.valid = 1;
 	}
 	v->buf_access++;

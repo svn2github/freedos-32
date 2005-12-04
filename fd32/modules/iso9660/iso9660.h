@@ -139,11 +139,13 @@ struct Volume
 	unsigned log_block_size;
 	unsigned blocks_per_sector;
 	unsigned log_blocks_per_sector;
+	Block    vol_space;
 
 	/* Root directory */
 	Block    root_extent;
 	unsigned root_len_ear;
 	uint32_t root_data_length;
+	struct iso9660_dir_record_timestamp root_recording_time;
 
 	/* Buffers */
 	unsigned buf_access; /* statistics */
@@ -169,12 +171,13 @@ struct File
 	Block    extent;
 	uint32_t data_length;   /* not including any Extended Attribute Record */
 	unsigned len_ear;
-	time_t   recording_time;
+	//time_t   recording_time;
 	unsigned file_flags;    /* see enum iso9660_file_flags */
 	off_t    file_pointer;  /* the one set by lseek and updated on r/w */
 	uint32_t magic;         /* ISO9660_FILE_MAGIC */
 	int      open_flags;    /* opening flags of this file instance */
 	unsigned references;    /* number of times this instance is open */
+	struct iso9660_dir_record_timestamp timestamp;
 };
 
 

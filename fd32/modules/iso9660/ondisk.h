@@ -44,7 +44,7 @@ iso9660_u32_t;
 
 struct iso9660_dir_record_timestamp
 {
-	uint8_t year; /* since 1990 */
+	uint8_t year; /* since 1900 */
 	uint8_t month;
 	uint8_t day;
 	uint8_t hour;

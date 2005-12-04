@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 FreeDOS-32 ISO 9660 Driver
-by Salvo Isaja, 2005-11-14
+by Salvo Isaja, 2005-12-04
 -----------------------------------------------------------------------------
 This is the README file of the preliminary ISO 9660 file system driver
 for FreeDOS-32. ISO 9660 is the standard file system for CD-ROMs.
@@ -11,7 +11,7 @@ mode. Extensions such as Joliet and Rock Ridge (basically, long file names)
 are not yet supported. There is no attempt to access multisession data.
 Though, the driver is supposed to read most CD-ROMs.
 File names are truncated to 8.3 for short file names APIs and version numbers
-are stripped from file names. File time stamps are not yet returned.
+are stripped from file names.
 
 
 COPYRIGHT NOTICE AND LICENSING TERMS
