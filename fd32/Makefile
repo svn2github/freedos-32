@@ -22,17 +22,17 @@ all: fd32.bin modules
 
 clean: $(OSLIB)/config.mk
 	$(RM) fd32.bin
-	make -C boot clean
-	make -C cons clean
-	make -C devices clean
-	make -C dynalink clean
-	make -C filesys clean
-	make -C kernel clean
-	make -C modules clean
-	make -C modules/block clean
+	$(MAKE) -C boot clean
+	$(MAKE) -C cons clean
+	$(MAKE) -C devices clean
+	$(MAKE) -C dynalink clean
+	$(MAKE) -C filesys clean
+	$(MAKE) -C kernel clean
+	$(MAKE) -C modules clean
+	$(MAKE) -C modules/block clean
 
 allclean: clean
-	make -C $(OSLIB) allclean
+	$(MAKE) -C $(OSLIB) allclean
 
 $(OSLIB)/config.mk: config.mk
 	$(CP) config.mk $(OSLIB_DIR)
@@ -46,7 +46,7 @@ modules: $(OSLIB)/config.mk
 	$(MAKE) -C modules
 
 $(LIB_PATH)/%.a: $(OSLIB)/config.mk
-	make install -C $(OSLIB)
+	$(MAKE) install -C $(OSLIB)
 
 fd32.bin : kern_subdirs $(LIB_PATH)/libhc.a $(LIB_PATH)/libhx.a
 	$(LD) $(LINK_OPT) $(LIB_PATH)x0.o --start-group $(OBJS) -lhc -lhx -lkl --end-group -o $@
