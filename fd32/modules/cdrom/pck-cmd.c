@@ -118,13 +118,13 @@ static int cd_check(struct cd_device* d, struct cd_sense* s, int* result)
 
     if((s->error_code & 0x7F) == 0x70)
     {
-        *result = -BLOCK_ERROR(s->sense_key & 0x0F, (s->asc << 8) | s->asc_q);
+        *result = -BLOCK_ERROR((s->sense_key & 0x0F) << 16, (s->asc << 8) | s->asc_q);
         d->flags &=  ~CD_FLAG_EXTRA_ERROR_INFO;
     }
     else if((s->error_code & 0x7F) == 0x71)
     {
         *result = -BLOCK_ERROR(0, 0);
-        d->errinf.error_code = -BLOCK_ERROR(s->sense_key & 0x0F, (s->asc << 8) | s->asc_q);
+        d->errinf.error_code = -BLOCK_ERROR((s->sense_key & 0x0F) << 16, (s->asc << 8) | s->asc_q);
         d->errinf.flags = CD_ERROR_FLAG_DEFERRED;
         d->flags |=  CD_FLAG_EXTRA_ERROR_INFO;
     }
