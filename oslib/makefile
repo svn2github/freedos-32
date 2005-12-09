@@ -1,26 +1,26 @@
 include config.mk
 
 all:
-	make -C xlib all
-	make -C libm all
-	make -C libc all
-	make -C libcons all
-	make -C kl all
+	$(MAKE) -C xlib all
+	$(MAKE) -C libm all
+	$(MAKE) -C libc all
+	$(MAKE) -C libcons all
+	$(MAKE) -C kl all
 
 install:
-	make -C xlib install
-	make -C libm install
-	make -C libc install
-	make -C libcons install
-	make -C kl install
+	$(MAKE) -C xlib install
+	$(MAKE) -C libm install
+	$(MAKE) -C libc install
+	$(MAKE) -C libcons install
+	$(MAKE) -C kl install
 
 clean:
-	make -C xlib clean
-	make -C libm clean
-	make -C libc clean
-	make -C libcons clean
-	make -C kl clean
-	make -C examples clean
+	$(MAKE) -C xlib clean
+	$(MAKE) -C libm clean
+	$(MAKE) -C libc clean
+	$(MAKE) -C libcons clean
+	$(MAKE) -C kl clean
+	$(MAKE) -C examples clean
 
 allclean: clean
 	$(RMDIR) lib
