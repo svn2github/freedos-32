@@ -58,7 +58,7 @@ int my_create_process(DWORD entry, DWORD base, DWORD size,
 int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *filename, char *args)
 {
   int retval;
-  int size;
+  DWORD size;
   DWORD exec_space;
   DWORD dyn_entry;
   DWORD base;

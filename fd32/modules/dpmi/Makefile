@@ -15,7 +15,7 @@ LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
 #DEBUG = -D__DEBUG__ -D__DPMI_DEBUG__ -D__DPMIMEM_DEBUG__ -D__RM_INT_DEBUG__
-CONFIG = -DENABLE_BIOSVGA
+#CONFIG = -DENABLE_BIOSVGA
 
 C_OPT += -I../../include -I ./include -I$(MODULES) -I$(PORTAB) $(CONFIG) $(DEBUG)
 LINK_OPT = -Bstatic

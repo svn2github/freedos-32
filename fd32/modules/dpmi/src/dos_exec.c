@@ -287,7 +287,7 @@ static DWORD wrapper_alloc(DWORD size)
   return tmp;
 }
 
-static int _local_common_init(process_info_t *ppi, DWORD init_size, char *filename, char *args, WORD cs_sel, WORD ds_sel)
+static int _local_go32_init(process_info_t *ppi, DWORD init_size, char *filename, char *args, WORD cs_sel, WORD ds_sel)
 {
   DWORD mem;
   DWORD mem_size, env_size;
@@ -326,7 +326,7 @@ static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, 
   fd32_log_printf("[WRAP] Going to run 0x%lx, size 0x%lx\n",
 		entry, size);
 #endif
-  if ((res = _local_common_init(ppi, size, filename, args, user_cs, user_ds)) == -1)
+  if ((res = _local_go32_init(ppi, size, filename, args, user_cs, user_ds)) == -1)
     return -1;
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Calling run 0x%lx 0x%lx (0x%x 0x%x) --- 0x%lx\n",
@@ -365,16 +365,18 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   pi.cds_list = NULL;
   pi.memlimit = base + size;
 
-  stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
-  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
+  dpmi_stack = 0; /* Disable the stack switch in chandler */
+  dpmi_stack_top = 0xFFFFFFFF;
+
+  stack_mem = mem_get(DPMI_STACK_SIZE);
   /* Note: use the real entry */
   fd32_set_current_pi(&pi);
   retval = wrapper_create_process(&pi, entry, exec_space, size,
 		stack_mem+DPMI_STACK_SIZE, filename, args);
   /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev);  
-
+  fd32_set_current_pi(pi.prev);
   message("Returned: %d!!!\n", retval);
+
   mem_free(stack_mem, DPMI_STACK_SIZE);
   mem_free(exec_space, size);
 
@@ -410,7 +412,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", params.normal.entry);
 #endif
-    if ((retval = _local_common_init(&pi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
+    if ((retval = _local_go32_init(&pi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
       return -1;
     offset = exec_space - params.normal.base;
     params.normal.entry += offset;
