@@ -1,7 +1,5 @@
 #include <dr-env.h>
-#include <errors.h>
 #include <devices.h>
-#include <stubinfo.h>
 
 #include "../../drivers/pci/pci.h"
 

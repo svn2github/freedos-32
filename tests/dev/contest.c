@@ -1,15 +1,11 @@
 #include <dr-env.h>
-#include <stubinfo.h>
 
-int contest_init(int argc, char *argv[])
+int contest_init(struct process_info *pi)
 {
   char c;
-  struct psp new_psp;
-  extern struct psp *current_psp;
 
-  current_psp = &new_psp;
-  new_psp.jft = fd32_init_jft(8);
-  new_psp.jft_size = 8;
+  pi->jft_size = 12;
+  pi->jft = fd32_init_jft(12);
 
   while(c != 0x1B)
   {

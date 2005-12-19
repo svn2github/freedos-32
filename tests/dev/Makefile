@@ -7,9 +7,7 @@ WINDRES = windres.exe
 RES  = 
 OBJ  = 
 LIBS =  -Bstatic -nostdlib
-INCS =  -I"../../oslib"  -I"../../fd32/include"  -I"../../drivers/include/fd32" 
-CXXINCS =  -I"../../oslib"  -I"../../fd32/include"  -I"../../drivers/include/fd32" 
-CXXFLAGS = $(CXXINCS) -fexpensive-optimizations -O3 -nostdlib
+INCS =  -I"../../oslib" -I"../../fd32/include" -I"../../fd32/modules/include/fd32"
 CFLAGS = $(INCS) -nostdinc -mno-stack-arg-probe -finline-functions -ffreestanding -fexpensive-optimizations -O3 -nostdlib
 
 .PHONY: all all-before all-after clean clean-custom
