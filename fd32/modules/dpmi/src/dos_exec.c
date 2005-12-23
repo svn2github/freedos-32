@@ -494,9 +494,9 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   fd32_log_printf("[DPMI] FCB: %x %x content: %x %x\n", (int)g_fcb1, (int)g_fcb2, *((BYTE *)g_fcb1), *((BYTE *)g_fcb2));
 #endif
 
-  s.ds = s.cs = (exec>>4)+hdr.e_cs;
+  s.cs = (exec>>4)+hdr.e_cs;
   s.ss = (exec>>4)+hdr.e_ss;
-  s.es = (DWORD)ppsp>>4;
+  s.es = s.ds = (DWORD)ppsp>>4;
   in.x.ax = 0;
   in.x.bx = 0;
   in.x.dx = s.ds;
