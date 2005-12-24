@@ -236,7 +236,7 @@ void *fd32_init_jft(int jft_size)
 void fd32_free_jft(void *p, int jft_size)
 {
 	int res = mem_free((DWORD) p, sizeof(struct JftEntry) * jft_size);
-	if (res != 1)
+	if (res != 0)
 	{
 		error("Restore PSP panicing while freeing the JFT\n");
 		fd32_abort();

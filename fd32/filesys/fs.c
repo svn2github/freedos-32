@@ -81,6 +81,7 @@ int fs_open(char *file_name, DWORD mode, WORD attr, WORD alias_hint, fd32_reques
 
 	/* Otherwise call the open function of the file system device */
 	res = fd32_truename(aux_name, file_name, FD32_TNSUBST);
+	fd32_log_printf("[FS] truename: %s\n", aux_name);
 	if (res < 0) return res;
 	do
 	{

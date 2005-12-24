@@ -326,6 +326,9 @@ void dpmi_chandler(DWORD intnum, union regs r)
       redirect_to_rmint(0x10, &r);
 #endif
       break;
+    case 0x16:
+      redirect_to_rmint(0x16, &r);
+      break;
     case 0x21:
       if ((r.x.ax & 0xFF00) == 0x4C00) {
         return_to_dos(&r);
