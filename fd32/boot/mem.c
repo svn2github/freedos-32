@@ -235,6 +235,15 @@ DWORD dosmem_get(DWORD amount)
   return pmm_alloc(&dos_mem_pool, amount);
 }
 
+DWORD dosmem_resize(DWORD base, DWORD oldsize, DWORD newsize)
+{
+#ifdef CONFIG_MEMORY_ALIGNMENT
+  oldsize = (oldsize + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
+  newsize = (newsize + CONFIG_MEMORY_ALIGNMENT-1) & ~(CONFIG_MEMORY_ALIGNMENT-1);
+#endif
+  return pmm_resize(&dos_mem_pool, base, oldsize, newsize);
+}
+
 int mem_get_region(DWORD base, DWORD size)
 {
 #ifdef CONFIG_MEMORY_ALIGNMENT

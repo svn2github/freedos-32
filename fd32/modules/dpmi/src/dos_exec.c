@@ -18,6 +18,7 @@
 #include <kernel.h>
 #include <logger.h>
 #include "dpmi.h"
+#include "dosmem.h"
 #include "dos_exec.h"
 #include "ldtmanag.h"
 
@@ -214,12 +215,12 @@ void restore_psp(void)
 
   fd32_free_jft(cur_P->jft, cur_P->jft_size);
 
-  if (dosmem_free(info->dosbuf_handler, 0x1010) != 1) {
+  if (dosmem_free(info->dosbuf_handler, 0x1010) != 0) {
     error("Restore PSP panic while freeing DOS memory...\n");
     fd32_abort();
   }
 
-  if (mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp)) != 1) {
+  if (mem_free(base, sizeof(struct stubinfo) + sizeof(struct psp)) != 0) {
     error("Restore PSP panic while freeing memory...\n");
     fd32_abort();
   }
@@ -448,30 +449,26 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   struct psp *ppsp;
   X_REGS16 in, out;
   X_SREGS16 s;
-  DWORD mem, stack_mem, pre_stack_mem;
+  DWORD stack_mem, pre_stack_mem;
   BYTE *exec_text;
-  DWORD exec;
   DWORD exec_size;
+  WORD load_seg, exec_seg;
 
   kf->file_read(f, &hdr, sizeof(struct dos_header));
 
-  exec_size = (hdr.e_cp*0x20+hdr.e_minalloc+0x400)*0x10;
-  mem = dosmem_get(sizeof(struct psp)+exec_size);
-  /* NOTE: Align exec text at 0x10 boundary */
-  if ((mem&0x0F) != 0) {
-    message("[EXEC] Dos memory not at 0x10 boundary!\n");
-  }
+  exec_size = hdr.e_cp*0x20+hdr.e_minalloc+0x400;
+  load_seg = dos_alloc((sizeof(struct psp)>>4)+exec_size);
 
-  ppsp = (struct psp *)mem;
-  exec = mem+sizeof(struct psp);
-  exec_text = (BYTE *)exec;
+  ppsp = (struct psp *)(load_seg<<4);
+  exec_seg = load_seg+(sizeof(struct psp)>>4);
+  exec_text = (BYTE *)ppsp+sizeof(struct psp);
 
   /* NOTE: the last paragraph size */
   if (hdr.e_cblp != 0)
     hdr.e_cblp = 0x200-hdr.e_cblp;
 
   kf->file_seek(f, hdr.e_cparhdr*0x10, kf->seek_set);
-  kf->file_read(f, exec_text, exec_size-hdr.e_cparhdr*0x10-hdr.e_cblp);
+  kf->file_read(f, exec_text, (exec_size-hdr.e_cparhdr)*0x10-hdr.e_cblp);
 
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] Exec at 0x%x: %x %x %x ... %x %x ...\n", (int)exec_text, exec_text[0], exec_text[1], exec_text[2], exec_text[0x100], exec_text[0x101]);
@@ -479,7 +476,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   /* Relocation */
   if (hdr.e_crlc != 0) {
     DWORD i;
-    WORD *p, seg = exec>>4;
+    WORD *p, seg = exec_seg;
     struct dos_reloc *rel = (struct dos_reloc *)mem_get(sizeof(struct dos_reloc)*hdr.e_crlc);
     kf->file_seek(f, hdr.e_lfarlc, kf->seek_set);
     kf->file_read(f, rel, sizeof(struct dos_reloc)*hdr.e_crlc);
@@ -488,22 +485,24 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
       p = (WORD *)(((seg+rel[i].segment)<<4)+rel[i].offset);
       *p += seg;
     }
+
+    mem_free((DWORD)rel, sizeof(struct dos_reloc)*hdr.e_crlc);
   }
 
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DPMI] FCB: %x %x content: %x %x\n", (int)g_fcb1, (int)g_fcb2, *((BYTE *)g_fcb1), *((BYTE *)g_fcb2));
 #endif
 
-  s.cs = (exec>>4)+hdr.e_cs;
-  s.ss = (exec>>4)+hdr.e_ss;
-  s.es = s.ds = (DWORD)ppsp>>4;
+  s.cs = exec_seg+hdr.e_cs;
+  s.ss = exec_seg+hdr.e_ss;
+  s.es = s.ds = load_seg;
   in.x.ax = 0;
   in.x.bx = 0;
   in.x.dx = s.ds;
   in.x.di = hdr.e_sp;
   in.x.si = hdr.e_ip;
   fd32_log_printf("[DPMI] ES: %x DS: %x IP: %x\n", s.es, s.ds, hdr.e_ip);
-  local_set_psp(&pi, ppsp, (exec+exec_size)>>4, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
+  local_set_psp(&pi, ppsp, exec_seg+exec_size, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   pi.filename = filename;
   pi.args = args;
   pi.type = VM86_PROCESS;
@@ -527,7 +526,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   dpmi_stack = pre_stack_mem;
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   mem_free(stack_mem, DPMI_STACK_SIZE);
-  dosmem_free(mem, sizeof(struct psp)+exec_size);
+  dos_free(load_seg);
 
   return out.x.ax; /* Return value */
 }

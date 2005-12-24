@@ -122,6 +122,50 @@ DWORD pmm_alloc_from(struct mempool *mp, DWORD base, DWORD size)
   return 0;
 }
 
+/* Resize the existing memory block, return the block's new size, 0 for nothing (failed) (by Hanzac Chen) */
+DWORD pmm_resize(struct mempool *mp, DWORD base, DWORD oldsize, DWORD newsize)
+{
+  struct memheader *p, *pnew, *pprev;
+  DWORD start;
+  int res = 0, asize, lsize;
+
+#ifdef __DEBUG__
+  fd32_log_printf("[PMM] Resize 0x%lx 0x%lx 0x%1x...\n", base, oldsize, newsize);
+#endif
+
+  for (pprev = &mp->top, p = pprev->next; p!= 0; pprev = p, p = pprev->next) {
+    start = (DWORD)p;
+    if (base+oldsize == start) {
+      asize = newsize - oldsize;
+      lsize = p->size - asize; /* increase or decrease */
+      if (lsize >= sizeof(struct memheader)) {
+        pnew = (struct memheader *)(start + asize);
+        pnew->next = p->next;
+        pnew->size = lsize;
+        pprev->next = pnew;
+        res = newsize;
+      } else if (lsize < 0) {
+        /* TODO: Support partial allocation */
+        res = 0;
+      } else {
+        /* Left memory not enough to hold the memheader */
+        if (lsize > 0)
+          message("[PMM] Resize: WARNING - loosing %d bytes\n", lsize);
+        pprev->next = p->next;
+        res = newsize;
+      }
+      break;
+    }
+
+    /* Early break out */
+    if (base+oldsize < start) {
+      break;
+    }
+  }
+
+  return res; /* new size */
+}
+
 DWORD pmm_alloc(struct mempool *mp, DWORD size)
 {
   struct memheader *p, *pnew, *pprev;
@@ -177,6 +221,7 @@ static void local_pmm_error_overlap(DWORD base, DWORD size, DWORD o_base, DWORD 
   fd32_abort();
 }
 
+/* Free the memory, return 0 for succeed */
 int pmm_free(struct mempool *mp, DWORD base, DWORD size)
 {
   struct memheader *p, *pnew, *pprev;
@@ -231,7 +276,7 @@ int pmm_free(struct mempool *mp, DWORD base, DWORD size)
   }
 
   mp->top.size += size;
-  return 1;
+  return 0;
 }
 
 void pmm_dump(struct mempool *mp)

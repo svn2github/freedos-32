@@ -24,6 +24,7 @@ void pmm_remove_region(struct mempool *mp, DWORD base, DWORD size);
 int  pmm_alloc_address(struct mempool *mp, DWORD base, DWORD size);
 DWORD pmm_alloc(struct mempool *mp, DWORD size);
 int pmm_free(struct mempool *mp, DWORD base, DWORD size);
+DWORD pmm_resize(struct mempool *mp, DWORD base, DWORD oldsize, DWORD newsize);
 void pmm_dump(struct mempool *mp);
 
 #endif /* __PMM_H__ */

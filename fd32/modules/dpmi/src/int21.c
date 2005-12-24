@@ -34,6 +34,8 @@
 #include <logger.h>
 #include <fd32time.h>
 #include "rmint.h"
+#include "dpmiexc.h"
+#include "dosmem.h"
 #include "dos_exec.h"
 
 #define DOS_API_INPUT_IS_UTF8 1
@@ -812,17 +814,29 @@ void int21_handler(union rmregs *r)
 			r->x.ax = 0x0A07; /* We claim to be 7.10 */
 			res = 0;
 			break;
-		/* DOS 2+ AL=06h - Get ture DOS version */
+		/* DOS 2+ AL=06h - states */
 		case 0x33:
-			LOG_PRINTF(("[DPMI] INT 21h: Get true DOS version, al=%02xh\n", r->h.al));
-			if (r->h.al == 0x06)
+			switch (r->h.al)
 			{
-				r->x.bx = 0x0A07; /* We claim to be 7.10 */
-				r->x.dx = 0; /* Revision 0, no flags... */
-				res = 0;
-			} else {
-				res = -ENOSYS; /* Invalid subfunction */
+				/* DOS 2+ - EXTENDED BREAK CHECKING */
+				case 0x01:
+					/* TODO: ... */
+					res = 0;
+					break;
+				/* DOS 2+ AL=06h - Get ture DOS version */
+				case 0x06:
+					LOG_PRINTF(("[DPMI] INT 21h: Get true DOS version, al=%02xh\n", r->h.al));
+					r->x.bx = 0x0A07; /* We claim to be 7.10 */
+					r->x.dx = 0; /* Revision 0, no flags... */
+					res = 0;
+					break;
+				default:
+					res = -ENOSYS; /* Invalid subfunction */
+					break;
 			}
+			break;
+		case 0x35:
+			res = fd32_get_real_mode_int(r->h.al, &(r->x.es), &(r->x.bx));
 			break;
 		/* DOS 2+ - Get free disk space (DL=drive number, 0=default, 1=A, etc.) */
 		case 0x36:
@@ -946,18 +960,31 @@ void int21_handler(union rmregs *r)
 		case 0x43:
 			res = dos_get_and_set_attributes(r);
 			break;
-		/* IOCTL functions
-		 * TODO: They should be done... one day
-		 */
+		/* IOCTL functions */
 		case 0x44:
 			LOG_PRINTF(("[DPMI] INT 21h: IOCTL handle %04xh\n", r->x.bx));
-			res = fd32_get_dev_info(r->x.bx);
-			if (res < 0) {
-				res = -EBADF;
-			} else {
-				r->x.ax = res;
-				r->x.dx = r->x.ax;
+			switch (r->h.al)
+			{
+				case 0x00:
+					res = fd32_get_dev_info(r->x.bx);
+					if (res < 0) {
+						res = -EBADF;
+					} else {
+						r->x.ax = res;
+						r->x.dx = r->x.ax;
+					}
+					break;
+				case 0x09:
+					r->x.dx = 0;
+					res = 0;
+					break;
+				case 0x0D:
+					break;
+				default:
+					res = -ENOSYS; /* Invalid subfunction */
+					break;
 			}
+			
 			break;
 		/* DOS 2+ - "DUP" - Duplicate file handle (BX=file handle) */
 		case 0x45:
@@ -998,9 +1025,22 @@ void int21_handler(union rmregs *r)
 			/* TODO: Convert from UTF-8 to OEM */
 			break;
 		}
+		case 0x48:
+			LOG_PRINTF(("[DPMI] INT 21h: Allocate memory, BX=0x%x\n", r->x.bx));
+			r->x.ax = dos_alloc(r->x.bx);
+			if (r->x.ax == 0)
+				/* TODO: BX = size of largest available block */
+				res = -ENOMEM;
+			else
+				res = 0;
+			break;
+		case 0x49:
+			LOG_PRINTF(("[DPMI] INT 21h: Free memory, ES=0x%x\n", r->x.es));
+			res = dos_free(r->x.es);
+			break;
 		case 0x4A:
-			LOG_PRINTF(("[DPMI] INT 21h: Resize Memory Block, BX=0x%x, ES=0x%x\n", r->x.bx, r->x.es));
-			res = 0;
+			LOG_PRINTF(("[DPMI] INT 21h: Resize memory block, BX=0x%x, ES=0x%x\n", r->x.bx, r->x.es));
+			res = dos_resize(r->x.es, r->x.bx);
 			break;
 		/* DOS 2+ - "EXEC" - Load and/or Execute program */
 		case 0x4B:
@@ -1085,6 +1125,10 @@ void int21_handler(union rmregs *r)
 			if (res < 0) break;
 			res = dos_open(fn, O_RDWR | O_CREAT | O_EXCL, r->x.cx, 0, NULL);
 			if (res >= 0) r->x.ax = (WORD) res; /* The new handle */
+			break;
+		/* DOS 3.0+ - TRUENAME - CANONICALIZE FILENAME OR PATH */
+		case 0x60:
+			res = fd32_truename((char *)FAR2ADDR(r->x.es, r->x.di), (char *)FAR2ADDR(r->x.ds, r->x.si), FD32_TNSUBST);
 			break;
 		/* DOS 3.0+ - Get current PSP address */
 		case 0x62:

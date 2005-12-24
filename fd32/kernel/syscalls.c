@@ -226,6 +226,7 @@ static struct symbol syscall_table[] = {
   { "dosmem_get", (DWORD)dosmem_get },
   { "dosmem_get_region", (DWORD)dosmem_get_region },
   { "dosmem_free", (DWORD)dosmem_free },
+  { "dosmem_resize", (DWORD)dosmem_resize },
   { "mem_get",  (DWORD)mem_get },
   { "mem_get_region", (DWORD)mem_get_region },
   { "mem_free", (DWORD)mem_free },

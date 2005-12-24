@@ -85,7 +85,7 @@ void int31_0502(union regs *r)
   }
   CLEAR_CARRY;
   r->x.ax = 0x0000;
-  if (res != 1) {
+  if (res != 0) {
     error("Failed\n");
     fd32_abort();
   }
@@ -100,7 +100,7 @@ void int31_0503(union regs *r)
   DWORD base;
 
   handle = (r->d.esi << 16) | r->x.di;
-  if (dpmi_free(handle) != 1)
+  if (dpmi_free(handle) != 0)
     fd32_abort();
 
   blocksize = (r->d.ebx << 16) | r->x.cx;
