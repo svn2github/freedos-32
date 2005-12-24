@@ -6,8 +6,6 @@
 #include <dr-env.h>
 #include "vga.h"
 
-#define SCREEN_IO_START(x,y,p) ((((x*y)|0x00ff)+1)*p)
-
 static VGAMODE vga_modes[MODE_MAX+1]=
 {//mode  vesa   class  model   pg bits sw   sh  tw  th  cw ch  sstart  slength misc  pelm  crtc  actl  gdc   sequ  dac
  {0x00, 0xFFFF, TEXT,  CTEXT,   8, 4, 360, 400, 40, 25, 9, 16, 0xB800, 0x0800, 0x67, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -762,6 +760,99 @@ static void set_scan_lines(BYTE lines)
 }
 
 /* Functions */
+void vga_set_cursor_pos(BYTE page, WORD cursor)
+{
+  BYTE xcurs, ycurs, current;
+  WORD nbcols, nbrows, address, crtc_addr;
+
+  /* Should not happen...*/
+  if(page>7) return;
+
+  /* Bios cursor pos */
+  bios_da.video_cursor_pos[page] = cursor;
+
+  /* Set the hardware cursor */
+  current= bios_da.video_active_page;
+  if(page == current) {
+    /* Get the dimensions */
+    nbcols = bios_da.video_column_size;
+    nbrows = bios_da.video_row_size+1;
+
+    xcurs=cursor&0x00ff, ycurs=(cursor&0xff00)>>8;
+
+    /* Calculate the address knowing nbcols nbrows and page num */
+    address = (((nbcols*nbrows)|0x00FF)+1)*page+xcurs+ycurs*nbcols;
+   
+    /* CRTC regs 0x0e and 0x0f */
+    crtc_addr = bios_da.video_crtc_port;
+    outp(crtc_addr,0x0e);
+    outp(crtc_addr+1,(address&0xff00)>>8);
+    outp(crtc_addr,0x0f);
+    outp(crtc_addr+1,address&0x00ff);
+  }
+}
+
+void vga_get_cursor_pos(BYTE page, WORD *shape, WORD *pos)
+{
+  if(page < 8) {
+    /* FIXME should handle VGA 14/16 lines */
+    *shape = bios_da.video_cursor_shape;
+    *pos = bios_da.video_cursor_pos[page];
+  } else {
+    /* Default */
+    *shape = 0;
+    *pos = 0;
+  }
+}
+
+void vga_set_active_page(BYTE page)
+{
+  WORD cursor, dummy, crtc_addr;
+  WORD nbcols, nbrows, address;
+  BYTE mode, line;
+
+  if(page>7) return;
+
+  /* Get the mode */
+  mode = bios_da.video_mode;
+  line = find_vga_entry(mode);
+  if(line==0xFF) return;
+
+  /* Get pos curs pos for the right page */
+  vga_get_cursor_pos(page, &dummy, &cursor);
+
+  if(vga_modes[line].class == TEXT) {
+    /* Get the dimensions */
+    nbcols = bios_da.video_column_size;
+    nbrows = bios_da.video_row_size+1;
+  
+    /* Calculate the address knowing nbcols nbrows and page num */
+    bios_da.video_page_offset = (((nbcols*nbrows*2)|0x00FF)+1)*page;
+
+    /* Start address */
+    address = (((nbcols*nbrows)|0x00FF)+1)*page;
+  } else {
+    address = page*vga_modes[line].slength;
+  }
+
+  /* CRTC regs 0x0c and 0x0d */
+  crtc_addr = bios_da.video_crtc_port;
+  outp(crtc_addr,0x0c);
+  outp(crtc_addr+1,(address&0xff00)>>8);
+  outp(crtc_addr,0x0d);
+  outp(crtc_addr+1,address&0x00ff);
+
+  /* And change the BIOS page */
+  bios_da.video_active_page = page;
+
+#ifdef __DEBUG__
+  fd32_log_printf("[VGA] Set active page %02x address %04x\n", page, address);
+#endif
+
+  /* Display the cursor, now the page is active */
+  vga_set_cursor_pos(page, cursor);
+}
+
 void vga_set_cursor_shape(BYTE ch, BYTE cl) 
 {
   WORD cheight,crtc_addr;
@@ -787,38 +878,6 @@ void vga_set_cursor_shape(BYTE ch, BYTE cl)
   outp(crtc_addr+1,ch);
   outp(crtc_addr,0x0b);
   outp(crtc_addr+1,cl);
-}
-
-void vga_set_cursor_pos(BYTE page, WORD cursor) 
-{
-  BYTE xcurs,ycurs,current;
-  WORD nbcols,nbrows,address,crtc_addr;
-
-  /* Should not happen... */
-  if(page>7)return;
-
-  /* Bios cursor pos */
-  bios_da.video_cursor_pos[page] = cursor;
-
-  /* Set the hardware cursor */
-  current = bios_da.video_active_page;
-  if(page == current) {
-    /* Get the dimensions */
-    nbcols = bios_da.video_column_size;
-    nbrows = bios_da.video_row_size+1;
-
-    xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
-
-    /* Calculate the address knowing nbcols nbrows and page num */
-    address = SCREEN_IO_START(nbcols,nbrows,page)+xcurs+ycurs*nbcols;
-    
-    /* CRTC regs 0x0e and 0x0f */
-    crtc_addr = bios_da.video_crtc_port;
-    outp(crtc_addr,0x0e);
-    outp(crtc_addr+1,(address&0xff00)>>8);
-    outp(crtc_addr,0x0f);
-    outp(crtc_addr+1,address&0x00ff);
-  }
 }
 
 void vga_set_overscan_border_color(BYTE value)

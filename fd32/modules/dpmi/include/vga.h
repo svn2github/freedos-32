@@ -63,7 +63,9 @@ typedef struct
 } __attribute__ ((packed)) VGAMODE;
 
 
+void vga_set_active_page(BYTE page);
 void vga_set_cursor_shape(BYTE ch, BYTE cl);
+void vga_get_cursor_pos(BYTE page, WORD *shape, WORD *pos);
 void vga_set_cursor_pos(BYTE page, WORD cursor);
 void vga_set_overscan_border_color(BYTE value);
 void vga_get_all_palette_reg(BYTE *pal);

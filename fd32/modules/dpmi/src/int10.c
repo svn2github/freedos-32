@@ -29,7 +29,7 @@
 
 int videobios_int(union rmregs *r)
 {
-  int res = 0, x, y;
+  int res = 0;
   switch (r->h.ah) {
     /* VIDEO - SET VIDEO MODE */
     case 0x00:
@@ -37,29 +37,21 @@ int videobios_int(union rmregs *r)
       break;
     /* VIDEO - SET TEXT-MODE CURSOR SHAPE */
     case 0x01:
-      cursor(r->h.ch&0x3f, r->h.cl&0x1f);
+      vga_set_cursor_shape(r->h.ch, r->h.cl);
       break;;
 
     case 0x02:
       /* Set Cursor Position */
-      x = r->h.dl;
-      y = r->h.dh;
-      place(x, y);
-      RMREGS_CLEAR_CARRY;
+      vga_set_cursor_pos(r->h.bh, r->x.dx);
       break;
 
     case 0x03:
       /* Get Cursor Position and Size...*/
-      /* BH is the page number... For now, don't care about it! */
-      r->x.cx = 0x0607;
-      /* CH - CL are the start and end scanline for the cursor (!!?)
-       * The previous values 0x06 and 0x07 are hopefully the standard
-       * ones...
-       */
-      getcursorxy(&x, &y);
-      r->h.dh = y;
-      r->h.dl = x;
-      RMREGS_CLEAR_CARRY;
+      vga_get_cursor_pos(r->h.bh, &r->x.cx, &r->x.dx);
+      break;
+
+    case 0x05:
+      vga_set_active_page(r->h.al);
       break;
 
     case 0x08:
@@ -67,7 +59,6 @@ int videobios_int(union rmregs *r)
       /* Let's just return a reasonable attribute... */
       r->h.ah = get_attr();
       r->h.al = ' ';
-      RMREGS_CLEAR_CARRY;
       break;
       
     /* Video - Teletype output */
