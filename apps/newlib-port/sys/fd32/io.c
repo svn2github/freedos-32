@@ -40,15 +40,22 @@ int _close(int fd)
   return fd32_close(fd);
 }
 
-//int _open(const char *name, int flags, ...)
+#if _open == open
+#include <stdarg.h>
+int _open(const char *name, int flags, ...)
+#else
 int _open(const char *name, int flags, int mode)
+#endif
 {
-  int /*mode,*/ res/*, action*/;
+#if _open == open
+  int mode;
+  va_list ap;
+#endif
+  int res/*, action*/;
 //  uint32_t dosflags;
   uint16_t dosattr;
-//  va_list ap;
   
-#if 0
+#if _open == open
   /* Get the mode */
   va_start (ap, flags);
   mode = va_arg (ap, int);

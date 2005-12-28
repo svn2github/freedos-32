@@ -7,7 +7,9 @@ int _execve(const char *name, char * const argv[], char * const env[])
   uint16_t retcode;
   int res;
 
+/* TODO: kernel exec system call?
   res = dos_exec(name, env, argv, 0, 0, &retcode);
+ */
   if (res < 0) {
     return res;
   }
