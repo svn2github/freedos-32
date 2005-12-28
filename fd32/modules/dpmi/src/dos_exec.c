@@ -51,7 +51,9 @@ static void local_set_psp_commandline(struct psp *ppsp, char *args)
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
 static void local_set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *filename, char *args)
 {
-  char *env_data;
+  DWORD i;
+  char *env_data = (char *)(g_env_segment<<4);
+
   /* Set the PSP */
   ppi->psp = ppsp;
   /* Init PSP */
@@ -71,9 +73,7 @@ static void local_set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, W
   ppsp->dta = &ppsp->command_line_len;
   /* And now... Set the arg list!!! */
   local_set_psp_commandline(ppsp, args);
-#ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DOSEXEC] New PSP: 0x%x\n", (int)ppsp);
-#endif
+
   /* Create the Job File Table */
   /* TODO: Why!?!? Help me Luca!
            For the moment I always create a new JFT */
@@ -81,17 +81,11 @@ static void local_set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, W
      else Copy JFT from npsp->link->Jft
   */
   local_set_psp_jft(ppi, ppsp, NULL, MAX_OPEN_FILES);
-  
-  /* Environment setup */
-  env_data = (char *)(g_env_segment<<4);
-  strcpy(env_data, "PATH=.");
-  env_data[7] = 0;
-  *((WORD *)(env_data+8)) = 1; /* Count of the env-strings */
-  /* NOTE: filename is only the filepath */
-  strcpy(env_data + 10, filename);
-#ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DPMI] ENVSEG: %x - %x %x %x %s\n", (int)g_env_segment, env_data[0], env_data[1], env_data[2], env_data+10);
-#endif
+
+  /* Find the end of the env list */
+  for (i = 0; env_data[i] || env_data[i+1]; i++);
+  /* Append filename in the env (NOTE: filename is only the filepath) */
+  strcpy(env_data + i + 4, filename);
 
   /* Deprecated FD32 PSP members */
   /* npsp->info_sel = stubinfo_sel; */
@@ -557,8 +551,14 @@ int dos_exec_switch(int option)
   int res = 1;
 
   if (g_env_segtmp == 0) {
+    char *env_data;
     g_env_segtmp = dosmem_get(ENV_SIZE);
     g_env_segment = g_env_segtmp>>4;
+    /* The initial environment setup */
+    env_data = (char *)(g_env_segment<<4);
+    strcpy(env_data, "PATH=.");
+    env_data[7] = 0;
+    *((WORD *)(env_data+8)) = 1; /* Count of the env-strings */
   }
 
   switch(option)
