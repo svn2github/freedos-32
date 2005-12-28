@@ -26,14 +26,14 @@ struct symbol {
  */
 typedef struct process_info {
   struct process_info *prev;
-  DWORD type;
-  void *psp;      /* Optional DOS PSP */
-  void *cds_list; /* Under DOS this is a global array            */
+  uint32_t type;
+  void *psp;		/* Optional DOS PSP */
+  void *cds_list;	/* Under DOS this is a global array */
   char *args;
   char *filename;
-  DWORD memlimit;
+  uint32_t memlimit;
   void *jft;
-  WORD  jft_size;
+  uint32_t jft_size;
 } process_info_t;
 
 process_info_t *fd32_get_current_pi(void);

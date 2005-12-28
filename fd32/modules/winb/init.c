@@ -121,7 +121,7 @@ static int isspecial(double d)
     unsigned long manh:20;
     unsigned long exp:11;
     unsigned long sign:1;
-  } *ip = (struct IEEEdp *) &d;
+  } *ip = (void *) &d;
 
   if (ip->exp != 0x7ff)
     return (0);
