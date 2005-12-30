@@ -93,7 +93,6 @@ static void redirect_to_rmint(DWORD intnum, volatile union regs *r)
   r->x.flags = r1.x.flags;
 }
 
-#ifdef ENABLE_BIOSVGA
 static void redirect_to_bios(DWORD intnum, volatile union regs *r)
 {
   DWORD f;
@@ -123,7 +122,6 @@ static void redirect_to_bios(DWORD intnum, volatile union regs *r)
   r->x.ds = selectors_r.ds;
   ll_frestore(f);
 }
-#endif
 
 /* Int 31h handler may better be put somewhere else */
 static void int31_handler(union regs *r)
@@ -328,6 +326,10 @@ void dpmi_chandler(DWORD intnum, union regs r)
       break;
     case 0x16:
       redirect_to_rmint(0x16, &r);
+      break;
+    case 0x1A:
+      /* TODO: wait for a native pci driver */
+      redirect_to_bios(0x1A, &r);
       break;
     case 0x21:
       if ((r.x.ax & 0xFF00) == 0x4C00) {

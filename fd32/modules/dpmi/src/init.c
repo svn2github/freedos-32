@@ -109,6 +109,7 @@ void DPMI_init(process_info_t *pi)
 #endif
   l1_int_bind(0x10, chandler);
   l1_int_bind(0x16, chandler);
+  l1_int_bind(0x1A, chandler);
   l1_int_bind(0x21, chandler);
   l1_int_bind(0x2F, chandler);
   l1_int_bind(0x31, chandler);
