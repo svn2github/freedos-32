@@ -101,7 +101,7 @@ ssize_t ata_bi_read(void *handle, void *buffer, uint64_t start, size_t count, in
     if(res<0)
     {
         if(res == ATA_ERANGE)
-            return -BLOCK_ERROR(BLOCK_SENSE_ILLREQ, 0);
+            return BLOCK_ERROR(BLOCK_SENSE_ILLREQ, 0);
         else
             return -EIO;
     }
@@ -120,7 +120,7 @@ ssize_t ata_bi_write(void *handle, const void *buffer, uint64_t start, size_t co
     if(res<0)
     {
         if(res == ATA_ERANGE)
-            return -BLOCK_ERROR(BLOCK_SENSE_ILLREQ, 0);
+            return BLOCK_ERROR(BLOCK_SENSE_ILLREQ, 0);
         else
             return -EIO;
     }

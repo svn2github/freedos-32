@@ -29,7 +29,7 @@ LINK_OPT = -Bstatic
 
 .PHONY: all clean
 
-all: floppy.o #floppytest.o
+all: floppy.o floppytest.o
 
 fdc.o: fdc.c fdc.h
 	$(CC) -c $(C_OPT) fdc.c -o $@

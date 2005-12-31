@@ -270,7 +270,7 @@ int fat_mount(const char *blk_name, Volume **volume)
 	#if FAT_CONFIG_FD32
 	LOG_PRINTF(("[FAT2] Trying to mount a volume on device '%s'\n", blk_name));
 	res = block_get(blk_name, BLOCK_OPERATIONS_TYPE, (void **)&v->blk.bops, &v->blk.handle);
-	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot get operations\n", blk_name));
+	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot get operations\n"));
 	res = v->blk.bops->open(v->blk.handle);
 	if (res < 0) ABORT_MOUNT(("[FAT2] Cannot open the device\n"));
 	v->blk.is_open = true;
@@ -481,13 +481,13 @@ int fat_handle_attention(Volume *v)
 	uint8_t *secbuf;
 	uint32_t serial_number;
 
-	res = v->blk.bops->revalidate(&v->blk.handle);
+	res = v->blk.bops->revalidate(v->blk.handle);
 	if (res < 0) return res;
 	res = v->blk.bops->get_medium_info(v->blk.handle, &bmi);
 	if (res < 0) return res;
 	secbuf = (uint8_t *) malloc(bmi.block_bytes);
 	if (!secbuf) return -ENOMEM;
-	res = v->blk.bops->read(&v->blk.handle, secbuf, 0, 1, BLOCK_RW_NOCACHE);
+	res = v->blk.bops->read(v->blk.handle, secbuf, 0, 1, BLOCK_RW_NOCACHE); //POSSIBLE LEAK!!!
 	if (res < 0) return -EIO;
 	if (v->fat_type == FAT32)
 	{

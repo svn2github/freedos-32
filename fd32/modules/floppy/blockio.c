@@ -58,6 +58,7 @@ int floppy_open(void *handle)
 {
 	Floppy *floppy = (Floppy *) handle;
 	int res;
+	LOG_PRINTF(("[FLOPPY] floppy_open (%08xh)\n", (unsigned) handle));
 	if (floppy->locked) return -EBUSY;
 	#if FLOPPY_CONFIG_CACHE
 	floppy->buffers[0].flags = 0;
@@ -75,6 +76,7 @@ int floppy_revalidate(void *handle)
 {
 	Floppy *floppy = (Floppy *) handle;
 	int res;
+	LOG_PRINTF(("[FLOPPY] floppy_revalidate (%08xh)\n", (unsigned) handle));
 	if (!floppy->locked) return -EINVAL;
 	res = fdc_log_disk(floppy->fdd);
 	if (res < 0) return res;
@@ -87,6 +89,7 @@ int floppy_close(void *handle)
 {
 	Floppy *floppy = (Floppy *) handle;
 	if (!floppy->locked) return -EINVAL;
+	LOG_PRINTF(("[FLOPPY] floppy_close (%08xh)\n", (unsigned) handle));
 	#if FLOPPY_CONFIG_CACHE
 	floppy->buffers[0].flags = 0;
 	#endif
@@ -99,6 +102,7 @@ int floppy_close(void *handle)
 int floppy_get_device_info(void *handle, BlockDeviceInfo *buf)
 {
 	Floppy *floppy = (Floppy *) handle;
+	LOG_PRINTF(("[FLOPPY] floppy_get_device_info (%08xh)\n", (unsigned) handle));
 	buf->flags = BLOCK_DEVICE_INFO_TFLOPPY
 	#if FLOPPY_CONFIG_WRITE
 	           | BLOCK_DEVICE_INFO_WRITABLE
@@ -117,6 +121,7 @@ int floppy_get_device_info(void *handle, BlockDeviceInfo *buf)
 int floppy_get_medium_info(void *handle, BlockMediumInfo *buf)
 {
 	Floppy *floppy = (Floppy *) handle;
+	LOG_PRINTF(("[FLOPPY] floppy_get_medium_info (%08xh)\n", (unsigned) handle));
 	if (!floppy->locked) return -EINVAL;
 	buf->blocks_count = floppy->fdd->fmt->size;
 	buf->block_bytes  = 512; /* XXX: Other sector sizes? */
@@ -131,6 +136,7 @@ ssize_t floppy_read(void *handle, void *buffer, uint64_t start, size_t count, in
 	Floppy *floppy = (Floppy *) handle;
 	int res;
 	Chs chs;
+	LOG_PRINTF(("[FLOPPY] floppy_read (%08xh)\n", (unsigned) handle));
 	#if FLOPPY_CONFIG_CACHE
 	if (!(flags & BLOCK_RW_NOCACHE))
 		while (num_read < count)
@@ -143,7 +149,7 @@ ssize_t floppy_read(void *handle, void *buffer, uint64_t start, size_t count, in
 				if (lba_to_chs(floppy, start, &chs) < 0) return -ENXIO;
 				res = fdc_read_cylinder(floppy->fdd, chs.c, floppy->buffers[0].data);
 				if (res == FDC_ATTENTION)
-					return -BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0);
+					return BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0);
 				floppy->buffers[0].flags = BUF_VALID;
 				floppy->buffers[0].start = chs.c * floppy->cylinder_size;
 				if (res != FDC_OK) floppy->buffers[0].flags |= BUF_BAD;
@@ -153,7 +159,7 @@ ssize_t floppy_read(void *handle, void *buffer, uint64_t start, size_t count, in
 				/* Read as many contiguous sectors as possible from the cache */
 				size_t partial = floppy->buffers[0].start + floppy->cylinder_size - start;
 				if (fdc_disk_changed(floppy->fdd))
-					return -BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0);
+					return BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0);
 				if (num_read + partial > count)
 					partial = count - num_read;
 				memcpy(buffer, &floppy->buffers[0].data[512 * (start - floppy->buffers[0].start)], 512 * partial);
@@ -196,6 +202,7 @@ ssize_t floppy_write(void *handle, const void *buffer, uint64_t start, size_t co
 	Floppy *floppy = (Floppy *) handle;
 	Chs chs;
 	int res;
+	LOG_PRINTF(("[FLOPPY] floppy_write (%08xh)\n", (unsigned) handle));
 	while (num_written < count)
 	{
 		#if FLOPPY_CONFIG_CACHE
@@ -216,6 +223,7 @@ ssize_t floppy_write(void *handle, const void *buffer, uint64_t start, size_t co
 	}
 	return num_written;
 	#else /* not FAT_CONFIG_WRITE */
+	LOG_PRINTF(("[FLOPPY] floppy_write (not supported) (%08xh)\n", (unsigned) handle));
 	return -ENOTSUP;
 	#endif
 }
@@ -224,6 +232,7 @@ ssize_t floppy_write(void *handle, const void *buffer, uint64_t start, size_t co
 /* Implementation of BlockOperations::sync() */
 int floppy_sync(void *handle)
 {
+	LOG_PRINTF(("[FLOPPY] floppy_sync (%08xh)\n", (unsigned) handle));
 	return 0; /* No write-back caching at present */
 }
 
@@ -232,7 +241,8 @@ int floppy_sync(void *handle)
 int floppy_test_unit_ready(void *handle)
 {
 	int res = 0;
+	LOG_PRINTF(("[FLOPPY] floppy_test_unit_ready (%08xh)\n", (unsigned) handle));
 	if (fdc_disk_changed(((Floppy *) handle)->fdd))
-		res = -BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0);
+		res = BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0);
 	return res;
 }

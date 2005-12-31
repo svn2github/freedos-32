@@ -74,7 +74,7 @@ static int is_fat(BYTE *sec_buf, const FloppyFormat *formats, unsigned num_forma
     /* Check for the 0xAA55 signature at offset 510 of the boot sector */
     if (*((WORD *) &sec_buf[510]) != 0xAA55)
     {
-        LOG_PRINTF(("Boot sector signature 0xAA55 not found\n"));
+        LOG_PRINTF(("[FLOPPY] is_fat: Boot sector signature 0xAA55 not found\n"));
         return -1;
     }
     /* Check volume size */
@@ -82,7 +82,7 @@ static int is_fat(BYTE *sec_buf, const FloppyFormat *formats, unsigned num_forma
     {
         if (bpb->tot_sec32 == 0)
         {
-            LOG_PRINTF(("Both BPB_TotSec16 and BPB_TotSec32 are zero\n"));
+            LOG_PRINTF(("[FLOPPY] is_fat: Both BPB_TotSec16 and BPB_TotSec32 are zero\n"));
             return -1;
         }
         tot_sec = bpb->tot_sec32;
@@ -91,7 +91,7 @@ static int is_fat(BYTE *sec_buf, const FloppyFormat *formats, unsigned num_forma
     {
         if (bpb->tot_sec32 != 0)
         {
-            LOG_PRINTF(("Both BPB_TotSec16 and BPB_TotSec32 are nonzero\n"));
+            LOG_PRINTF(("[FLOPPY] is_fat: Both BPB_TotSec16 and BPB_TotSec32 are nonzero\n"));
             return -1;
         }
         tot_sec = bpb->tot_sec16;
@@ -101,7 +101,7 @@ static int is_fat(BYTE *sec_buf, const FloppyFormat *formats, unsigned num_forma
     {
         case 512: case 1024: case 2048: case 4096: break;
         default:
-            LOG_PRINTF(("Invalid BPB_BytsPerSec: %u\n", bpb->byts_per_sec));
+            LOG_PRINTF(("[FLOPPY] is_fat: Invalid BPB_BytsPerSec: %u\n", bpb->byts_per_sec));
             return -1;
     }
     /* BPB_SecPerCluster can be 1, 2, 4, 8, 16, 32, 64, 128 */
@@ -109,13 +109,13 @@ static int is_fat(BYTE *sec_buf, const FloppyFormat *formats, unsigned num_forma
     {
         case 1: case 2: case 4: case 8: case 16: case 32: case 64: case 128: break;
         default:
-            LOG_PRINTF(("Invalid BPB_SecPerClus: %u\n", bpb->sec_per_clus));
+            LOG_PRINTF(("[FLOPPY] is_fat: Invalid BPB_SecPerClus: %u\n", bpb->sec_per_clus));
             return -1;
     }
     /* BPB_Media can be 0xF0, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF */
     if ((bpb->media != 0xF0) && (bpb->media < 0xF8))
     {
-        LOG_PRINTF(("Invalid BPB_Media: %u\n", bpb->media));
+        LOG_PRINTF(("[FLOPPY] is_fat: Invalid BPB_Media: %u\n", bpb->media));
         return -1;
     }
     /* Ok, the disk contains a FAT file system: read the geometry from the BPB */
@@ -126,11 +126,11 @@ static int is_fat(BYTE *sec_buf, const FloppyFormat *formats, unsigned num_forma
          && (bpb->num_heads    == formats[k].heads)
          && (bpb->sec_per_trk  == formats[k].sec_per_trk))
         {
-            LOG_PRINTF(("FAT boot sector reports %s format\n", formats[k].name));
+            LOG_PRINTF(("[FLOPPY] is_fat: FAT boot sector reports %s format\n", formats[k].name));
             return k;
         }
     }
-    LOG_PRINTF(("Disk contains FAT, but boot sector reports a strange geometry\n"));
+    LOG_PRINTF(("[FLOPPY] is_fat: Disk contains FAT, but boot sector reports a strange geometry\n"));
     return -1;
 }
 
@@ -141,7 +141,7 @@ int floppy_bootsector(Fdd *fdd, const FloppyFormat *formats, unsigned num_format
     Chs  chs = { 0, 0, 1 };
     if (fdc_read(fdd, &chs, sec_buf, 1) < 0)
     {
-        LOG_PRINTF(("Error reading the boot sector\n"));
+        LOG_PRINTF(("[FLOPPY] Error reading the boot sector\n"));
         return -1;
     }
     return is_fat(sec_buf, formats, num_formats);

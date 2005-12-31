@@ -48,7 +48,7 @@
 #define SAFESEEK  5 /* Track to seek before issuing a recalibrate       */
 #define REPORT_ATTENTION 1
 //#define HAS2FDCS
-//#define __DEBUG__
+#define __DEBUG__
 
 #ifdef __DEBUG__
   #define LOG_PRINTF(x) fd32_log_printf x
@@ -124,9 +124,9 @@ static volatile int busy         = 0; /* Set if the driver is busy    */
 static volatile int irq_signaled = 0; /* Set if IRQ has been signaled */
 static LOWMEM_ADDR  dma_sel;          /* Selector/address of DMA buf  */
 static DWORD        dma_addr;         /* Physical address of DMA buf  */
-static Fdc          pri_fdc;          /* Status of the primary FDC    */
+static Fdc pri_fdc;          /* Status of the primary FDC    */
 #ifdef HAS2FDCS
-static Fdc          sec_fdc;          /* Status of the secondary FDC  */
+static Fdc sec_fdc;          /* Status of the secondary FDC  */
 #endif
 
 
@@ -276,9 +276,12 @@ static int wait_fdc(Fdd *fdd)
     /* Wait for IRQ6 handler to signal command finished */
     volatile int irq_timeout = 0;
     int irq_timeout_event = fd32_event_post(fdd->dp->int_tmout, irq_timeout_cb, (void *) &irq_timeout);
+    LOG_PRINTF(("[FDC] IRQ timeout event posted %i\n", irq_timeout_event));
     /* TODO: Check for FD32_EVENT_NULL */
     WFC(!irq_signaled && !irq_timeout);
     fd32_event_delete(irq_timeout_event);
+    LOG_PRINTF(("[FDC] IRQ signaled or timeout expired. irq_timeout(@%08xh)=%i irq_signaled(@%08xh)=%i\n",
+                (unsigned) &irq_timeout, irq_timeout, (unsigned) &irq_signaled, irq_signaled));
 
     /* Read in command result bytes while controller is busy */
     fdd->fdc->result_size = 0;
@@ -294,7 +297,7 @@ static int wait_fdc(Fdd *fdd)
     #if 0
     {
         unsigned i;
-        LOG_PRINTF(("Result bytes: "));
+        LOG_PRINTF(("[FDC] Result bytes: "));
         for (i = 0; i < fdd->fdc->result_size; i++)
             LOG_PRINTF(("%u(%02xh) ", fdd->fdc->result[i], fdd->fdc->result[i]));
         LOG_PRINTF(("\n"));
@@ -307,6 +310,7 @@ static int wait_fdc(Fdd *fdd)
 /* Returns nonzero if the motor of the specified drive is on */
 static inline int is_motor_on(Fdc *fdc, unsigned drive)
 {
+    LOG_PRINTF(("[FDC] is_motor_on: fdc->dor(@%08xh) = %xh\n", (unsigned) &fdc->dor, fdc->dor));
     return fdc->dor & (1 << (drive + 4));
 }
 
@@ -315,8 +319,10 @@ static inline int is_motor_on(Fdc *fdc, unsigned drive)
 static void motor_off_cb(void *params)
 {
     Fdd *fdd = (Fdd *) params;
+    LOG_PRINTF(("[FDC] Motor off\n"));
     if (is_motor_on(fdd->fdc, fdd->number))
     {
+        LOG_PRINTF(("[FDC] Yes, really off\n"));
         fdd->fdc->dor &= ~(1 << (fdd->number + 4));
         fd32_outb(fdd->fdc->base_port + FDC_DOR, fdd->fdc->dor);
         fdd->flags &= ~(DF_SPINUP | DF_SPINDN);
@@ -334,6 +340,7 @@ static void motor_spin_cb(void *fdd)
 /* Turns the motor on and selects the drive */
 static void motor_on(Fdd *fdd)
 {
+    LOG_PRINTF(("[FDC] Motor on\n"));
     if (fdd->flags & DF_SPINDN) fd32_event_delete(fdd->spin_down);
     fdd->flags   &= ~DF_SPINDN;
     if (!is_motor_on(fdd->fdc, fdd->number))
@@ -367,7 +374,8 @@ static void motor_down(Fdd *fdd)
 static void irq6(int n)
 {
     irq_signaled = 1;  /* Signal operation finished */
-    fd32_master_eoi(); /* Send EOI the PIC          */
+    LOG_PRINTF(("[FDC] IRQ 6 happened. irq_signaled at %08xh\n", (unsigned) &irq_signaled));
+    fd32_master_eoi(); /* Send EOI the PIC */
 }
 
 
@@ -468,17 +476,22 @@ static void reset_fdc(Fdc *fdc)
     volatile int  irq_timeout = 0;
     int irq_timeout_event;
 
+    fdc->dor = 0;
+    LOG_PRINTF(("[FDC] Resetting FDC. fdc->dor(@%08xh) = %xh\n", (unsigned) &fdc->dor, fdc->dor));
     fd32_outb(fdc->base_port + FDC_DOR, 0);    /* Stop the motor and disable IRQ/DMA  */
     /* TODO: Add a small delay (20 us) to make older controllers more happy */
     fd32_outb(fdc->base_port + FDC_DOR, 0x0C); /* Re-enable IRQ/DMA and release reset */
     fdc->dor = 0x0C;
     /* Resetting triggered 4 interrupts - handle them */
     irq_timeout_event = fd32_event_post(default_drive_params[0].int_tmout, irq_timeout_cb, (void *) &irq_timeout);
+    LOG_PRINTF(("[FDC] Reset IRQ timeout event posted %i\n", irq_timeout_event));
     /* TODO: Check for FD32_EVENT_NULL */
     WFC(!irq_signaled && !irq_timeout);
     fd32_event_delete(irq_timeout_event);
+    LOG_PRINTF(("[FDC] IRQ signaled or timeout expired. irq_timeout(@%08xh)=%i irq_signaled(@%08xh)=%i\n",
+                (unsigned) &irq_timeout, irq_timeout, (unsigned) &irq_signaled, irq_signaled));
     if (irq_timeout)
-        LOG_PRINTF(("Timed out while waiting for FDC after reset\n"));
+        LOG_PRINTF(("[FDC] Timed out while waiting for FDC after reset\n"));
     /* FDC specs say to sense interrupt status four times */
     for (k = 0; k < 4; k++)
     {
@@ -490,7 +503,7 @@ static void reset_fdc(Fdc *fdc)
     irq_signaled = 0;
 }
 
-    
+
 /* Get a drive to a known state */
 static void reset_drive(Fdd *fdd)
 {
@@ -676,7 +689,7 @@ static int fdc_xfer_cylinder(Fdd *fdd, unsigned cyl, FdcTransfer op)
                 break;
             }
             res = readid(fdd, &cur);
-            if (res < 0) return res;
+            //if (res < 0) return res;
             LOG_PRINTF(("[FDC] fdc_xfer_cylinder: readid=%u,%u,%u\n", cur.c, cur.h, cur.s));
             /* Transfer from the current sector of head 0 to the end of cylinder */
             cur.s++; /* The sector we read the Id is gone. Advance a bit */
@@ -758,7 +771,7 @@ static int probe_format(Fdd *fdd, unsigned format)
     res = fdc_read(fdd, &chs, NULL, 1);
     LOG_PRINTF(("[FDC] probe_format: fdc_read returned %i\n", res));
     if (res < 0) return res;
-    LOG_PRINTF(("%s format detected\n", fdd->fmt->name));
+    LOG_PRINTF(("[FDC] %s format detected\n", fdd->fmt->name));
     return FDC_OK;
 }
 
@@ -827,26 +840,26 @@ int fdc_setup(FdcSetupCallback *setup_cb)
     /* Setup IRQ and DMA */
     /* TODO: Provide a way to save the old IRQ6 handler */
     fd32_irq_bind(6, irq6);
-    LOG_PRINTF(("IRQ6 handler installed\n"));
+    LOG_PRINTF(("[FDC] IRQ6 handler installed\n"));
     /* TODO: Find a decent size for the DMA buffer */
     dma_sel = fd32_dmamem_get(512 * 18 * 2, &dma_seg, &dma_off);
     if (!dma_sel) return FDC_ERROR; /* Unable to allocate DMA buffer */
     dma_addr = ((DWORD) dma_seg << 4) + (DWORD) dma_off;
-    LOG_PRINTF(("DMA buffer allocated at physical address %08lxh\n", dma_addr));
+    LOG_PRINTF(("[FDC] DMA buffer allocated at physical address %08lxh\n", dma_addr));
 
     /* Reset primary controller */
     pri_fdc.base_port = FDC_BPRI;
     reset_fdc(&pri_fdc);
     sendbyte(pri_fdc.base_port, CMD_VERSION);
     res = getbyte(pri_fdc.base_port);
-    LOG_PRINTF(("Byte got from CMD_VERSION: %08xh\n", res));
+    LOG_PRINTF(("[FDC] Byte got from CMD_VERSION: %08xh\n", res));
     switch (res)
     {
         case 0x80: fd32_message("[FLOPPY] NEC765 FDC found on base port %04xh\n", pri_fdc.base_port); break;
         case 0x90: fd32_message("[FLOPPY] Enhanced FDC found on base port %04xh\n", pri_fdc.base_port); break;
         default  : fd32_message("[FLOPPY] FDC not found on base port %04xh\n", pri_fdc.base_port);
     }
-    
+
     /* Read floppy drives types from CMOS memory (up to two drives). */
     /* They are supposed to belong to the primary FDC.               */
     fd32_outb(0x70, 0x10);
@@ -880,6 +893,6 @@ void fdc_dispose(void)
 //    LOG_PRINTF(("IRQ6 handler uninstalled\n"));
     /* TODO: Find a decent size for the DMA buffer */
     fd32_dmamem_free(dma_sel, 512 * 18 * 2);
-    LOG_PRINTF(("DMA buffer freed\n"));
+    LOG_PRINTF(("[FDC] DMA buffer freed\n"));
     fd32_outb(pri_fdc.base_port + FDC_DOR, 0x0C); /* Stop motor forcefully */
 }

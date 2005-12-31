@@ -57,8 +57,8 @@ ssize_t iso9660_blockdev_read(Volume *v, void *data, size_t count, Sector from)
 		res = v->blockdev.bops->read(v->blockdev.handle, data, from, count, 0);
 		LOG_PRINTF(("[ISO 9660] Block device read result %li\n", res));
 		if (res >= 0) break;
-		if (!BLOCK_IS_ERROR(-res)) break;
-		if (BLOCK_GET_SENSE(-res) != BLOCK_SENSE_ATTENTION) break;
+		if (!BLOCK_IS_ERROR(res)) break;
+		if (BLOCK_GET_SENSE(res) != BLOCK_SENSE_ATTENTION) break;
 		res = handle_attention(v);
 		if (res < 0) return res;
 	}
@@ -69,7 +69,7 @@ ssize_t iso9660_blockdev_read(Volume *v, void *data, size_t count, Sector from)
 int iso9660_blockdev_test_unit_ready(Volume *v)
 {
 	int res = v->blockdev.bops->test_unit_ready(v->blockdev.handle);
-	if ((res < 0) && BLOCK_IS_ERROR(-res) && (BLOCK_GET_SENSE(-res) == BLOCK_SENSE_ATTENTION))
+	if (BLOCK_IS_ERROR(res) && (BLOCK_GET_SENSE(res) == BLOCK_SENSE_ATTENTION))
 		res = handle_attention(v);
 	return res;
 }

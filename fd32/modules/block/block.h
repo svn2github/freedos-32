@@ -32,35 +32,34 @@ The error values are formed as follows:
 <tr><td>15..0</td><td>additional error code</td><td>to provide more details about the error condition</td></tr>
 </table>
 The category code for block device errors is ::BLOCK_ERROR_CATEGORY. The sense key is
-a value defined in enum ::BlockSenseKeys.
-Block device drivers should use the ::BLOCK_ERROR macro to format error values.
-A so formed error value is non-negative, thus it should be turned into negative by inverting
-its sign before returning it. This allows negative error codes regardless the bit size of the
-the return value of a function (assuming it is at least 32-bit).
+a value defined in enum ::BlockSenseKeys. The most significant bit (bit 31 on 32-bit machines)
+must be set to make the error code negative. The error code must be sign-extended if stored
+in a larger integer type.
+The ::BLOCK_ERROR macro is provided to easily format error values.
 @{ */
 
 /**
  * \brief Error category code for block devices.
+ * \remarks This macro also sets the most significant bit of the error value
+ *          to make it negative.
  */
-#define BLOCK_ERROR_CATEGORY 2
+#define BLOCK_ERROR_CATEGORY 0x80800000
 /**
  * \brief Formats a block device error value.
  * \param sense the sense key identifying the error type;
  * \param code  a code to provide detailed error information.
  * \remarks Block device drivers should use this macro to format any error code
- *          they return. This macro formats a non-negative value (for human
- *          readability), thus block device driver should explicitly invert its
- *          sign before returning it.
+ *          they return.
  */
-#define BLOCK_ERROR(sense, code) (((BLOCK_ERROR_CATEGORY & 0x1FF) << 22) | (sense) | ((code) & 0xFFFF))
+#define BLOCK_ERROR(sense, code) ((int) (BLOCK_ERROR_CATEGORY | (sense) | ((code) & 0xFFFF)))
 /**
  * \brief Gets the sense key from a block device error value.
  */
-#define BLOCK_GET_SENSE(value) ((value) & (0x3F << 16))
+#define BLOCK_GET_SENSE(value) ((value) & 0x003F0000)
 /**
  * \brief Checks if an error value belongs to the block devices category.
  */
-#define BLOCK_IS_ERROR(value) ((((value) & 0x1FF) << 22) == BLOCK_ERROR_CATEGORY)
+#define BLOCK_IS_ERROR(value) (((value) & 0xFFC00000) == BLOCK_ERROR_CATEGORY)
 
 /**
  * \brief Sense key values for block device error values.

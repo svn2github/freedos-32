@@ -43,9 +43,10 @@ ssize_t fat_blockdev_read(Volume *v, void *data, size_t count, Sector from)
 	{
 		if (k == 3) return -EIO;
 		res = v->blk.bops->read(v->blk.handle, data, from, count, 0);
+		LOG_PRINTF(("[FAT2] fat_blockdev_read returned %08xh\n", res));
 		if (res >= 0) break;
-		if (!BLOCK_IS_ERROR(-res)) break;
-		if (BLOCK_GET_SENSE(-res) != BLOCK_SENSE_ATTENTION) break;
+		if (!BLOCK_IS_ERROR(res)) break;
+		if (BLOCK_GET_SENSE(res) != BLOCK_SENSE_ATTENTION) break;
 		res = fat_handle_attention(v);
 		if (res < 0) return res;
 	}
@@ -62,8 +63,8 @@ ssize_t fat_blockdev_write(Volume *v, const void *data, size_t count, Sector fro
 		if (k == 3) return -EIO;
 		res = v->blk.bops->write(v->blk.handle, data, from, count, 0);
 		if (res >= 0) break;
-		if (!BLOCK_IS_ERROR(-res)) break;
-		if (BLOCK_GET_SENSE(-res) != BLOCK_SENSE_ATTENTION) break;
+		if (!BLOCK_IS_ERROR(res)) break;
+		if (BLOCK_GET_SENSE(res) != BLOCK_SENSE_ATTENTION) break;
 		res = fat_handle_attention(v);
 		if (res < 0) return res;
 	}
@@ -74,8 +75,12 @@ ssize_t fat_blockdev_write(Volume *v, const void *data, size_t count, Sector fro
 int fat_blockdev_test_unit_ready(Volume *v)
 {
 	int res = v->blk.bops->test_unit_ready(v->blk.handle);
-	if ((res < 0) && BLOCK_IS_ERROR(-res) && (BLOCK_GET_SENSE(-res) == BLOCK_SENSE_ATTENTION))
+	LOG_PRINTF(("[FAT2] fat_blockdev_test_unit_ready returned %08xh\n", res));
+	if (BLOCK_IS_ERROR(res) && (BLOCK_GET_SENSE(res) == BLOCK_SENSE_ATTENTION))
+	{
+		LOG_PRINTF(("[FAT2] fat_blockdev_test_unit_ready detected attention\n"));
 		res = fat_handle_attention(v);
+	}
 	return res;
 }
 

@@ -29,11 +29,11 @@
 /* Error codes for FDC routines */
 enum
 {
-    FDC_OK        =  0, /* successful completion */
-    FDC_ERROR     = -BLOCK_ERROR(BLOCK_SENSE_MEDIUM, 0),   /* abnormal termination */
-    FDC_NODISK    = -BLOCK_ERROR(BLOCK_SENSE_NOTREADY, 0), /* no disk in drive */
-    FDC_TIMEOUT   = -BLOCK_ERROR(BLOCK_SENSE_ABORTED, 0),  /* timed out */
-    FDC_ATTENTION = -BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0) /* change line active */
+    FDC_OK        = 0, /* successful completion */
+    FDC_ERROR     = BLOCK_ERROR(BLOCK_SENSE_MEDIUM, 0),   /* abnormal termination */
+    FDC_NODISK    = BLOCK_ERROR(BLOCK_SENSE_NOTREADY, 0), /* no disk in drive */
+    FDC_TIMEOUT   = BLOCK_ERROR(BLOCK_SENSE_ABORTED, 0),  /* timed out */
+    FDC_ATTENTION = BLOCK_ERROR(BLOCK_SENSE_ATTENTION, 0) /* change line active */
 };
 
 

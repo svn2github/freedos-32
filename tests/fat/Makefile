@@ -2,7 +2,7 @@ ifndef FD32
 FD32 = ../../fd32
 endif
 ifndef DRIVERS
-DRIVERS = ../../drivers
+DRIVERS = ../../fd32/modules
 endif
 ifndef OSLIB
 OSLIB = ../../oslib
@@ -12,7 +12,7 @@ BASE = $(FD32)/oslib
 
 include $(OSLIB)/config.mk
 
-OBJS = read.o write.o readdir.o creat.o unlink.o rename.o mkdir.o rmdir.o dumpdir.o
+OBJS = read.o write.o readdir.o creat.o unlink.o rename.o mkdir.o rmdir.o dumpdir.o mediachg.o
 
 all: $(OBJS)
 
