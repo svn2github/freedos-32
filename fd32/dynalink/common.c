@@ -78,7 +78,7 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
         /* Warn!!! Is this OK? */
         address += *((DWORD *)destination);
       } else if (rel[i].type == REL_TYPE_RELATIVE) {
-        address = syms[idx].offset - (rel[i].offset + base) - 4;
+        address = syms[idx].offset - destination - 4;
       } else {
         kf->error("Unsupported relocation\n");
         kf->message("Relocation Type: %d\n", rel[i].type);
