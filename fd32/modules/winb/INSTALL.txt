@@ -1,12 +1,3 @@
-
-NOTE:
-----
-If you don't want to bother compiling the newlib with MingW ('cause it's
-quite annoying and you have to apply the include.diff in the libfd32), you
-can download the pre-complied ones:
-  http://freehost24.websamba.com/xnova/newlib-1.13.0-binary-mingw.zip
-  http://idea.51.net/temp/newlib-1.13.0-binary-mingw.zip
-
 COMPILING:
 ----
 Compiling the winb module requires newlib and libfd32, and can be difficult,
@@ -61,3 +52,38 @@ cp libfd32.a /tmp/libc/i586-pc-elf/lib
 cd /tmp/fd32/drivers/winb
 OSLIB=/tmp/oslib FD32=/tmp/fd32 NEWLIBC=/tmp/libc/i586-pc-elf make
 
+
+NOTE:
+----
+If you don't want to bother compiling the newlib with MingW ('cause it's
+quite annoying and you have to apply the include.diff in the libfd32), you
+can download the pre-complied ones:
+  http://idea.51.net/temp/newlib-1.13.0-binary-mingw.zip
+
+The default building tree if no environment variables set (e.g. the above
+NEWLIBC) :
+ÃÄapps
+³  ÃÄlibfd32
+³  ÃÄnewlib
+³  ³  ÃÄlib  <- libc.a and libfd32.a
+³  ³  ÀÄinclude
+³  ³      ÃÄsys
+³  ³      ÀÄmachine
+³  ÀÄnewlib-port
+³      ÃÄsys
+³      ³  ÀÄfd32
+³      ³      ÃÄinclude
+³      ³      ³  ÃÄfd32
+³      ³      ³  ÀÄsys
+³      ³      ÀÄsys
+³      ÀÄdiffs
+ÃÄoslib
+³  ÃÄll
+³  ³  ÃÄi386
+³  ³  ÀÄsys
+³  ³      ÀÄll
+ÃÄfd32
+³  ÃÄboot
+³  ÃÄ...
+³  ÀÄmodules
+³      ÃÄwinb
