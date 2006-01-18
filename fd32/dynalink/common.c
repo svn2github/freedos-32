@@ -1,7 +1,7 @@
 /* Dynalynk
  * Portable dynamic linker for object files
  * Common ELF / COFF routines
- * by Luca Abeni
+ * by Luca Abeni and Hanzac Chen
  * 
  * This is free software; see GPL.txt
  */
@@ -63,38 +63,52 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
 		syms[idx].offset, syms[idx].section);
 #endif
 
-    address = *((DWORD *) (rel[i].offset + base));
-    destination = s[sect].base + rel[i].offset + base;
-
-    if (syms[idx].section == COMMON_SYMBOL || syms[idx].section == EXTERN_SYMBOL) {
-      if (rel[i].type == REL_TYPE_COFF_ABSOLUTE) {
+    switch (rel[i].type)
+    {
+      case REL_TYPE_ELF_ABSOLUTE:
+        destination = s[sect].base + rel[i].offset + base;
+        /* Initial address */
+        address = *((DWORD *)destination);
+#ifdef __COFF_DEBUG__
+        kf->log("%p ---> 0x%lx\n", destination, address);
+#endif
+        break;
+      case REL_TYPE_COFF_ABSOLUTE:
         /* COFF absolute relocation doesn't need to add the section base */
         destination = rel[i].offset + base;
-        address = syms[idx].offset;
-        address += *((DWORD *)destination);
-      } else if (rel[i].type == REL_TYPE_ELF_ABSOLUTE) {
-        /* Do something here!!! */
-        address = syms[idx].offset;
-        /* Warn!!! Is this OK? */
-        address += *((DWORD *)destination);
-      } else if (rel[i].type == REL_TYPE_RELATIVE) {
-        address = syms[idx].offset - destination - 4;
-      } else {
-        kf->error("Unsupported relocation\n");
+        /* Initial address */
+        address = *((DWORD *)destination);
+#ifdef __COFF_DEBUG__
+        kf->log("%p ---> 0x%lx\n", destination, address);
+#endif
+        break;
+      case REL_TYPE_RELATIVE:
+        destination = s[sect].base + rel[i].offset + base;
+        address = 0;
+        break;
+      default:
+      	/* (Non-)external symbols: only REL32 is supported */
+        kf->error("Unsupported relocation!\n");
         kf->message("Relocation Type: %d\n", rel[i].type);
         return -1;
+    }
+
+    if (syms[idx].section == COMMON_SYMBOL || 
+    	syms[idx].section == EXTERN_SYMBOL) {
+      if (rel[i].type == REL_TYPE_COFF_ABSOLUTE) {
+        address += syms[idx].offset;
+      } else if (rel[i].type == REL_TYPE_ELF_ABSOLUTE) {
+        address += syms[idx].offset;
+      } else if (rel[i].type == REL_TYPE_RELATIVE) {
+        address = syms[idx].offset - destination - 4;
       }
     } else if (syms[idx].section >= n) { /* Check if the section exists ... */
-        kf->error("Unsupported relocation section\n");
-        kf->message("Section %d > %d\n", syms[idx].section, n);
-        kf->message("Value 0x%lx\n", syms[idx].offset);
-        return -1;
+      kf->error("Unsupported relocation section\n");
+      kf->message("Section %d > %d\n", syms[idx].section, n);
+      kf->message("Value 0x%lx\n", syms[idx].offset);
+      return -1;
     } else {
-#ifdef __COFF_DEBUG__
-      kf->log("%p ---> 0x%lx\n", (DWORD *)(rel[i].offset + base), address);
-#endif
       if (rel[i].type == REL_TYPE_COFF_ABSOLUTE) {
-        destination = rel[i].offset + base;
         if (coff_type == DjCOFF) {
           address += base;
         } else if (coff_type == PECOFF) {
@@ -105,24 +119,19 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
           address += base;
         }
       } else if (rel[i].type == REL_TYPE_ELF_ABSOLUTE) {
-        address = *(DWORD *)destination;
         address += base + s[syms[idx].section].base + syms[idx].offset;
       } else if (rel[i].type == REL_TYPE_RELATIVE) {
-        address = (s[syms[idx].section].base + syms[idx].offset) - (rel[i].offset /*+ base*/) - 4;
+        address = (s[syms[idx].section].base + syms[idx].offset) - (s[sect].base + rel[i].offset) - 4;
 #ifdef __COFF_DEBUG__
         kf->log("Reloc: 0x%lx + 0x%lx - 0x%lx = 0x%lx   ",
 			syms[idx].offset,
 			s[syms[idx].section].base,
 			rel[i].offset /*+ base*/, address);
 #endif
-      } else { /* Non-external symbols: only REL32 is supported */
-        kf->error("Unsupported relocation!\n");
-        kf->message("Relocation Type: %d\n", rel[i].type);
-        return -1;
       }
     }
 #ifdef __COFF_DEBUG__
-    kf->log("0x%lx <--- 0x%lx\n", (DWORD *)(destination), address);
+    kf->log("0x%lx <--- 0x%lx\n", destination, address);
 #endif
     *((DWORD *)destination) = address;
   }
