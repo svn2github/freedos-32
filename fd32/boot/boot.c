@@ -122,7 +122,7 @@ int main (int argc, char *argv[])
   parms.mode = timer_mode | LL_FORCE_TIMER2;
   parms.tick = timer_period;
   mbi = ll_init();
-  event_init(&parms);
+//  event_init(&parms);
 
   /* Set the kern_CS and kern_DS for DPMI... */
   kern_CS = get_cs();

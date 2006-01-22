@@ -96,7 +96,7 @@ typedef struct
     unsigned             number;    /* Drive number per FDC [0..MAXDRIVES-1] */
     volatile unsigned    flags;     /* See the DF_* enums in "fdc.c"         */
     unsigned             track;     /* Current floppy track sought           */
-    int                  spin_down; /* Event handle for motor spindown       */
+    void                *spin_down; /* Event handle for motor spindown       */
 }
 Fdd;
 

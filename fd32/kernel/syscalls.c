@@ -363,9 +363,9 @@ static struct symbol syscall_table[] = {
 	{ "block_register",   (DWORD) block_register   },
 	{ "block_unregister", (DWORD) block_unregister },
 
-  { "event_post", (DWORD) (&event_post) },
-  { "event_delete", (DWORD) (&event_delete) },
-  { "ll_gettime", (DWORD) ll_gettime },
+//  { "event_post", (DWORD) (&event_post) },
+//  { "event_delete", (DWORD) (&event_delete) },
+//  { "ll_gettime", (DWORD) ll_gettime },
   /* Symbols for Exec and Process */
   { "fd32_get_binfmt",     (DWORD) fd32_get_binfmt },
   { "fd32_set_binfmt",     (DWORD) fd32_set_binfmt },

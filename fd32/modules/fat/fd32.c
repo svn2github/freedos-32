@@ -284,11 +284,13 @@ int fat_request(DWORD function, void *params)
 		#endif /* FAT_CONFIG_WRITE */
 		case FD32_MOUNT:
 		{
+			LOG_PRINTF(("[FAT2] FD32_MOUNT\n"));
 			fd32_mount_t *p = (fd32_mount_t *) params;
 			return fat_mount(p->BlkDev, (Volume **) &p->FsDev);
 		}
 		case FD32_UNMOUNT:
 		{
+			LOG_PRINTF(("[FAT2] FD32_UNMOUNT\n"));
 			fd32_unmount_t *p = (fd32_unmount_t *) params;
 			Volume *v = (Volume *) p->DeviceId;
 			if (v->magic != FAT_VOL_MAGIC) return -ENODEV;
