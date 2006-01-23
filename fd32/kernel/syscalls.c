@@ -18,9 +18,6 @@
 #include <ll/ctype.h>
 #include <ll/getopt.h>
 
-#include <ll/sys/ll/event.h>
-#include <ll/sys/ll/time.h>
-
 #include "exec.h"
 #include "kernel.h"
 #include "kmem.h"
@@ -158,6 +155,10 @@ int fd32_kernel_close(int id)
 /* Delay a specified nanoseconds
  * NOTE: This needs to be rewritten. Move into the proper place of kernel?
  */
+#define CONFIG_PIT_MODULE /* disable the old delay */
+#ifndef CONFIG_PIT_MODULE
+#include <ll/sys/ll/event.h>
+#include <ll/sys/ll/time.h>
 static void imp_delay(unsigned int ns)
 {
     TIME start, current;
@@ -167,6 +168,7 @@ static void imp_delay(unsigned int ns)
     while(current - start < us)
         current = ll_gettime(TIME_NEW, NULL);
 }
+#endif
 
 static void *imp_memcpy(void *dest, const void *src, size_t size)
 {
@@ -304,7 +306,6 @@ static struct symbol syscall_table[] = {
   /* Symbols for date and time functions (from fd32time.h) */
   { "fd32_get_date", (DWORD) fake_get_date },
   { "fd32_get_time", (DWORD) fake_get_time },
-  { "delay",         (DWORD) imp_delay },
   /* Symbols for logging functions (from logger.h) */
   { "fd32_log_printf", (DWORD) fd32_log_printf },
   { "fd32_log_stats", (DWORD) fd32_log_stats },

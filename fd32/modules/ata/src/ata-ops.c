@@ -10,6 +10,7 @@
 #include "ata-ops.h"
 #include "ata-wait.h"
 #include "ata-detect.h"
+#include "pit/pit.h"
 
 extern int ata_global_flags;
 extern int ata_max_pio_mode;
@@ -157,7 +158,7 @@ int pio_data_in(unsigned long max_wait, BYTE count, DWORD start,
     {
         if(dev->polled_mode)
         {
-            delay(400);
+            pit_delay(1);
             fd32_inb(dev->interface->control_port);
             if(dev_is_busy(dev->interface))
             {
@@ -302,7 +303,7 @@ int pio_data_out(unsigned long max_wait, WORD count, DWORD start,
     write_reg_start_count(start, count, use_48bit, dev);
     fd32_outb(dev->interface->command_port + CMD_CNT, count);
     fd32_outb(dev->interface->command_port + CMD_COMMAND, command);
-    delay(400);
+    pit_delay(1);
     if(dev_is_busy(dev->interface))
     {
         res = ata_poll(MAX_WAIT_1, &dev_is_busy, dev->interface);
@@ -341,7 +342,7 @@ int pio_data_out(unsigned long max_wait, WORD count, DWORD start,
         }
         if(dev->polled_mode)
         {
-            delay(400);
+            pit_delay(1);
             fd32_inb(dev->interface->control_port);
             if(dev_is_busy(dev->interface))
             {
@@ -451,7 +452,7 @@ int command_ackn(struct ata_device* dev)
 
     if(dev->polled_mode)
     {
-        delay(400);
+        pit_delay(1);
         fd32_inb(dev->interface->control_port);
         if(dev_is_busy(dev->interface))
         {
@@ -567,7 +568,7 @@ int ata_sreset( struct ata_device* dev)
 
     b = fd32_inb(dev->interface->control_port);
     fd32_outb(dev->interface->control_port, b | ATA_SRST);
-    delay(8000);
+    pit_delay(8);
     fd32_outb(dev->interface->control_port, b & ~ATA_SRST);
     ata_wait(2500);
     /* What about the DEV bit? */
@@ -683,7 +684,7 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
     fd32_outb(dev->interface->command_port + CMD_PI_COUNT_L, 0xFF & max_count);
     fd32_outb(dev->interface->command_port + CMD_PI_COUNT_H, 0xFF & (max_count >> 8));
     fd32_outb(dev->interface->command_port + CMD_COMMAND, ATA_CMD_PACKET);
-    delay(400);
+    pit_delay(1);
     if((dev->polled_mode == 0) && (dev->flags & DEV_FLG_IRQ_ON_PCMD))
     {
         /* Only old and odd devices arrive here */
@@ -729,7 +730,7 @@ int ata_packet_pio( unsigned long max_wait, /* how long to wait, in us */
     {
         if(dev->polled_mode)
         {
-            delay(400);
+            pit_delay(1);
             fd32_inb(dev->interface->control_port);
             if(dev_is_busy(dev->interface))
             {

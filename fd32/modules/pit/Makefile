@@ -29,7 +29,7 @@ clean:
 	$(RM) *.o
 
 $(BIN): $(OBJS)
-	$(LD) $(LINK_OPT) $(OBJS) -r -o $(BIN)
+	$(LD) $(LINK_OPT) $(OBJS) -r -s -o $(BIN)
 
 %.o : %.c
 	$(REDIR) $(CC) $(C_OPT) $(C_OUTPUT) -c $<
