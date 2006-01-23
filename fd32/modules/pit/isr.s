@@ -20,13 +20,14 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include <ll/i386/sel.h>
+#include <ll/i386/linkage.h>
 
 .data
 in_irq: .int 0
-.extern pit_process
+.extern SYMBOL_NAME(pit_process)
 .text
-.global pit_isr
-pit_isr:
+.global SYMBOL_NAME(pit_isr)
+SYMBOL_NAME_LABEL(pit_isr)
 	pusha
 	push %ds
 	push %es
@@ -40,7 +41,7 @@ pit_isr:
 /*	cmp $0, in_irq
 	jnz exit
 	incl in_irq*/
-	call pit_process
+	call SYMBOL_NAME(pit_process)
 /*	decl in_irq*/
 exit:
 	mov $0x20, %dx
