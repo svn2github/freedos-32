@@ -63,28 +63,12 @@ int visual_page = 0;
 void bios_save(void)
 {
     /* This function must be called to init CONSole output */
-#if 1
     bios_attr = lmempeekb((LIN_ADDR)0xB8000 + 159);
     bios_x = lmempeekb((LIN_ADDR)0x00450);
     bios_y = lmempeekb((LIN_ADDR)0x00451);
     bios_end = lmempeekb((LIN_ADDR)0x00460);
     bios_start = lmempeekb((LIN_ADDR)0x00461);
     active_page = visual_page = 0;
-#else
-    LIN_ADDR p;
-
-    p = (LIN_ADDR)(0xB8000 + 159);
-    bios_attr = *p;
-    p = (LIN_ADDR)0x00450;
-    bios_x = *p;
-    p = (LIN_ADDR)0x00451;
-    bios_y = *p;
-    p = (LIN_ADDR)0x00460;
-    bios_end = *p;
-    p = (LIN_ADDR)0x00461;
-    bios_start = *p;
-    active_page = visual_page = 0;
-#endif
 }
 
 void getcursorxy(int *x, int *y)
@@ -128,7 +112,9 @@ void place(int x,int y)
     outp(CGA_DATA_REG,(cursor_word >> 8) & 0xFF);
     /* Adjust temporary cursor bios position */
     bios_x = x;
+    lmempokeb((LIN_ADDR)0x00450,bios_x);
     bios_y = y;
+    lmempokeb((LIN_ADDR)0x00451,bios_y);
 }
 
 
