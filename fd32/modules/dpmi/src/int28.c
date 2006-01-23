@@ -12,6 +12,7 @@
 
 int dosidle_int(union rmregs *r)
 {
+  fd32_cpu_idle (); /* For now, only hlt one time */
   RMREGS_CLEAR_CARRY;
   return 0;
 }

@@ -340,6 +340,13 @@ void dpmi_chandler(DWORD intnum, union regs r)
         redirect_to_rmint(0x21, &r);
       }
       break;
+    /* Network services */
+    case 0x2A:
+      if (r.x.ax == 0x8400)
+        redirect_to_rmint(0x28, &r); /* DOS idle */
+      else
+        fd32_log_printf("INT 2A, Network service 0x%x not implemented\n", r.x.ax);
+      break;
     /* Multiplex for PM execution */
     case 0x2F:
       int2f_handler(&r);
