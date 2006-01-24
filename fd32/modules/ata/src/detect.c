@@ -214,7 +214,7 @@ int ata_detect(struct ide_interface *intf, void (*disk_add)(struct ata_device *d
 #endif
         return 0;
     }
-    pit_delay(1);
+    nano_delay(400);
     /* Read and discard ALT SATUS, then compare STATUS and ALT STATUS */
     fd32_inb(intf->control_port);
     if((fd32_inb(intf->command_port + CMD_STATUS) & ~0x02) != (fd32_inb(intf->control_port) & ~0x02))
@@ -227,7 +227,7 @@ int ata_detect(struct ide_interface *intf, void (*disk_add)(struct ata_device *d
     fd32_outb(intf->command_port + CMD_DEVHEAD, 0xF0);
     if(!(ata_global_flags & ATA_GFLAG_POLL))
         ata_irq_enable(intf);
-    pit_delay(1);
+    nano_delay(400);
     intf->current_dev_bit = ATA_DEVHEAD_DEV;
     if(ata_detect_single(0, intf, &d, &detected_drives) == 1)
     {

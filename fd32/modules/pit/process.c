@@ -66,7 +66,15 @@ static Event events_table[NUM_EVENTS];
 static List events_used;
 static List events_free;
 static volatile uint64_t ticks;
-static unsigned usec_per_tick;
+/* Use the programmed PIT tick and convert when using, avoid losing precision */
+static unsigned pit_ticks;
+
+static unsigned convert_to_ticks(unsigned usec)
+{
+	uint64_t tmp_pit_ticks = pit_ticks;
+	uint64_t tmp_usec = usec;
+	return (tmp_usec * PIT_CLOCK) / (tmp_pit_ticks * 1000000);
+}
 
 
 void pit_process(void)
@@ -108,7 +116,7 @@ void *pit_event_register(unsigned usec, void (*callback)(void *p), void *param)
 	{
 		list_erase(&events_free, (ListItem *) e);
 		list_push_back(&events_used, (ListItem *) e);
-		e->when = ticks + usec / usec_per_tick;
+		e->when = ticks + convert_to_ticks(usec);
 		e->callback = callback;
 		e->param = param;
 	}
@@ -154,10 +162,68 @@ int pit_event_cancel(void *event_handle)
  */
 void pit_delay(unsigned usec)
 {
-	uint64_t when = ticks + usec / usec_per_tick;
-	while (ticks < when) ;
+	uint64_t when = ticks + convert_to_ticks(usec);
+	while (ticks < when) fd32_cpu_idle();
 }
 
+/**
+ * \brief Blocks the execution for the specified amount of more precise time.
+ * \param nsec number of nanoseconds to block.
+ * \remarks The function actively loops until the specified amount of time has passed.
+ */
+static void nano_delay_l(unsigned nsec)
+{
+	unsigned usec = nsec/1000 + 1;
+	pit_delay(usec);
+}
+
+INLINE_OP uint64_t rdtsc(void)
+{
+	uint64_t r;
+	__asm__ __volatile__ ("rdtsc" : "=A" (r));
+	return r;
+}
+
+static int use_rdtsc;
+static uint64_t tick_per_sec_p;
+
+/* A implementation of nano_delay Pentium+ processor (by Hanzac Chen) */
+static void nano_delay_p(unsigned nsec)
+{
+	uint64_t cpu_tick = rdtsc();
+	/* NOTE:
+	 *	Use tick_per_usec instead of tick_per_nsec is for increasing integer
+	 *	calculation precision
+	 */
+	uint64_t when_tick = cpu_tick + nsec * tick_per_sec_p / 1000000000; /* using libgcc to allow 64-bit division */
+
+	while (cpu_tick < when_tick) {
+		cpu_tick = rdtsc();
+		fd32_cpu_idle();
+	}
+}
+
+static void nano_delay_init(void)
+{
+	if (use_rdtsc) {
+		uint64_t start, end;
+
+		start = rdtsc();
+		pit_delay(1000000); /* delay one second */
+		end = rdtsc();
+
+		tick_per_sec_p = end - start;
+
+		LOG_PRINTF(("[PIT] PIT Tick per second is %u\n", PIT_CLOCK / pit_ticks));
+		LOG_PRINTF(("[PIT] CPU Tick per second is %llu\n", tick_per_sec_p));
+
+		if (add_call("nano_delay", (uint32_t) nano_delay_p, ADD) == -1)
+			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
+	} else {
+		if (add_call("nano_delay", (uint32_t) nano_delay_l, ADD) == -1)
+			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
+	}
+}
 
 static struct { char *name; uint32_t address; } symbols[] =
 {
@@ -168,10 +234,42 @@ static struct { char *name; uint32_t address; } symbols[] =
 };
 
 
-void pit_init()
+static struct option pit_options[] =
+{
+  /* These options set a flag. */
+  {"pentium-tsc", no_argument, &use_rdtsc, 0},
+  /* These options don't set a flag.
+     We distinguish them by their indices. */
+  {0, 0, 0, 0}
+};
+
+
+void pit_init(process_info_t *pi)
 {
 	unsigned k;
 	uint32_t f;
+
+	/* Parsing options ... */
+	char **argv;
+	int argc = fd32_get_argv(pi->filename, pi->args, &argv);
+
+	use_rdtsc = 0; /* Disable rdtsc by default for i386 compatible */
+	if (argc > 1) {
+		int c, option_index = 0;
+		/* Parse the command line */
+		for ( ; (c = getopt_long (argc, argv, "", pit_options, &option_index)) != -1; ) {
+			switch (c) {
+				case 0:
+					use_rdtsc = 1;
+					message("Pentium+ time-stamp enabled\n");
+					break;
+				default:
+					break;
+			}
+		}
+	}
+	fd32_unget_argv(argc, argv);
+
 	message("Going to install PIT-driven event management... ");
 	for (k = 0; symbols[k].name; k++)
 		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
@@ -184,15 +282,17 @@ void pit_init()
 	for (k = 0; k < NUM_EVENTS; k++) list_push_back(&events_free, (ListItem *) &events_table[k]);
 	ticks = 0;
 	//k = PIT_CLOCK / frequency;
-	k = 0x10000; /* Run only at the lowest frequency for now */
-	usec_per_tick = (1000000u >> 4) * k / (PIT_CLOCK >> 4); /* a bit less precise (in theory), but avoids 64-bit division */
+	pit_ticks = 0x10000; /* Run only at the lowest frequency for now */
 	f = ll_fsave();
 	fd32_outb(0x43, 0x34); /* Counter 0, load LSB then MSB, mode 2 (rate generator), binary counter */
-	fd32_outb(0x40, k & 0x00FF);
-	fd32_outb(0x40, k >> 8);
+	fd32_outb(0x40, pit_ticks & 0x00FF);
+	fd32_outb(0x40, pit_ticks >> 8);
 	idt_place(PIC1_BASE + 0, pit_isr);
 	irq_unmask(0);
 	ll_frestore(f);
+
+	/* Initialize the nano_delay */
+	nano_delay_init();
 	message("done\n");
 }
 

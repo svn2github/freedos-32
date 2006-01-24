@@ -81,6 +81,12 @@ extern inline int fd32_event_delete(int index)
   return res;
 }
 
+/* A inlined cpu idle for save the consumption */
+extern inline void fd32_cpu_idle(void)
+{
+  __asm__ __volatile__ ("hlt");
+}
+
 #define WFC(c) while (c) fd32_cpu_idle()
 
 #define assert(x) /* always as with NDEBUG defined */

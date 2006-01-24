@@ -18,7 +18,7 @@ INCL = $(OSLIB)
 C_OPT   += -I$(KERNEL)/include -I$(MODULES) -I$(PORTAB)
 LINK_OPT = -Bstatic
 
-OBJS = isr.o process.o
+OBJS = isr.o process.o libgcc.o
 BIN  = pit.o
 
 .PHONY: all clean
