@@ -100,6 +100,23 @@ void pit_process(void)
 
 
 /**
+ * \brief Replacement for interrupt service routine.
+ *
+ * Another module or native application taking control of the PIT may call this
+ * function every 55ms to enable time events registered with this module to be
+ * dispatched. INT 1Ch and other actions only required for DOS compatibility 
+ * will not be performed by this function.
+ */
+void pit_external_process(void)
+{
+	fd32_cli();
+	tick++;
+	fd32_sti();
+	pit_process();
+}
+
+
+/**
  * \brief Registers a timer-driven event.
  *
  * The callback function specified by \a callback will be called by the timer handler
@@ -238,9 +255,10 @@ static void nano_delay_init(void)
 
 static struct { char *name; uint32_t address; } symbols[] =
 {
-	{ "pit_event_register", (uint32_t) pit_event_register },
-	{ "pit_event_cancel",   (uint32_t) pit_event_cancel   },
-	{ "pit_delay",          (uint32_t) pit_delay          },
+	{ "pit_event_register", 	(uint32_t) pit_event_register 	},
+	{ "pit_event_cancel",   	(uint32_t) pit_event_cancel   	},
+	{ "pit_delay",          	(uint32_t) pit_delay          	},
+	{ "pit_external_process", 	(uint32_t) pit_external_process	},
 	{ 0, 0 }
 };
 
