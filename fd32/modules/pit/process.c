@@ -199,7 +199,6 @@ static void nano_delay_p(unsigned nsec)
 
 	while (cpu_tick < when_tick) {
 		cpu_tick = rdtsc();
-		fd32_cpu_idle();
 	}
 }
 
