@@ -25,31 +25,40 @@
 .data
 in_irq: .int 0
 .extern SYMBOL_NAME(pit_process)
+.extern SYMBOL_NAME(tick)
+
 .text
 .global SYMBOL_NAME(pit_isr)
 SYMBOL_NAME_LABEL(pit_isr)
 	pusha
 	push %ds
-	push %es
-	push %fs
-	push %gs
-
-	mov $(X_FLATDATA_SEL), %ax
-	mov %ax, %ds
-	mov %ax, %es
-
-/*	cmp $0, in_irq
-	jnz exit
-	incl in_irq*/
-	call SYMBOL_NAME(pit_process)
-/*	decl in_irq*/
-exit:
 	mov $0x20, %dx
 	mov $0x20, %al
 	out %al, %dx
+
+	mov $(X_FLATDATA_SEL), %ax
+	mov %ax, %ds
+	
+	incl tick
+	jnc 1f
+	incl tick+4
+1:
+	cmp $0, in_irq
+	jnz exit
+	incl in_irq
+	sti
+	cld
+	push %es
+	mov %ax, %es
+	push %fs
+	push %gs
+	call SYMBOL_NAME(pit_process)
+	pop %es
 	pop %gs
 	pop %fs
-	pop %es
+	cli
+	decl in_irq
+exit:
 	pop %ds
 	popa
 	iret

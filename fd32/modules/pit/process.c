@@ -81,17 +81,19 @@ void pit_process(void)
 {
 	//LOG_PRINTF(("[PIT] start pit_process\n"));
 	Event *e, *enext;
-	ticks++;
 	for (e = (Event *) events_used.begin; e; e = enext)
 	{
 		enext = e->next;
+		fd32_cli();
 		if (ticks >= e->when)
 		{
 			LOG_PRINTF(("[PIT] @%u event %08xh (scheduled @%u)\n", (unsigned) ticks, (unsigned) e, (unsigned) e->when));
+			fd32_sti();
 			list_erase(&events_used, (ListItem *) e);
 			list_push_front(&events_free, (ListItem *) e);
 			e->callback(e->param);
 		}
+		fd32_sti();
 	}
 	//LOG_PRINTF(("[PIT] end pit_process\n"));
 }
@@ -163,7 +165,17 @@ int pit_event_cancel(void *event_handle)
 void pit_delay(unsigned usec)
 {
 	uint64_t when = ticks + convert_to_ticks(usec);
-	while (ticks < when) fd32_cpu_idle();
+	while (1)
+	{
+		fd32_cli();
+		if(ticks >= when)
+		{
+			fd32_sti();
+			break;
+		}
+		fd32_sti();
+		fd32_cpu_idle();
+	}
 }
 
 /**
