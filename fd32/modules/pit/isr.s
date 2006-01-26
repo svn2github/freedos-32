@@ -25,7 +25,7 @@
 .data
 in_irq: .int 0
 .extern SYMBOL_NAME(pit_process)
-.extern SYMBOL_NAME(tick)
+.extern SYMBOL_NAME(ticks)
 
 .text
 .global SYMBOL_NAME(pit_isr)
@@ -39,9 +39,9 @@ SYMBOL_NAME_LABEL(pit_isr)
 	mov $(X_FLATDATA_SEL), %ax
 	mov %ax, %ds
 	
-	incl tick
+	incl ticks
 	jnc 1f
-	incl tick+4
+	incl ticks+4
 1:
 	cmp $0, in_irq
 	jnz exit
@@ -53,9 +53,9 @@ SYMBOL_NAME_LABEL(pit_isr)
 	push %fs
 	push %gs
 	call SYMBOL_NAME(pit_process)
-	pop %es
 	pop %gs
 	pop %fs
+	pop %es
 	cli
 	decl in_irq
 exit:

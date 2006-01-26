@@ -110,7 +110,7 @@ void pit_process(void)
 void pit_external_process(void)
 {
 	fd32_cli();
-	tick++;
+	ticks++;
 	fd32_sti();
 	pit_process();
 }
