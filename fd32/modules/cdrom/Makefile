@@ -26,6 +26,9 @@ cdtest.com: $(OBJS3)
 cdrom.o: $(OBJS2)
 	$(LD) $(LINK_OPT) $(OBJS2) -r -s -o cdrom.o
 
+install: all
+	$(CP) cdrom.o ..
+
 clean :
 	$(RM) *.o
 	$(RM) *.com

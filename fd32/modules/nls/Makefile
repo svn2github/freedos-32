@@ -25,6 +25,9 @@ MODS = nls.o
 
 all: $(MODS)
 
+install: all
+	$(CP) nls.o ..
+
 clean:
 	$(RM) *.o
 

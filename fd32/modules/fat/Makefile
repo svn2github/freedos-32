@@ -25,6 +25,9 @@ BIN  = fat.o
 
 all: $(BIN)
 
+install: all
+	$(CP) $(BIN) ..
+
 clean:
 	$(RM) *.o
 

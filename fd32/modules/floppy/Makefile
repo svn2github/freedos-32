@@ -49,5 +49,8 @@ floppy.o: $(OBJS)
 floppytest.o: floppytest.c
 	$(CC) -c $(C_OPT) floppytest.c -o $@
 
+install: all
+	$(CP) floppy.o ..
+
 clean :
 	$(RM) *.o

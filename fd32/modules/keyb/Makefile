@@ -8,6 +8,9 @@ all: fd32 djgpp
 
 .PHONY: fd32 djgpp
 
+install: all
+	$(CP) keybdrv.o ..
+
 clean :
 	$(RM) *.o
 	$(MAKE) -C fd32 clean

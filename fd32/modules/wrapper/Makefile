@@ -19,6 +19,9 @@ VPATH = src
 
 all: wrapper.com
 
+install: all
+	$(CP) wrapper.com ..
+
 clean :
 	$(RM) *.o
 	$(RM) wrapper.com

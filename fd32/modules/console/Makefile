@@ -19,6 +19,9 @@ OBJS = init.o
 
 all: consdrv.o
 
+install: all
+	$(CP) consdrv.o ..
+
 clean :
 	$(RM) *.o
 

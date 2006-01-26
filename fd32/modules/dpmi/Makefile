@@ -29,6 +29,9 @@ VPATH = src
 
 all: dpmi.o
 
+install: all
+	$(CP) dpmi.o ..
+
 clean :
 	$(RM) *.o
 

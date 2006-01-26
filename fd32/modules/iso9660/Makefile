@@ -25,6 +25,9 @@ BIN  = iso9660.o
 
 all: $(BIN)
 
+install: all
+	$(CP) $(BIN) ..
+
 clean:
 	$(RM) *.o
 

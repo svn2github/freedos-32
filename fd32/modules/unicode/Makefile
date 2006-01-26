@@ -25,6 +25,9 @@ OUTLIB = unicode.o
 
 all: $(OUTLIB)
 
+install: all
+	$(CP) $(OUTLIB) ..
+
 clean:
 	$(RM) $(OBJS) $(OUTLIB)
 

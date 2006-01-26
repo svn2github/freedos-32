@@ -20,6 +20,9 @@ OBJS = init.o
 
 all: psmouse.o
 
+install: all
+	$(CP) psmouse.o ..
+
 clean :
 	$(RM) *.o
 

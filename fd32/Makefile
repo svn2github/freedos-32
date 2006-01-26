@@ -20,6 +20,9 @@ KERNEL_DIRS = $(OSLIB) boot cons devices dynalink filesys kernel modules/block
 
 all: fd32.bin modules
 
+install: all
+	$(MAKE) -C modules install
+
 clean: $(OSLIB)/config.mk
 	$(RM) fd32.bin
 	$(MAKE) -C boot clean
