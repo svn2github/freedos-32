@@ -65,7 +65,7 @@ Event;
 static Event events_table[NUM_EVENTS];
 static List events_used;
 static List events_free;
-static volatile uint64_t ticks;
+volatile uint64_t ticks;
 /* Use the programmed PIT tick and convert when using, avoid losing precision */
 static unsigned pit_ticks;
 
