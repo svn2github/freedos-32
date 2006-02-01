@@ -108,6 +108,12 @@ struct registers {
     DWORD eip;
     DWORD ecs;
     DWORD flags;
+    DWORD vm86_esp;
+    DWORD vm86_ss;
+    DWORD vm86_es;
+    DWORD vm86_ds;
+    DWORD vm86_fs;
+    DWORD vm86_gs;
 };
 
 #define STACK_ACCESS	0x92	/* Basic Access bytes */

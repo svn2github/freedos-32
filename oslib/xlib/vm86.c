@@ -45,9 +45,11 @@ FILE(VM-86);
 #define VM86_STACK_SIZE 1024
 
 extern DWORD ll_irq_table[256];
+static DWORD *irq_table_entry = 0;
 static DWORD vm86_stack_size;
 /* TSS optional section */
 static BYTE  vm86_stack0[VM86_STACK_SIZE];
+static BYTE  vm86_stack1[VM86_STACK_SIZE];
 
 static struct {
   struct tss bios_t;
@@ -58,7 +60,7 @@ static LIN_ADDR vm86_stack;
 static LIN_ADDR vm86_iret_address;
 
 
-struct registers *global_regs;
+static struct registers *global_regs;
 
 static BYTE vm86_return_address[] = {0xcd, 0x48};	/* int 48h */
 
@@ -85,6 +87,7 @@ static void vm86_return(DWORD n, struct registers r)
   DWORD a;
 /*    message("Gotta code=%d [0 called from GPF/1 int 0x48]\n",code);*/
 #endif
+
   if (c == X_VM86_CALLBIOS_TSS) {
     WORD bl;
 
@@ -124,7 +127,7 @@ static void vm86_return(DWORD n, struct registers r)
     vm86_tss.bios_t.back_link = 0;
     ll_context_load(bl);
   }
-  
+
   message("INT 0x48 fired outside VM86... Why?\n");
   halt();
 }
@@ -148,7 +151,7 @@ void vm86_dump_tss(WORD tss_sel, struct tss *ptss)
 		base,lim,(unsigned)(acc),(unsigned)(gran));
 }
 
-void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size)
+void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size, DWORD *rm_irqtable_entry)
 {
   DWORD i;
   
@@ -166,7 +169,7 @@ void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size)
    * DOS memory allocator!
    * 8K should be OK! Stack top is vm86_stack + SIZE!
    */
-  vm86_stack_size = (dos_mem_buff_size - sizeof(vm86_return_address) - 1) / 2;
+  vm86_stack_size = dos_mem_buff_size - sizeof(vm86_return_address);
   vm86_stack = dos_mem_buff + vm86_stack_size / 2;
 
   /* Create a location of DOS memory containing the 
@@ -205,6 +208,9 @@ void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size)
   for (i = 0; i < 2047; i++) vm86_tss.io_map[i] = 0;
   vm86_tss.io_map[2047] = 0xFF000000;
   vm86_tss.bios_t.back_link = vm86_tss.app_t.back_link = 0;
+
+  /* Set a new rm_irqtable_entry */
+  irq_table_entry = rm_irqtable_entry;
 }
 
 int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
@@ -212,7 +218,6 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
   DWORD vm86_tmp_addr;
   DWORD vm86_flags, vm86_cs, vm86_ip;
   LIN_ADDR vm86_stack_ptr;
-  DWORD *irq_table_entry;
 
   /* if (service < 0x10 || in == NULL) return -1; */
   if (vm86_tss.bios_t.back_link != 0) {
@@ -228,7 +233,7 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
   vm86_tmp_addr = (DWORD)(vm86_iret_address);
   vm86_cs = (vm86_tmp_addr & 0xFF000) >> 4;
   vm86_ip = (vm86_tmp_addr & 0xFFF);
-  vm86_flags = 0; /* CPU_FLAG_VM | CPU_FLAG_IOPL; */
+  vm86_flags = in->x.cflag; /* CPU_FLAG_VM | CPU_FLAG_IOPL; */
   vm86_stack_ptr = vm86_stack + vm86_stack_size;
   lmempokew(vm86_stack_ptr - 6, vm86_ip);
   lmempokew(vm86_stack_ptr - 4, vm86_cs);
@@ -240,10 +245,11 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
 #endif
   /* Wanted VM86 mode + IOPL = 3! */
   vm86_tss.bios_t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
+
   /* Preload some standard values into the registers */
   vm86_tss.bios_t.ss0 = X_FLATDATA_SEL;
   vm86_tss.bios_t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE; 
-  
+
   /* Copy the parms from the X_*REGS structures in the vm86 TSS */
   vm86_tss.bios_t.eax = (DWORD)in->x.ax;
   vm86_tss.bios_t.ebx = (DWORD)in->x.bx;
@@ -264,7 +270,6 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
   /* Execute the BIOS call, fetching the CS:IP of the real interrupt
    * handler from 0:0 (DOS irq table!)
    */
-  irq_table_entry = (void *)(0L);
   vm86_tss.bios_t.cs = ((irq_table_entry[service]) & 0xFFFF0000) >> 16;
   vm86_tss.bios_t.eip = ((irq_table_entry[service]) & 0x0000FFFF);
 #ifdef __LL_DEBUG__    
@@ -272,6 +277,7 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
 #endif
   /* Let's use the ll standard call... */
   vm86_tss.bios_t.back_link = ll_context_save();
+
   if (out != NULL) {
     ll_context_load(X_VM86_CALLBIOS_TSS);
   } else {
@@ -316,15 +322,16 @@ int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
     out->x.si = global_regs->esi;
     out->x.di = global_regs->edi;
     out->x.cflag = global_regs->flags;
+    out->x.bp = global_regs->ebp;
   }
   if (s != NULL) {
-    s->es = vm86_tss.bios_t.es;
-    s->ds = vm86_tss.bios_t.ds;
+    s->es = global_regs->vm86_es;
+    s->ds = global_regs->vm86_ds;
   }
   return 1;
 }
 
-/* TODO: How to make vm86_callBIOS and vm86_call co-exist */
+/* Make vm86_callBIOS and vm86_call co-exist, done */
 
 #define KERNEL_TEMP_STACK_SIZE 512
 /* NOTE: FD32 memory functions */
@@ -342,6 +349,7 @@ typedef struct vm86_call_params {
   struct vm86_call_params *params_handle;
 } vm86_call_params_t;
 
+/* Normal vm86 call for supporting DOS-16 programs (by Hanzac Chen) */
 int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struct tss *ps_tss, void *params_handle)
 {
   int res;
@@ -397,7 +405,7 @@ int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struc
     vm86_tss.app_t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL | CPU_FLAG_IF;
     /* Ring0 system stack */
     vm86_tss.app_t.ss0 = X_FLATDATA_SEL;
-    vm86_tss.app_t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE;
+    vm86_tss.app_t.esp0 = (DWORD)vm86_stack1+VM86_STACK_SIZE;
     /* Copy the parms from the X_*REGS structures in the vm86 TSS */
     vm86_tss.app_t.eax = in->x.ax;
     vm86_tss.app_t.ebx = in->x.bx;

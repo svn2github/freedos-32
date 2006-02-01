@@ -43,7 +43,7 @@ typedef union x_regs16 {
 	WORD si __attribute__ ((packed));
 	WORD di __attribute__ ((packed));
 	WORD cflag __attribute__ ((packed));
-	WORD _pad __attribute__ ((packed));
+	WORD bp __attribute__ ((packed));
     } x __attribute__ ((packed));
     struct {
 	BYTE al,ah __attribute__ ((packed));
@@ -62,7 +62,7 @@ typedef struct x_sregs16 {
 
 void X_meminfo(LIN_ADDR *b1,DWORD *s1,LIN_ADDR *b2,DWORD *s2);
 void X_callBIOS(int service,X_REGS16 *in,X_REGS16 *out,X_SREGS16 *s);
-void vm86_init(LIN_ADDR buff, DWORD size);
+void vm86_init(LIN_ADDR buff, DWORD size, DWORD *rm_irqtable_entry);
 struct tss *vm86_get_tss(WORD tss_sel);
 DWORD vm86_get_stack(void);
 int vm86_call(WORD ip, WORD sp, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s, struct tss *ps_tss, void *params_handle);
