@@ -38,10 +38,11 @@ SYMBOL_NAME_LABEL(pit_isr)
 
 	mov $(X_FLATDATA_SEL), %ax
 	mov %ax, %ds
-	
-	incl ticks
+
+	incl 0x046c /* BIOS timer */
+	incl SYMBOL_NAME(ticks)
 	jnc 1f
-	incl ticks+4
+	incl SYMBOL_NAME(ticks)+4
 1:
 	cmp $0, in_irq
 	jnz exit
