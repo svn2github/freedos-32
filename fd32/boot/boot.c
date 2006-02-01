@@ -42,6 +42,8 @@ extern void DPMI_init(void);
 extern void biosdisk_init(void);
 #endif
 
+extern DWORD rm_irq_table[256];
+
 static int timer_mode = LL_PERIODIC;
 static int timer_period = 1000;
 
@@ -186,7 +188,7 @@ int main (int argc, char *argv[])
   fd32_log_init();
 #ifdef VM86_INIT
   /* NOTE: Pre-initialize VM86 for biosdisk, DPMI, ... */
-  vm86_init((BYTE *)dosmem_get(VM86_STACK_SIZE), VM86_STACK_SIZE);
+  vm86_init((BYTE *)dosmem_get(VM86_STACK_SIZE), VM86_STACK_SIZE, rm_irq_table);
 #endif
 #ifdef STATIC_BIOSDISK
   biosdisk_init();

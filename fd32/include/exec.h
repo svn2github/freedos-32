@@ -13,6 +13,7 @@
 #define NORMAL_PROCESS	0
 #define DLL_PROCESS		1
 #define VM86_PROCESS	2
+#define RESIDENT		0x8000
 
 /* Kernel Process management */
 typedef struct process_info {
