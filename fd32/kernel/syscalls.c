@@ -210,6 +210,24 @@ static void *imp_memcpy(void *dest, const void *src, size_t size)
   return dest;
 }
 
+/**
+ * memset - Fill a region of memory with the given value
+ * @s: Pointer to the start of the area.
+ * @c: The byte to fill the area with
+ * @count: The size of the area.
+ *
+ * Do not use memset() to access IO space, use memset_io() instead.
+ */
+void * imp_memset(void * s,int c,size_t count)
+{
+	char *xs = (char *) s;
+
+	while (count--)
+		*xs++ = c;
+
+	return s;
+}
+
 /* TODO: Rename misleading "syscall_table" and make it dynamic
  *       using the Slab Memory Allocator. --Salvo
  */
@@ -270,6 +288,7 @@ static struct symbol syscall_table[] = {
   { "gdt_read",  (DWORD) gdt_read    },
   /* Symbols for libc functions */
   { "memcpy",  (DWORD) imp_memcpy },
+  { "memset",  (DWORD) imp_memset },
   { "strchr",  (DWORD) strchr  },
   { "strcpy",  (DWORD) strcpy  },
   { "strncpy", (DWORD) strncpy },
