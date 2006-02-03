@@ -520,7 +520,9 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   dpmi_stack = pre_stack_mem;
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   mem_free(stack_mem, DPMI_STACK_SIZE);
-  dos_free(load_seg);
+
+  if (!(pi.type & RESIDENT))
+    dos_free(load_seg);
 
   return out.x.ax; /* Return value */
 }
@@ -573,7 +575,6 @@ int dos_exec_switch(int option)
         /* p[0] = 0xB8, p[1] = 0x32, p[2] = 0xFD;
            p[3] = 0xCD, p[4] = 0x2F, p[5] = 0xCB; */
         fd32_vm86_to_pmode = (void (*)(void))p;
-        
       }
       /* Store the previous check */
       if (p_isMZ == NULL) {

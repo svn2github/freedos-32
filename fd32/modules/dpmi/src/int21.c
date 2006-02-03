@@ -689,7 +689,7 @@ static inline int lfn_functions(union rmregs *r)
 
 
 /* INT 21h handler for DOS file system services (AH=function) */
-void int21_handler(union rmregs *r)
+void dos21_int(union rmregs *r)
 {
 	int res;
 	long long int res64;
@@ -767,6 +767,11 @@ void int21_handler(union rmregs *r)
 			curpsp->dta = (void *) FAR2ADDR(r->x.ds, r->x.dx);
 			res = 0;
 			break;
+		/* DOS 1+ - SET INTERRUPT VECTOR */
+		case 0x25:
+			LOG_PRINTF(("[DPMI] Set Int %x: %x %x\n", r->h.al, r->x.ds, r->x.dx));
+			res = fd32_set_real_mode_int (r->h.al, r->x.ds, r->x.dx);
+			break;
 		/* DOS 1+ - GET SYSTEM DATE */
 		case 0x2A:
 		{
@@ -837,6 +842,7 @@ void int21_handler(union rmregs *r)
 			break;
 		case 0x35:
 			res = fd32_get_real_mode_int(r->h.al, &(r->x.es), &(r->x.bx));
+			LOG_PRINTF(("[DPMI] Get Int %x: %x %x\n", r->h.al, r->x.es, r->x.bx));
 			break;
 		/* DOS 2+ - Get free disk space (DL=drive number, 0=default, 1=A, etc.) */
 		case 0x36:

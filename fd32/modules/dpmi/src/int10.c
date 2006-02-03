@@ -1,6 +1,5 @@
 /* DPMI Driver for FD32: int 0x10 services
- * by Luca Abeni
- * extended by Hanzac Chen
+ * by Luca Abeni and Hanzac Chen
  *
  * Ref: http://www.nongnu.org/vgabios
  *
@@ -15,17 +14,6 @@
 #include "rmint.h"
 #include "vga.h"
 
-
-/* from http://www.nongnu.org/vgabios (vgabios-0.4c.tgz/vgatables.h) */
-#define VGAREG_ACTL_ADDRESS       0x3C0
-#define VGAREG_ACTL_READ_DATA     0x3C1
-#define VGAREG_ACTL_WRITE_DATA    0x3C0
-#define VGAREG_ACTL_RESET         0x3DA
-
-#define VGAREG_DAC_READ_ADDRESS   0x3C7
-#define VGAREG_DAC_WRITE_ADDRESS  0x3C8
-#define VGAREG_DAC_DATA           0x3C9
-#define ACTL_MAX_REG              0x14
 
 int videobios_int(union rmregs *r)
 {
@@ -54,11 +42,19 @@ int videobios_int(union rmregs *r)
       vga_set_active_page(r->h.al);
       break;
 
+    case 0x06:
+      vga_scroll(r->h.al, r->h.bh, r->h.ch, r->h.cl, r->h.dh, r->h.dl, 0xFF, SCROLL_UP);
+      break;
+
     case 0x08:
       /* Read Character and Attribute */
       /* Let's just return a reasonable attribute... */
       r->h.ah = get_attr();
       r->h.al = ' ';
+      break;
+
+    case 0x09:
+      vga_write_char_attr(r->h.al, r->h.bh, r->h.bl, r->x.cx);
       break;
       
     /* Video - Teletype output */
@@ -67,7 +63,7 @@ int videobios_int(union rmregs *r)
       /* BH = Page number        */
       /* BL = Foreground color   */
       /* TODO: page, colors and special BEL character (07h) are ignored */
-      if (r->h.al != 0x07) cputc(r->h.al);
+      vga_write_teletype(r->h.al, 0xFF, r->h.bl, NO_ATTR);
       break;
 
     /* VIDEO - GET CURRENT VIDEO MODE */
@@ -114,7 +110,6 @@ int videobios_int(union rmregs *r)
 
     /* VIDEO - TEXT-MODE CHARGEN */
     case 0x11:
-      
       switch (r->h.al)
       {
         case 0x02:
@@ -168,7 +163,6 @@ int videobios_int(union rmregs *r)
       /* Get display combination mode (???)
        * let's say that it is used for checking if the video card is a VGA...
        */
-
       if ( r->h.al == 0) {
         /* Alternate Display Code (BH) and Active Display Code (BL) */
         r->h.bh = 0x07; /* 7 Should be VGA!!! */

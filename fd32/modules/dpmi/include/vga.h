@@ -63,6 +63,11 @@ typedef struct
 } __attribute__ ((packed)) VGAMODE;
 
 
+#define SCROLL_DOWN 0
+#define SCROLL_UP   1
+#define NO_ATTR     2
+#define WITH_ATTR   3
+
 void vga_set_active_page(BYTE page);
 void vga_set_cursor_shape(BYTE ch, BYTE cl);
 void vga_get_cursor_pos(BYTE page, WORD *shape, WORD *pos);
@@ -76,6 +81,9 @@ void vga_set_single_palette_reg(BYTE reg, BYTE value);
 void vga_set_all_dac_reg(WORD start, WORD count, BYTE *table);
 void vga_set_single_dac_reg(WORD reg, BYTE r, BYTE g, BYTE b);
 void vga_read_single_dac_reg(WORD reg, BYTE *r, BYTE *g, BYTE *b);
+void vga_scroll(BYTE nblines, BYTE attr, BYTE rul, BYTE cul, BYTE rlr, BYTE clr, BYTE page, BYTE dir);
+void vga_write_char_attr(BYTE car, BYTE page, BYTE attr, WORD count);
+void vga_write_teletype(BYTE car, BYTE page, BYTE attr, BYTE flag);
 BYTE vga_get_video_mode(BYTE *colsnum, BYTE *curpage);
 BYTE vga_set_video_mode(BYTE modenum);
 BYTE vga_read_display_code(void);

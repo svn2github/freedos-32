@@ -5,22 +5,65 @@
  */
 
 #include <ll/i386/hw-data.h>
-#include <ll/i386/hw-instr.h>
-#include <ll/i386/hw-func.h>
-#include <ll/i386/mem.h>
-#include <ll/i386/string.h>
+#include <ll/i386/x-bios.h>
 #include <ll/i386/error.h>
-#include <ll/i386/cons.h>
 #include <logger.h>
 #include <kernel.h>
+#include <kmem.h>
 #include "rmint.h"
+#include "dpmi.h"
 
 extern int dosidle_int(union rmregs *r);
 extern int keybbios_int(union rmregs *r);
 extern int videobios_int(union rmregs *r);
 extern int mousebios_int(union rmregs *r);
 extern int fastconsole_int(union rmregs *r);
-extern void int21_handler(union rmregs *r);
+extern void dos21_int(union rmregs *r);
+
+extern char use_biosvga;
+extern char use_biosmouse;
+
+static int dpmi_rmint_to_bios(DWORD intnum, volatile union rmregs *r)
+{
+  DWORD f;
+  DWORD stack_mem, pre_stack_mem;
+  X_REGS16 regs_r;
+  X_SREGS16 selectors_r;
+
+  f = ll_fsave();
+  regs_r.x.ax = r->x.ax;
+  regs_r.x.bx = r->x.bx;
+  regs_r.x.cx = r->x.cx;
+  regs_r.x.dx = r->x.dx;
+  regs_r.x.si = r->x.si;
+  regs_r.x.di = r->x.di;
+  regs_r.x.cflag = r->x.flags;
+  selectors_r.es = r->x.es;
+  selectors_r.ds = r->x.ds;
+
+  /* Use the new dpmi stack */
+  pre_stack_mem = dpmi_stack;
+  stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
+  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
+  vm86_callBIOS(intnum, &regs_r, &regs_r, &selectors_r);
+  /* Restore the previous stack */
+  dpmi_stack = pre_stack_mem;
+  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
+  mem_free(stack_mem, DPMI_STACK_SIZE);
+
+  r->x.ax = regs_r.x.ax;
+  r->x.bx = regs_r.x.bx;
+  r->x.cx = regs_r.x.cx;
+  r->x.dx = regs_r.x.dx;
+  r->x.si = regs_r.x.si;
+  r->x.di = regs_r.x.di;
+  r->x.flags = regs_r.x.cflag;
+  r->x.es = selectors_r.es;
+  r->x.ds = selectors_r.ds;
+  ll_frestore(f);
+
+  return 0;
+}
 
 //#define __RM_INT_DEBUG__
 
@@ -32,7 +75,10 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
   r1 = (union rmregs *)rmcs_address;
   switch (intnum) {
     case 0x10:
-      res = videobios_int(r1);
+      if (use_biosvga)
+        res = dpmi_rmint_to_bios(0x10, r1);
+      else
+        res = videobios_int(r1);
       return res;
 
     case 0x16:
@@ -45,7 +91,7 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
                       r1->x.ax, r1->x.bx, r1->x.cx, r1->x.dx,
                       r1->x.si, r1->x.di, r1->x.ds, r1->x.es);
 #endif
-      int21_handler(r1);
+      dos21_int(r1);
 #ifdef __RM_INT_DEBUG__
       if (r1->x.flags & 0x0001) {
         fd32_log_printf("Failed  - ");
@@ -101,7 +147,10 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       return res;
 
     case 0x33:
-      return mousebios_int(r1);
+      if (use_biosmouse)
+        return dpmi_rmint_to_bios(0x33, r1);
+      else
+        return mousebios_int(r1);
 
     case 0x4B:
       fd32_log_printf("[DPMI] Virtual DMA Specification (INT 0x%x EAX: 0x%lx)\n", intnum, r1->d.eax);

@@ -3,6 +3,8 @@
 
 #define ERROR_INVALID_VALUE        0xFFFF8021
 
+void fd32_enable_real_mode_int(int intnum);
+
 int fd32_get_real_mode_int(int intnum,
 	WORD *segment, WORD *offset);
 int fd32_set_real_mode_int(int intnum,
