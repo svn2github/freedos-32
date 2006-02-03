@@ -1,20 +1,4 @@
-/*
- * PS/2 Mouse Driver
- *
- * Make it as simple as it can be ...
- *
- * Hanzac Chen
- * 2004 - 2005
- *
- * Ref: Bochs' keyboard code
- *      Linux's psaux driver
- *      ReactOS's mouse driver
- *      http://www.computer-engineering.org
- *
- * This is free software; see GPL.txts
- */
-
-
+/* PS/2 Mouse Driver */
 #ifndef __PSMOUSE_H__
 #define __PSMOUSE_H__
 

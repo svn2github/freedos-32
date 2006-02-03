@@ -11,7 +11,7 @@ INCL   = $(OSLIB)
 LIB_PATH    = $(OSLIB)/lib/
 LIB_DIR  = $(OSLIB)\lib
 
-C_OPT += -O3 -I$(FDOS)/include -I../include/fd32
+C_OPT += -O3 -I../include -I$(FDOS)/include -I../include/fd32
 ASM_OPT +=  -I$(INCL)
 LINK_OPT = -Bstatic
 # DEBUG_OPT = -D__PSMOUSE_DEBUG__

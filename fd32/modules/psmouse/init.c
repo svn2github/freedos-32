@@ -1,24 +1,28 @@
-/*
- * PS/2 Mouse Driver
+/* FD32's PS/2 Mouse Driver
  *
- * Make it as simple as it can be ...
+ * Copyright (C) 2004-2006 by Hanzac Chen
  *
- * Hanzac Chen
- * 2004 - 2005
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * Ref: Bochs' keyboard code
- *      Linux's psaux driver
- *      ReactOS's mouse driver
- *      http://www.computer-engineering.org
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * This is free software; see GPL.txts
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 
 #include <dr-env.h>
 #include <errno.h>
 #include <devices.h>
-
+#include <mouse.h>
 #include "psmouse.h"
 
 
@@ -64,135 +68,33 @@ typedef union psmouse_info
 } psmouse_info_t;
 
 
-#define FD32_MOUSE_HIDE            0x00
-#define FD32_MOUSE_SHOW            0x01
-#define FD32_MOUSE_SHAPE           0x02
-#define FD32_MOUSE_GETXY           0x03
-#define FD32_MOUSE_GETBTN          0x04
-#define FD32_MOUSE_GETBTN_PRESSES  0x05
-#define FD32_MOUSE_GETBTN_RELEASES 0x06
-
-
-/* text mode video memory */
-static WORD *v = (WORD *)0xB8000;
-/* mouse status */
-static int text_x = -1, text_y = -1, x, y, visible;
 static fd32_request_t request;
 static psmouse_info_t info;
-/* text mode cursor and mask */
-static WORD save, scrmask = 0x77ff, curmask = 0x7700;
-static volatile WORD tmp;
-
-typedef struct psmouse_button_info
-{
-  WORD presses;
-  WORD releases;
-  WORD status[2];
-} psmouse_button_info_t;
-static psmouse_button_info_t btn[3];
-
-
-typedef struct fd32_mouse_getbutton
-{
-  WORD button;
-  WORD count;
-  WORD x;
-  WORD y;
-} fd32_mouse_getbutton_t;
+static fd32_mousecallback_t *callback;   /* The user-defined callback    */
+static volatile int tmp;
 
 
 static int request(DWORD function, void *params)
 {
-  DWORD *data = (DWORD *)params;
-  
   switch(function)
   {
-    case FD32_MOUSE_HIDE:
-      visible = 0;
-      v[80*text_y+text_x] = save;
-      break;
-    case FD32_MOUSE_SHOW:
-      visible = 1;
-      save = v[80*text_y+text_x];
-      v[80*text_y+text_x] &= scrmask;
-      v[80*text_y+text_x] ^= curmask;
-      break;
-    case FD32_MOUSE_SHAPE:
-      if(data != NULL) {
-        scrmask = data[0]&0x000000ff;
-        curmask = data[0]&0x00ff0000;
-      } else {
-        scrmask = 0xff;
-        curmask = 0xff;
-      }
-      break;
-    case FD32_MOUSE_GETXY:
-      data[0] = text_x*8;
-      data[1] = text_y*8;
-      break;
-    case FD32_MOUSE_GETBTN:
-      data[0] = info.raw;
-      break;
-    case FD32_MOUSE_GETBTN_PRESSES:
-      if(data != NULL) {
-        fd32_mouse_getbutton_t *p = (fd32_mouse_getbutton_t *)data;
-        p[0].count = btn[p[0].button].presses;
-        /* Reset the counter */
-        btn[p[0].button].presses = 0;
-        p[0].x = text_x;
-        p[0].y = text_y;
-        /* Retrieve the current buttons' status */
-        p[0].button = info.raw&0x0007;
-      }
-      break;
-    case FD32_MOUSE_GETBTN_RELEASES:
-      if(data != NULL) {
-        fd32_mouse_getbutton_t *p = (fd32_mouse_getbutton_t *)data;
-        p[0].count = btn[p[0].button].releases;
-        /* Reset the counter */
-        btn[p[0].button].releases = 0;
-        p[0].x = text_x;
-        p[0].y = text_y;
-        /* Retrieve the current buttons' status */
-        p[0].button = info.raw&0x0007;
-      }
-      break;
+    case FD32_MOUSE_SETCB:
+      callback = (fd32_mousecallback_t *) params;
+      return 0;
     default:
       return -ENOTSUP;
   }
-  
-  return 0;
 }
 
 
 static void psmouse_handler(int n)
 {
 #ifdef __PSMOUSE_DEBUG__
-  fd32_log_printf("[PSMOUSE] PS/2 Mouse handler X%d Y%d...\n", x, y);
+  fd32_log_printf("[PSMOUSE] PS/2 Mouse handler ...\n");
 #endif
 
   info.d.data[info.d.index] = fd32_inb(0x60);
   info.d.index++;
-
-  /*
-   * status 0: previous button status
-   * status 1: new button status
-   */
-  btn[0].status[1] = info.i.lbutton;
-  btn[1].status[1] = info.i.rbutton;
-  btn[2].status[1] = info.i.mbutton;
-  /* Track the button presses count, status changing from 0 -> 1 */
-  btn[0].presses += (!btn[0].status[0])&(btn[0].status[1]);
-  btn[1].presses += (!btn[1].status[0])&(btn[1].status[1]);
-  btn[2].presses += (!btn[2].status[0])&(btn[2].status[1]);
-  /* Track the button releases count, status changing from 1 -> 0 */
-  btn[0].releases += (btn[0].status[0])&(!btn[0].status[1]);
-  btn[1].releases += (btn[1].status[0])&(!btn[1].status[1]);
-  btn[2].releases += (btn[2].status[0])&(!btn[2].status[1]);
-  /* Store the buttons statuses */
-  btn[0].status[0] = info.i.lbutton;
-  btn[1].status[0] = info.i.rbutton;
-  btn[2].status[0] = info.i.mbutton;
 
   if(info.d.index > 2) /* The precision */
   {
@@ -200,25 +102,17 @@ static void psmouse_handler(int n)
     fd32_log_printf("[PSMOUSE] L%x R%x M%x #%x XS%x YS%x XO%x YO%x x: %x y: %x\n", info.i.lbutton, info.i.rbutton, info.i.mbutton, info.i.reserved, info.i.xsignbit, info.i.ysignbit, info.i.xoverflow, info.i.yoverflow, info.i.xmovement, info.i.ymovement);
 #endif
     info.d.index = 0;
-    x += info.i.xmovement;
-    y -= info.i.ymovement;
-    if (x < 0 || x >= 640 || y < 0 || y >= 200) {
-      /* Recover the original coordinates */
-      x -= info.i.xmovement;
-      y += info.i.ymovement;
-    } else if (visible) {
-      if(text_x != -1 && text_y != -1)
-        v[80*text_y+text_x] = save;
-      /* Get the text mode new X and new Y */
-      text_x = x/8;
-      text_y = y/8;
-      /* Save the previous character */
-      save = v[80*text_y+text_x];
-      /* Display the cursor */
-      v[80*text_y+text_x] &= scrmask;
-      v[80*text_y+text_x] ^= curmask;
-    }
+
     /* Enqueue the raw data */
+    if (callback) {
+      fd32_mousedata_t data;
+      data.flags = 2;
+      data.buttons = info.raw&0x0F;
+      data.axes[MOUSE_X] = info.i.xmovement;
+      data.axes[MOUSE_Y] = info.i.ymovement;
+      
+      callback(&data);
+    }
   }
   
   fd32_sti();
@@ -241,7 +135,7 @@ static void tmp_wait(void)
 
 
 /* The temporary handler only for initialization */
-static DWORD stage = 0;
+static volatile DWORD stage = 0;
 static void tmp_handler(int n)
 {
   static struct PSMOUSEINITSEQ
@@ -249,6 +143,7 @@ static void tmp_handler(int n)
     WORD cmd;
     WORD data;
   } psmouse_init_seq[] = {
+    /* {CMD_WRITE_MOUSE, PSMOUSE_CMD_GETID}, */
     /* Set stream, enable, start the interrupt */
     {CMD_WRITE_MOUSE, PSMOUSE_CMD_SETSTREAM},
     {CMD_WRITE_MOUSE, PSMOUSE_CMD_ENABLE},
@@ -280,9 +175,11 @@ static void tmp_handler(int n)
       /* Fail the initialization */
       stage = 0xFFFFFFFF;
       fd32_message("[PSMOUSE] Initialization failed!\n");
+      fd32_log_printf("[PSMOUSE] Initialization failed!\n");
       break;
     default:
       fd32_message("[PSMOUSE] Unknown code %x\n", code);
+      fd32_log_printf("[PSMOUSE] Unknown code %x\n", code);
       break;
   }
 
@@ -314,11 +211,6 @@ void psmouse_init(void)
 #endif
 
   /* Detect PS/2 mouse */
-  tmp_wait();
-  fd32_outb(0x64, CMD_WRITE_MOUSE);
-  tmp_wait();
-  fd32_outb(0x60, (BYTE)PSMOUSE_CMD_GETID);
-  tmp_wait();
   fd32_outb(0x64, CMD_WRITE_MOUSE);
   tmp_wait();
 
@@ -329,9 +221,11 @@ void psmouse_init(void)
 
     /* Triger the start phase through a temporary handler then wait for ready */
     WFC (stage != 0xFFFFFFFF);
-    
+
     if (fd32_dev_register(request, 0, "mouse") < 0)
       fd32_message("[PSMOUSE] Could not register the mouse device\n");
+
+    fd32_message("PS/2 mouse initialized!\n");
   } else {
     fd32_message("[PSMOUSE] Could not find a PS/2 mouse!\n");
   }

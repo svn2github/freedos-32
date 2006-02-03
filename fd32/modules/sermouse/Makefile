@@ -17,18 +17,15 @@ endif
 include $(FD32)/config.mk
 
 OBJS     = temp.o
-C_OPT    = -Wall -O3 -s -fno-builtin -nostdinc -D__GNU__ -I. -I$(FD32)/include -I$(OSLIB) -I$(PORTAB)
+C_OPT    = -Wall -O3 -s -fno-builtin -nostdinc -D__GNU__ -I. -I.. -I../include -I$(FD32)/include -I$(OSLIB) -I$(PORTAB)
 LINK_OPT = -Bstatic
 
 .PHONY: all clean
 
-all: sermouse.o moustest.o
+all: sermouse.o
 
 temp.o: sermouse.c
 	$(CC) -c $(C_OPT) sermouse.c -o $@
-
-moustest.o: moustest.c
-	$(CC) -c $(C_OPT) moustest.c -o $@
 
 sermouse.o: $(OBJS)
 	$(LD) $(LINK_OPT) $(OBJS) -r -s -o $@

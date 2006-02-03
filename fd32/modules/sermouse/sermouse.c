@@ -28,6 +28,10 @@ typedef enum { false = 0, true = 1 } bool;
 #endif
 #include <devices.h>
 #include <errno.h>
+#include <mouse.h>
+#include "pit/pit.h"
+
+typedef void *  Fd32Event;
 
 
 #if 0
@@ -62,7 +66,7 @@ Protocol;
 typedef void Handler(int n);
 
 static bool           installed = false; /* Set if handler installed     */
-static MouseCallback *callback;          /* The user-defined callback    */
+static fd32_mousecallback_t *callback;   /* The user-defined callback    */
 static unsigned       port = 0;          /* Base address of the COM port */
 
 
@@ -76,13 +80,13 @@ static unsigned       port = 0;          /* Base address of the COM port */
 /* L and R are left and right buttons status (set if pressed).            */
 /* Y and X, packed in 8-bit signed integers, are the increment of the     */
 /* mouse position (in mouse units) meausured by the mouse for that event. */
-/* When all three bytes are received, a MouseData structure is prepared   */
+/* When all three bytes are received, a fd32_mousedata_t structure is prepared   */
 /* and passed to a user-defined callback function.                        */
 static void m_handler(int n)
 {
     static BYTE     bytes[3];
     static unsigned count = 4;
-    MouseData       data;
+    fd32_mousedata_t       data;
 
     /* TODO: Should we check for interrupt reason (register at base_port + 2)? */
     /* Check for Data Ready on the specified COM port */
@@ -113,13 +117,13 @@ static void m_handler(int n)
 /* when the middle button is active or is changing status:               */
 /*                            0 M 0 0 0 0 0                              */
 /* M is the middle button status (set if pressed).                       */
-/* When all four bytes are received, a MouseData structure is prepared   */
+/* When all four bytes are received, a fd32_mousedata_t structure is prepared   */
 /* and passed to a user-defined callback function.                       */
 static void m3_handler(int n)
 {
     static BYTE      bytes[4];
     static unsigned  count = 5;
-    static MouseData data;
+    static fd32_mousedata_t data;
 
     /* TODO: Should we check for interrupt reason (register at base_port + 2)? */
     /* Check for Data Ready on the specified COM port */
@@ -159,13 +163,13 @@ static void m3_handler(int n)
 /*                          0 0 M Z3 Z2 Z1 Z0                            */
 /* M is the middle button status (set if pressed).                       */
 /* Z3..Z0 is a 4-bit two's complement increment of the mouse wheel.      */
-/* When all four bytes are received, a MouseData structure is prepared   */
+/* When all four bytes are received, a fd32_mousedata_t structure is prepared   */
 /* and passed to a user-defined callback function.                       */
 static void mz_handler(int n)
 {
     static BYTE     bytes[4];
     static unsigned count = 5;
-    MouseData       data;
+    fd32_mousedata_t       data;
 
     /* TODO: Should we check for interrupt reason (register at base_port + 2)? */
     /* Check for Data Ready on the specified COM port */
@@ -203,13 +207,13 @@ static void mz_handler(int n)
 /* X7..X0 and Y7..Y0 are the 8-bit two's complement increments of the mouse */
 /* position since the last packet, while x7..x0 and y7..y0 are increments   */
 /* since X7..X0 and Y7..Y0 of the same packet.                              */
-/* When all three bytes are received, a MouseData structure is prepared   */
+/* When all three bytes are received, a fd32_mousedata_t structure is prepared   */
 /* and passed to a user-defined callback function.                        */
 static void h_handler(int n)
 {
     static BYTE     bytes[5];
     static unsigned count = 6;
-    MouseData       data;
+    fd32_mousedata_t       data;
 
     /* TODO: Should we check for interrupt reason (register at base_port + 2)? */
     /* Check for Data Ready on the specified COM port */
@@ -242,20 +246,9 @@ static void timer_cb(void *params)
 }
 
 
-/* Blocks for the specified time using timer driven events */
-static void delay(unsigned milliseconds)
-{
-    volatile bool timeout = false;
-    Fd32Event e = fd32_event_post(milliseconds, timer_cb, (void *) &timeout);
-    /* TODO: Check for FD32_EVENT_NULL */
-    WFC(!timeout);
-    fd32_event_delete(e);
-}
-
-
 /* Installs the mouse interrupt handler and sets the COM port for mouse  */
 /* data transfer: 1200 bps, no parity, 7 data bits, 1 stop bit, no FIFO. */
-static int install(unsigned base_port, unsigned irq, MouseCallback *cb)
+static int install(unsigned base_port, unsigned irq, fd32_mousecallback_t *cb)
 {
     /* To manage timeout for mouse identification string */
     volatile bool timeout = false;
@@ -279,11 +272,11 @@ static int install(unsigned base_port, unsigned irq, MouseCallback *cb)
     fd32_outb(base_port + 2, 0x00); /* Disable FIFO                             */
     fd32_inb (base_port + 0);       /* Flush input buffer                       */
     /* Power up the mouse (by raising RTS, and also DTR, OUT1 and OUT2) */
-    delay(200);
+    pit_delay(200);
     fd32_outb(base_port + 4, 0x0F);
     
     /* Read mouse identification string */
-    e = fd32_event_post(2200, timer_cb, (void *) &timeout);
+    e = pit_event_register(2200, timer_cb, (void *) &timeout);
     /* TODO: Check for FD32_EVENT_NULL */
     for (;;)
     {
@@ -296,7 +289,7 @@ static int install(unsigned base_port, unsigned irq, MouseCallback *cb)
         fd32_message("%c", n++ < 2 ? c : c + 0x20);
     }
     fd32_message("\n");
-    fd32_event_delete(e);
+    pit_event_cancel(e);
     switch (id[0])
     {
         case 'M': fd32_message("MS protocol mouse found on port %x.\n", base_port);
@@ -331,7 +324,7 @@ static int install(unsigned base_port, unsigned irq, MouseCallback *cb)
 static int uninstall(void)
 {
     if (!installed) return -1;
-    #if 0
+    #ifdef DJGPP_DPMI
     /* Restore old IRQ handler */
     outportb(0x21, masksave);
     _go32_dpmi_set_protected_mode_interrupt_vector(COM1_IRQ, &oldint);
@@ -350,7 +343,7 @@ static int request(DWORD function, void *params)
     {
         case FD32_MOUSE_SETCB:
         {
-            callback = (MouseCallback *) params;
+            callback = (fd32_mousecallback_t *) params;
             return 0;
         }
     }
@@ -365,11 +358,11 @@ static int request(DWORD function, void *params)
 
 
 #define DEV_NAME "mouse"
-void sermouse_init(const char *cmdline)
+void sermouse_init(void)
 {
     unsigned base_port = 0x3F8;
     unsigned irq       = 4;
- //   if (cmdline) sscanf((char *) cmdline, "%x %d", &base_port, &irq);
+
     if (install(base_port, irq, 0) < 0)
     {
         fd32_message("Could not install the Serial Mouse Driver\n");
