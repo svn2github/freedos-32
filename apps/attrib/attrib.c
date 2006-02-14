@@ -44,7 +44,7 @@
 void old_psp_puts(int handle, char* s)
 {
 	struct process_info *ppi = fd32_get_current_pi();
-    fd32_set_current_pi(ppi->prev_P);
+    fd32_set_current_pi(ppi->prev);
     if(s)
         fd32_write(handle, s, strlen(s));
     fd32_set_current_pi(ppi);
@@ -351,7 +351,7 @@ void attrib_init(struct process_info *pi)
 {
     char *args;
     int res;
-    args = args_get(pi);
+    args = pi-> args;
     /* This is a hack to compensate for a bug in the kernel */
     char c = '\0';
     if((DWORD)args <100)
