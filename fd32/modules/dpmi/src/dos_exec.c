@@ -229,7 +229,7 @@ void restore_psp(void)
 }
 
 static DWORD funky_base;
-static WORD user_cs, user_ds;
+static DWORD funky_size;
 static int wrapper_alloc_region(DWORD base, DWORD size)
 {
   message("Wrapper allocating region: 0x%lx, 0x%lx...\n",
@@ -242,42 +242,21 @@ static int wrapper_alloc_region(DWORD base, DWORD size)
 static DWORD wrapper_alloc(DWORD size)
 {
   DWORD tmp;
-  int data_selector, code_selector;
   
   if (funky_base == 0)
     return mem_get(size);
 
-  message("Wrapper allocating 0x%lx = 0x%lx + 0x%lx...\n", size + funky_base, size, funky_base);
-  /* NOTE: DjLibc doesn't need the memory address to be above the image base anymore */
-  if ((tmp = mem_get(size + funky_base)) == 0)
-    return 0;
+  /* Store the size to allocate */
+  funky_size = size + funky_base;
 
-  /* NOTE: The DS access rights is different with CS */
-  if ((data_selector = fd32_allocate_descriptors(1)) == ERROR_DESCRIPTOR_UNAVAILABLE) {
-    message("Cannot allocate data selector!\n");
+  message("Wrapper allocating 0x%lx = 0x%lx + 0x%lx...\n", funky_size, size, funky_base);
+  /* NOTE: DJLibc doesn't need the memory address to be above the image base anymore
+   *	So use normal memory allocation ...
+   */
+  tmp = funky_base;
+  if ((funky_base = mem_get(funky_size)) == 0)
     return 0;
-  } else {
-    fd32_set_segment_base_address(data_selector, (DWORD)tmp);
-    fd32_set_segment_limit(data_selector, size + funky_base);
-    fd32_set_descriptor_access_rights(data_selector, 0xC092);
-  }
-
-  if ((code_selector = fd32_allocate_descriptors(1)) == ERROR_DESCRIPTOR_UNAVAILABLE) {
-    fd32_free_descriptor(data_selector);
-    message("Cannot allocate code selector!\n");
-    return 0;
-  } else {
-    fd32_set_segment_base_address(code_selector, (DWORD)tmp);
-    fd32_set_segment_limit(code_selector, size + funky_base);
-    fd32_set_descriptor_access_rights(code_selector, 0xC09A);
-  }
-
   tmp += funky_base;
-  funky_base = 0;
-
-  user_cs = code_selector;
-  user_ds = data_selector;
-  fd32_log_printf("User CS, DS = 0x%x, 0x%x\n", code_selector, data_selector);
 
   return tmp;
 }
@@ -315,20 +294,46 @@ static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, 
 		DWORD user_stack, char *filename, char *args)
 {
   int res;
+  int data_selector, code_selector;
   int wrap_run(DWORD, WORD, DWORD, WORD, WORD, DWORD);
+
+  /* Create new running segments */
+  /* NOTE: The DS access rights is different with CS */
+  if ((data_selector = fd32_allocate_descriptors(1)) == ERROR_DESCRIPTOR_UNAVAILABLE) {
+    message("Cannot allocate data selector!\n");
+    return 0;
+  } else {
+    fd32_set_segment_base_address(data_selector, funky_base);
+    fd32_set_segment_limit(data_selector, funky_size);
+    fd32_set_descriptor_access_rights(data_selector, 0xC092);
+  }
+
+  if ((code_selector = fd32_allocate_descriptors(1)) == ERROR_DESCRIPTOR_UNAVAILABLE) {
+    fd32_free_descriptor(data_selector);
+    message("Cannot allocate code selector!\n");
+    return 0;
+  } else {
+    fd32_set_segment_base_address(code_selector, funky_base);
+    fd32_set_segment_limit(code_selector, funky_size);
+    fd32_set_descriptor_access_rights(code_selector, 0xC09A);
+  }
+
+  funky_base = 0;
+
+  fd32_log_printf("User CS, DS = 0x%x, 0x%x\n", code_selector, data_selector);
 
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Going to run 0x%lx, size 0x%lx\n",
 		entry, size);
 #endif
-  if ((res = _local_go32_init(ppi, size, filename, args, user_cs, user_ds)) == -1)
+  if ((res = _local_go32_init(ppi, size, filename, args, code_selector, data_selector)) == -1)
     return -1;
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Calling run 0x%lx 0x%lx (0x%x 0x%x) --- 0x%lx\n",
-		entry, size, user_cs, user_ds, user_stack);
+		entry, size, code_selector, data_selector, user_stack);
 #endif
 
-  res = wrap_run(entry, res, 0, user_cs, user_ds, user_stack);
+  res = wrap_run(entry, res, 0, code_selector, data_selector, user_stack);
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Returned 0x%x: now restoring PSP\n", res);
 #endif
@@ -355,6 +360,7 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
     return -1;
   }
 
+  /* Set process information */
   pi.filename = filename;
   pi.args = args;
   pi.cds_list = NULL;
