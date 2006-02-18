@@ -19,6 +19,7 @@ extern int videobios_int(union rmregs *r);
 extern int mousebios_int(union rmregs *r);
 extern int fastconsole_int(union rmregs *r);
 extern void dos21_int(union rmregs *r);
+extern int int2f_int(union rmregs *r);
 
 extern char use_biosvga;
 extern char use_biosmouse;
@@ -113,37 +114,7 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       return res;
 
     case 0x2F:
-      res = 0;
-      switch(r1->x.ax)
-      {
-        /* CD-ROM v2.00+ - DRIVE CHECK */
-        case 0x150B:
-          message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
-          break;
-        /* MS Windows - WINDOWS ENHANCED MODE INSTALLATION CHECK */
-        case 0x1600:
-          /* NOTE: Neither Windows 3.x enhanced mode nor Windows/386 2.x running */
-          r1->h.al = 0; 
-          break;
-        /* MS Windows, DPMI, various - RELEASE CURRENT VIRTUAL MACHINE TIME-SLICE */
-        case 0x1680:
-          res = dosidle_int(r1); /* TODO: support multitasking here? */
-          break;
-        /* Windows95 - TITLE - SET / GET APPLICATION / VIRTUAL MACHINE TITLE */
-        case 0x168E:
-          message("Unsupported INT 0x%x EAX: 0x%lx EDX: 0x%lx\n", intnum, r1->d.eax, r1->d.edx);
-          r1->x.ax = 0;
-          break;
-        /* OS/2 v2.0+ - INSTALLATION CHECK / GET VERSION */
-        case 0x4010:
-          fd32_log_printf("[DPMI] OS/2 v2.0+ - Installation Check / Get Version (INT 0x%x EAX: 0x%lx)\n", intnum, r1->d.eax);
-          /* NOTE: Do nothing ... */
-          break;
-        default:
-          /* WARNING: PRINT/SHARE/DOS internal to be implemented... */
-          message("Unsupported INT 0x%x EAX: 0x%lx\n", intnum, r1->d.eax);
-          res = -1;
-      }
+      res = int2f_int(r1);
       return res;
 
     case 0x33:

@@ -6,10 +6,68 @@
 
 #include <ll/i386/hw-data.h>
 #include <ll/i386/x-bios.h>
+#include <ll/i386/error.h>
 
+#include <logger.h>
 #include "dpmi.h"
+#include "rmint.h"
 #include "dos_exec.h"
 #include "ldtmanag.h"
+
+extern int dosidle_int(union rmregs *r);
+
+/* Real-mode emulation */
+void int2f_int(union rmregs *r)
+{
+	switch (r->x.ax) {
+		/* CD-ROM - Installation check */
+		case 0x1500:
+			r->x.bx = 0; /* number of CD-ROM drive letters used */
+			/* r->x.cx = 0; starting drive letter (0=A:) */
+			break;
+		/* CD-ROM v2.00+ - Drive check */
+		case 0x150B:
+			/* None */
+			break;
+		/* MS Windows - Windows enhanced mode installation check */
+		case 0x1600:
+			/* None */
+			break;
+		/* MS Windows 3.1 - Identify windows version and type */
+		case 0x160A:
+			/* None */
+			break;
+		/* MS Windows, DPMI, various - Release current virtual machine time-slice */
+		case 0x1680:
+			dosidle_int(r); /* TODO: support multitasking here? */
+			break;
+		/* Windows95 - Title - Set / Get application / Virtual machine title */
+		case 0x168E:
+			if (r->x.dx == 0x0000 || r->x.dx == 0x0001)
+				fd32_log_printf("[DPMI] Windows set title: %s\n", (char *)(r->x.es<<4)+r->x.di);
+			else
+				fd32_log_printf("[DPMI] Windows get title ...\n");
+			r->x.ax = 0x0000; /* failed now */
+			break;
+		/* MS Windows WINOLDAP - Identify WinOldAp version */
+		case 0x1700:
+			/* None */
+			break;
+		/* OS/2 v2.0+ - Installation check / Get version */
+		case 0x4010:
+			/* None */
+			break;
+		/* Extended memory specification (XMS) v2+ - Installation check */
+		case 0x4300:
+			/* None */
+			break;
+		default:
+			message("[DPMI] Unsupported INT 0x2F EAX: 0x%lx\n", r->d.eax);
+			break;
+	}
+}
+
+extern void int_redirect_to_rmint(DWORD intnum, volatile union regs *r);
 
 /* INT 2fh handler for Multiplex for PM execution (AX=function) */
 void int2f_handler(union regs *r)
@@ -18,6 +76,7 @@ void int2f_handler(union regs *r)
 	fd32_log_printf("[DPMI] INT 2fh handler, multiplex for pm execution: %x\n", r->x.ax);
 #endif
 	switch (r->x.ax) {
+		/* Obtain Real(vm86)-to-Protected mode switch entry point */
 		case 0x1687:
 			r->x.ax	= 0x0000; /* DPMI installed */
 			r->x.dx	= 0xFD32; /* DPMI version */
@@ -72,5 +131,8 @@ void int2f_handler(union regs *r)
 			*/
 			break;
 		}
+		default:
+			int_redirect_to_rmint (0x2f, r);
+			break;
 	}
 }

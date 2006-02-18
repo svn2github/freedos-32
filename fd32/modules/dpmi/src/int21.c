@@ -1248,6 +1248,7 @@ void dos21_int(union rmregs *r)
 			break;
 		/* Unsupported or invalid functions */
 		default:
+			fd32_log_printf("[DPMI] Unsupported int21 %x\n", r->x.ax);
 			res = -ENOTSUP;
 			break;
 	}

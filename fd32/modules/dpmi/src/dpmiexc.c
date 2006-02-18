@@ -2,8 +2,12 @@
 #include <ll/i386/hw-func.h>
 #include <ll/i386/error.h>
 #include <ll/i386/x-bios.h>
+#include <ll/i386/pic.h>
+#include <ll/string.h>
 
 #include <logger.h>
+#include <kmem.h>
+#include <pit/pit.h>
 #include "handler.h"
 #include "dpmi.h"
 #include "dpmiexc.h"
@@ -15,6 +19,7 @@ extern struct gate IDT[256];
 extern DWORD rm_irq_table[256];
 
 extern void int21_handler(union regs *r);
+extern void int_redirect_to_bios(DWORD intnum, volatile union regs *r);
 
 static void reflect(DWORD intnum, volatile union regs *r)
 {
@@ -27,7 +32,8 @@ static void reflect(DWORD intnum, volatile union regs *r)
   else if (c == X_VM86_TSS)
     vm86_tss = vm86_get_tss(X_VM86_TSS);
 
-  if (c == X_VM86_CALLBIOS_TSS || c == X_VM86_TSS) {
+  if (c == X_VM86_CALLBIOS_TSS ) {
+    /* Directly reflect to the 16-bit interrupt handler */
 #ifdef __DPMIEXC_DEBUG__
     fd32_log_printf("[DPMI] Emulate interrupt %lx ...\n", intnum);
 #endif
@@ -51,10 +57,33 @@ static void reflect(DWORD intnum, volatile union regs *r)
       SET_CARRY;
       message("[DPMI] Direct call BIOS without vm86, not supported!\n");
     }
+  } else if (c == X_VM86_TSS) {
+    /* Use vm86_callBIOS */
+    int_redirect_to_bios (intnum, r);
   } else {
+    SET_CARRY;
     message("[DPMI] Redirect to the chandler, not done!\n");
   }
 }
+
+#ifdef ENABLE_EMULATED_TIMER
+static void emu_timer_int(void *p)
+{
+  union regs r;
+  DWORD temp;
+
+  memset(&r, 0, sizeof(union regs));
+  temp = dosmem_get(0x100);
+  r.d.vm86_es = temp>>4;
+  r.d.vm86_ds = temp>>4;
+  fd32_log_printf("[DPMI] Emulate PIT timer interrupt ...\n");
+  reflect(0x08, &r);
+  dosmem_free(temp, 0x100);
+
+  /* Register again to keep the handler ... */
+  pit_event_register(1, emu_timer_int, 0);
+}
+#endif
 
 static void real_mode_int_mgr(DWORD intnum, union regs r)
 {
@@ -94,7 +123,16 @@ int fd32_set_real_mode_int(int intnum, WORD segment, WORD offset)
   /* Check this... */
   rm_irq_table[intnum] = ((DWORD)segment << 16) | offset;
 
-  fd32_enable_real_mode_int(intnum);
+#ifdef __DPMIEXC_DEBUG__
+  fd32_log_printf("[DPMI] Set interrupt %x ...\n", intnum);
+#endif
+
+#ifdef ENABLE_EMULATED_TIMER
+  if (intnum == 0x08) /* PIT interrupt */
+    pit_event_register(1, emu_timer_int, 0);
+  else
+#endif
+    fd32_enable_real_mode_int(intnum);
 
   return 0;
 }
@@ -140,6 +178,10 @@ int fd32_get_protect_mode_int(int intnum, WORD *selector, DWORD *offset)
   if (intnum > 0xFF) {
     return ERROR_INVALID_VALUE;
   }
+
+  /* TODO: Right place to resolve hardware intnum? and PIC2_BASE ... */
+  if (intnum >= 8 && intnum < 16)
+    intnum = intnum-8+PIC1_BASE;
   
   /* CX:EDX = <selector>:<offset> of the interrupt handler */
   /* Set it */
@@ -155,6 +197,13 @@ int fd32_set_protect_mode_int(int intnum, WORD selector, DWORD offset)
   if (intnum > 0xFF) {
     return ERROR_INVALID_VALUE;
   }
+
+#ifdef __DPMIEXC_DEBUG__
+  fd32_log_printf("[DPMI] Set protect mode interrupt handler 0x%x!\n", intnum);
+#endif
+  /* TODO: Right place to resolve hardware intnum? and PIC2_BASE ... */
+  if (intnum >= 8 && intnum < 16)
+    intnum = intnum-8+PIC1_BASE;
   
   /* CX:EDX = <selector>:<offset> of the interrupt handler */
   /* Set it */

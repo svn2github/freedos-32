@@ -71,7 +71,7 @@ static void return_to_dos(union regs *r, int resident)
   }
 }
 
-static void redirect_to_rmint(DWORD intnum, volatile union regs *r)
+void int_redirect_to_rmint(DWORD intnum, volatile union regs *r)
 {
   union rmregs r1;
 
@@ -103,7 +103,7 @@ static void redirect_to_rmint(DWORD intnum, volatile union regs *r)
   }
 }
 
-static void redirect_to_bios(DWORD intnum, volatile union regs *r)
+void int_redirect_to_bios(DWORD intnum, volatile union regs *r)
 {
   DWORD f;
   DWORD stack_mem, pre_stack_mem;
@@ -157,7 +157,7 @@ void int21_handler(union regs *r)
     return_to_dos(r, 1);
   } else {
     /* Redirect to call RM interrupts' handler */
-    redirect_to_rmint(0x21, r);
+    int_redirect_to_rmint(0x21, r);
   }
 }
 
@@ -368,25 +368,25 @@ void dpmi_chandler(DWORD intnum, union regs r)
     case 0x10:
 #ifdef ENABLE_BIOSVGA
       if (use_biosvga)
-        redirect_to_bios(0x10, &r);
+        int_redirect_to_bios(0x10, &r);
       else
 #endif
-        redirect_to_rmint(0x10, &r);
+        int_redirect_to_rmint(0x10, &r);
       break;
     /* Get BIOS equipment list */
     case 0x11:
-      redirect_to_bios(0x11, &r);
+      int_redirect_to_bios(0x11, &r);
       break;
     /* PS BIOS interface */
     case 0x15:
-      redirect_to_bios(0x15, &r);
+      int_redirect_to_bios(0x15, &r);
       break;
     case 0x16:
-      redirect_to_rmint(0x16, &r);
+      int_redirect_to_rmint(0x16, &r);
       break;
     /* PCI BIOS services */
     case 0x1A:
-      redirect_to_bios(0x1A, &r);
+      int_redirect_to_bios(0x1A, &r);
       break;
     case 0x21:
       int21_handler(&r);
@@ -394,7 +394,7 @@ void dpmi_chandler(DWORD intnum, union regs r)
     /* Network services */
     case 0x2A:
       if (r.x.ax == 0x8400)
-        redirect_to_rmint(0x28, &r); /* DOS idle */
+        int_redirect_to_rmint(0x28, &r); /* DOS idle */
       else
         fd32_log_printf("INT 2A, Network service 0x%x not implemented\n", r.x.ax);
       break;
@@ -410,7 +410,7 @@ void dpmi_chandler(DWORD intnum, union regs r)
       int31_handler(&r);
       break;
     case 0x33:
-      redirect_to_rmint(0x33, &r);
+      int_redirect_to_rmint(0x33, &r);
       break;
     default:
       chandler1(r.d.eax, r.d.ebx, r.d.ecx, r.d.edx, intnum);
