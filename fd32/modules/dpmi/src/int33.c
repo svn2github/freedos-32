@@ -125,7 +125,7 @@ int mousebios_int(union rmregs *r)
 			break;
 		/* MS MOUSE v1.0+ - RETURN POSITION AND BUTTON STATUS */
 		case 0x0003:
-			r->x.bx = buttons;
+			r->x.bx = buttons&0x07;
 			r->x.cx = x;
 			r->x.dx = y;
 			if(r->x.bx != 0)
