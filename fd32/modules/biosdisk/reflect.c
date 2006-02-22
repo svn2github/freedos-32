@@ -8,6 +8,7 @@
 #include <ll/i386/hw-func.h>
 #include <ll/i386/x-bios.h>
 #include <ll/i386/pic.h>
+#include <pit/pit.h>
 #include "biosdisk.h"
 
 void biosdisk_reflect(unsigned intnum, BYTE dummy)
@@ -118,27 +119,14 @@ void biosdisk_reflect(unsigned intnum, BYTE dummy)
 
 void biosdisk_timer(void *p)
 {
-  static struct timespec ts;
-  int res;
+  void *evt;
   WORD ctx;
   
-  if ((ts.tv_sec == 0) && (ts.tv_nsec == 0)) {
-#ifdef __TIME_NEW_IS_OK__
-    ll_gettime(TIME_NEW, &ts);
-#else
-    ll_gettime(TIME_EXACT, &ts);
-#endif
-  }
-  ts.tv_nsec += 55000 * 1000;
-  if (ts.tv_nsec > 1000000000) {
-    ts.tv_sec  += 1;
-    ts.tv_nsec -= 1000000000;
-  }
-  res = event_post(ts, biosdisk_timer, NULL);
+  evt = pit_event_register(55000, biosdisk_timer, NULL);
  
   /* Here, we must trigger a vm86 interrupt... */
   ctx = ll_context_save();
-  if (ctx == X_VM86_TSS) {
+  if (ctx == X_VM86_CALLBIOS_TSS) {
     biosdisk_reflect(PIC1_BASE, 0); /* Second parameter is unneeded, here... */
   } else {
     vm86_callBIOS(0x08, NULL, NULL, NULL);
