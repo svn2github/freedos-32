@@ -94,6 +94,7 @@ int vksprintf(char *buf,char *fmt,va_list parms)
 			   buf += l;
 			   parsing = 0;
 			   break;
+		case 'p' :
 		case 'x' : switch (size) {
 		    		case STD_SIZE : n2 = va_arg(parms, unsigned);
 						break;
