@@ -36,13 +36,15 @@ void dos_init(void *p)
     message("DOS Mem Size: %lx %lu\n", memsize, memsize);
 #endif
     /* NOTE: Do not reserve for the GRUB data (formerly Randomly chosen safe value 0x10000) */
-    membase = 0x400; /* Just reserve for the real-mode interrupts jump table */
+    membase = 0x400+0x100; /* Just reserve for the real-mode interrupts jump table and BDA */
     if (mbp->flags & MB_INFO_BOOT_LOADER_NAME) {
       if (*((char *)(mbp->boot_loader_name)) == 'X') {
         membase = mbp->mem_lowbase;
       }
     }
     /* Reserve the memory before membase */
+    memsize -= membase;
+
     dosmem_init(membase, memsize);
     /* NOTE: Do not reserve the module structure infomation and it's in DOS memory
     dosmem_get_region(mbp->mods_addr, sizeof(struct mods_struct)*mbp->mods_count); */
