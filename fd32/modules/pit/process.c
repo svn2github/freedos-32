@@ -68,8 +68,11 @@ static List events_free;
 volatile uint64_t ticks;
 /* Use the programmed PIT tick and convert when using, avoid losing precision */
 static unsigned pit_ticks;
+static volatile int calibration_finished;
+static uint64_t iterations_per_sec;
 
-static unsigned convert_to_ticks(unsigned usec)
+
+static unsigned usec_to_ticks(unsigned usec)
 {
 	uint64_t tmp_pit_ticks = pit_ticks;
 	uint64_t tmp_usec = usec;
@@ -104,7 +107,7 @@ void pit_process(void)
  *
  * Another module or native application taking control of the PIT may call this
  * function every 55ms to enable time events registered with this module to be
- * dispatched. INT 1Ch and other actions only required for DOS compatibility 
+ * dispatched. INT 1Ch and other actions only required for DOS compatibility
  * will not be performed by this function.
  */
 void pit_external_process(void)
@@ -135,7 +138,7 @@ void *pit_event_register(unsigned usec, void (*callback)(void *p), void *param)
 	{
 		list_erase(&events_free, (ListItem *) e);
 		list_push_back(&events_used, (ListItem *) e);
-		e->when = ticks + convert_to_ticks(usec);
+		e->when = ticks + usec_to_ticks(usec);
 		e->callback = callback;
 		e->param = param;
 	}
@@ -181,7 +184,7 @@ int pit_event_cancel(void *event_handle)
  */
 void pit_delay(unsigned usec)
 {
-	uint64_t when = ticks + convert_to_ticks(usec);
+	uint64_t when = ticks + usec_to_ticks(usec);
 	while (1)
 	{
 		fd32_cli();
@@ -195,6 +198,17 @@ void pit_delay(unsigned usec)
 	}
 }
 
+static uint64_t delay_loop(uint64_t rounds)
+{
+	while(rounds)
+	{
+		if(calibration_finished)
+			break;
+		rounds--;
+	}
+	return rounds;
+}
+
 /**
  * \brief Blocks the execution for the specified amount of more precise time.
  * \param nsec number of nanoseconds to block.
@@ -202,8 +216,8 @@ void pit_delay(unsigned usec)
  */
 static void nano_delay_l(unsigned nsec)
 {
-	unsigned usec = nsec/1000 + 1;
-	pit_delay(usec);
+	uint64_t iterations = iterations_per_sec * nsec / 1000000000;
+	delay_loop(iterations);
 }
 
 INLINE_OP uint64_t rdtsc(void)
@@ -231,6 +245,12 @@ static void nano_delay_p(unsigned nsec)
 	}
 }
 
+static void callback(void* parm)
+{
+	calibration_finished = 1;
+}
+
+
 static void nano_delay_init(void)
 {
 	if (use_rdtsc) {
@@ -248,6 +268,15 @@ static void nano_delay_init(void)
 		if (add_call("nano_delay", (uint32_t) nano_delay_p, ADD) == -1)
 			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
 	} else {
+		calibration_finished = 0;
+		if(pit_event_register( 1000*1000, &callback, NULL) < 0)
+		{
+			message("[PIT] Failed to init nano_delay.\n");
+			return;
+		}
+		iterations_per_sec = 0xFFFFFFFFFFFFFFFFLL - delay_loop(0xFFFFFFFFFFFFFFFFLL);
+		calibration_finished = 0;
+		
 		if (add_call("nano_delay", (uint32_t) nano_delay_l, ADD) == -1)
 			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
 	}
