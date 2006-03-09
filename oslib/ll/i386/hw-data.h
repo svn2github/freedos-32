@@ -64,29 +64,29 @@ BEGIN_DEF
 
 /* Hardware based types (Self explanatory) */
 
-struct gate {
-    WORD offset_lo __attribute__ ((packed));
-    WORD sel __attribute__ ((packed));
-    BYTE dword_cnt __attribute__ ((packed));
-    BYTE access __attribute__ ((packed));
-    WORD offset_hi __attribute__ ((packed));
+struct __attribute__ ((packed)) gate {
+    WORD offset_lo;
+    WORD sel;
+    BYTE dword_cnt;
+    BYTE access;
+    WORD offset_hi;
 };
 
-struct descriptor {
-    WORD lim_lo __attribute__ ((packed));
-    WORD base_lo __attribute__ ((packed));
-    BYTE base_med __attribute__ ((packed));
-    BYTE access __attribute__ ((packed));
-    BYTE gran __attribute__ ((packed));
-    BYTE base_hi __attribute__ ((packed));
+struct __attribute__ ((packed)) descriptor {
+    WORD lim_lo;
+    WORD base_lo;
+    BYTE base_med;
+    BYTE access;
+    BYTE gran;
+    BYTE base_hi;
 };
 
 /* A LDT/GDT entry could be a gate or a selector */
 /* An IDT entry could be a gate only	     	 */
 
-union gdt_entry {
-    struct descriptor d __attribute__ ((packed));
-    struct gate g __attribute__ ((packed));
+union __attribute__ ((packed)) gdt_entry {
+    struct descriptor d;
+    struct gate g;
 };
 
 struct registers {
@@ -169,47 +169,47 @@ struct registers {
 #define CPU_FLAG_ID	0x00200000
 
 
-struct tss {
-    WORD back_link __attribute__ ((packed));
-    WORD _fill0 __attribute__ ((packed));
-    DWORD esp0 __attribute__ ((packed));
-    WORD ss0 __attribute__ ((packed));
-    WORD _fill1 __attribute__ ((packed));
-    DWORD esp1 __attribute__ ((packed));
-    WORD ss1 __attribute__ ((packed));
-    WORD _fill2 __attribute__ ((packed));
-    DWORD esp2 __attribute__ ((packed));
-    WORD ss2 __attribute__ ((packed));
-    WORD _fill3 __attribute__ ((packed));
-    DWORD cr3 __attribute__ ((packed));
-    DWORD eip __attribute__ ((packed));
-    DWORD eflags __attribute__ ((packed));
-    DWORD eax __attribute__ ((packed));
-    DWORD ecx __attribute__ ((packed));
-    DWORD edx __attribute__ ((packed));
-    DWORD ebx __attribute__ ((packed));
-    DWORD esp __attribute__ ((packed));
-    DWORD ebp __attribute__ ((packed));
-    DWORD esi __attribute__ ((packed));
-    DWORD edi __attribute__ ((packed));
-    WORD es __attribute__ ((packed));
-    WORD _fill5 __attribute__ ((packed));
-    WORD cs __attribute__ ((packed));
-    WORD _fill6 __attribute__ ((packed));
-    WORD ss __attribute__ ((packed));
-    WORD _fill7 __attribute__ ((packed));
-    WORD ds __attribute__ ((packed));
-    WORD _fill8 __attribute__ ((packed));
-    WORD fs __attribute__ ((packed));
-    WORD _fill9 __attribute__ ((packed));
-    WORD gs __attribute__ ((packed));
-    WORD _fill10 __attribute__ ((packed));
-    WORD ldt __attribute__ ((packed));
-    WORD _fill11 __attribute__ ((packed));
-    WORD trap __attribute__ ((packed));
-    WORD io_base __attribute__ ((packed));
-    DWORD control __attribute__ ((packed));
-    BYTE ctx_fpu[FPU_CONTEXT_SIZE] __attribute__ ((packed));
+struct __attribute__ ((packed)) tss {
+    WORD back_link;
+    WORD _fill0;
+    DWORD esp0;
+    WORD ss0;
+    WORD _fill1;
+    DWORD esp1;
+    WORD ss1;
+    WORD _fill2;
+    DWORD esp2;
+    WORD ss2;
+    WORD _fill3;
+    DWORD cr3;
+    DWORD eip;
+    DWORD eflags;
+    DWORD eax;
+    DWORD ecx;
+    DWORD edx;
+    DWORD ebx;
+    DWORD esp;
+    DWORD ebp;
+    DWORD esi;
+    DWORD edi;
+    WORD es;
+    WORD _fill5;
+    WORD cs;
+    WORD _fill6;
+    WORD ss;
+    WORD _fill7;
+    WORD ds;
+    WORD _fill8;
+    WORD fs;
+    WORD _fill9;
+    WORD gs;
+    WORD _fill10;
+    WORD ldt;
+    WORD _fill11;
+    WORD trap;
+    WORD io_base;
+    DWORD control;
+    BYTE ctx_fpu[FPU_CONTEXT_SIZE];
 };
 
 /* Irq services specifications */

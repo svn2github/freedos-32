@@ -34,30 +34,30 @@ BEGIN_DEF
 #define DOS_OFF(x)      ((DWORD)(x) & 0x000F)
 #define DOS_SEG(x)      (((DWORD)(x) & 0xFFFF0) >> 4)
 
-typedef union x_regs16 {
-    struct {
-	WORD ax __attribute__ ((packed));
-	WORD bx __attribute__ ((packed));
-	WORD cx __attribute__ ((packed));
-	WORD dx __attribute__ ((packed));
-	WORD si __attribute__ ((packed));
-	WORD di __attribute__ ((packed));
-	WORD cflag __attribute__ ((packed));
-	WORD bp __attribute__ ((packed));
-    } x __attribute__ ((packed));
-    struct {
-	BYTE al,ah __attribute__ ((packed));
-	BYTE bl,bh __attribute__ ((packed));
-	BYTE cl,ch __attribute__ ((packed));
-	BYTE dl,dh __attribute__ ((packed));
-    } h __attribute__ ((packed));
+typedef union __attribute__ ((packed)) x_regs16 {
+    struct __attribute__ ((packed)) {
+	WORD ax;
+	WORD bx;
+	WORD cx;
+	WORD dx;
+	WORD si;
+	WORD di;
+	WORD cflag;
+	WORD bp;
+    } x;
+    struct __attribute__ ((packed)) {
+	BYTE al,ah;
+	BYTE bl,bh;
+	BYTE cl,ch;
+	BYTE dl,dh;
+    } h;
 } X_REGS16;
 
-typedef struct x_sregs16 {
-	WORD es __attribute__ ((packed));
-	WORD cs __attribute__ ((packed));
-	WORD ss __attribute__ ((packed));
-	WORD ds __attribute__ ((packed));
+typedef struct __attribute__ ((packed)) x_sregs16 {
+	WORD es;
+	WORD cs;
+	WORD ss;
+	WORD ds;
 } X_SREGS16;
 
 void X_meminfo(LIN_ADDR *b1,DWORD *s1,LIN_ADDR *b2,DWORD *s2);
