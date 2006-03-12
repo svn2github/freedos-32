@@ -33,7 +33,7 @@ static struct option dpmi_options[] =
   /* These options set a flag. */
   {"nolfn", no_argument, &use_lfn, 0},
 #ifdef ENABLE_BIOSVGA
-  {"nobiosvga", no_argument, 0, 1},
+  {"biosvga", no_argument, 0, 1},
 #endif
   /* These options don't set a flag.
      We distinguish them by their indices. */
@@ -54,7 +54,7 @@ void DPMI_init(process_info_t *pi)
 
   use_lfn = 1;
 #ifdef ENABLE_BIOSVGA
-  use_biosvga = 1;
+  use_biosvga = 0;
 #endif
   use_biosmouse = 0;
 
@@ -73,8 +73,8 @@ void DPMI_init(process_info_t *pi)
           break;
 #ifdef ENABLE_BIOSVGA
         case 1:
-          use_biosvga = 0;
-          message("BIOS vga disabled\n");
+          use_biosvga = 1;
+          message("BIOS vga enabled\n");
           break;
 #endif
         case 'X':

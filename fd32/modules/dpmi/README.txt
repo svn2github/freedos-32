@@ -8,10 +8,10 @@ FEATURES
  * 16-bit BIOSVGA or builtin protected-mode VGA services
 
 USAGE
-dpmi.o [--dos-exec=<direct|wrapper|vm86>] [--nolfn] [--nobiosvga] or
-dpmi.o [-X<direct|wrapper|vm86>] [--nolfn] [--nobiosvga]
+dpmi.o [--dos-exec=<direct|wrapper|vm86>] [--nolfn] [--biosvga] or
+dpmi.o [-X<direct|wrapper|vm86>] [--nolfn] [--biosvga]
 
-The default exec mode is `direct' but `vm86' is recommended because you will have much more DOS compatibilities, and `nolfn' means disable the long-file-name support, `nobiosvga' means disable the use int10h service offered by the vender delivered vgabios and use the builtin vga services of FD32.
+The default exec mode is `direct' but `vm86' is recommended because you will have much more DOS compatibilities, and `nolfn' means disable the long-file-name support, `biosvga' means enable the use int10h service offered by the vender delivered vgabios and do *not* use the builtin vga services of FD32.
 
 NOTE
-option `nobiosvga' only available when compiled with macro `ENABLE_BIOSVGA' defined.
+option `biosvga' only available when compiled with macro `ENABLE_BIOSVGA' defined.
