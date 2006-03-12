@@ -25,6 +25,7 @@
 #include <ll/i386/error.h>
 #include "pit.h"
 extern void pit_isr(void);
+extern void pit_isr2(void);
 
 #define PIT_DEBUG 0
 #if PIT_DEBUG
@@ -32,6 +33,14 @@ extern void pit_isr(void);
 #else
  #define LOG_PRINTF(x)
 #endif
+
+
+/**** THE "ticks" VARIABLE HAS A DIFFERENT SEMANTICS WHEN THIS IS DEFINED ****/
+/* FIXME: This should affect the assembly file too */
+#define FULL_RESOLUTION
+
+#define TSC_DELAY 1
+#define TSC_TIME  2
 
 /**
  * \defgroup pit PIT-driven event management
@@ -67,36 +76,143 @@ static List events_used;
 static List events_free;
 volatile uint64_t ticks;
 /* Use the programmed PIT tick and convert when using, avoid losing precision */
-static unsigned pit_ticks;
+unsigned pit_ticks;
 static volatile int calibration_finished;
 static uint64_t iterations_per_sec;
+static int use_rdtsc;
+static int pit_mode;
+static uint64_t tick_per_sec_p;
+
+INLINE_OP uint64_t rdtsc(void)
+{
+	uint64_t r;
+	__asm__ __volatile__ ("rdtsc" : "=A" (r));
+	return r;
+}
+
+
+
+INLINE_OP uint16_t read_pit0()
+{
+	uint8_t lsb, msb;
+
+	fd32_outb(0x43, 0x00); /* Latch channel 0 */
+	lsb = fd32_inb(0x40); /* Read channel 0 lach register */
+	msb = fd32_inb(0x40);
+
+	return ((uint16_t)msb) << 8 | lsb;
+}
+
+/* This part of the interface needs more work. */
+uint64_t pit_gettime( int mode )
+{
+	uint64_t tmp;
+	uint16_t adjust;
+
+	switch(mode)
+	{
+		case PIT_TICKS_EXACT:
+			if(pit_mode == PIT_NATIVE_MODE)
+			{
+				fd32_cli();
+				tmp = ticks;
+				adjust = read_pit0();
+				fd32_sti();
+				tmp += pit_ticks - adjust; /* CHECKME */
+				return tmp;
+			}
+		case PIT_TICKS_FAST:
+			fd32_cli();
+			tmp = ticks;
+			fd32_sti();
+			return tmp;
+		case PIT_USECS_EXACT:
+			if(pit_mode == PIT_NATIVE_MODE)
+			{
+				fd32_cli();
+				tmp = ticks;
+				adjust = read_pit0();
+				fd32_sti();
+				tmp += pit_ticks - adjust; /* CHECKME */
+				tmp *= 1000*1000;
+				tmp /= PIT_CLOCK;
+				return tmp;
+			}
+		case PIT_USECS_FAST:
+			fd32_cli();
+			tmp = ticks;
+			fd32_sti();
+			tmp *= 1000*1000;
+			tmp /= PIT_CLOCK;
+			return tmp;
+		case PIT_TICK_FREQUENCY:
+#ifdef FULL_RESOLUTION
+			return PIT_CLOCK;
+#else
+			return PIT_CLOCK / pit_ticks;
+#endif
+		case PIT_TSC_FREQUENCY:
+			return tick_per_sec_p;
+		case PIT_TSC:
+			return rdtsc();
+		case PIT_GET_MODE:
+			return mode;
+		default:
+			return -1;
+	}
+}
 
 
 static unsigned usec_to_ticks(unsigned usec)
 {
-	uint64_t tmp_pit_ticks = pit_ticks;
 	uint64_t tmp_usec = usec;
+	if(use_rdtsc & TSC_TIME)
+		return (tmp_usec * tick_per_sec_p) / 1000000;
+#ifdef FULL_RESOLUTION
+	return (tmp_usec * PIT_CLOCK) / 1000000;
+#else
+	uint64_t tmp_pit_ticks = pit_ticks;
 	return (tmp_usec * PIT_CLOCK) / (tmp_pit_ticks * 1000000);
+#endif
 }
-
 
 void pit_process(void)
 {
 	//LOG_PRINTF(("[PIT] start pit_process\n"));
 	Event *e, *enext;
-	for (e = (Event *) events_used.begin; e; e = enext)
+	if(use_rdtsc & TSC_TIME)
 	{
-		enext = e->next;
-		fd32_cli();
-		if (ticks >= e->when)
+		for (e = (Event *) events_used.begin; e; e = enext)
 		{
-			LOG_PRINTF(("[PIT] @%u event %08xh (scheduled @%u)\n", (unsigned) ticks, (unsigned) e, (unsigned) e->when));
+			enext = e->next;
+			fd32_cli();
+			if (rdtsc() >= e->when)
+			{
+				LOG_PRINTF(("[PIT] @%u event %08xh (scheduled @%u)\n", (unsigned) ticks, (unsigned) e, (unsigned) e->when));
+				fd32_sti();
+				list_erase(&events_used, (ListItem *) e);
+				list_push_front(&events_free, (ListItem *) e);
+				e->callback(e->param);
+			}
 			fd32_sti();
-			list_erase(&events_used, (ListItem *) e);
-			list_push_front(&events_free, (ListItem *) e);
-			e->callback(e->param);
 		}
-		fd32_sti();
+	}
+	else
+	{
+		for (e = (Event *) events_used.begin; e; e = enext)
+		{
+			enext = e->next;
+			fd32_cli();
+			if (ticks >= e->when)
+			{
+				LOG_PRINTF(("[PIT] @%u event %08xh (scheduled @%u)\n", (unsigned) ticks, (unsigned) e, (unsigned) e->when));
+				fd32_sti();
+				list_erase(&events_used, (ListItem *) e);
+				list_push_front(&events_free, (ListItem *) e);
+				e->callback(e->param);
+			}
+			fd32_sti();
+		}
 	}
 	//LOG_PRINTF(("[PIT] end pit_process\n"));
 }
@@ -113,7 +229,11 @@ void pit_process(void)
 void pit_external_process(void)
 {
 	fd32_cli();
+#ifdef FULL_RESOLUTION
+	ticks += pit_ticks;
+#else
 	ticks++;
+#endif
 	fd32_sti();
 	pit_process();
 }
@@ -138,11 +258,20 @@ void *pit_event_register(unsigned usec, void (*callback)(void *p), void *param)
 	{
 		list_erase(&events_free, (ListItem *) e);
 		list_push_back(&events_used, (ListItem *) e);
-		e->when = ticks + usec_to_ticks(usec);
+		e->when = usec_to_ticks(usec);
+		if(use_rdtsc & TSC_TIME)
+			e->when += rdtsc();
+		else
+		{
+			fd32_cli();
+			e->when += ticks;
+			fd32_sti();
+		}
 		e->callback = callback;
 		e->param = param;
 	}
 	ll_frestore(f);
+	/* We should disable interrupts here too. */
 	LOG_PRINTF(("[PIT] end pit_event_register %08xh (ticks=%u,when=%u,diff=%u)\n",
 		(unsigned) e, (unsigned) ticks, (unsigned) e->when, (unsigned) (e->when - ticks)));
 	return e;
@@ -184,17 +313,27 @@ int pit_event_cancel(void *event_handle)
  */
 void pit_delay(unsigned usec)
 {
-	uint64_t when = ticks + usec_to_ticks(usec);
-	while (1)
+	uint64_t when;
+	if(use_rdtsc & TSC_TIME)
 	{
-		fd32_cli();
-		if(ticks >= when)
+		when = rdtsc() + usec_to_ticks(usec);
+		while (rdtsc() < when)
+			fd32_cpu_idle();
+	}
+	else
+	{
+		when = ticks + usec_to_ticks(usec);
+		while (1)
 		{
+			fd32_cli();
+			if(ticks >= when)
+			{
+				fd32_sti();
+				break;
+			}
 			fd32_sti();
-			break;
+			fd32_cpu_idle();
 		}
-		fd32_sti();
-		fd32_cpu_idle();
 	}
 }
 
@@ -220,15 +359,7 @@ static void nano_delay_l(unsigned nsec)
 	delay_loop(iterations);
 }
 
-INLINE_OP uint64_t rdtsc(void)
-{
-	uint64_t r;
-	__asm__ __volatile__ ("rdtsc" : "=A" (r));
-	return r;
-}
 
-static int use_rdtsc;
-static uint64_t tick_per_sec_p;
 
 /* A implementation of nano_delay Pentium+ processor (by Hanzac Chen) */
 static void nano_delay_p(unsigned nsec)
@@ -250,21 +381,36 @@ static void callback(void* parm)
 	calibration_finished = 1;
 }
 
+static void measure_tsc_frequency()
+{
+	uint64_t start, end;
+	uint16_t t1, t2;
+	int t;
+
+	t = 0;
+	fd32_cli();
+	t2 = read_pit0();
+	start = rdtsc();
+	/* delay one second */
+	while(t < PIT_CLOCK)
+	{
+		t1 = read_pit0();
+		t += (t2 - t1) % pit_ticks;
+		t2 = t1;
+	}
+	end = rdtsc();
+	fd32_sti();
+
+	tick_per_sec_p = end - start;
+	fd32_message("[PIT] TSC frequency has been measured to %lluHz.\n", tick_per_sec_p);
+
+	LOG_PRINTF(("[PIT] PIT Tick per second is %u\n", PIT_CLOCK / pit_ticks));
+	LOG_PRINTF(("[PIT] CPU Tick per second is %llu\n", tick_per_sec_p));
+}
 
 static void nano_delay_init(void)
 {
-	if (use_rdtsc) {
-		uint64_t start, end;
-
-		start = rdtsc();
-		pit_delay(1000000); /* delay one second */
-		end = rdtsc();
-
-		tick_per_sec_p = end - start;
-
-		LOG_PRINTF(("[PIT] PIT Tick per second is %u\n", PIT_CLOCK / pit_ticks));
-		LOG_PRINTF(("[PIT] CPU Tick per second is %llu\n", tick_per_sec_p));
-
+	if (use_rdtsc & TSC_DELAY) {
 		if (add_call("nano_delay", (uint32_t) nano_delay_p, ADD) == -1)
 			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
 	} else {
@@ -288,6 +434,8 @@ static struct { char *name; uint32_t address; } symbols[] =
 	{ "pit_event_cancel",   	(uint32_t) pit_event_cancel   	},
 	{ "pit_delay",          	(uint32_t) pit_delay          	},
 	{ "pit_external_process", 	(uint32_t) pit_external_process	},
+	{ "pit_gettime", 			(uint32_t) pit_gettime			},
+	{ "pit_set_mode", 			(uint32_t) pit_set_mode			},
 	{ 0, 0 }
 };
 
@@ -295,39 +443,115 @@ static struct { char *name; uint32_t address; } symbols[] =
 static struct option pit_options[] =
 {
   /* These options set a flag. */
-  {"pentium-tsc", no_argument, &use_rdtsc, 0},
+  {"tsc-delay", no_argument, &use_rdtsc, 'D'},
+  {"tsc-time", no_argument, &use_rdtsc, 'T'},
   /* These options don't set a flag.
      We distinguish them by their indices. */
+  {"max-count", required_argument, 0, 'C'},
+  {"tick-period", required_argument, 0, 'P'},
   {0, 0, 0, 0}
 };
 
+static void counter_init(int counter, int mode, uint16_t max, void (*isr)(void))
+{
+	uint32_t f;
+	
+	f = ll_fsave();
+	fd32_outb(0x43, counter << 6 | 3 << 4 | mode << 1 /* 0x34 */);
+	fd32_outb(0x40, max & 0x00FF);
+	fd32_outb(0x40, max >> 8);
+	if(isr != NULL)
+		idt_place(PIC1_BASE + 0, isr);
+	ll_frestore(f);
+}
 
+/**
+ * \brief Set the operating mode of this module.
+ * \param mode The new operating mode, either PIT_COMPATIBLE_MODE or PIT_NATIVE_MODE.
+ * \param maxcount Maximum value of the counter. Interrupts will be generated with a
+ *         frequency of 1193181/\a maxcount Hz.
+ * \return 0 on success, or a negative value on failure.
+ * \remarks For compatibility with DOS/DPMI programs, \a mode should be
+ *          PIT_COMPATIBLE_MODE and \a maxcount should be 0x10000.
+ * \remarks No assumption is made about the state of the PIT in compatibility mode,
+ *          and no attempt is made to access the PIT.
+ */
+int pit_set_mode( int mode, uint16_t maxcount )
+{
+	switch (mode)
+	{
+		case PIT_COMPATIBLE_MODE:
+		case PIT_NATIVE_MODE:
+			pit_mode = mode;
+			fd32_cli();
+			ticks += maxcount - pit_ticks; /* Adjusment for the next PIT interrupt. */
+			pit_ticks = maxcount;
+			if(mode == PIT_NATIVE_MODE)
+				counter_init(0, 2, pit_ticks, &pit_isr2);
+			else
+				counter_init(0, 2, pit_ticks, &pit_isr);
+			fd32_sti();
+			return 0;
+		default:
+			return -1;
+	}
+}
+
+			
 void pit_init(process_info_t *pi)
 {
 	unsigned k;
-	uint32_t f;
+	uint64_t tmp;
 
 	/* Parsing options ... */
 	char **argv;
 	int argc = fd32_get_argv(pi->filename, pi->args, &argv);
 
 	use_rdtsc = 0; /* Disable rdtsc by default for i386 compatible */
+		//k = PIT_CLOCK / frequency;
+	pit_mode = PIT_COMPATIBLE_MODE;
+	pit_ticks = 0x10000;
 	if (argc > 1) {
 		int c, option_index = 0;
 		/* Parse the command line */
 		for ( ; (c = getopt_long (argc, argv, "", pit_options, &option_index)) != -1; ) {
 			switch (c) {
-				case 0:
-					use_rdtsc = 1;
+				case 'D':
+					use_rdtsc |= TSC_DELAY;
 					message("Pentium+ time-stamp enabled\n");
+					break;
+				case 'T':
+					use_rdtsc |= TSC_TIME;
+					message("Pentium+ time-stamp enabled\n");
+					break;
+				case 'C':
+					pit_ticks = strtoi(optarg, 10, NULL);
+					if(pit_ticks > 0x10000 || pit_ticks < 2)
+					{
+						message("Invalid max-count argument %s(%u), using default.\n", optarg, pit_ticks);
+						pit_ticks = 0x10000;
+					}
+					pit_mode = PIT_NATIVE_MODE;
+					break;
+				case 'P':
+					tmp = strtoi(optarg, 10, NULL); /* Fix this when we get a better strtoi. */
+					tmp *= PIT_CLOCK;
+					tmp /= 1000*1000;
+					if( tmp > 0x10000 || tmp < 2)
+						pit_ticks = 0x10000;
+					else
+						pit_ticks = (uint16_t)tmp;
+					pit_mode = PIT_NATIVE_MODE;
 					break;
 				default:
 					break;
 			}
 		}
 	}
+	/* TODO: Use CPUID to override TSC options */
+	message("Max timer value is %u.\n", pit_ticks);
 	fd32_unget_argv(argc, argv);
-
+	
 	message("Going to install PIT-driven event management... ");
 	for (k = 0; symbols[k].name; k++)
 		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
@@ -339,16 +563,14 @@ void pit_init(process_info_t *pi)
 	list_init(&events_free);
 	for (k = 0; k < NUM_EVENTS; k++) list_push_back(&events_free, (ListItem *) &events_table[k]);
 	ticks = 0;
-	//k = PIT_CLOCK / frequency;
-	pit_ticks = 0x10000; /* Run only at the lowest frequency for now */
-	f = ll_fsave();
-	fd32_outb(0x43, 0x34); /* Counter 0, load LSB then MSB, mode 2 (rate generator), binary counter */
-	fd32_outb(0x40, pit_ticks & 0x00FF);
-	fd32_outb(0x40, pit_ticks >> 8);
-	idt_place(PIC1_BASE + 0, pit_isr);
+	if(pit_ticks == 0x10000)
+		counter_init(0, 2, pit_ticks, &pit_isr);
+	else
+		counter_init(0, 2, pit_ticks, &pit_isr2);
+		
+	if(use_rdtsc != 0)
+		measure_tsc_frequency();
 	irq_unmask(0);
-	ll_frestore(f);
-
 	/* Initialize the nano_delay */
 	nano_delay_init();
 	message("done\n");

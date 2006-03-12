@@ -40,12 +40,14 @@ SYMBOL_NAME_LABEL(pit_isr)
 	mov %ax, %ds
 
 	incl 0x046c /* BIOS timer */
-	incl SYMBOL_NAME(ticks)
-	jnc 1f
+/*	incl SYMBOL_NAME(ticks) */
+	addl $0x10000, SYMBOL_NAME(ticks)
+/*	jnz 1f */
+	jnc 1f 
 	incl SYMBOL_NAME(ticks)+4
 1:
 	cmp $0, in_irq
-	jnz exit
+	jnz 2f
 	incl in_irq
 	sti
 	cld
@@ -59,7 +61,53 @@ SYMBOL_NAME_LABEL(pit_isr)
 	pop %es
 	cli
 	decl in_irq
-exit:
+2:
 	pop %ds
 	popa
 	iret
+
+
+
+.global SYMBOL_NAME(pit_isr2)
+SYMBOL_NAME_LABEL(pit_isr2)
+	pusha
+	push %ds
+	mov $0x20, %dx
+	mov $0x20, %al
+	out %al, %dx
+	
+	mov $(X_FLATDATA_SEL), %ax
+	mov %ax, %ds
+	
+	movl SYMBOL_NAME(pit_ticks), %ebx
+	movl SYMBOL_NAME(ticks), %ecx
+	movl %ecx, %edx
+	addl %ebx, %ecx
+	movl %ecx, SYMBOL_NAME(ticks)
+	jnc 1f
+	incl SYMBOL_NAME(ticks)+4
+1:
+	addw %bx, %dx
+	jnc 1f
+	incl 0x046c /* BIOS timer */
+1:
+	cmp $0, in_irq
+	jnz 2f
+	incl in_irq
+	sti
+	cld
+	push %es
+	mov %ax, %es
+	push %fs
+	push %gs
+	call SYMBOL_NAME(pit_process)
+	pop %gs
+	pop %fs
+	pop %es
+	cli
+	decl in_irq
+2:
+	pop %ds
+	popa
+	iret
+
