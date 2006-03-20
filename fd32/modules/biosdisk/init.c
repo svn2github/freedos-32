@@ -31,7 +31,7 @@
 #include <ll/i386/pic.h>
 #include <ll/i386/x-bios.h>
 #include <ll/i386/error.h>
-#include <pit/pit.h>
+#include <timer.h>
 #include "biosdisk.h"
 
 
@@ -86,7 +86,7 @@ void biosdisk_init(process_info_t *p)
     l1_int_bind(0x1C, biosdisk_reflect);
 
     /* This emulates the RM PIT interrupt, for the BIOS */
-    pit_event_register(18200, biosdisk_timer, NULL);
+    timer_event_register(18200, biosdisk_timer, NULL);
 
     biosdisk_detect(want_fd, want_hd);
     

@@ -25,7 +25,7 @@
 #include <errno.h>
 #include "cd-interf.h"
 #include "pck-cmd.h"
-#include "pit/pit.h"
+#include <timer.h>
 #include "block/block.h" /* FIXME! */
 
 #define _DEBUG_
@@ -347,7 +347,7 @@ static void cd_wait(DWORD us)
     volatile int tout;
 
     tout = FALSE;
-    pit_event_register(us, private_timed_out, (void*)&tout);
+    timer_event_register(us, private_timed_out, (void*)&tout);
     WFC(!tout);
 }
 
@@ -359,7 +359,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
     void *tout_event;
 
     tout = FALSE;
-    tout_event = pit_event_register(d->tout_read_us, private_timed_out, (void *)&tout);
+    tout_event = timer_event_register(d->tout_read_us, private_timed_out, (void *)&tout);
     /* Instead of this calculation we should really have the caller pass this value */
     buff_size = d->bytes_per_sector * blocks;
     if(blocks > 0xFFFF)
@@ -402,7 +402,7 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
     }
     fd32_cli();
     if (!tout)
-        pit_event_cancel(tout_event);
+        timer_event_cancel(tout_event);
     fd32_sti();
     return res;
 }

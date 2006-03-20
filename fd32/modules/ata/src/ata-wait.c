@@ -8,7 +8,7 @@
 #include "ata.h"
 #include "disk.h"
 #include "ata-wait.h"
-#include "pit/pit.h"
+#include <timer.h>
 
 
 static void private_timed_out(void *p)
@@ -22,7 +22,7 @@ void ata_wait(DWORD us)
     void *evt;
 
     tout = 0;
-    evt = pit_event_register(us, private_timed_out, (void *)&tout);
+    evt = timer_event_register(us, private_timed_out, (void *)&tout);
 
     WFC(!tout);
     /* We do not delete the event, because the timeout _always_ expires! */
@@ -35,12 +35,12 @@ BYTE ata_cmd_irq(unsigned long max_wait, struct ide_interface *p)
     extern int irq_signaled(int i);
 
     tout = 0;
-    tout_event = pit_event_register(max_wait, private_timed_out, (void *)&tout);
+    tout_event = timer_event_register(max_wait, private_timed_out, (void *)&tout);
     WFC(!tout && !irq_signaled(p->irq));
     fd32_cli();    /* in case driver preempted */
     if (!tout)
     {
-        pit_event_cancel(tout_event);
+        timer_event_cancel(tout_event);
         fd32_sti();
         return fd32_inb(p->command_port + CMD_STATUS);
     }
@@ -56,7 +56,7 @@ int ata_poll(unsigned long max_wait, int (*test)(const struct ide_interface*), c
     volatile int tout;
 
     tout = 0;
-    tout_event = pit_event_register(max_wait, private_timed_out, (void *)&tout);
+    tout_event = timer_event_register(max_wait, private_timed_out, (void *)&tout);
     while (!tout)
     {
         //        fd32_cpu_idle();
@@ -66,7 +66,7 @@ int ata_poll(unsigned long max_wait, int (*test)(const struct ide_interface*), c
     fd32_cli();
     if (!tout)
     {
-        pit_event_cancel(tout_event);
+        timer_event_cancel(tout_event);
         fd32_sti();
         return 0;
     }

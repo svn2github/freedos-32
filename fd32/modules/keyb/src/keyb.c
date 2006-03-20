@@ -20,7 +20,7 @@
  */
 
 #include <dr-env.h>
-#include "pit/pit.h"
+#include <timer.h>
 #include "key.h"
 #include "queues.h"
 
@@ -64,7 +64,7 @@ static int keyb_wait_write(void)
 	psctrl_status_t st;
 	
 	for (i = 0, st.data = keyb_get_status(); st.s.inbuf_full && i < KEYB_CTL_TIMEOUT; i++, st.data = keyb_get_status())
-		pit_delay(1);
+		timer_delay(1);
 	if (i < KEYB_CTL_TIMEOUT)
 		return 0;
 	else

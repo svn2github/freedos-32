@@ -10,7 +10,7 @@
 #include "ata-detect.h"
 #include "ata-ops.h"
 #include "ata-wait.h"
-#include "pit/pit.h"
+#include <timer.h>
 
 
 extern int ata_global_flags;

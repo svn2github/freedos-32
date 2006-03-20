@@ -15,7 +15,7 @@ include $(KERNEL)/config.mk
 
 INCL = $(OSLIB)
 
-C_OPT   += -I$(KERNEL)/include -I$(MODULES) -I$(PORTAB)
+C_OPT   += -I$(KERNEL)/include -I$(MODULES) -I$(MODULES)/include -I$(PORTAB)
 LINK_OPT = -Bstatic
 
 OBJS = isr.o process.o libgcc.o

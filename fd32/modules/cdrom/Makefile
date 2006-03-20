@@ -13,7 +13,7 @@ include $(FD32)/config.mk
 #VPATH = ../src
 OBJS2     = pck-cmd.o fd32.o
 OBJS3     = cd-test.o 
-C_OPT    = -Wall -O2 -fno-builtin -nostdinc -D__GNU__ -I. -I$(FD32)/include -I$(OSLIB) -I$(MODULES) -I$(MODULES)/include/fd32 -I../ata/include
+C_OPT    = -Wall -O2 -fno-builtin -nostdinc -D__GNU__ -I. -I$(FD32)/include -I$(OSLIB) -I$(MODULES) -I$(MODULES)/include -I$(MODULES)/include/fd32 -I../ata/include
 LINK_OPT = -Bstatic
 
 .PHONY: all clean

@@ -8,7 +8,7 @@
 #include <ll/i386/hw-func.h>
 #include <ll/i386/x-bios.h>
 #include <ll/i386/pic.h>
-#include <pit/pit.h>
+#include <timer.h>
 #include "biosdisk.h"
 
 void biosdisk_reflect(unsigned intnum, BYTE dummy)
@@ -122,7 +122,7 @@ void biosdisk_timer(void *p)
   void *evt;
   WORD ctx;
   
-  evt = pit_event_register(55000, biosdisk_timer, NULL);
+  evt = timer_event_register(55000, biosdisk_timer, NULL);
  
   /* Here, we must trigger a vm86 interrupt... */
   ctx = ll_context_save();

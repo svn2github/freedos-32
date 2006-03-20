@@ -7,7 +7,7 @@
 
 #include <logger.h>
 #include <kmem.h>
-#include <pit/pit.h>
+#include <timer.h>
 #include "handler.h"
 #include "dpmi.h"
 #include "dpmiexc.h"
@@ -81,7 +81,7 @@ static void emu_timer_int(void *p)
   dosmem_free(temp, 0x100);
 
   /* Register again to keep the handler ... */
-  pit_event_register(1, emu_timer_int, 0);
+  timer_event_register(1, emu_timer_int, 0);
 }
 #endif
 
@@ -129,7 +129,7 @@ int fd32_set_real_mode_int(int intnum, WORD segment, WORD offset)
 
 #ifdef ENABLE_EMULATED_TIMER
   if (intnum == 0x08) /* PIT interrupt */
-    pit_event_register(1, emu_timer_int, 0);
+    timer_event_register(1, emu_timer_int, 0);
   else
 #endif
     fd32_enable_real_mode_int(intnum);

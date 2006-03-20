@@ -29,7 +29,7 @@ typedef enum { false = 0, true = 1 } bool;
 #include <devices.h>
 #include <errno.h>
 #include <mouse.h>
-#include "pit/pit.h"
+#include <timer.h>
 
 typedef void *  Fd32Event;
 
@@ -272,11 +272,11 @@ static int install(unsigned base_port, unsigned irq, fd32_mousecallback_t *cb)
     fd32_outb(base_port + 2, 0x00); /* Disable FIFO                             */
     fd32_inb (base_port + 0);       /* Flush input buffer                       */
     /* Power up the mouse (by raising RTS, and also DTR, OUT1 and OUT2) */
-    pit_delay(200);
+    timer_delay(200);
     fd32_outb(base_port + 4, 0x0F);
     
     /* Read mouse identification string */
-    e = pit_event_register(2200, timer_cb, (void *) &timeout);
+    e = timer_event_register(2200, timer_cb, (void *) &timeout);
     /* TODO: Check for FD32_EVENT_NULL */
     for (;;)
     {
@@ -289,7 +289,7 @@ static int install(unsigned base_port, unsigned irq, fd32_mousecallback_t *cb)
         fd32_message("%c", n++ < 2 ? c : c + 0x20);
     }
     fd32_message("\n");
-    pit_event_cancel(e);
+    timer_event_cancel(e);
     switch (id[0])
     {
         case 'M': fd32_message("MS protocol mouse found on port %x.\n", base_port);

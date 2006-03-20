@@ -12,7 +12,7 @@ include $(FD32)/config.mk
 
 VPATH = ../src
 OBJS     = init.o detect.o partscan.o ata-ops.o interface.o irq.o ata-wait.o
-C_OPT   += -I. -I$(FD32)/include -I$(OSLIB) -I$(MODULES)/include/fd32 -I$(MODULES) -I../include -D__ATA__
+C_OPT   += -I. -I$(FD32)/include -I$(OSLIB)  -I$(MODULES)/include/fd32 -I$(MODULES)/include -I$(MODULES) -I../include -D__ATA__
 LINK_OPT = -Bstatic
 
 .PHONY: all clean

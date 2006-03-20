@@ -23,6 +23,9 @@
 #include <list.h>
 #include <kernel.h>
 #include <ll/i386/error.h>
+#include <devices.h>
+#include <timer.h>
+#include <errno.h>
 #include "pit.h"
 extern void pit_isr(void);
 extern void pit_isr2(void);
@@ -82,6 +85,7 @@ static uint64_t iterations_per_sec;
 static int use_rdtsc;
 static int pit_mode;
 static uint64_t tick_per_sec_p;
+static int do_export;
 
 INLINE_OP uint64_t rdtsc(void)
 {
@@ -104,61 +108,83 @@ INLINE_OP uint16_t read_pit0()
 }
 
 /* This part of the interface needs more work. */
-uint64_t pit_gettime( int mode )
+uint64_t pit_gettime( int mode, int timer )
 {
 	uint64_t tmp;
 	uint16_t adjust;
 
-	switch(mode)
+	switch(timer)
 	{
-		case PIT_TICKS_EXACT:
-			if(pit_mode == PIT_NATIVE_MODE)
+		case TSC_TIMER_TYPE:
+			if(use_rdtsc == 0)
+				return -ENOTSUP;
+			switch(mode)
 			{
-				fd32_cli();
-				tmp = ticks;
-				adjust = read_pit0();
-				fd32_sti();
-				tmp += pit_ticks - adjust; /* CHECKME */
-				return tmp;
+				case TIMER_GET_FAST:
+				case TIMER_GET_EXACT:
+					return rdtsc();
+				case TIMER_GET_FREQUENCY:
+					return tick_per_sec_p;
+				default:
+					return -ENOTSUP;
 			}
-		case PIT_TICKS_FAST:
-			fd32_cli();
-			tmp = ticks;
-			fd32_sti();
-			return tmp;
-		case PIT_USECS_EXACT:
-			if(pit_mode == PIT_NATIVE_MODE)
+		case PIT_TIMER_TYPE:
+			switch(mode)
 			{
-				fd32_cli();
-				tmp = ticks;
-				adjust = read_pit0();
-				fd32_sti();
-				tmp += pit_ticks - adjust; /* CHECKME */
-				tmp *= 1000*1000;
-				tmp /= PIT_CLOCK;
-				return tmp;
-			}
-		case PIT_USECS_FAST:
-			fd32_cli();
-			tmp = ticks;
-			fd32_sti();
-			tmp *= 1000*1000;
-			tmp /= PIT_CLOCK;
-			return tmp;
-		case PIT_TICK_FREQUENCY:
+				case TIMER_GET_EXACT:
+					if(pit_mode == PIT_NATIVE_MODE)
+					{
+						fd32_cli();
+						tmp = ticks;
+						adjust = read_pit0();
+						fd32_sti();
+						tmp += pit_ticks - adjust; /* CHECKME */
+						return tmp;
+					}
+				case TIMER_GET_FAST:
+					fd32_cli();
+					tmp = ticks;
+					fd32_sti();
+					return tmp;
+				case TIMER_GET_FREQUENCY:
 #ifdef FULL_RESOLUTION
-			return PIT_CLOCK;
+					return PIT_CLOCK;
 #else
-			return PIT_CLOCK / pit_ticks;
+					return PIT_CLOCK / pit_ticks;
 #endif
-		case PIT_TSC_FREQUENCY:
-			return tick_per_sec_p;
-		case PIT_TSC:
-			return rdtsc();
-		case PIT_GET_MODE:
-			return mode;
+				default:
+					return -ENOTSUP;
+			}
+		case USEC_TIMER_TYPE:
+			switch(mode)
+			{
+				case TIMER_GET_EXACT:
+					if(pit_mode == PIT_NATIVE_MODE)
+					{
+						fd32_cli();
+						tmp = ticks;
+						adjust = read_pit0();
+						fd32_sti();
+						tmp += pit_ticks - adjust; /* CHECKME */
+						tmp *= 1000*1000;
+						tmp /= PIT_CLOCK;
+						return tmp;
+					}
+				case TIMER_GET_FAST:
+					fd32_cli();
+					tmp = ticks;
+					fd32_sti();
+					tmp *= 1000*1000;
+					tmp /= PIT_CLOCK;
+					return tmp;
+				case TIMER_GET_FREQUENCY:
+					return 1000*1000;
+				default:
+					return -ENOTSUP;
+			}
+		case REALTIME_TIMER_TYPE: /* TODO!! */
 		default:
-			return -1;
+			return -ENOTSUP;
 	}
 }
 
@@ -422,7 +448,7 @@ static void nano_delay_init(void)
 		}
 		iterations_per_sec = 0xFFFFFFFFFFFFFFFFLL - delay_loop(0xFFFFFFFFFFFFFFFFLL);
 		calibration_finished = 0;
-		
+
 		if (add_call("nano_delay", (uint32_t) nano_delay_l, ADD) == -1)
 			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
 	}
@@ -430,12 +456,10 @@ static void nano_delay_init(void)
 
 static struct { char *name; uint32_t address; } symbols[] =
 {
-	{ "pit_event_register", 	(uint32_t) pit_event_register 	},
-	{ "pit_event_cancel",   	(uint32_t) pit_event_cancel   	},
-	{ "pit_delay",          	(uint32_t) pit_delay          	},
-	{ "pit_external_process", 	(uint32_t) pit_external_process	},
-	{ "pit_gettime", 			(uint32_t) pit_gettime			},
-	{ "pit_set_mode", 			(uint32_t) pit_set_mode			},
+	{ "timer_event_register", 	(uint32_t) pit_event_register 	},
+	{ "timer_event_cancel",   	(uint32_t) pit_event_cancel   	},
+	{ "timer_delay",          	(uint32_t) pit_delay          	},
+	{ "timer_gettime", 			(uint32_t) pit_gettime			},
 	{ 0, 0 }
 };
 
@@ -443,10 +467,11 @@ static struct { char *name; uint32_t address; } symbols[] =
 static struct option pit_options[] =
 {
   /* These options set a flag. */
-  {"tsc-delay", no_argument, &use_rdtsc, 'D'},
-  {"tsc-time", no_argument, &use_rdtsc, 'T'},
+  {"do-export", no_argument, &do_export, FALSE},
   /* These options don't set a flag.
      We distinguish them by their indices. */
+  {"tsc-delay", no_argument, 0, 'D'},
+  {"tsc-time", no_argument, 0, 'T'},
   {"max-count", required_argument, 0, 'C'},
   {"tick-period", required_argument, 0, 'P'},
   {0, 0, 0, 0}
@@ -455,7 +480,7 @@ static struct option pit_options[] =
 static void counter_init(int counter, int mode, uint16_t max, void (*isr)(void))
 {
 	uint32_t f;
-	
+
 	f = ll_fsave();
 	fd32_outb(0x43, counter << 6 | 3 << 4 | mode << 1 /* 0x34 */);
 	fd32_outb(0x40, max & 0x00FF);
@@ -497,16 +522,82 @@ int pit_set_mode( int mode, uint16_t maxcount )
 	}
 }
 
-			
+static int pit_request(uint32_t function, void *params)
+{
+	int res;
+
+	switch (function)
+	{
+		case REQ_PIT_EXTERNAL_PROCESS:
+			res = 0;
+			pit_external_process();
+			break;
+		case FD32_GET_DEV_INFO:
+			res = PIT_TIMER_TYPE;
+			break;
+		case REQ_TIMER_EVENT_REGISTER:
+		{
+			timer_register_event_t* r = (timer_register_event_t*) params;
+			if (r->Size < sizeof(timer_register_event_t))
+				res = -EINVAL;
+			else
+			{
+				res = 0;
+				r->event_handle = pit_event_register(r->usec, r->callback, r->param);
+			}
+			break;
+		}
+		case REQ_TIMER_EVENT_CANCEL:
+		{
+			timer_register_event_t* r = (timer_register_event_t*) params;
+			if (r->Size < sizeof(timer_register_event_t))
+				res = -EINVAL;
+			else
+				res = pit_event_cancel(r->event_handle);
+			break;
+		}
+		case REQ_TIMER_DELAY:
+		{
+			timer_delay_t* r = (timer_delay_t*) params;
+			if (r->Size < sizeof(timer_delay_t))
+				res = -EINVAL;
+			else
+			{
+				res = 0;
+				pit_delay(r->usec);
+			}
+			break;
+		}
+		case REQ_PIT_SET_MODE:
+		{
+			pit_set_mode_t* r = (pit_set_mode_t*) params;
+			if (r->Size < sizeof(pit_set_mode_t))
+				res = -EINVAL;
+			else
+				res = pit_set_mode( r->mode, r->maxcount );
+			break;
+		}
+		default:
+			res = -ENOTSUP;
+			break;
+	}
+	return res;
+}
+
+
 void pit_init(process_info_t *pi)
 {
 	unsigned k;
 	uint64_t tmp;
+	int dev;
+	char dev_name[]="timerXX";
+	int i;
 
 	/* Parsing options ... */
 	char **argv;
 	int argc = fd32_get_argv(pi->filename, pi->args, &argv);
 
+	do_export = TRUE; /* default */
 	use_rdtsc = 0; /* Disable rdtsc by default for i386 compatible */
 		//k = PIT_CLOCK / frequency;
 	pit_mode = PIT_COMPATIBLE_MODE;
@@ -551,23 +642,41 @@ void pit_init(process_info_t *pi)
 	/* TODO: Use CPUID to override TSC options */
 	message("Max timer value is %u.\n", pit_ticks);
 	fd32_unget_argv(argc, argv);
-	
+
 	message("Going to install PIT-driven event management... ");
-	for (k = 0; symbols[k].name; k++)
+	if(do_export)
+	{
+		for (k = 0; symbols[k].name; k++)
 		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
 		{
 			message("\n[PIT] Cannot add \"%s\" to the symbol table. Aborted.\n", symbols[k].name);
 			return;
 		}
+	}
 	list_init(&events_used);
 	list_init(&events_free);
 	for (k = 0; k < NUM_EVENTS; k++) list_push_back(&events_free, (ListItem *) &events_table[k]);
 	ticks = 0;
+
+	for(i=0;;i++)
+	{
+		assert(i<100);
+		ksprintf(dev_name, "timer%i", i);
+		dev = fd32_dev_search(dev_name);
+		if (dev < 0)
+		{
+			if (fd32_dev_register(pit_request, NULL, dev_name) < 0)
+				fd32_message("[PIT] Failed to register!!!\n");
+			break;
+		}
+	}
+
+
 	if(pit_ticks == 0x10000)
 		counter_init(0, 2, pit_ticks, &pit_isr);
 	else
 		counter_init(0, 2, pit_ticks, &pit_isr2);
-		
+
 	if(use_rdtsc != 0)
 		measure_tsc_frequency();
 	irq_unmask(0);

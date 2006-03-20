@@ -24,7 +24,7 @@ include $(FD32)/config.mk
 
 INCL     = $(OSLIB)
 OBJS     = fdc.o bootsect.o blockio.o fd32.o
-C_OPT   += -I. -I$(FD32)/include -I$(MODULES) -I$(OSLIB) -I$(PORTAB)
+C_OPT   += -I. -I$(FD32)/include -I$(MODULES) -I$(MODULES)/include -I$(OSLIB) -I$(PORTAB)
 LINK_OPT = -Bstatic
 
 .PHONY: all clean

@@ -42,7 +42,7 @@
  **************************************************************************/
 
 #include "fdc.h"
-#include <pit/pit.h>
+#include <timer.h>
 
 
 #define MAXDRIVES 2 /* Newer controllers don't support 4 drives, just 2 */
@@ -276,11 +276,11 @@ static int wait_fdc(Fdd *fdd)
 {
     /* Wait for IRQ6 handler to signal command finished */
     volatile int irq_timeout = 0;
-    void *irq_timeout_event = pit_event_register(fdd->dp->int_tmout, irq_timeout_cb, (void *) &irq_timeout);
+    void *irq_timeout_event = timer_event_register(fdd->dp->int_tmout, irq_timeout_cb, (void *) &irq_timeout);
     LOG_PRINTF(("[FDC] IRQ timeout event posted %08xh\n", (unsigned) irq_timeout_event));
     /* TODO: Check for event==NULL */
     WFC(!irq_signaled && !irq_timeout);
-    if (!irq_timeout) pit_event_cancel(irq_timeout_event);
+    if (!irq_timeout) timer_event_cancel(irq_timeout_event);
     LOG_PRINTF(("[FDC] IRQ signaled or timeout expired. irq_timeout(@%08xh)=%i irq_signaled(@%08xh)=%i\n",
                 (unsigned) &irq_timeout, irq_timeout, (unsigned) &irq_signaled, irq_signaled));
 
@@ -342,13 +342,13 @@ static void motor_spin_cb(void *fdd)
 static void motor_on(Fdd *fdd)
 {
     LOG_PRINTF(("[FDC] Motor on\n"));
-    if (fdd->flags & DF_SPINDN) pit_event_cancel(fdd->spin_down);
+    if (fdd->flags & DF_SPINDN) timer_event_cancel(fdd->spin_down);
     fdd->flags &= ~DF_SPINDN;
     if (!is_motor_on(fdd->fdc, fdd->number))
     {
         if (!(fdd->flags & DF_SPINUP))
             /* TODO: Recovery on event==NULL */
-            if (!pit_event_register(fdd->dp->spin_up, motor_spin_cb, fdd))
+            if (!timer_event_register(fdd->dp->spin_up, motor_spin_cb, fdd))
                 LOG_PRINTF(("Motor on: Out of events!\n"));
         fdd->fdc->dor |= (1 << (fdd->number + 4));
         /* Select drive */
@@ -364,7 +364,7 @@ static void motor_down(Fdd *fdd)
     if (is_motor_on(fdd->fdc, fdd->number))
     {
         if (fdd->flags & DF_SPINDN) return;
-        fdd->spin_down = pit_event_register(fdd->dp->spin_down, motor_off_cb, fdd);
+        fdd->spin_down = timer_event_register(fdd->dp->spin_down, motor_off_cb, fdd);
         if (!fdd->spin_down) LOG_PRINTF(("[FDC] motor_down: out of events!\n"));
         fdd->flags |= DF_SPINDN;
     }
@@ -484,11 +484,11 @@ static void reset_fdc(Fdc *fdc)
     fd32_outb(fdc->base_port + FDC_DOR, 0x0C); /* Re-enable IRQ/DMA and release reset */
     fdc->dor = 0x0C;
     /* Resetting triggered 4 interrupts - handle them */
-    irq_timeout_event = pit_event_register(default_drive_params[0].int_tmout, irq_timeout_cb, (void *) &irq_timeout);
+    irq_timeout_event = timer_event_register(default_drive_params[0].int_tmout, irq_timeout_cb, (void *) &irq_timeout);
     LOG_PRINTF(("[FDC] Reset IRQ timeout event posted %08xh\n", (unsigned) irq_timeout_event));
     /* TODO: Check for FD32_EVENT_NULL */
     WFC(!irq_signaled && !irq_timeout);
-    if (!irq_timeout) pit_event_cancel(irq_timeout_event);
+    if (!irq_timeout) timer_event_cancel(irq_timeout_event);
     LOG_PRINTF(("[FDC] IRQ signaled or timeout expired. irq_timeout(@%08xh)=%i irq_signaled(@%08xh)=%i\n",
                 (unsigned) &irq_timeout, irq_timeout, (unsigned) &irq_signaled, irq_signaled));
     if (irq_timeout)
@@ -509,7 +509,7 @@ static void reset_fdc(Fdc *fdc)
 static void reset_drive(Fdd *fdd)
 {
     if (fdd->dp->cmos_type == 0) return;
-    if (fdd->flags & DF_SPINDN) pit_event_cancel(fdd->spin_down);
+    if (fdd->flags & DF_SPINDN) timer_event_cancel(fdd->spin_down);
     fdd->flags   = 0;
     fdd->track   = 0;
     specify(fdd);
