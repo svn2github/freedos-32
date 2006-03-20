@@ -22,7 +22,7 @@ LINK_OPT = -Bstatic
 
 .PHONY: all clean
 
-all: sermouse.o
+all: sermouse.o moustest.o
 
 temp.o: sermouse.c
 	$(CC) -c $(C_OPT) sermouse.c -o $@
@@ -31,5 +31,5 @@ sermouse.o: $(OBJS)
 	$(LD) $(LINK_OPT) $(OBJS) -r -s -o $@
 
 clean :
-	del *.o
+	$(RM) *.o
 

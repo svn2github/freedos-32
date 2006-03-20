@@ -2,6 +2,7 @@
 typedef signed long LONG;
 typedef signed char CHAR;
 #include <devices.h>
+#include <mouse.h>
 
 
 typedef enum MouseEvent
@@ -26,11 +27,10 @@ static const char *eventstr[] =
     "WM_MOUSEWHEEL"
 };
 static MouseEvent event = NOEVENT;
-static MouseData  prev;
+static fd32_mousedata_t prev;
 
 
-static MouseCallback cb;
-static void cb(const MouseData *data)
+static void cb(const fd32_mousedata_t *data)
 {
     MouseEvent e = WM_MOUSEMOVE;
     if (data->buttons != prev.buttons)
