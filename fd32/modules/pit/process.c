@@ -533,7 +533,7 @@ static int pit_request(uint32_t function, void *params)
 			pit_external_process();
 			break;
 		case FD32_GET_DEV_INFO:
-			res = PIT_TIMER_TYPE;
+			res = USEC_TIMER_TYPE | PIT_TIMER_TYPE | TSC_TIMER_TYPE /* | TODO: REALTIME_TIMER_TYPE */;
 			break;
 		case REQ_TIMER_EVENT_REGISTER:
 		{

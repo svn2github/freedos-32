@@ -11,18 +11,18 @@
 #define TIMER_COMPATIBLE_MODE	0
 #define TIMER_NATIVE_MODE		1
 
-/* Identificatin of timer. Bit 8-13: platform idntifier,
-	bit 14-31: types of timer supported by module. */
+/* Identificatin of timer. 
+	bit 8-31: types of timer supported by module. */
 /* Platform: generic */
-#define REALTIME_TIMER_TYPE		(1<<14 | 0<<8)
-#define USEC_TIMER_TYPE 		(1<<15 | 0<<8)
-#define NSEC_TIMER_TYPE		 	(1<<16 | 0<<8)
+#define REALTIME_TIMER_TYPE		(1<<8)
+#define USEC_TIMER_TYPE 		(1<<9)
+#define NSEC_TIMER_TYPE		 	(1<<10)
 
 /* Platform: PC (x86) */
-#define PIT_TIMER_TYPE 		(1<<14 | 1<<8)
-#define APIC_TIMER_TYPE 	(1<<15 | 1<<8)
-#define HPET_TIMER_TYPE		(1<<16 | 1<<8)
-#define TSC_TIMER_TYPE		(1<<17 | 1<<8)
+#define PIT_TIMER_TYPE 		(1<<13)
+#define APIC_TIMER_TYPE 	(1<<14)
+#define HPET_TIMER_TYPE		(1<<15)
+#define TSC_TIMER_TYPE		(1<<16)
 
 /* Timer specific constants <0x1000 */
 #define REQ_TIMER_EVENT_REGISTER	(0 + 0x1000)
