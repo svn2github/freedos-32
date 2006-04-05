@@ -1,5 +1,5 @@
 /* The FreeDOS-32 FAT Driver version 2.0
- * Copyright (C) 2001-2005  Salvatore ISAJA
+ * Copyright (C) 2001-2006  Salvatore ISAJA
  *
  * This file "dos.c" is part of the FreeDOS-32 FAT Driver (the Program).
  *
@@ -71,7 +71,33 @@ static int wchar_string_to_utf8(char *dest, size_t dest_size, const wchar_t *src
 		src_size--;
 	}
 	if (dest_size < 1) return -ENAMETOOLONG;
-	*dest = 0;
+	*dest++ = 0;
+	return (int) (dest - dest_save);
+}
+
+
+/* Expands a file name in FCB format to a multibyte string.
+ * Currently no character set conversion is done, thus dest_size is ignored.
+ * Returns the total length in bytes of the converted string.
+ */
+static int expand_fcb_name_mb(char *dest, size_t dest_size, const uint8_t *source)
+{
+	const uint8_t *name_end, *ext_end;
+	const uint8_t *s = source;
+	char *dest_save = dest;
+
+	/* Skip padding spaces at the end of the name and the extension */
+	for (name_end = source + 7; *name_end == ' '; name_end--)
+		if (name_end == source) return -EINVAL;
+	for (ext_end = source + 10; *ext_end == ' '; ext_end--)
+		if (ext_end == source) return -EINVAL;
+
+	/* Copy name dot extension in aux */
+	if (*s == 0x05) *dest++ = (char) FAT_FREEENT, s++;
+	for (; s <= name_end; *dest++ = (char) *s++);
+	if (source + 8 <= ext_end) *dest++ = '.';
+	for (s = source + 8; s <= ext_end; *dest++ = (char) *s++);
+	*dest++ = 0;
 	return (int) (dest - dest_save);
 }
 
@@ -113,8 +139,11 @@ static int dos_find(Channel *c, fd32_fs_dosfind_t *df)
 			df->MTime = de->mod_time;
 			df->MDate = de->mod_date;
 			df->Size  = de->file_size;
-			/* TODO: Should convert to the code page used by the DPMI driver */
-			res = wchar_string_to_utf8(df->Name, sizeof(df->Name), lud->sfn, lud->sfn_length);
+			/* TODO: Should convert to the code page used by the DPMI driver.
+			 *       Currently no conversion is done. The proper solution is to
+			 *       pass the destination character set to this function.
+			 */
+			res = expand_fcb_name_mb(df->Name, sizeof(df->Name), de->name);
 			if (res < 0) break;
 			dfd->entry_count = c->file_pointer >> 5;
 			dfd->first_dir_cluster = c->f->first_cluster;
@@ -345,7 +374,8 @@ int fat_findfile(Channel *c, const char *fn, size_t fnsize, int flags, fd32_fs_l
 				if (res < 0) return res;
 				/* NOTE: the Windows documentation reports that the returned
 				 * alternate name is empty if only the short name is present. */
-				res = wchar_string_to_utf8(lfnfind->ShortName, sizeof(lfnfind->ShortName), lud->sfn, lud->sfn_length);
+				/* TODO: See comment in dos_find */
+				res = expand_fcb_name_mb(lfnfind->ShortName, sizeof(lfnfind->ShortName), de->name);
 				if (res < 0) return res;
 				return 0;
 			}
