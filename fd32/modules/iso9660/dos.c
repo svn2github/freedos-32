@@ -1,5 +1,5 @@
 /* The FreeDOS-32 ISO 9660 Driver version 0.2
- * Copyright (C) 2005  Salvatore ISAJA
+ * Copyright (C) 2005-2006  Salvatore ISAJA
  *
  * This file "dos.c" is part of the FreeDOS-32 ISO 9660 Driver (the Program).
  *
@@ -32,6 +32,19 @@ typedef struct
 	uint16_t sectors_left;        /* Count of sectors to search */
 }
 __attribute__ ((packed)) PrivateFindData;
+
+
+#if ISO9660_CONFIG_FD32
+/* FIXME: memrchr not provided by OSLib! */
+static void *memrchr(const void *s, int c, size_t n)
+{
+	void *res = NULL;
+	const unsigned char *us = (const unsigned char *) s;
+	unsigned char uc = (unsigned char) c;
+	for (; n; us++, n--) if (*us == uc) res = (void *) us;
+	return res;
+}
+#endif
 
 
 /* Converts an ISO 9660 time stamp to a 16-bit DOS date */
@@ -105,12 +118,14 @@ static int build_fcb_name_part(char *dest, size_t dest_size, const char *src, si
 			break;
 		}
 		if (c < 0x20) return -EINVAL;
+		#if 0 //working around illegal characters that appear to be used anyway...
 		if (!(wildcards && (c == '?')))
 		{
 			const char *i;
 			for (i = invalid_characters; *i; i++)
 				if (c == *i) return -EINVAL;
 		}
+		#endif
 		if (!dest_size) break;
 		*dest++ = toupper(c);
 		dest_size--;
@@ -142,9 +157,11 @@ int iso9660_build_fcb_name(char *dest, const char *src, size_t src_size, bool wi
 	else if (((src_size == 2) && (*((uint16_t *) src) == 0x2E2E)) || ((src_size == 1) && (*src == '\1'))) *((uint16_t *) dest) = 0x2E2E;
 	else /* not "." nor ".." */
 	{
-		sep1 = memchr(src, '.', src_size);
-		sep2 = memchr(src, ';', src_size);
-		//if (sep2 < sep1) return -EINVAL;
+		sep1 = memrchr(src, '.', src_size);
+		sep2 = memrchr(src, ';', src_size);
+		#if 0 //seems that may actually happen
+		if (sep2 < sep1) return -EINVAL;
+		#endif
 		if (sep2) src_size = sep2 - src;
 		if (sep1)
 		{
@@ -412,19 +429,6 @@ static int compare_with_wildcards(const char *s1, size_t n1, const char *s2, siz
 }
 
 
-#if ISO9660_CONFIG_FD32
-/* FIXME: memrchr not provided by OSLib! */
-static void *memrchr(const void *s, int c, size_t n)
-{
-	void *res = NULL;
-	const unsigned char *us = (const unsigned char *) s;
-	unsigned char uc = (unsigned char) c;
-	for (; n; us++, n--) if (*us == uc) res = (void *) us;
-	return res;
-}
-#endif
-
-
 /* Compare "s1" (which may contain wildcards) against "s2".
  * The wildcard matching is DOS-compatible: if "s1" contains any dots,
  * the last dot is used as a conventional extension separator, that needs
@@ -496,7 +500,7 @@ int iso9660_findfile(File *f, const char *fn, size_t fnsize, int flags, fd32_fs_
 		if ((dr->flags & required_attr) != required_attr) continue;
 		len = dr->len_fi;
 		#if ISO9660_CONFIG_STRIPVERSION
-		sep2 = memchr(dr->file_id, ';', dr->len_fi);
+		sep2 = memrchr(dr->file_id, ';', dr->len_fi);
 		if (sep2) len = sep2 - dr->file_id;
 		#endif
 		if (!dos_fnmatch(fn, fnsize, dr->file_id, len, false)
