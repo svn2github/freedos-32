@@ -1,5 +1,6 @@
 /* FreeDOS-32 PIT-driven Event Management version 0.1
  * Copyright (C) 2006  Salvatore ISAJA
+ * Copyright (C) 2006  Nils Labugt
  *
  * This file "process.c" is part of the
  * FreeDOS-32 PIT-driven Event Management (the Program).
@@ -108,6 +109,16 @@ INLINE_OP uint16_t read_pit0()
 }
 
 /* This part of the interface needs more work. */
+/**
+ * \brief Returns time.
+ *
+ * Return time (or frequency) from the timer \a timer as a 64bit word.
+ * \a mode is used to distinguish between fast result (\a TIMER_GET_FAST),
+ * more accurate result (\a TIMER_GET_EXACT) or frequency in Hz
+ * (\a TIMER_GET_FREQUENCY) of the specified timer. For valid values for
+ * \a timer, see timer.h.
+ * \return Time or frequency, or a negative number in the range -1 to -(2^32 - 1) on failure.
+ */
 uint64_t pit_gettime( int mode, int timer )
 {
 	uint64_t tmp;
@@ -248,9 +259,12 @@ void pit_process(void)
  * \brief Replacement for interrupt service routine.
  *
  * Another module or native application taking control of the PIT may call this
- * function every 55ms to enable time events registered with this module to be
+ * function every 55ms (or interval specified with command line options or
+ * \a pit_set_mode) to enable time events registered with this module to be
  * dispatched. INT 1Ch and other actions only required for DOS compatibility
  * will not be performed by this function.
+ * \remarks When the --tsc-time option is used, the frequency at which this
+ *          function is called only affects latency.
  */
 void pit_external_process(void)
 {
@@ -467,7 +481,7 @@ static struct { char *name; uint32_t address; } symbols[] =
 static struct option pit_options[] =
 {
   /* These options set a flag. */
-  {"do-export", no_argument, &do_export, FALSE},
+  {"no-export", no_argument, &do_export, FALSE},
   /* These options don't set a flag.
      We distinguish them by their indices. */
   {"tsc-delay", no_argument, 0, 'D'},
@@ -494,7 +508,7 @@ static void counter_init(int counter, int mode, uint16_t max, void (*isr)(void))
  * \brief Set the operating mode of this module.
  * \param mode The new operating mode, either PIT_COMPATIBLE_MODE or PIT_NATIVE_MODE.
  * \param maxcount Maximum value of the counter. Interrupts will be generated with a
- *         frequency of 1193181/\a maxcount Hz.
+ *         frequency of 1193181.67/\a maxcount Hz.
  * \return 0 on success, or a negative value on failure.
  * \remarks For compatibility with DOS/DPMI programs, \a mode should be
  *          PIT_COMPATIBLE_MODE and \a maxcount should be 0x10000.
