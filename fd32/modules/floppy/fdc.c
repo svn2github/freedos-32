@@ -2,7 +2,7 @@
  * FreeDOS32 Floppy Driver                                                *
  * by Salvo Isaja                                                         *
  *                                                                        *
- * Copyright (C) 2003-2005, Salvatore Isaja                               *
+ * Copyright (C) 2003-2006, Salvatore Isaja                               *
  *                                                                        *
  * This is "fdc.c" - Portable code for Floppy Disk Controller support     *
  *                                                                        *
@@ -184,7 +184,7 @@ static const DriveParams default_drive_params[] =
     { 1,  4, 1000*MS, 3000*MS, 20*MS, 3000*MS, { 1, 0, 0, 0, 0, 0, 0, 0 }, 1, "5.25\" DD, 360 KiB"     },
     { 2,  8,  400*MS, 3000*MS, 20*MS, 3000*MS, { 2, 5, 6,23,10,20,12, 0 }, 2, "5.25\" HD, 1200 KiB"    },
     { 3,  4, 1000*MS, 3000*MS, 20*MS, 3000*MS, { 4,22,21,30, 3, 0, 0, 0 }, 4, "3.5\" DD, 720 KiB"      },
-    { 4,  8/*1*/,  400*MS, 3000*MS, 20*MS, 1500*MS, { 7, 4,25,22,31,21,29,11 }, 7, "3.5\" HD, 1440 KiB"     },
+    { 4,  8/*1*/,  400*MS, 3000*MS, 20*MS, 30000*MS, { 7, 4,25,22,31,21,29,11 }, 7, "3.5\" HD, 1440 KiB"     }, //FIXME: workaround for timeouts in Bochs
     { 5, 15,  400*MS, 3000*MS, 20*MS, 3000*MS, { 7, 8, 4,25,28,22,31,21 }, 8, "3.5\" ED, 2880 KiB AMI" },
     { 6, 15,  400*MS, 3000*MS, 20*MS, 3000*MS, { 7, 8, 4,25,28,22,31,21 }, 8, "3.5\" ED, 2880 KiB"     }
 };
@@ -568,6 +568,7 @@ int fdc_read(Fdd *fdd, const Chs *chs, BYTE *buffer, unsigned num_sectors)
     unsigned tries;
     int      res = FDC_ERROR;
 
+    LOG_PRINTF(("[FDC] fdc_read: CHS=(%u,%u,%u), num_sectors=%u\n", chs->c, chs->h, chs->s, num_sectors));
     if (fdd->dp->cmos_type == 0) return FDC_ERROR; /* Drive not available */
     /* TODO: Place a timeout for Busy check */
     while (busy); /* Wait while the floppy driver is already busy: BUSY WAIT! */
@@ -615,6 +616,7 @@ int fdc_write(Fdd *fdd, const Chs *chs, const BYTE *buffer, unsigned num_sectors
     unsigned tries;
     int      res = FDC_ERROR;
 
+    LOG_PRINTF(("[FDC] fdc_write: CHS=(%u,%u,%u), num_sectors=%u\n", chs->c, chs->h, chs->s, num_sectors));
     if (fdd->dp->cmos_type == 0) return FDC_ERROR; /* Drive not available */
     /* TODO: Place a timeout for Busy check */
     while (busy); /* Wait while the floppy driver is already busy: BUSY WAIT! */
@@ -668,6 +670,7 @@ static int fdc_xfer_cylinder(Fdd *fdd, unsigned cyl, FdcTransfer op)
     unsigned sec_in_cyl;          /* Zero-based sector we start to read  */
     int      res = FDC_ERROR;     /* This function's result...           */
 
+    LOG_PRINTF(("[FDC] fdc_xfer_cylinder: cyl=%u, op=%i\n", cyl, op));
     motor_on(fdd);
     #if REPORT_ATTENTION
     if (fd32_inb(fdd->fdc->base_port + FDC_DIR) & 0x80)
@@ -731,6 +734,7 @@ quit:
 int fdc_read_cylinder(Fdd *fdd, unsigned cyl, BYTE *buffer)
 {
     int res;
+    LOG_PRINTF(("[FDC] fdc_read_cylinder: cyl=%u\n", cyl));
     if (fdd->dp->cmos_type == 0) return FDC_ERROR; /* Drive not available */
     /* TODO: Place a timeout for Busy check */
     while (busy); /* Wait while the floppy driver is already busy: BUSY WAIT! */
