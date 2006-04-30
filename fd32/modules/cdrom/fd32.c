@@ -231,7 +231,7 @@ int cd_init(process_info_t *p)
         /* Size of command packet, usually 12, bu may be 16 */
         d->cmd_size = inf.CmdSize;
         d->flags = 0;
-        d->multiboot_id = 0;
+        d->multiboot_id = ((0xE0|i) << 24) | 0x00FFFFFF;
         d->tout_read_us = 30 * 1000 * 1000;
         ksprintf(d->out_name, "cdrom%i", i);
         fd32_message("[CDROM] ATAPI device %s becomes block device %s\n", d->in_name, d->out_name);
