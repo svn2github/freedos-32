@@ -82,6 +82,10 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
         res = videobios_int(r1);
       return res;
 
+    case 0x15:
+      res = dpmi_rmint_to_bios(0x10, r1);
+      return res;
+
     case 0x16:
       res = keybbios_int(r1);
       return res;
