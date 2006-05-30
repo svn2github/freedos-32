@@ -105,6 +105,19 @@ struct packet_error
     int ret_code;
 } __attribute__ ((__packed__));
 
+struct packet_read_toc
+{
+    BYTE opcode;
+    BYTE flags1;
+    BYTE format;
+    BYTE reserved[3];
+    BYTE track_number;
+    WORD allocation_length;
+    BYTE flags2;
+    WORD pad1;
+    DWORD pad2;
+} __attribute__ ((__packed__));
+
 struct cd_sense
 {
     BYTE error_code;
@@ -123,4 +136,4 @@ int cd_clear( struct cd_device* d, int flags );
 int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer);
 int cd_test_unit_ready(struct cd_device* d);
 int cd_extra_error_report(struct cd_device* d, struct cd_error_info** ei);
-
+int cd_get_last_session(struct cd_device* d, uint32_t *last_session_address);

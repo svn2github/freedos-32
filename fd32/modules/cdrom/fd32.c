@@ -161,21 +161,28 @@ static int cd_request(int function, ...)
             ref_counter++;
             return 0;
         }
-    case REQ_GET_REFERENCES:
+        case REQ_GET_REFERENCES:
         {
             return ref_counter;
         }
-    case REQ_RELEASE:
+        case REQ_RELEASE:
         {
             ref_counter--;
             return 0;
         }
         /* Set timeout parameter(s) */
-    case REQ_CD_SET_TO:
+        case REQ_CD_SET_TO:
         {
             d = va_arg(parms, struct cd_device*);
             d->tout_read_us = va_arg(parms, uint32_t);
             return 0;
+        }
+        case REQ_CD_GET_LAST_SESSION:
+        {
+            uint32_t *last_session_start;
+            d = va_arg(parms, struct cd_device*);
+            last_session_start = va_arg(parms, uint32_t*);
+            return cd_get_last_session(d, last_session_start);
         }
     }
     return -ENOTSUP; /* ? */

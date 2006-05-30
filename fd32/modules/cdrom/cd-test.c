@@ -5,6 +5,9 @@
 
 #include "cd-interf.h"
 
+#define TEST_BLOCK_DUMP       0
+#define TEST_GET_LAST_SESSION 1
+
 static char buffer[2048];
 unsigned long sectors_to_read;
 
@@ -15,10 +18,15 @@ int process()
     BlockOperations* bops;
     void* iterator = NULL;
     void* cd_devid;
-    unsigned long n;
     int res;
+    #if TEST_BLOCK_DUMP
+    unsigned long n;
     int fhandle;
     char filename[12];
+    #endif
+    #if TEST_GET_LAST_SESSION
+    uint32_t last_session_address;
+    #endif
 
 
     fd32_message("Searching for CD-ROM drives...\n");
@@ -52,6 +60,16 @@ int process()
             return 1;
         }
         fd32_message("Disk contains %llu sectors\n", bmi.blocks_count);
+        #if TEST_GET_LAST_SESSION
+        res = req_cd_get_last_session(bops->request, cd_devid, &last_session_address);
+        if(res < 0)
+        {
+            fd32_message("Error: Get last session failed for device %s\nReturned %i\n", dev_name, res);
+            return 1;
+        }
+        fd32_message("Last session start address: %08xh\n", last_session_address);
+        #endif
+        #if TEST_BLOCK_DUMP
         if(sectors_to_read >= bmi.blocks_count)
         {
             ksprintf(filename, "%s.iso", dev_name);
@@ -75,7 +93,7 @@ int process()
             if(res < 0)
             {
                 fd32_message("Error: Block read failed for device %s\nReturned %i\n", dev_name, res);
-                fd32_close(fhandle);
+                //fd32_close(fhandle);
                 return 1;
             }
             res = fd32_write(fhandle, buffer, 2048);
@@ -89,6 +107,7 @@ int process()
         }
         fd32_close(fhandle);
         fd32_message("%lu sectors written to file %s\n", sectors_to_read, filename);
+        #endif
     }
     return 0;
 }

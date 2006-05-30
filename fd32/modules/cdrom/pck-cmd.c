@@ -28,7 +28,7 @@
 #include <timer.h>
 #include "block/block.h" /* FIXME! */
 
-#define _DEBUG_
+//#define _DEBUG_
 #define LOG_MSG fd32_log_printf
 
 DWORD endianness4(DWORD n)
@@ -336,6 +336,49 @@ static int cd_read10(struct cd_device* d, DWORD start, WORD blocks, char* buffer
 }
 
 
+static int cd_read_toc(struct cd_device* d, unsigned format_a, unsigned format_b, unsigned track_number, char* buffer, unsigned long buffer_size)
+{
+    atapi_pc_parm_t pcp;
+    struct packet_read_toc packet;
+    unsigned long tb;
+    int res, res1, res2;
+
+    pcp.Size = sizeof(atapi_pc_parm_t);
+    pcp.DeviceId = d->device_id;
+    pcp.MaxWait = 30 * 1000 * 1000; /* this is relatively arbitrary */
+    pcp.PacketSize = d->cmd_size;
+    pcp.Buffer = (WORD*)buffer;
+    pcp.BufferSize = buffer_size;
+    pcp.MaxCount = buffer_size;
+    pcp.TotalBytes = &tb;
+    pcp.Packet = (WORD*)&packet;
+    /* Prepare command packet */
+    memset(&packet, 0, sizeof(packet));
+    packet.opcode = 0x43;
+    packet.format = format_a;
+    packet.track_number = track_number;
+    packet.flags2 = format_b;
+    packet.allocation_length = endianness2(buffer_size);
+    res = d->req(FD32_ATAPI_PACKET, (void*)&pcp);
+    if(res<0)
+    {
+#ifdef _DEBUG_
+        LOG_MSG("READ TOC cmd failed, returning %i, s=0x%x,e=0x%x,i=0x%x\n",
+                res, ((char*)&packet)[1], ((char*)&packet)[2], ((char*)&packet)[3]);
+#endif
+        res1 = cd_err_handl_1(d, (struct packet_error*)&packet, res, &res2);
+        if(res1 < 0)
+        {
+            /* TODO */
+            return res1;
+        }
+        else
+            return res2;
+    }
+    return 0;
+}
+
+
 static void private_timed_out(void *p)
 {
     *((int*)p) = TRUE;
@@ -399,6 +442,90 @@ int cd_read(struct cd_device* d, DWORD start, DWORD blocks, char* buffer)
             }
         }
         break;
+    }
+    fd32_cli();
+    if (!tout)
+        timer_event_cancel(tout_event);
+    fd32_sti();
+    return res;
+}
+
+
+/*
+ * Read the last session address from the Table Of Contents.
+ * Even if recent specifications specify the "format" byte, it seems safer to
+ * use the old method using "vendor" bits, as specified even in recent documents
+ * such as USB boot specification 1.0, 2004.
+ */
+int cd_get_last_session(struct cd_device* d, uint32_t *last_session_address)
+{
+    int res;
+    volatile int tout;
+    void *tout_event;
+    struct
+    {
+        uint16_t data_length;
+        uint8_t  first_session;
+        uint8_t  last_session;
+        uint8_t  reserved1;
+        uint8_t  adr_control;
+        uint8_t  first_track_in_last_session;
+        uint8_t  reserved2;
+        uint32_t track_start_address;
+    } __attribute__ ((__packed__)) toc_data;
+
+    LOG_MSG("[CDROM] cd_get_last_session\n");
+    tout = FALSE;
+    tout_event = timer_event_register(d->tout_read_us, private_timed_out, (void *)&tout);
+    while(1)
+    {
+        d->flags &= ~(CD_FLAG_RETRY | CD_FLAG_IN_PROGRESS);
+        res = cd_read_toc(d, 0x00, 0x40, 0, (char*) &toc_data, sizeof(toc_data));
+        if(res<0)
+        {
+#ifdef _DEBUG_
+            LOG_MSG("READ TOC failed, returning %i, flags=0x%x\n", res, (unsigned)d->flags);
+#endif
+            if( d->flags & CD_FLAG_RETRY)
+            {
+#ifdef _DEBUG_
+                cd_wait(2 * 1000 * 1000);
+#else
+                cd_wait(100 * 1000);
+#endif
+                res = cd_read_toc(d, 0x00, 0x40, 0, (char*) &toc_data, sizeof(toc_data));
+                break;
+            }
+            if( (d->flags & CD_FLAG_IN_PROGRESS) && (tout == FALSE) )
+            {
+#ifdef _DEBUG_
+                cd_wait(2 * 1000 * 1000);
+#else
+                cd_wait(100 * 1000);
+#endif
+                continue;
+            }
+        }
+        break;
+    }
+    if (res>=0)
+    {
+        #ifdef _DEBUG_
+        unsigned k;
+        fd32_message("[CDROM] TOC data: ");
+        for (k = 0; k < sizeof(toc_data); k++)
+            fd32_message("%02x ", ((char*) &toc_data)[k]);
+        fd32_message("\n");
+        fd32_message("  WORD data_length: %04xh\n", endianness2(toc_data.data_length));
+        fd32_message("  BYTE first_session: %02xh\n", toc_data.first_session);
+        fd32_message("  BYTE last_session: %02xh\n", toc_data.last_session);
+        fd32_message("  BYTE reserved1: %02xh\n", toc_data.reserved1);
+        fd32_message("  BYTE adr_control: %02xh\n", toc_data.adr_control);
+        fd32_message("  BYTE first_track_in_last_session: %02xh\n", toc_data.first_track_in_last_session);
+        fd32_message("  BYTE reserved2: %02xh\n", toc_data.reserved2);
+        fd32_message("  DWORD track_start_address: %08xh\n", endianness4(toc_data.track_start_address));
+        #endif
+        *last_session_address = endianness4(toc_data.track_start_address);
     }
     fd32_cli();
     if (!tout)
@@ -548,6 +675,3 @@ int cd_clear( struct cd_device* d, int flags )
     d->flags |= CD_FLAG_IS_VALID;
     return 0;
 }
-
-
-
