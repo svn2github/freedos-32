@@ -506,12 +506,13 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   pi.filename = filename;
   pi.args = args;
   pi.type = VM86_PROCESS;
+  pi.cpu_context = (void *)mem_get(sizeof(struct tss));
   params.vm86.ip = hdr.e_ip;
   params.vm86.sp = hdr.e_sp;
   params.vm86.in_regs = &in;
   params.vm86.out_regs = &out;
   params.vm86.seg_regs = &s;
-  params.vm86.prev_tss_ptr = &pi.saved_tss;
+  params.vm86.prev_cpu_context = pi.cpu_context;
   /* Use the new dpmi stack */
   pre_stack_mem = dpmi_stack;
   stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
@@ -526,6 +527,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   dpmi_stack = pre_stack_mem;
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   mem_free(stack_mem, DPMI_STACK_SIZE);
+  mem_free((DWORD)pi.cpu_context, sizeof(struct tss));
 
   if (!(pi.type & RESIDENT))
     dos_free(load_seg);

@@ -26,7 +26,7 @@ typedef struct process_info {
   DWORD memlimit;
   void *jft;
   DWORD jft_size;
-  struct tss saved_tss;	/* TSS saved when switching to another process */
+  void *cpu_context; /* CPU context for switching to another process */
 } process_info_t;
 
 process_info_t *fd32_get_current_pi(void);
@@ -43,7 +43,7 @@ typedef union process_params {
   } normal;
 
   struct {
-    struct tss *prev_tss_ptr;
+    void *prev_cpu_context;
     void *in_regs;
     void *out_regs;
     void *seg_regs;

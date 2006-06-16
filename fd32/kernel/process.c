@@ -37,7 +37,7 @@ WORD kern_CS, kern_DS;
 
 /* extern DWORD current_SP; */
 /* Top/kernel process info */
-static process_info_t top_P = { NULL, NULL, NULL, NULL, 0, "fd32.bin", NULL, 0 };
+static process_info_t top_P = { NULL, NULL, NULL, NULL, 0, "fd32.bin", NULL, 0, NULL };
 static process_info_t *cur_P = &top_P;
 
 /* Gets the Current Directiry List for the current process. */
@@ -93,7 +93,7 @@ int fd32_create_process(process_info_t *ppi, process_params_t *pparams)
       break;
     case VM86_PROCESS:
       ppi->memlimit = 0;
-      res = vm86_call(pparams->vm86.ip, pparams->vm86.sp, pparams->vm86.in_regs, pparams->vm86.out_regs, pparams->vm86.seg_regs, pparams->vm86.prev_tss_ptr, NULL);
+      res = vm86_call(pparams->vm86.ip, pparams->vm86.sp, pparams->vm86.in_regs, pparams->vm86.out_regs, pparams->vm86.seg_regs, pparams->vm86.prev_cpu_context, NULL);
       break;
     default:
       res = 1;
