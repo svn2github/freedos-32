@@ -19,7 +19,7 @@
 #include <logger.h>
 #include "dpmi.h"
 #include "dosmem.h"
-#include "dos_exec.h"
+#include "dosexec.h"
 #include "ldtmanag.h"
 
 #define __DOS_EXEC_DEBUG__

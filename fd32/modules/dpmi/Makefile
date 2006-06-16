@@ -20,10 +20,10 @@ CONFIG = -DENABLE_BIOSVGA
 C_OPT += -I../../include -I./include -I../include -I$(MODULES) -I$(PORTAB) $(CONFIG) $(DEBUG)
 LINK_OPT = -Bstatic
 
-OBJS = chandler.o dpmimem.o dpmiexc.o rmint.o ldtmanag.o dos_exec.o init.o \
-	handlers.o vga.o int31_00.o int31_01.o int31_02.o int31_03.o int31_04.o \
-	int31_05.o int31_06.o int31_09.o int31_0e.o int10.o int16.o int21.o \
-	int28.o int29.o int2f.o int33.o dosmem.o
+OBJS = init.o chandler.o dpmimem.o dpmiexc.o rmint.o ldtmanag.o handlers.o \
+	vga.o dosexec.o dosmem.o int31_00.o int31_01.o int31_02.o int31_03.o \
+	int31_04.o int31_05.o int31_06.o int31_09.o int31_0e.o int10.o int16.o \
+	int21.o int28.o int29.o int2f.o int33.o
 
 VPATH = src
 
