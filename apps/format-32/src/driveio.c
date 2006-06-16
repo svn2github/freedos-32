@@ -277,7 +277,7 @@ void Enable_Disk_Access(void) /* DOS 4.0+ drive access flag / locking */
 	regs.h.ch	= category_code;			/* 0x08 if !FAT32, 0x48 if FAT32 */
 	regs.h.cl	= 0x67;						/* Get Access Flags */
 	regs.x.ds	= FP_SEG(transfer_buffer);
-	regs.x.dx	= FP_SEG(transfer_buffer);
+	regs.x.dx	= FP_OFF(transfer_buffer);
 	/* TODO: Using linear address because the DS's base is 0x0? */
 
 	__dpmi_int(0x21, &regs);

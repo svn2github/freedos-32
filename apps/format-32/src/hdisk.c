@@ -38,14 +38,16 @@ void Get_Device_Parameters()
 	regs.h.bl=param.drive_number + 1;
 	regs.h.ch=0x08;                     /* Always 0x08...unless fs is FAT32                         */
 	regs.h.cl=0x60;                     /* Get device parameters               */
-	regs.x.dx=FP_OFF(&(parameter_block.query_flags));
-	regs.x.ds=FP_SEG(&(parameter_block.query_flags));
 	parameter_block.query_flags = 4; /* bit 0 clear, bit 2 set */
 	parameter_block.bpb.large_sector_count_low = 0;  /* RBIL suggests that this is not returned??? */
 	parameter_block.bpb.large_sector_count_high = 0; /* RBIL suggests that this is not returned??? */
 	parameter_block.media_type = 0; /* 1 for 3x0k in 1200k drive, else 0 !?? */
 	parameter_block.bpb.sectors_per_fat = 0xffff; /* *** MARKER */
+	dosmemput(&parameter_block, sizeof(PB), transfer_buffer);
+	regs.x.dx=FP_OFF(transfer_buffer);
+	regs.x.ds=FP_SEG(transfer_buffer);
 	__dpmi_int(0x21, &regs);
+	dosmemget(transfer_buffer, sizeof(PB), &parameter_block);
 
 	error_code = regs.h.al;
 
@@ -99,13 +101,15 @@ void Get_Device_Parameters()
 		regs.h.bl=param.drive_number + 1;
 		regs.h.ch=0x48;                     /* Always 0x48 for FAT32                         */
 		regs.h.cl=0x60;                     /* Get device parameters               */
-		regs.x.dx=FP_OFF(&(parameter_block.query_flags));
-		regs.x.ds =FP_SEG(&(parameter_block.query_flags));
 		parameter_block.query_flags = 4; /* bit 0 clear, bit 2 set */
 		parameter_block.media_type = 0; /* 1 for 3x0k in 1200k drive, else 0 !?? */
 		parameter_block.bpb.sectors_per_fat = 0xffff; /* *** new MARKER value  0.91L*/
 
+		dosmemput(&parameter_block, sizeof(PB), transfer_buffer);
+		regs.x.dx=FP_OFF(transfer_buffer);
+		regs.x.ds=FP_SEG(transfer_buffer);
 		__dpmi_int(0x21, &regs);
+		dosmemget(transfer_buffer, sizeof(PB), &parameter_block);
 
 		error_code = regs.h.al;
 
@@ -232,10 +236,12 @@ void Force_Drive_Recheck()
 		some_struc[0] = 0x18;
 		some_struc[4] = 2;
 		regs.x.ax = 0x7304;		/* get/set FAT32 flag stuff */
-		regs.x.es = FP_SEG(&some_struc[0]);
-		regs.x.di = FP_OFF(&some_struc[0]);
 		regs.h.dl = param.drive_number+1; /* A: is 1 etc. */
 		regs.x.cx = 0x18; /* structure size */
+
+		dosmemput(some_struc, sizeof(some_struc), transfer_buffer);
+		regs.x.es = FP_SEG(transfer_buffer);
+		regs.x.di = FP_OFF(transfer_buffer);
 		__dpmi_int(0x21, &regs);
 		/* TODO: restore defaults */
 	} /* FAT32 */
