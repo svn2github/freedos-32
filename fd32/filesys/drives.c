@@ -50,6 +50,7 @@ typedef struct Drive
 	const char *blk_name;
 	fd32_request_t *req;
 	void *handle;
+	void *dos_dpb; /* at Dos-memory */
 }
 Drive;
 
@@ -83,7 +84,7 @@ static int dynamic_assign(unsigned type, int d)
 
 	while ((name = block_enumerate(&iterator)) != NULL)
 	{
-		res = block_get(name, BLOCK_OPERATIONS_TYPE, (void **)&bops, &handle);
+		res = block_get(name, BLOCK_OPERATIONS_TYPE, &bops, &handle);
 		if (res < 0) continue;
 		res = bops->get_device_info(handle, &bdi);
 		bops->request(REQ_RELEASE);
@@ -111,6 +112,7 @@ static int dynamic_assign(unsigned type, int d)
 		drives[d].blk_name = name;
 		drives[d].req = NULL;
 		drives[d].handle = NULL;
+		drives[d].dos_dpb = NULL;
 		message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', name);
 		/* Set the default drive to this drive if boot device is known,
 		 * otherwise set the default drive to the first drive detected. */
@@ -280,4 +282,121 @@ int fd32_add_fs(fd32_request_t *request)
 void fd32_set_boot_device(DWORD MultiBootId)
 {
   BootDevice = MultiBootId;
+}
+
+
+int fd32_drive_read(char Drive, void *buffer, QWORD start, DWORD count)
+{
+  BlockOperations *bops;
+  void *handle;
+  int res = -ENOTBLK;
+  
+  if (block_get(drives[Drive-'A'].blk_name, BLOCK_OPERATIONS_TYPE, &bops, &handle) == 0)
+  {
+    bops->open(handle);
+    res = bops->read(handle, buffer, start, count, 0);
+    bops->close(handle);
+    bops->request(REQ_RELEASE);
+  }
+
+  return res;
+}
+
+int fd32_drive_write(char Drive, void *buffer, QWORD start, DWORD count)
+{
+  BlockOperations *bops;
+  void *handle;
+  int res = -ENOTBLK;
+  
+  if (block_get(drives[Drive-'A'].blk_name, BLOCK_OPERATIONS_TYPE, &bops, &handle) == 0)
+  {
+    bops->open(handle);
+    res = bops->write(handle, buffer, start, count, 0);
+    bops->close(handle);
+    bops->request(REQ_RELEASE);
+  }
+
+  return res;
+}
+
+unsigned int fd32_drive_get_sector_size(char Drive)
+{
+  BlockOperations *bops;
+  void *handle;
+  BlockMediumInfo blkminfo = {0, 0};
+
+  if (block_get(drives[Drive-'A'].blk_name, BLOCK_OPERATIONS_TYPE, &bops, &handle) == 0)
+  {
+    bops->open(handle);
+    bops->get_medium_info(handle, &blkminfo);
+    bops->close(handle);
+    bops->request(REQ_RELEASE);
+  }
+
+  return blkminfo.block_bytes;
+}
+
+unsigned int fd32_drive_get_sector_count(char Drive)
+{
+  BlockOperations *bops;
+  void *handle;
+  BlockMediumInfo blkminfo = {0, 0};
+
+  if (block_get(drives[Drive-'A'].blk_name, BLOCK_OPERATIONS_TYPE, &bops, &handle) == 0)
+  {
+    bops->open(handle);
+    bops->get_medium_info(handle, &blkminfo);
+    bops->close(handle);
+    bops->request(REQ_RELEASE);
+  }
+
+  return blkminfo.blocks_count;
+}
+
+/* FD32 floppy/disk/cd drive iterator */
+unsigned int fd32_drive_count(void)
+{
+  unsigned int i, count;
+
+  for (i = 0, count = 0; i < DRIVE_MAX_NUM; i ++)
+  {
+    if (drives[i].blk_name)
+      count ++;
+  }
+
+  return count;
+}
+
+char fd32_drive_get_first(void)
+{
+  unsigned int i;
+
+  for (i = 0; i < DRIVE_MAX_NUM; i ++)
+    if (drives[i].blk_name)
+      return 'A'+i;
+
+  return '\0';
+}
+
+char fd32_drive_get_next(char Drive)
+{
+  unsigned int i;
+
+  for (i = Drive-'A'+1; i < DRIVE_MAX_NUM; i ++)
+    if (drives[i].blk_name)
+      return 'A'+i;
+
+  return '\0';
+}
+
+/* FD32 drive parameter block accessing */
+void fd32_drive_set_parameter_block(char Drive, void *p)
+{
+  drives[Drive-'A'].dos_dpb = p;
+}
+
+void *fd32_drive_get_parameter_block(char Drive)
+{
+  /* TODO ... maybe move all the DOS related filesystem code into DPMI module */
+  return drives[Drive-'A'].dos_dpb;
 }

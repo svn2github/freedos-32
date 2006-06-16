@@ -45,6 +45,16 @@ extern union gdt_entry *GDT_base;
 
 #define EMPTY_SLOT {0, (DWORD)0xFFFFFFFF}
 
+int fd32_drive_read(char Drive, void *buffer, QWORD start, DWORD count);
+int fd32_drive_write(char Drive, void *buffer, QWORD start, DWORD count);
+unsigned int fd32_drive_get_sector_size(char Drive);
+unsigned int fd32_drive_get_sector_count(char Drive);
+unsigned int fd32_drive_count(void);
+char fd32_drive_get_first(void);
+char fd32_drive_get_next(char Drive);
+void fd32_drive_set_parameter_block(char Drive, void *p);
+void *fd32_drive_get_parameter_block(char Drive);
+
 int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num,
 	struct symbol *symbol_array);
 
@@ -383,6 +393,15 @@ static struct symbol syscall_table[] = {
 	{ "block_register",   (DWORD) block_register   },
 	{ "block_unregister", (DWORD) block_unregister },
 
+  { "fd32_drive_read",     (DWORD) fd32_drive_read },
+  { "fd32_drive_write",    (DWORD) fd32_drive_write },
+  { "fd32_drive_get_sector_size", (DWORD) fd32_drive_get_sector_size },
+  { "fd32_drive_get_sector_count",(DWORD) fd32_drive_get_sector_count },
+  { "fd32_drive_count",    (DWORD) fd32_drive_count },
+  { "fd32_drive_get_first",(DWORD) fd32_drive_get_first },
+  { "fd32_drive_get_next", (DWORD) fd32_drive_get_next },
+  { "fd32_drive_set_parameter_block", (DWORD) fd32_drive_set_parameter_block },
+  { "fd32_drive_get_parameter_block", (DWORD) fd32_drive_get_parameter_block },
 //  { "event_post", (DWORD) (&event_post) },
 //  { "event_delete", (DWORD) (&event_delete) },
 //  { "ll_gettime", (DWORD) ll_gettime },

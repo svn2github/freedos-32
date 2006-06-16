@@ -11,7 +11,7 @@
 #include <logger.h>
 #include "dpmi.h"
 #include "rmint.h"
-#include "dos_exec.h"
+#include "dosexec.h"
 #include "ldtmanag.h"
 
 extern int dosidle_int(union rmregs *r);

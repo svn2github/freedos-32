@@ -391,6 +391,9 @@ void dpmi_chandler(DWORD intnum, union regs r)
     case 0x21:
       int21_handler(&r);
       break;
+    case 0x25:
+      int_redirect_to_rmint(0x25, &r);
+      break;
     /* Network services */
     case 0x2A:
       if (r.x.ax == 0x8400)

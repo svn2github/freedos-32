@@ -36,7 +36,7 @@
 #include "rmint.h"
 #include "dpmiexc.h"
 #include "dosmem.h"
-#include "dos_exec.h"
+#include "dosexec.h"
 
 #define DOS_API_INPUT_IS_UTF8 1
 #if !DOS_API_INPUT_IS_UTF8
@@ -64,7 +64,7 @@ int use_lfn;
 
 
 /* Parameter block for the dos_exec call, see INT 21h AH=4Bh */
-typedef struct
+typedef struct __attribute__ ((packed)) ExecParams
 {
   WORD  Env;
   WORD arg_offs;
@@ -73,15 +73,14 @@ typedef struct
   DWORD Fcb2;
   DWORD Res1;
   DWORD Res2;
-}
-__attribute__ ((packed)) ExecParams;
+} ExecParams;
 /* DOS return code of the last executed program */
 static WORD dos_return_code;
 
 
 /* Data structure for INT 21 AX=7303h                   */
 /* Windows95 - FAT32 - Get extended free space on drive */
-typedef struct
+typedef struct __attribute__ ((packed)) ExtDiskFree
 {
   WORD  Size;            /* Size of the returned structure (this one)  */
   WORD  Version;         /* Version of this structure (desired/actual) */
@@ -96,9 +95,148 @@ typedef struct
   DWORD RealAvailClus;   /* Number of available clusters      */
   DWORD RealTotalClus;   /* Total number of clusters on drive */
   BYTE  Reserved[8];
-}
-__attribute__ ((packed)) ExtDiskFree;
+} ExtDiskFree;
 
+
+/* Internal drive parameter block                               */
+typedef struct __attribute__ ((packed)) dpb {
+  BYTE unit;               /* unit for error reporting     */
+  BYTE subunit;            /* the sub-unit for driver      */
+  WORD secsize;            /* sector size                  */
+  BYTE clsmask;            /* mask (sectors/cluster-1)     */
+  BYTE shftcnt;            /* log base 2 of cluster size   */
+  WORD fatstrt;            /* FAT start sector             */
+  BYTE fats;               /* # of FAT copies              */
+  WORD dirents;            /* # of dir entries             */
+  WORD data;               /* start of data area           */
+  WORD size;               /* # of clusters+1 on media     */
+  WORD fatsize;            /* # of sectors / FAT           */
+  WORD dirstrt;            /* start sec. of root dir       */
+  void * device;           /* pointer to device header     */
+
+  BYTE mdb;                /* media descr. byte            */
+  BYTE flags;              /* -1 = force MEDIA CHK         */
+  struct dpb * next;       /* next dpb in chain            */
+  /* -1 = end                     */
+  WORD cluster;            /* cluster # of first free      */
+  /* -1 if not known              */
+#ifdef CONFIG_WITHOUTFAT32
+  WORD nfreeclst;          /* number of free clusters      */
+  /* -1 if not known              */
+#else
+  union {
+    struct {
+      WORD nfreeclst_lo;
+      WORD nfreeclst_hi;
+    } nfreeclst_st;
+    DWORD _xnfreeclst;      /* number of free clusters      */
+    /* -1 if not known              */
+  } nfreeclst_un;
+#define nfreeclst nfreeclst_un.nfreeclst_st.nfreeclst_lo
+#define xnfreeclst nfreeclst_un._xnfreeclst
+
+  WORD xflags;             /* extended flags, see bpb      */
+  WORD xfsinfosec;         /* FS info sector number,       */
+  /* 0xFFFF if unknown            */
+  WORD xbackupsec;         /* backup boot sector number    */
+  /* 0xFFFF if unknown            */
+  DWORD xdata;
+  DWORD xsize;              /* # of clusters+1 on media     */
+  DWORD xfatsize;           /* # of sectors / FAT           */
+  DWORD xrootclst;          /* starting cluster of root dir */
+  DWORD xcluster;           /* cluster # of first free      */
+  /* -1 if not known              */
+#endif
+} tDPB;
+
+/* Bios Parameter Block structure */
+typedef struct __attribute__ ((packed)) bpb {
+  WORD nbyte;              /* Bytes per Sector             */
+  BYTE nsector;            /* Sectors per Allocation Unit  */
+  WORD nreserved;          /* # Reserved Sectors           */
+  BYTE nfat;               /* # FAT's                      */
+  WORD ndirent;            /* # Root Directory entries     */
+  WORD nsize;              /* Size in sectors              */
+  BYTE mdesc;              /* MEDIA Descriptor Byte        */
+  WORD nfsect;             /* FAT size in sectors          */
+  WORD nsecs;              /* Sectors per track            */
+  WORD nheads;             /* Number of heads              */
+  DWORD hidden;            /* Hidden sectors               */
+  DWORD huge;              /* Size in sectors if           */
+  /* nsize == 0               */
+#ifndef CONFIG_WITHOUTFAT32
+  DWORD xnfsect;           /* FAT size in sectors if       */
+  /* nfsect == 0              */
+  WORD xflags;             /* extended flags               */
+  /* bit 7: disable mirroring     */
+  /* bits 6-4: reserved (0)       */
+  /* bits 3-0: active FAT number  */
+  WORD xfsversion;         /* filesystem version           */
+  DWORD xrootclst;         /* starting cluster of root dir */
+  WORD xfsinfosec;         /* FS info sector number,       */
+  /* 0xFFFF if unknown            */
+  WORD xbackupsec;         /* backup boot sector number    */
+  /* 0xFFFF if unknown            */
+#endif
+} tBPB;
+
+static tDPB *pdpb = NULL;
+
+/* FD32 disk drive */
+int fd32_drive_read(char Drive, void *buffer, QWORD start, DWORD count);
+unsigned int fd32_drive_get_sector_size(char Drive);
+unsigned int fd32_drive_get_sector_count(char Drive);
+unsigned int fd32_drive_count(void);
+char fd32_drive_get_first(void);
+char fd32_drive_get_next(char Drive);
+void fd32_drive_set_parameter_block(char Drive, void *p);
+void *fd32_drive_get_parameter_block(char Drive);
+
+#include <kmem.h>
+
+void _drive_init(void)
+{
+	char d;
+	unsigned int i;
+	unsigned int count = fd32_drive_count();
+
+	pdpb = (tDPB *)dosmem_get(sizeof(tDPB)*count);
+
+	for (i = 0, d = fd32_drive_get_first(); d != '\0'; i++, d = fd32_drive_get_next(d))
+	{
+		pdpb[i].unit = 'A'-d;
+		pdpb[i].subunit = 0;
+		pdpb[i].secsize = fd32_drive_get_sector_size(d);
+		pdpb[i].clsmask = 0;
+		pdpb[i].shftcnt = 0;
+		pdpb[i].fatstrt = 0;
+		pdpb[i].fats = 0;
+		pdpb[i].dirents = 0;
+		pdpb[i].data = 0;
+		pdpb[i].size = 0;
+		pdpb[i].fatsize = 0;
+		pdpb[i].dirstrt = 0;
+		pdpb[i].device = 0;
+		pdpb[i].mdb = 0;
+		pdpb[i].flags = 0;
+		pdpb[i].next = (void *)-1;
+		pdpb[i].cluster = 0;
+#ifdef CONFIG_WITHOUTFAT32
+		pdpb[i].nfreeclst = 0;
+#else
+		pdpb[i].xnfreeclst = 0;
+		pdpb[i].xflags = 0;
+		pdpb[i].xfsinfosec = 0;
+		pdpb[i].xbackupsec = 0;
+		pdpb[i].xdata = 0;
+		pdpb[i].xsize = 0;
+		pdpb[i].xfatsize = 0;
+		pdpb[i].xrootclst = 0;
+		pdpb[i].xcluster = 0;
+#endif
+		fd32_drive_set_parameter_block(d, pdpb+i);
+	}
+}
 
 /* DOS error codes (see RBIL table 01680) */
 #define DOS_ENOTSUP   0x01 /* function number invalid */
@@ -711,6 +849,9 @@ void dos21_int(union rmregs *r)
 		}
 		/* DOS 1+ - Direct character input, without echo */
 		case 0x07:
+			/* ^C/^Break are not checked */
+		/* DOS 1+ - Character input, without echo */
+		case 0x08:
 		{
 			int tmp;
 			LOG_PRINTF(("[DPMI] INT 21h: Direct char input, no echo\n"));
@@ -746,6 +887,9 @@ void dos21_int(union rmregs *r)
 			res = 0;
 			break;
 		}
+		case 0x0D:
+			res = 0;
+			break;
 		/* DOS 1+ - Set default drive (DL=drive, 0=A, etc.) */
 		case 0x0E:
 			LOG_PRINTF(("[DPMI] INT 21h: Set default drive to %02xh\n", r->h.dl));
@@ -819,6 +963,20 @@ void dos21_int(union rmregs *r)
 			r->x.ax = 0x0A07; /* We claim to be 7.10 */
 			res = 0;
 			break;
+		/* DOS 2+ - Get DOS drive parameter block for specific drive */
+		case 0x32:
+		{
+			DWORD addr;
+			if (r->h.dl == 0)
+				r->h.dl = 1; /* TODO: default drive */
+			addr = (DWORD)fd32_drive_get_parameter_block(r->h.dl-1);
+			
+			r->x.ds = addr >> 4;
+			r->x.bx = addr & 0x0F;
+			r->h.al = 0x00;
+			res = 0;
+			break;
+		}
 		/* DOS 2+ AL=06h - states */
 		case 0x33:
 			switch (r->h.al)
@@ -985,8 +1143,27 @@ void dos21_int(union rmregs *r)
 					res = 0;
 					break;
 				case 0x0D:
+				{
+					char *buf = (char *)mem_get(0x200);
+					fd32_drive_read('A'+r->h.bl-1, buf, 0, 1);
+
+					if (r->x.cx == 0x0860) { /* disk drive */
+						tBPB *dest = (tBPB *)((r->x.ds<<4)+r->x.dx+/* Skip bytes */7);
+						/* Copy a standard BPB */
+						memcpy(dest, buf+0x0B, sizeof(tBPB)-4*sizeof(DWORD));
+					} else if (r->x.cx == 0x4860) { /* FAT32 disk drive */
+						tBPB *dest = (tBPB *)((r->x.ds<<4)+r->x.dx+/* Skip bytes */7);
+						/* Copy a extended BPB */
+						memcpy(dest, buf+0x0B, sizeof(tBPB));
+					}
+
+					mem_free((DWORD)buf, 0x200);
+					res = 0;
+					fd32_log_printf("[DPMI] INT 21H AX=0x%x not completed!\n", r->x.ax);
 					break;
+				}
 				default:
+					fd32_log_printf("[DPMI] INT 21H AX=0x%x BX=0x%x CX=0x%x\n", r->x.ax, r->x.bx, r->x.cx);
 					res = -ENOSYS; /* Invalid subfunction */
 					break;
 			}

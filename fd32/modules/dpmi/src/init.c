@@ -12,12 +12,13 @@
 #include <exec.h>
 #include <kernel.h>
 #include "dpmiexc.h"
-#include "dos_exec.h"
+#include "dosexec.h"
 
 extern void chandler(DWORD intnum, struct registers r);
 extern WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel);
 extern int _mousebios_init(void);
 extern void _vga_init(void);
+extern void _drive_init(void);
 extern void restore_psp(void);
 extern int use_lfn;
 #ifdef ENABLE_BIOSVGA
@@ -107,6 +108,7 @@ void DPMI_init(process_info_t *pi)
   l1_int_bind(0x10, chandler);
   l1_int_bind(0x16, chandler);
   l1_int_bind(0x21, chandler);
+  l1_int_bind(0x25, chandler);
   l1_int_bind(0x2A, chandler); /* Network */
   l1_int_bind(0x2F, chandler);
   l1_int_bind(0x31, chandler);
@@ -114,5 +116,6 @@ void DPMI_init(process_info_t *pi)
 
   _mousebios_init();
   _vga_init();
+  _drive_init();
   message("DPMI installed.\n");
 }

@@ -82,6 +82,10 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
         res = videobios_int(r1);
       return res;
 
+    case 0x13:
+      res = dpmi_rmint_to_bios(0x13, r1);
+      return res;
+
     case 0x15:
       res = dpmi_rmint_to_bios(0x10, r1);
       return res;
@@ -108,6 +112,32 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
                       r1->x.si, r1->x.di, r1->x.ds, r1->x.es);
 #endif
       return 0;
+
+    case 0x25:
+    {
+      struct __attribute__ ((packed)) {
+        DWORD sector_no;
+        WORD sector_count;
+        DWORD transfer_addr;
+      } *pdisk_packet = (void *)((r1->x.ds<<4)+r1->x.bx);
+      void *transfer_addr = (void *)((pdisk_packet->transfer_addr>>12)+(pdisk_packet->transfer_addr&0x00FF));
+      
+      int fd32_drive_read(char Drive, void *buffer, QWORD start, DWORD count);
+      return fd32_drive_read ('A'+r1->h.al, transfer_addr, pdisk_packet->sector_no, pdisk_packet->sector_count);
+    }
+
+    case 0x26:
+    {
+      struct __attribute__ ((packed)) {
+        DWORD sector_no;
+        WORD sector_count;
+        DWORD transfer_addr;
+      } *pdisk_packet = (void *)((r1->x.ds<<4)+r1->x.bx);
+      void *transfer_addr = (void *)((pdisk_packet->transfer_addr>>12)+(pdisk_packet->transfer_addr&0x00FF));
+   
+      int fd32_drive_write(char Drive, void *buffer, QWORD start, DWORD count);
+      return fd32_drive_write ('A'+r1->h.al, transfer_addr, pdisk_packet->sector_no, pdisk_packet->sector_count);
+    }
 
     case 0x28:
       res = dosidle_int(r1);
