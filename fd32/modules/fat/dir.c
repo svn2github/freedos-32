@@ -246,7 +246,8 @@ static int fetch_lfn(const Channel *c, LookupData *lud)
 		/* This loop extracts wide characters parsing UTF-16 */
 		for (j = 0; j < LFN_CHARS_PER_SLOT; j++)
 		{
-			uint16_t c = *((uint16_t *) ((uint8_t *) slot + lfn_chars[j]));
+			uint16_t c = *((uint8_t *) slot + lfn_chars[j]);
+			c |= ((uint16_t) *((uint8_t *) slot + lfn_chars[j] + 1)) << 8;
 			if (!semi)
 			{
 				wc = (wchar_t) c;
