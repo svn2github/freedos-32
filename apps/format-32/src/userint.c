@@ -147,28 +147,28 @@ void Confirm_Hard_Drive_Formatting(int format) /* 0 unformat, 1 format */
 
 	/* Get keypress and echo */
 
-	regs.h.al = toupper(getch());
+	regs.h.al = toupper(getche());
 	if ( regs.h.al != 'Y' )
 	{
 		putchar('\n');
 		Exit(5,10);	/* no Y confirm */
 	}
 
-	regs.h.al = toupper(getch());
+	regs.h.al = toupper(getche());
 	if ( regs.h.al != 'E' )
 	{
 		printf("\nYou have to type the whole word YES to confirm.");
 		Exit(5,11); /* no YE confirm */
 	}
 
-	regs.h.al = toupper(getch());
+	regs.h.al = toupper(getche());
 	if ( regs.h.al != 'S' )
 	{
 		printf("\nYou have to type the whole word YES to confirm.");
 		Exit(5,12); /* no YES confirm */
 	}
 
-	regs.h.al = toupper(getch()); /* (usually the ENTER after YES - accept anything here) */
+	regs.h.al = getch(); /* (usually the ENTER after YES - accept anything here) */
 	putchar('\n'); /* enter is only \r, so we still need the \n ... */
 }
 
