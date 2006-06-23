@@ -1134,8 +1134,8 @@ void dos21_int(union rmregs *r)
 					if (res < 0) {
 						res = -EBADF;
 					} else {
-						r->x.ax = res;
-						r->x.dx = r->x.ax;
+						r->x.dx = res;
+						r->x.ax = 0x0; /* No error! */
 					}
 					break;
 				case 0x09:
@@ -1159,6 +1159,7 @@ void dos21_int(union rmregs *r)
 
 					mem_free((DWORD)buf, 0x200);
 					res = 0;
+					r->x.ax = 0x0; /* No error! */
 					fd32_log_printf("[DPMI] INT 21H AX=0x%x not completed!\n", r->x.ax);
 					break;
 				}
@@ -1417,7 +1418,7 @@ void dos21_int(union rmregs *r)
 			break;
 		}
 		case 0xFF:
-			LOG_PRINTF(("DOS/4GW - API ... AX: %x\n", r->x.ax));
+			LOG_PRINTF(("DOS/4GW - API ... AX: 0x%x\n", r->x.ax));
 			if (r->h.al == 0x88) {
 				r->d.eax = 0x49443332; /* ID32 */
 				r->d.ebx = 0xFD32;
@@ -1425,7 +1426,7 @@ void dos21_int(union rmregs *r)
 			break;
 		/* Unsupported or invalid functions */
 		default:
-			fd32_log_printf("[DPMI] Unsupported int21 %x\n", r->x.ax);
+			fd32_log_printf("[DPMI] Unsupported INT 21H AX = 0x%x\n", r->x.ax);
 			res = -ENOTSUP;
 			break;
 	}
