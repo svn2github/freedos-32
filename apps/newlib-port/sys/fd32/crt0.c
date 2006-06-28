@@ -8,6 +8,11 @@ static char *environ[1] = {0};
 
 extern int main(int argc,char **argv,char **envp);
 
+int __main(void)
+{
+	return 0;
+}
+
 void libc_init(struct process_info *pi)
 {
   int ret;

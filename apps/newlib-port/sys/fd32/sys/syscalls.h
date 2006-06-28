@@ -7,6 +7,8 @@
 #define FD32_FAALL    0x3F
 #define FD32_FRNONE   0x00
 #define FD32_ARDONLY  0x01
+
+#define FD32_PAGE_SIZE 0x1000
  
 typedef struct fd32_date 
 {
