@@ -7,7 +7,7 @@ endif
 
 include config.mk
 
-OBJS = execve.o exit.o io.o isatty.o sbrk.o stubs.o unlink.o time.o
+OBJS = execve.o exit.o io.o isatty.o sbrk.o stubs.o unlink.o time.o sysconf.o
 # Add the mapping of the syscalls to c names
 C_OPT += -D_close=close \
 		-D_execve=execve \
