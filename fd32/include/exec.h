@@ -17,7 +17,6 @@
 
 /* Kernel Process management */
 typedef struct process_info {
-  struct process_info *prev;
   DWORD type;
   void *psp;		/* Optional DOS PSP */
   void *cds_list;	/* Under DOS this is a global array */
@@ -29,8 +28,6 @@ typedef struct process_info {
   void *cpu_context; /* CPU context for switching to another process */
 } process_info_t;
 
-process_info_t *fd32_get_current_pi(void);
-void fd32_set_current_pi(process_info_t *ppi);
 int fd32_get_argv(char *filename, char *args, char ***_pargv);
 int fd32_unget_argv(int _argc, char *_argv[]); /* Recover the original args and free the argv */
 
@@ -51,7 +48,13 @@ typedef union process_params {
     WORD sp;
   } vm86;
 } process_params_t;
-int fd32_create_process(process_info_t *ppi, process_params_t *pparams);
+
+
+process_info_t *fd32_get_current_pi(void);
+void fd32_set_current_pi(process_info_t *ppi);
+process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_size);
+int fd32_start_process(process_info_t *ppi, process_params_t *pparams);
+void fd32_stop_process(process_info_t *ppi);
 int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args);
 DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *exec_space, DWORD *image_base, DWORD *size);
 

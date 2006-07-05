@@ -1,7 +1,7 @@
 /* FD/32 Process Creation routines
  *
  * Copyright (C) 2002-2005 by Luca Abeni
- * Copyright (C) 2005 by Hanzac Chen
+ * Copyright (C) 2005-2006 by Hanzac Chen
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,18 +27,23 @@
 #include "kmem.h"
 #include "exec.h"
 #include "kernel.h"
+#include "list.h"
 
 /* #define __PROCESS_DEBUG__ */
 
-WORD kern_CS, kern_DS;
-
-/* TODO: # Environ variables management
-*/
 
 /* extern DWORD current_SP; */
 /* Top/kernel process info */
-static process_info_t top_P = { NULL, NULL, NULL, NULL, 0, "fd32.bin", NULL, 0, NULL };
-static process_info_t *cur_P = &top_P;
+static struct
+{
+  ListItem item;
+  process_info_t pi;
+} top = {
+  { NULL, NULL },
+  { NULL, NULL, NULL, 0, "fd32.bin", NULL, 0, NULL },
+};
+static List process_list = { &top.item, &top.item, 1 };
+static process_info_t *cur_P = &top.pi;
 
 /* Gets the Current Directiry List for the current process. */
 /* Returns the pointer to the address of the first element. */
@@ -63,19 +68,46 @@ process_info_t *fd32_get_current_pi(void)
 
 void fd32_set_current_pi(process_info_t *ppi)
 {
-  ppi->prev = cur_P; /* TODO: The previous pi will be lost */
   cur_P = ppi;
 }
 
+process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_size)
+{
+  ListItem *p = (ListItem *)mem_get(sizeof(ListItem)+sizeof(process_info_t));
+  list_push_back(&process_list, p);
+  p++;
+  process_info_t *ppi = (process_info_t *)p;
+  ppi->type = NORMAL_PROCESS;
+  ppi->psp = NULL;
+  ppi->cds_list = NULL; /* Pointer set by FS */
+  ppi->args = args;
+  ppi->filename = filename;
+  ppi->memlimit = 0;
+
+  /* Sets the JFT for the current process. */
+  ppi->jft = fd32_init_jft(file_size);
+  ppi->jft_size = file_size;
+
+  /* Create the Job File Table */
+  /* TODO: Why!?!? Help me Luca!
+           For the moment I always create a new JFT */
+  /* if (npsp->link == NULL) Create new JFT
+     else Copy JFT from npsp->link->Jft
+  */
+  return ppi;
+}
+
 /* TODO: It's probably better to separate create_process and run_process... */
-int fd32_create_process(process_info_t *ppi, process_params_t *pparams)
+int fd32_start_process(process_info_t *ppi, process_params_t *pparams)
 {
   int res;
   /* from run.S */
   extern int dll_run(DWORD address);
   extern int run(DWORD address, WORD psp_sel, DWORD parm);
 
-  ppi->cds_list = NULL; /* Pointer set by FS */
+  /* TODO: New imp? */
+  cur_P = ppi;
+
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n", entry, size);
   message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", ppi->memlimit, base, size);
@@ -107,6 +139,21 @@ int fd32_create_process(process_info_t *ppi, process_params_t *pparams)
   return res;
 }
 
+void fd32_stop_process(process_info_t *ppi)
+{
+  ListItem *p = (ListItem *)ppi;
+  p--;
+
+  /* Set to a previous process */
+  p = p->prev;
+  if (p != NULL)
+    cur_P = (process_info_t *)++p;
+}
+
+/* TODO: # Environ variables management
+*/
+
+/* Process arguments management*/
 int fd32_get_argv(char *filename, char *args, char ***_pargv)
 {
   DWORD i;

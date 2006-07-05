@@ -217,7 +217,7 @@ void fd32_devices_engine_init(void)
 
   fd32_message("Going to install the Devices Engine...\n");
   for (k = 0; Symbols[k].Name; k++)
-    if (add_call(Symbols[k].Name, Symbols[k].Address, ADD) == -1)
+    if (fd32_add_call(Symbols[k].Name, Symbols[k].Address, ADD) == -1)
       fd32_message("Cannot add %s to the symbol table\n", Symbols[k].Name);
   fd32_message("Done\n");
 }

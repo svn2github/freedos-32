@@ -172,14 +172,14 @@ static int assign_drive_letters(void)
  * to the beginning of the path, removing the drive specification.
  * Returns a negative error code on failure.
  */
-int fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId, char **Path)
+int fd32_get_drive(const char *FileSpec, fd32_request_t **request, void **DeviceId, char **Path)
 {
 	int res;
 	int letter = DefaultDrive;
 	Drive *drive;
 	char *colon = strchr(FileSpec, ':');
 
-	if (Path) *Path = FileSpec;
+	if (Path) *Path = (char *)FileSpec;
 	if (colon)
 	{
 		if (colon != FileSpec + 1) return -ENODEV;

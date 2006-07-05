@@ -83,7 +83,6 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 
   if (tables.flags & (NEED_SECTION_RELOCATION|NEED_IMAGE_RELOCATION)) {
     int res;
-    void *kernel_symbols;
     int reloc_sections;
 
     if (tables.flags & NEED_SECTION_RELOCATION) {
@@ -99,7 +98,6 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] Start of local BSS: 0x%lx\n", tables.private_info);
 #endif
-    kernel_symbols = get_syscall_table();
     if (tables.flags & NEED_SECTION_RELOCATION) {
       reloc_sections = tables.num_sections;
     } else {
@@ -107,7 +105,7 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
     }
 
     for (i = 0 ; i < reloc_sections; i++) {
-      res = rf->relocate_section(kf, exec_space, &tables, tables.num_sections, sections, i, symbols, kernel_symbols);
+      res = rf->relocate_section(kf, exec_space, &tables, tables.num_sections, sections, i, symbols, NULL);
       if (res < 0) {
         error("Error: relocation failed!!!\n");
         /* TODO: Return code... */
@@ -177,7 +175,7 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 /* Read an executable in memory, and execute it... */
 int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args)
 {
-  process_info_t pi;
+  process_info_t *ppi;
   process_params_t params;
   int retval;
   int tsr = TRUE;
@@ -190,29 +188,28 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
     return -1;
   params.normal.fs_sel = 0;
 
-  pi.filename = filename;
-  pi.args = args;
+  ppi = fd32_new_process(filename, args, 0);
   if (exec_space == 0) {
-    pi.type = NORMAL_PROCESS;
+    ppi->type = NORMAL_PROCESS;
   } else if (exec_space == -1) {
-    pi.type = DLL_PROCESS;
+    ppi->type = DLL_PROCESS;
   } else {
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
 #endif
-    pi.type = NORMAL_PROCESS;
+    ppi->type = NORMAL_PROCESS;
     offset = exec_space - params.normal.base;
     params.normal.entry += offset;
     params.normal.base = exec_space;
     tsr = FALSE;
   }
 
-  fd32_set_current_pi(&pi);
-  retval = fd32_create_process(&pi, &params);
+  retval = fd32_start_process(ppi, &params);
   if (!tsr)
     mem_free(exec_space, params.normal.size);
   /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev);
+  fd32_stop_process(ppi);
+
 #ifdef __EXEC_DEBUG__
   message("Returned: %d!!!\n", retval);
 #endif

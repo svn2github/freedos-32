@@ -18,9 +18,8 @@
 
 int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info *tables, int n, struct section_info *s, int sect, struct symbol_info *syms, struct symbol *import)
 {
-  int i, idx;
+  unsigned int i, j, idx;
   DWORD address, destination;
-  int j, done;
   DWORD local_bss = tables->local_bss;
   struct reloc_info *rel = s[sect].reloc;
 
@@ -38,13 +37,7 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
         kf->log("Searching for symbol %s\n", syms[i].name);
 #endif
         /* Pre-set the external symbol at the same time */
-        for (j = 0, done = 0; import[j].name != 0; j++)
-          if (strcmp(import[j].name, syms[i].name) == 0) {
-            syms[i].offset = import[j].address;
-            done = 1;
-            break;
-          }
-        if (done == 0) {
+        if ((syms[i].offset = fd32_get_call(syms[i].name)) == 0) {
           kf->message("Symbol %s not found\n", syms[i].name);
           return -1;
         }

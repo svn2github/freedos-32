@@ -103,6 +103,8 @@ void args_parse(int argc, char *argv[])
   }
 }
 
+WORD kern_CS, kern_DS;
+
 int main (int argc, char *argv[])
 {
 #ifdef __BOOT_DEBUG__

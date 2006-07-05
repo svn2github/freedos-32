@@ -26,15 +26,6 @@
 
 #define ENV_SIZE 0x100
 
-/* Sets the JFT for the current process. */
-static void local_set_psp_jft(process_info_t *ppi, struct psp *ppsp, void *Jft, int JftSize)
-{
-  if (Jft == NULL)
-    Jft = fd32_init_jft(MAX_OPEN_FILES);
-  ppi->jft_size = ppsp->ps_maxfiles = JftSize;
-  ppi->jft = ppsp->ps_filetab = Jft;
-}
-
 static void local_set_psp_commandline(struct psp *ppsp, char *args)
 {
   if (args != NULL) {
@@ -73,14 +64,6 @@ static void local_set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, W
   ppsp->dta = &ppsp->command_line_len;
   /* And now... Set the arg list!!! */
   local_set_psp_commandline(ppsp, args);
-
-  /* Create the Job File Table */
-  /* TODO: Why!?!? Help me Luca!
-           For the moment I always create a new JFT */
-  /* if (npsp->link == NULL) Create new JFT
-     else Copy JFT from npsp->link->Jft
-  */
-  local_set_psp_jft(ppi, ppsp, NULL, MAX_OPEN_FILES);
 
   /* Find the end of the env list */
   for (i = 0; env_data[i] || env_data[i+1]; i++);
@@ -346,7 +329,7 @@ static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, 
 static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
-  process_info_t pi;
+  process_info_t *ppi;
   int retval;
   DWORD stack_mem;
   DWORD size, exec_space, entry, base;
@@ -360,22 +343,20 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
     return -1;
   }
 
-  /* Set process information */
-  pi.filename = filename;
-  pi.args = args;
-  pi.cds_list = NULL;
-  pi.memlimit = base + size;
+  /* Create and set process information */
+  ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
+  ppi->memlimit = base + size;
 
   dpmi_stack = 0; /* Disable the stack switch in chandler */
   dpmi_stack_top = 0xFFFFFFFF;
 
   stack_mem = mem_get(DPMI_STACK_SIZE);
   /* Note: use the real entry */
-  fd32_set_current_pi(&pi);
-  retval = wrapper_create_process(&pi, entry, exec_space, size,
+  fd32_set_current_pi(ppi);
+  retval = wrapper_create_process(ppi, entry, exec_space, size,
 		stack_mem+DPMI_STACK_SIZE, filename, args);
   /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev);
+  fd32_stop_process(ppi);
   message("Returned: %d!!!\n", retval);
 
   mem_free(stack_mem, DPMI_STACK_SIZE);
@@ -388,7 +369,7 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
 static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
-  process_info_t pi;
+  process_info_t *ppi;
   process_params_t params;
   int retval;
   int tsr = TRUE;
@@ -401,19 +382,18 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
   }
   params.normal.fs_sel = 0;
 
-  pi.filename = filename;
-  pi.args = args;
+  ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
 
   if (exec_space == 0) {
-    pi.type = NORMAL_PROCESS;
+    ppi->type = NORMAL_PROCESS;
   } else if (exec_space == -1) {
-    pi.type = DLL_PROCESS;
+    ppi->type = DLL_PROCESS;
   } else {
-    pi.type = NORMAL_PROCESS;
+    ppi->type = NORMAL_PROCESS;
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", params.normal.entry);
 #endif
-    if ((retval = _local_go32_init(&pi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
+    if ((retval = _local_go32_init(ppi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
       return -1;
     offset = exec_space - params.normal.base;
     params.normal.entry += offset;
@@ -424,10 +404,9 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 
   dpmi_stack = 0; /* Disable the stack switch in chandler */
   dpmi_stack_top = 0xFFFFFFFF;
-  fd32_set_current_pi(&pi);
-  retval = fd32_create_process(&pi, &params);
+  retval = fd32_start_process(ppi, &params);
   /* Back to the previous process NOTE: TSR native programs? */
-  fd32_set_current_pi(pi.prev);
+  fd32_stop_process(ppi);
 
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
@@ -443,7 +422,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
 		char *filename, char *args)
 {
-  process_info_t pi;
+  process_info_t *ppi;
   process_params_t params;
   struct dos_header hdr;
   struct psp *ppsp;
@@ -502,34 +481,33 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   in.x.di = hdr.e_sp;
   in.x.si = hdr.e_ip;
   fd32_log_printf("[DPMI] ES: %x DS: %x IP: %x\n", s.es, s.ds, hdr.e_ip);
-  local_set_psp(&pi, ppsp, exec_seg+exec_size, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
-  pi.filename = filename;
-  pi.args = args;
-  pi.type = VM86_PROCESS;
-  pi.cpu_context = (void *)mem_get(sizeof(struct tss));
+  ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
+  local_set_psp(ppi, ppsp, exec_seg+exec_size, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
+  ppi->type = VM86_PROCESS;
+  ppi->cpu_context = (void *)mem_get(sizeof(struct tss));
   params.vm86.ip = hdr.e_ip;
   params.vm86.sp = hdr.e_sp;
   params.vm86.in_regs = &in;
   params.vm86.out_regs = &out;
   params.vm86.seg_regs = &s;
-  params.vm86.prev_cpu_context = pi.cpu_context;
+  params.vm86.prev_cpu_context = ppi->cpu_context;
   /* Use the new dpmi stack */
   pre_stack_mem = dpmi_stack;
   stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   /* NOTE: Set the current process info */
-  fd32_set_current_pi(&pi);
+  fd32_set_current_pi(ppi);
   /* Call in VM86 mode */
-  out.x.ax = fd32_create_process(&pi, &params);
+  out.x.ax = fd32_start_process(ppi, &params);
   /* Back to the previous process */
-  fd32_set_current_pi(pi.prev);
+  fd32_stop_process(ppi);
   /* Restore the previous stack */
   dpmi_stack = pre_stack_mem;
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   mem_free(stack_mem, DPMI_STACK_SIZE);
-  mem_free((DWORD)pi.cpu_context, sizeof(struct tss));
+  mem_free((DWORD)ppi->cpu_context, sizeof(struct tss));
 
-  if (!(pi.type & RESIDENT))
+  if (!(ppi->type & RESIDENT))
     dos_free(load_seg);
 
   return out.x.ax; /* Return value */
