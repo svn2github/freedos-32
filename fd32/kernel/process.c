@@ -123,7 +123,7 @@ int fd32_start_process(process_info_t *ppi, process_params_t *pparams)
   fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n", entry, size);
   message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", ppi->memlimit, base, size);
 #endif
-  switch (ppi->type) {
+  switch (ppi->type&0x00FF) {
     case NORMAL_PROCESS:
       ppi->memlimit = pparams->normal.base + pparams->normal.size;
       res = run(pparams->normal.entry, pparams->normal.fs_sel, (DWORD)/*args*/ppi);

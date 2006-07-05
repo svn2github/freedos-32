@@ -9,6 +9,10 @@ void _exit(int res)
   fd32_log_printf("[DPMI] Return to DOS: return code 0x%x\n", res);
   fd32_log_printf("Current stack: 0x%lx\n", get_sp());
 #endif
+
+  /* Free sbrk mem track */
+  extern void sbrk_mem_clear_up();
+  sbrk_mem_clear_up();
   /* Free the JFT */
   fd32_free_jft(ppi->jft, ppi->jft_size);
 

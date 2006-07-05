@@ -32,7 +32,6 @@ fd32_time_t;
  * from fd32/include/kernel.h
  */
 typedef struct process_info {
-  struct process_info *prev;
   uint32_t type;
   void *psp;		/* Optional DOS PSP */
   void *cds_list;	/* Under DOS this is a global array */

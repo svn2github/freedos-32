@@ -372,23 +372,13 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
   process_info_t *ppi;
   process_params_t params;
   int retval;
-  int tsr = TRUE;
   DWORD exec_space;
   DWORD offset;
 
   params.normal.entry = fd32_load_process(kf, f, rf, &exec_space, &params.normal.base, &params.normal.size);
-  if (params.normal.entry == -1) {
-    return -1;
-  }
-  params.normal.fs_sel = 0;
 
-  ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
-
-  if (exec_space == 0) {
-    ppi->type = NORMAL_PROCESS;
-  } else if (exec_space == -1) {
-    ppi->type = DLL_PROCESS;
-  } else {
+  if (params.normal.entry != -1 && exec_space != 0 && exec_space != -1) {
+  	ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
     ppi->type = NORMAL_PROCESS;
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", params.normal.entry);
@@ -399,24 +389,23 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
     params.normal.entry += offset;
     params.normal.base = exec_space;
     params.normal.fs_sel = retval;
-    tsr = FALSE;
-  }
-
-  dpmi_stack = 0; /* Disable the stack switch in chandler */
-  dpmi_stack_top = 0xFFFFFFFF;
-  retval = fd32_start_process(ppi, &params);
-  /* Back to the previous process NOTE: TSR native programs? */
-  fd32_stop_process(ppi);
-
+    /* Disable the stack switch in chandler */
+    dpmi_stack = 0;
+    dpmi_stack_top = 0xFFFFFFFF;
+    retval = fd32_start_process(ppi, &params);
+    /* Back to the previous process NOTE: TSR native programs? */
+    fd32_stop_process(ppi);
 #ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
+    fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
 #endif
-  if (!tsr) {
-    restore_psp();
-    mem_free(exec_space, params.normal.size);
+    if (!(ppi->type&RESIDENT)) {
+      restore_psp();
+      mem_free(exec_space, params.normal.size);
+    }
+    return retval;
+  } else {
+    return fd32_exec_process(kf, f, rf, filename, args);
   }
-
-  return retval;
 }
 
 static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,

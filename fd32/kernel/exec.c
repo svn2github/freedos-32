@@ -119,7 +119,7 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
   /* The size of the execution space */
   *ex_size = size;
 
-  if (tables.flags & NO_ENTRY) { 
+  if (tables.flags & NO_ENTRY) {
     int init_sect;
     /* No entry point... We assume that we need dynamic linking */	 
 #ifdef __EXEC_DEBUG__
@@ -178,7 +178,6 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
   process_info_t *ppi;
   process_params_t params;
   int retval;
-  int tsr = TRUE;
   DWORD exec_space;
   DWORD offset;
 
@@ -190,9 +189,11 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
 
   ppi = fd32_new_process(filename, args, 0);
   if (exec_space == 0) {
-    ppi->type = NORMAL_PROCESS;
+    ppi->type = NORMAL_PROCESS|RESIDENT;
+    exec_space = params.normal.base; /* TODO: Redesign a better way */
   } else if (exec_space == -1) {
-    ppi->type = DLL_PROCESS;
+    ppi->type = DLL_PROCESS|RESIDENT;
+    exec_space = params.normal.base; /* TODO: ... */
   } else {
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
@@ -201,11 +202,10 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
     offset = exec_space - params.normal.base;
     params.normal.entry += offset;
     params.normal.base = exec_space;
-    tsr = FALSE;
   }
 
   retval = fd32_start_process(ppi, &params);
-  if (!tsr)
+  if (!(ppi->type&RESIDENT))
     mem_free(exec_space, params.normal.size);
   /* Back to the previous process NOTE: TSR native programs? */
   fd32_stop_process(ppi);

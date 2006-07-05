@@ -352,17 +352,13 @@ void attrib_init(struct process_info *pi)
     char *args;
     int res;
     args = pi-> args;
-    /* This is a hack to compensate for a bug in the kernel */
-    char c = '\0';
-    if((DWORD)args <100)
-        args = &c;
 
-#if 0
-    while(*args != ' ' && *args != 0)
-        args++;
-#endif
     while(*args == ' ')
         args++;
+
+    /* Make it a normal native program (not a resident module) */
+    pi->type &= ~RESIDENT;
+
     pi->jft_size = MAX_DEPTH + 12;
     pi->jft = fd32_init_jft(MAX_DEPTH + 12);
     res = process(args);
