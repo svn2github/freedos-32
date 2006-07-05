@@ -144,6 +144,41 @@ int isnan(double x)
   return (isspecial(x) == 1);
 }
 
+typedef union 
+{
+  double value;
+  struct 
+  {
+    uint32_t msw;
+    uint32_t lsw;
+  } parts;
+} ieee_double_shape_type;
+
+double nan(const char *unused)
+{
+  ieee_double_shape_type x;
+  
+  x.parts.msw = 0x7ff80000;
+  x.parts.lsw = 0x0;
+
+  return x.value;
+}
+
+typedef union
+{
+  float value;
+  uint32_t word;
+} ieee_float_shape_type;
+
+float nanf(const char *unused)
+{
+  ieee_float_shape_type x;
+
+  x.word = 0x7fc00000;
+
+  return x.value;
+}
+
 void winbase_init(void)
 {
   message("Initing WINB module ...\n");

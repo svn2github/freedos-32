@@ -65,9 +65,9 @@ static WINOLEAUTAPI_(UINT) fd32_imp__SysStringByteLen(BSTR bstr)
 
 static char oleaut32_name[] = "oleaut32.dll";
 static struct symbol oleaut32_symarray[] = {
-  {"SysAllocStringByteLen",       (uint32_t)fd32_imp__SysAllocStringByteLen},
-  {"SysFreeString",               (uint32_t)fd32_imp__SysFreeString},
-  {"SysStringByteLen",            (uint32_t)fd32_imp__SysStringByteLen}
+  {"SysAllocStringByteLen",       fd32_imp__SysAllocStringByteLen},
+  {"SysFreeString",               fd32_imp__SysFreeString},
+  {"SysStringByteLen",            fd32_imp__SysStringByteLen}
 };
 static uint32_t oleaut32_symnum = sizeof(oleaut32_symarray)/sizeof(struct symbol);;
 

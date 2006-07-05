@@ -26,7 +26,7 @@ static BOOL WINAPI fd32_imp__MessageBeep(UINT uType)
 
 static char user32_name[] = "user32.dll";
 static struct symbol user32_symarray[] = {
-  {"MessageBeep",                 (uint32_t)fd32_imp__MessageBeep}
+  {"MessageBeep",                 fd32_imp__MessageBeep}
 };
 static uint32_t user32_symnum = sizeof(user32_symarray)/sizeof(struct symbol);;
 

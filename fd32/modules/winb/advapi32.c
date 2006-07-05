@@ -49,8 +49,8 @@ static LONG WINAPI fd32_imp__RegCloseKey(HKEY hKey)
 
 static char advapi32_name[] = "advapi32.dll";
 static struct symbol advapi32_symarray[] = {
-  {"RegOpenKeyExA",               (uint32_t)fd32_imp__RegOpenKeyExA},
-  {"RegCloseKey",                 (uint32_t)fd32_imp__RegCloseKey}
+  {"RegOpenKeyExA",               fd32_imp__RegOpenKeyExA},
+  {"RegCloseKey",                 fd32_imp__RegCloseKey}
 };
 static uint32_t advapi32_symnum = sizeof(advapi32_symarray)/sizeof(struct symbol);;
 

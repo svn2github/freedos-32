@@ -18,7 +18,7 @@
  */
 struct symbol {
   char *name;
-  uint32_t address;
+  void *address;
 };
 
 /* Kernel process management
