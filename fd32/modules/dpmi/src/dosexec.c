@@ -495,8 +495,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   pre_stack_mem = dpmi_stack;
   stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
-  /* NOTE: Set the current process info */
-  fd32_set_current_pi(ppi);
   /* Call in VM86 mode */
   out.x.ax = fd32_start_process(ppi, &params);
   /* Back to the previous process */

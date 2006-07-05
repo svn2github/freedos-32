@@ -52,6 +52,7 @@ typedef union process_params {
 
 process_info_t *fd32_get_current_pi(void);
 void fd32_set_current_pi(process_info_t *ppi);
+void fd32_set_previous_pi(process_info_t *ppi);
 process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_size);
 int fd32_start_process(process_info_t *ppi, process_params_t *pparams);
 void fd32_stop_process(process_info_t *ppi);

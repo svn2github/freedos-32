@@ -293,6 +293,7 @@ static struct symbol syscall_table[] = {
   { "fd32_new_process",    fd32_new_process },
   { "fd32_get_current_pi", fd32_get_current_pi },
   { "fd32_set_current_pi", fd32_set_current_pi },
+  { "fd32_set_previous_pi", fd32_set_previous_pi },
   { "fd32_get_argv",       fd32_get_argv },
   { "fd32_unget_argv",     fd32_unget_argv },
   { "fd32_kernel_open",    fd32_kernel_open },

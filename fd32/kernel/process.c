@@ -71,6 +71,17 @@ void fd32_set_current_pi(process_info_t *ppi)
   cur_P = ppi;
 }
 
+void fd32_set_previous_pi(process_info_t *ppi)
+{
+  ListItem *p = (ListItem *)ppi;
+  p--;
+
+  /* Set to a previous process */
+  p = p->prev;
+  if (p != NULL)
+    cur_P = (process_info_t *)++p;
+}
+
 process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_size)
 {
   ListItem *p = (ListItem *)mem_get(sizeof(ListItem)+sizeof(process_info_t));
@@ -145,9 +156,11 @@ void fd32_stop_process(process_info_t *ppi)
   p--;
 
   /* Set to a previous process */
-  p = p->prev;
-  if (p != NULL)
-    cur_P = (process_info_t *)++p;
+  if (p->prev != NULL)
+    cur_P = (process_info_t *)(p->prev+1);
+
+  list_erase(&process_list, p);
+  mem_free(p, sizeof(ListItem)+sizeof(process_info_t));
 }
 
 /* TODO: # Environ variables management
