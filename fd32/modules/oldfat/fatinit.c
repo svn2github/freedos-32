@@ -31,7 +31,7 @@
 /* TODO: Include the file cleanly */
 #define SUBSTITUTE 1
 #define ADD 0
-int add_call(char *name, DWORD address, int mode);
+int fd32_add_call(char *name, void *address, int mode);
 
 /* FAT Driver entry point. Called by the FD32 kernel. */
 int fat_init()
@@ -41,7 +41,7 @@ int fat_init()
   /* Register the FAT Driver to the File System Layer */
   if ((Res = fd32_add_fs(fat_request)) < 0) return Res;
   /* Register the FAT Driver request function to the kernel symbol table */
-  if (add_call("fat_request", (DWORD) fat_request, ADD) == -1)
+  if (fd32_add_call("fat_request", fat_request, ADD) == -1)
   {
     fd32_message("Couldn't add 'fat_request' to the symbol table\n");
     return -ENOMEM; /* TODO: Check if ENOMEM is true... */

@@ -15,10 +15,10 @@ int date_read();
 void cmos_init(void)
 {
   message("Going to install CMOS driver...\n");
-  if(add_call("fd32_get_time", (DWORD)time_read, SUBSTITUTE) == -1) {
+  if(fd32_add_call("fd32_get_time", time_read, SUBSTITUTE) == -1) {
     fd32_error("Cannot find fd32_get_time in system call table...\n");
   }
-  if(add_call("fd32_get_date", (DWORD)date_read, SUBSTITUTE) == -1) {
+  if(fd32_add_call("fd32_get_date", date_read, SUBSTITUTE) == -1) {
     fd32_error("Cannot find fd32_get_date in system call table...\n");
   }
 

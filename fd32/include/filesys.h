@@ -231,12 +231,22 @@ int  fd32_rmdir            (char *DirName);
 
 /* DRIVES.C - Drives management functions */
 int  fd32_add_fs(fd32_request_t *request);
-int  fd32_get_drive(char *FileSpec, fd32_request_t **request, void **DeviceId,
+int  fd32_get_drive(const char *FileSpec, fd32_request_t **request, void **DeviceId,
                     char **Path);
 int  fd32_set_default_drive(char Drive);
 char fd32_get_default_drive();
 void fd32_set_boot_device  (DWORD MultiBootId);
 char fd32_get_drive_letter (char *device_name);
+
+int fd32_drive_read(char Drive, void *buffer, QWORD start, DWORD count);
+int fd32_drive_write(char Drive, void *buffer, QWORD start, DWORD count);
+unsigned int fd32_drive_get_sector_size(char Drive);
+unsigned int fd32_drive_get_sector_count(char Drive);
+unsigned int fd32_drive_count(void);
+char fd32_drive_get_first(void);
+char fd32_drive_get_next(char Drive);
+void fd32_drive_set_parameter_block(char Drive, void *p);
+void *fd32_drive_get_parameter_block(char Drive);
 
 /* FS.C - File system functions */
 int fd32_get_dev_info(int fd);

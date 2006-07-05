@@ -243,7 +243,7 @@ int iso9660_init()
 	res = fd32_add_fs(iso9660_request);
 	if (res < 0) return res;
 	/* Register the driver request function to the kernel symbol table */
-	if (add_call("iso9660_request", (DWORD) iso9660_request, ADD) == -1)
+	if (fd32_add_call("iso9660_request", iso9660_request, ADD) == -1)
 	{
 			fd32_message("[ISO 9660] Couldn't add 'iso9660_request' to the symbol table\n");
 		return -ENOMEM;

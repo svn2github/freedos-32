@@ -27,8 +27,8 @@ void kernel_init();
 
 #define SUBSTITUTE 1
 #define ADD 0
-void *get_syscall_table(void);
-int add_call(char *name, DWORD address, int mode);
+int fd32_add_call(const char *name, void *address, int mode);
+void *fd32_get_call(const char *name);
 
 int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol *symbol_table);
 struct dll_table *get_dll_table(char *dll_name);

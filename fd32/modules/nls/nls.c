@@ -234,11 +234,11 @@ static struct nls_code_page iso8859_1_cp =
 
 #include <kernel.h>
 #include <ll/i386/error.h>
-static const struct { /*const*/ char *name; DWORD address; } symbols[] =
+static const struct { /*const*/ char *name; void *address; } symbols[] =
 {
-	{ "nls_get",        (DWORD) nls_get        },
-	{ "nls_register",   (DWORD) nls_register   },
-	{ "nls_unregister", (DWORD) nls_unregister },
+	{ "nls_get",        nls_get        },
+	{ "nls_register",   nls_register   },
+	{ "nls_unregister", nls_unregister },
 	{ 0, 0 }
 };
 
@@ -248,7 +248,7 @@ void nls_init(void)
 	int k;
 	message("Going to install the NLS Manager... ");
 	for (k = 0; symbols[k].name; k++)
-		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
+		if (fd32_add_call(symbols[k].name, symbols[k].address, ADD) == -1)
 			message("Cannot add %s to the symbol table\n", symbols[k].name);
 	k = nls_register(&default_cp);
 	if (k < 0) message("Error %i registering the default code page\n", k);

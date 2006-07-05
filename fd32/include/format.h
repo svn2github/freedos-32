@@ -84,8 +84,8 @@ struct section_info {
 
 /* Only used for ``import'' symbols... */
 struct symbol {
-  char *name;
-  DWORD address;
+  const char *name;
+  void *address;
 };
 
 /** \struct dll_table */

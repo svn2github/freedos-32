@@ -320,7 +320,7 @@ int fat_init()
 	res = fd32_add_fs(fat_request);
 	if (res < 0) return res;
 	/* Register the FAT Driver request function to the kernel symbol table */
-	if (add_call("fat_request", (DWORD) fat_request, ADD) == -1)
+	if (fd32_add_call("fat_request", fat_request, ADD) == -1)
 	{
 		fd32_message("[FAT2] Couldn't add 'fat_request' to the symbol table\n");
 		return -ENOMEM;

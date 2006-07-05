@@ -224,12 +224,12 @@ int block_unregister(const char *name)
 
 #include <kernel.h>
 #include <ll/i386/error.h>
-static const struct { /*const*/ char *name; DWORD address; } symbols[] =
+static const struct { const char *name; void *address; } symbols[] =
 {
-	{ "block_enumerate",  (DWORD) block_enumerate  },
-	{ "block_get",        (DWORD) block_get        },
-	{ "block_register",   (DWORD) block_register   },
-	{ "block_unregister", (DWORD) block_unregister },
+	{ "block_enumerate",  block_enumerate  },
+	{ "block_get",        block_get        },
+	{ "block_register",   block_register   },
+	{ "block_unregister", block_unregister },
 	{ 0, 0 }
 };
 
@@ -240,7 +240,7 @@ void block_init(void)
 	int k;
 	message("Going to install the Block Device Manager... ");
 	for (k = 0; symbols[k].name; k++)
-		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
+		if (fd32_add_call(symbols[k].name, symbols[k].address, ADD) == -1)
 			message("Cannot add %s to the symbol table\n", symbols[k].name);
 	message("Done\n");
 }

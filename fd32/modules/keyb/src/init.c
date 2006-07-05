@@ -187,11 +187,11 @@ void keyb_init(process_info_t *pi)
 	/* Ctrl+M print memory dump */
 	keyb_hook(0x32, 1, 0, (DWORD)mem_dump);
 	fd32_message("Installing new call keyb_read...\n");
-	if (add_call("keyb_read", (DWORD)keyb_read, ADD) == -1) {
+	if (fd32_add_call("keyb_read", keyb_read, ADD) == -1) {
 		fd32_error("Failed to install a new kernel call!!!\n");
 	}
 	fd32_message("Installing new call keyb_hook...\n");
-	if (add_call("keyb_hook", (DWORD)keyb_hook, ADD) == -1) {
+	if (fd32_add_call("keyb_hook", keyb_hook, ADD) == -1) {
 		fd32_error("Failed to install a new kernel call!!!\n");
 	}
 	fd32_message("Registering...\n");

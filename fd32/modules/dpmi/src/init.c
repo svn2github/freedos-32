@@ -48,9 +48,9 @@ void DPMI_init(process_info_t *pi)
   char **argv;
   int argc = fd32_get_argv(pi->filename, pi->args, &argv);
 
-  if (add_call("stubinfo_init", (DWORD)_stubinfo_init, ADD) == -1)
+  if (fd32_add_call("stubinfo_init", _stubinfo_init, ADD) == -1)
     message("Cannot add stubinfo_init to the symbol table\n");
-  if (add_call("restore_psp", (DWORD)restore_psp, ADD) == -1)
+  if (fd32_add_call("restore_psp", restore_psp, ADD) == -1)
     message("Cannot add restore_psp to the symbol table\n");
 
   use_lfn = 1;

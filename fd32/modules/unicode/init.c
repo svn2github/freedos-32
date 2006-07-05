@@ -23,15 +23,15 @@
 #include <kernel.h>
 #include <ll/i386/error.h>
 
-static struct { char *name; uint32_t address; } symbols[] =
+static struct { char *name; void *address; } symbols[] =
 {
-	{ "unicode_utf8len",     (uint32_t) unicode_utf8len     },
-	{ "unicode_utf8towc",    (uint32_t) unicode_utf8towc    },
-	{ "unicode_wctoutf8",    (uint32_t) unicode_wctoutf8    },
-	{ "unicode_utf16len",    (uint32_t) unicode_utf16len    },
-	{ "unicode_utf16towc",   (uint32_t) unicode_utf16towc   },
-	{ "unicode_wctoutf16",   (uint32_t) unicode_wctoutf16   },
-	{ "unicode_simple_fold", (uint32_t) unicode_simple_fold },
+	{ "unicode_utf8len",     unicode_utf8len     },
+	{ "unicode_utf8towc",    unicode_utf8towc    },
+	{ "unicode_wctoutf8",    unicode_wctoutf8    },
+	{ "unicode_utf16len",    unicode_utf16len    },
+	{ "unicode_utf16towc",   unicode_utf16towc   },
+	{ "unicode_wctoutf16",   unicode_wctoutf16   },
+	{ "unicode_simple_fold", unicode_simple_fold },
 	{ 0, 0 }
 };
 
@@ -41,7 +41,7 @@ void unicode_init(void)
 	int k;
 	message("Going to install the Unicode support library... ");
 	for (k = 0; symbols[k].name; k++)
-		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
+		if (fd32_add_call(symbols[k].name, symbols[k].address, ADD) == -1)
 			message("Cannot add %s to the symbol table\n", symbols[k].name);
 	message("Done\n");
 }

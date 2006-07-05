@@ -451,7 +451,7 @@ static void measure_tsc_frequency()
 static void nano_delay_init(void)
 {
 	if (use_rdtsc & TSC_DELAY) {
-		if (add_call("nano_delay", (uint32_t) nano_delay_p, ADD) == -1)
+		if (fd32_add_call("nano_delay", nano_delay_p, ADD) == -1)
 			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
 	} else {
 		calibration_finished = 0;
@@ -463,17 +463,17 @@ static void nano_delay_init(void)
 		iterations_per_sec = 0xFFFFFFFFFFFFFFFFLL - delay_loop(0xFFFFFFFFFFFFFFFFLL);
 		calibration_finished = 0;
 
-		if (add_call("nano_delay", (uint32_t) nano_delay_l, ADD) == -1)
+		if (fd32_add_call("nano_delay", nano_delay_l, ADD) == -1)
 			message("[PIT] Cannot add \"nano_delay\" to the symbol table. Aborted.\n");
 	}
 }
 
-static struct { char *name; uint32_t address; } symbols[] =
+static struct { char *name; void *address; } symbols[] =
 {
-	{ "timer_event_register", 	(uint32_t) pit_event_register 	},
-	{ "timer_event_cancel",   	(uint32_t) pit_event_cancel   	},
-	{ "timer_delay",          	(uint32_t) pit_delay          	},
-	{ "timer_gettime", 			(uint32_t) pit_gettime			},
+	{ "timer_event_register", 	pit_event_register 	},
+	{ "timer_event_cancel",   	pit_event_cancel   	},
+	{ "timer_delay",          	pit_delay          	},
+	{ "timer_gettime", 			pit_gettime			},
 	{ 0, 0 }
 };
 
@@ -661,7 +661,7 @@ void pit_init(process_info_t *pi)
 	if(do_export)
 	{
 		for (k = 0; symbols[k].name; k++)
-		if (add_call(symbols[k].name, symbols[k].address, ADD) == -1)
+		if (fd32_add_call(symbols[k].name, symbols[k].address, ADD) == -1)
 		{
 			message("\n[PIT] Cannot add \"%s\" to the symbol table. Aborted.\n", symbols[k].name);
 			return;
