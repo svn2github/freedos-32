@@ -44,7 +44,7 @@
 void old_psp_puts(int handle, char* s)
 {
 	struct process_info *ppi = fd32_get_current_pi();
-    fd32_set_current_pi(ppi->prev);
+    fd32_set_previous_pi(ppi);
     if(s)
         fd32_write(handle, s, strlen(s));
     fd32_set_current_pi(ppi);
