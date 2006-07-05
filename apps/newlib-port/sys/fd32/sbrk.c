@@ -3,7 +3,6 @@
 
 #include "sys/syscalls.h"
 
-#define FD32_PAGE_SIZE 0x1000
 #define FD32_SBRK_SIZE 0x2000
 
 /* Track the sbrk, segment resizing, to be used in the garbage collecting when destroying the current process */
@@ -28,7 +27,10 @@ void sbrk_mem_clear_up(void)
   }
 }
 
-/* sbrk for the mallocr implementation in newlib */
+/*   sbrk for the mallocr implementation in newlib
+   NOTE: This sbrk does not allocate continuous memory from system,
+   but at the page size boundary ... (more detail)
+ */
 void *_sbrk(int incr)
 {
   uint32_t prev_heap_end = 0;
