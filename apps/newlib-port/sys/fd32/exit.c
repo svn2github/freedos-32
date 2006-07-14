@@ -11,8 +11,8 @@ void _exit(int res)
 #endif
 
   /* Free sbrk mem track */
-  extern void sbrk_mem_clear_up();
-  sbrk_mem_clear_up();
+  extern void _sbrk_free();
+  _sbrk_free();
   /* Free the JFT */
   fd32_free_jft(ppi->jft, ppi->jft_size);
 

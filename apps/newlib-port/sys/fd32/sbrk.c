@@ -16,15 +16,19 @@ typedef struct sbrk_mem_track
 static sbrk_mem_track_t smthdr;
 static sbrk_mem_track_t *psmtcur = &smthdr;
 
-void sbrk_mem_clear_up(void)
+void _sbrk_free(void)
 {
   for (psmtcur = smthdr.next; psmtcur != NULL; psmtcur = psmtcur->next)
   {
-#ifdef __WINB_DEBUG__
-  fd32_log_printf("[WINB] Memory clear up, mem_free(%x %x)\n", psmtcur->addr, psmtcur->size);
+#ifdef __DEBUG__
+  fd32_log_printf("SBRK Memory clear up, mem_free(%x %x)\n", psmtcur->addr, psmtcur->size);
 #endif
     mem_free(psmtcur->addr, psmtcur->size);
   }
+
+  smthdr.next = NULL;
+  smthdr.addr = 0;
+  smthdr.size = 0;
 }
 
 /*   sbrk for the mallocr implementation in newlib
@@ -45,7 +49,7 @@ void *_sbrk(int incr)
       /* Get 0x2000 bytes of memory and slice it at FD32_PAGE_SIZE boundary */
       prev_heap_end = mem_get(FD32_SBRK_SIZE+sizeof(sbrk_mem_track_t));
       if (prev_heap_end == 0) {
-        message("[WINB] SBRK problem: cannot memget(%x %x)\n", fd32_get_current_pi()->memlimit, incr);
+        message("SBRK problem: cannot memget(%x %x)\n", fd32_get_current_pi()->memlimit, incr);
         mem_dump();
         return 0;
       } else {
@@ -73,8 +77,8 @@ void *_sbrk(int incr)
     /* incr == 0, get the current brk */
     prev_heap_end = psmtcur->addr;
   }
-#ifdef __WINB_DEBUG__
-  fd32_log_printf("[WINB] SBRK: memget(%x %x)\n", prev_heap_end, incr);
+#ifdef __DEBUG__
+  fd32_log_printf("SBRK: memget(%x %x)\n", prev_heap_end, incr);
 #endif
   return (void *)prev_heap_end;
 }

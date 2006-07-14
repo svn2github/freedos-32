@@ -140,12 +140,12 @@ static DWORD WINAPI fd32_imp__GetModuleHandleA( LPCSTR module )
 static VOID WINAPI fd32_imp__ExitProcess( UINT ecode )
 {
 #ifdef __WINB_DEBUG__
-  fd32_log_printf("[WINB] ExitProcess: %x and do memory clear-up!\n", ecode);
+  fd32_log_printf("[WINB] ExitProcess: %x!\n", ecode);
 #endif
   /* TODO: Remove the Atom? */
   atomname = NULL;
-  winb_mem_clear_up();
-  restore_sp(ecode);
+
+  exit(ecode);
 }
 
 static LPSTR WINAPI fd32_imp__GetCommandLineA(VOID)
