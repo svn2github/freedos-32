@@ -39,7 +39,7 @@ static struct { char mask; char val; } t[4] =
  * \remarks For performance reasons, this function does not parse
  *          the whole UTF-8 byte sequence, just the first byte.
  *          If checking the validity of the whole UTF-8 byte sequence
- *          is needed, use #unicode_utf8towc.
+ *          is needed, use unicode_utf8_to_wchar().
  */
 int unicode_utf8_len(char lead_byte)
 {

@@ -43,7 +43,7 @@ static inline uint16_t little_endian_16(uint16_t v)
  * \remarks For performance reasons, this function does not parse
  *          the whole UTF-16 word sequence, just the first uint16_t.
  *          If checking the validity of the whole UTF-16 word sequence
- *          is needed, use #unicode_utf16towc.
+ *          is needed, use unicode_utf16le_to_wchar().
  * \remarks This is the little endian version of unicode_utf16be_len()
  */
 int unicode_utf16le_len(uint16_t lead_word)

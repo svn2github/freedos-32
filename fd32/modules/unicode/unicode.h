@@ -5,9 +5,12 @@
 #define __FD32_UNICODE_H
 
 /**
-\defgroup unicode Unicode Support Library
- 
-Unicode facilities to manage UTF-8, UTF-16 and wide characters.
+\defgroup unicode Unicode support library
+
+The FreeDOS-32 Unicode support library provides facilities to manage
+UTF-8, UTF-16 and wide characters (format conversion, case folding).\n
+This manual documents version <em>2.1</em> of the library.\n
+The library is distributed under the terms of the GNU General Public License.
 
 A UTF-8 character is converted to a wide character (UTF-32 or UCS-4)
 using the following rules (binary numbers):
@@ -44,11 +47,12 @@ where \c cccc = \c bbbbb - 1.
  #define restrict __restrict__
 #endif
 
-#define unicode_utf8len unicode_utf8_len ///< \deprecated
-#define unicode_utf8towc unicode_utf8_to_wchar ///< \deprecated
-#define unicode_utf16len unicode_utf16le_len ///< \deprecated
-#define unicode_utf16towc unicode_utf16le_to_wchar ///< \deprecated
-#define unicode_wctoutf16 unicode_wchar_to_utf16le ///< \deprecated
+#define unicode_utf8len unicode_utf8_len ///< \deprecated Use unicode_utf8_len()
+#define unicode_utf8towc unicode_utf8_to_wchar ///< \deprecated Use unicode_utf8_to_wchar()
+#define unicode_wctoutf8 unicode_wchar_to_utf8 ///< \deprecated Use unicode_wchar_to_utf8()
+#define unicode_utf16len unicode_utf16le_len ///< \deprecated Use unicode_utf16le_len()
+#define unicode_utf16towc unicode_utf16le_to_wchar ///< \deprecated Use unicode_utf16le_to_wchar()
+#define unicode_wctoutf16 unicode_wchar_to_utf16le ///< \deprecated Use unicode_wchar_to_utf16le()
 
 int unicode_utf8_len(char lead_byte);
 int unicode_utf8_to_wchar(wchar_t *restrict result, const char *restrict string, size_t size);
