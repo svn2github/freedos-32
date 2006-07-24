@@ -1,4 +1,4 @@
-# FreeDOS-32 Unicode Support Library 2.0
+# FreeDOS-32 Unicode Support Library 2.1
 # Makefile for the FreeDOS-32 target
 
 ifndef FD32
@@ -20,7 +20,7 @@ LIB_DIR  = $(OSLIB)\lib
 C_OPT +=  -I$(FD32)/include -I$(OSLIB) -I$(PORTAB) -Wall -O3
 LINK_OPT = -Bstatic -r -s
 
-OBJS   = init.o simple_fold.o utf16towc.o utf8towc.o wctoutf16.o wctoutf8.o
+OBJS   = init.o simple_fold.o utf16le.o utf16be.o utf8.o
 OUTLIB = unicode.o
 
 all: $(OUTLIB)

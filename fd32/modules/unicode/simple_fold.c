@@ -1,5 +1,5 @@
-/* The FreeDOS-32 Unicode Support Library version 2.0
- * Copyright (C) 2001-2005  Salvatore ISAJA
+/* The FreeDOS-32 Unicode Support Library version 2.1
+ * Copyright (C) 2001-2006  Salvatore ISAJA
  *
  * This file "simple_fold.c" is part of the FreeDOS-32 Unicode
  * Support Library (the Program).
@@ -526,17 +526,19 @@ static const uint16_t *pages[256] =
 };
 
 
-/** \param wc the wide character to fold.
- *  \return If a simple folding is defined, the folded version of \c wc
- *          is returned, otherwise \c wc is returned unchanged.
- *  \remarks This function performs simple case folding using two
- *           accesses in large lookup tables.
+/**
+ * \brief Simple case folding of a wide character.
+ * \param wc the wide character to fold.
+ * \return If a simple folding is defined, the folded version of \c wc
+ *         is returned, otherwise \c wc is returned unchanged.
+ * \remarks This function performs simple case folding using two
+ *          accesses in large lookup tables.
  *
- *  Case folding provides a mapping between characters that only differ
- *  in case. This is useful for case insensitive comparison. Simple case
- *  folding maps a single wide character to another single wide character
- *  (usually lower case). Full case folding, instead, may map a single
- *  wide character to more wide characters.
+ * Case folding provides a mapping between characters that only differ
+ * in case. This is useful for case insensitive comparison. Simple case
+ * folding maps a single wide character to another single wide character
+ * (usually lower case). Full case folding, instead, may map a single
+ * wide character to more wide characters.
  */
 wchar_t unicode_simple_fold(wchar_t wc)
 {

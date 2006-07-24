@@ -1,5 +1,5 @@
-/* The FreeDOS-32 Unicode Support Library version 2.0
- * Copyright (C) 2001-2005  Salvatore ISAJA
+/* The FreeDOS-32 Unicode Support Library version 2.1
+ * Copyright (C) 2001-2006  Salvatore ISAJA
  *
  * This file "init.c" is part of the FreeDOS-32 Unicode
  * Support Library (the Program).
@@ -25,13 +25,16 @@
 
 static struct { char *name; void *address; } symbols[] =
 {
-	{ "unicode_utf8len",     unicode_utf8len     },
-	{ "unicode_utf8towc",    unicode_utf8towc    },
-	{ "unicode_wctoutf8",    unicode_wctoutf8    },
-	{ "unicode_utf16len",    unicode_utf16len    },
-	{ "unicode_utf16towc",   unicode_utf16towc   },
-	{ "unicode_wctoutf16",   unicode_wctoutf16   },
-	{ "unicode_simple_fold", unicode_simple_fold },
+	{ "unicode_utf8_len",         unicode_utf8_len         },
+	{ "unicode_utf8_to_wchar",    unicode_utf8_to_wchar    },
+	{ "unicode_wchar_to_utf8",    unicode_wchar_to_utf8    },
+	{ "unicode_utf16le_len",      unicode_utf16le_len      },
+	{ "unicode_utf16le_to_wchar", unicode_utf16le_to_wchar },
+	{ "unicode_wchar_to_utf16le", unicode_wchar_to_utf16le },
+	{ "unicode_utf16be_len",      unicode_utf16be_len      },
+	{ "unicode_utf16be_to_wchar", unicode_utf16be_to_wchar },
+	{ "unicode_wchar_to_utf16be", unicode_wchar_to_utf16be },
+	{ "unicode_simple_fold",      unicode_simple_fold      },
 	{ 0, 0 }
 };
 
