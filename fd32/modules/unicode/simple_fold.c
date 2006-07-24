@@ -21,6 +21,11 @@
  */
 #include "unicode.h"
 
+/**
+ * \addtogroup unicode
+ * @{
+ */
+
 static const uint16_t page_00[256] = 
 {
 	0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007, 
@@ -550,3 +555,5 @@ wchar_t unicode_simple_fold(wchar_t wc)
 	else if ((wc >= 0x10400) && (wc <= 0x10427)) wc += 0x28;
 	return wc;
 }
+
+/* @} */
