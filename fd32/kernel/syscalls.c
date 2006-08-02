@@ -339,7 +339,7 @@ int fd32_add_call(const char *name, void *address, int mode)
       call = (struct symbol *)p;
       call->name = name;
       call->address = address;
-      res = 1;
+      res = 0;
     }
   }
 
