@@ -27,6 +27,7 @@
 #include "kmem.h"
 #include "exec.h"
 #include "kernel.h"
+#include "filesys.h"
 #include "list.h"
 
 /* #define __PROCESS_DEBUG__ */
@@ -112,12 +113,18 @@ process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_s
 int fd32_start_process(process_info_t *ppi, process_params_t *pparams)
 {
   int res;
+  char current_drive[2];
+  char current_path[FD32_LFNPMAX];
   /* from run.S */
   extern int dll_run(DWORD address);
   extern int run(DWORD address, WORD psp_sel, DWORD parm);
 
-  /* TODO: New imp? */
+  /* TODO: New imp? inherit the current path from the previous process */
+  current_drive[0] = fd32_get_default_drive();
+  current_drive[1] = '\0';
+  fd32_getcwd(current_drive, current_path);
   cur_P = ppi;
+  fd32_chdir(current_path);
 
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n", entry, size);
