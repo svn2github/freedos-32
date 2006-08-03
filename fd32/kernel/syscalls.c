@@ -237,6 +237,7 @@ static struct symbol syscall_table[] = {
   { "fd32_get_default_drive",  fd32_get_default_drive },
   { "fd32_open",               fd32_open              },
   { "fd32_get_dev_info", fd32_get_dev_info},
+  { "fd32_set_dev_info", fd32_set_dev_info},
   { "fd32_close",              fd32_close             },
   { "fd32_fflush",             fd32_fflush            },
   { "fd32_read",               fd32_read              },

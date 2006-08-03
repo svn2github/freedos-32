@@ -250,6 +250,7 @@ void *fd32_drive_get_parameter_block(char Drive);
 
 /* FS.C - File system functions */
 int fd32_get_dev_info(int fd);
+int fd32_set_dev_info(int fd, int devinfo);
 int  fd32_open             (char *FileName, DWORD Mode, WORD Attr, WORD AliasHint, int *Result);
 int  fd32_close            (int Handle);
 int  fd32_fflush           (int Handle);

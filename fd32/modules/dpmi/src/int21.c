@@ -1131,10 +1131,14 @@ void dos21_int(union rmregs *r)
 			{
 				case 0x00:
 					res = fd32_get_dev_info(r->x.bx);
-					if (res < 0) {
-						res = -EBADF;
-					} else {
+					if (res >= 0) {
 						r->x.dx = res;
+						r->x.ax = 0x0; /* No error! */
+					}
+					break;
+				case 0x01:
+					res = fd32_set_dev_info(r->x.bx, r->x.dx);
+					if (res >= 0) {
 						r->x.ax = 0x0; /* No error! */
 					}
 					break;
@@ -1164,7 +1168,7 @@ void dos21_int(union rmregs *r)
 					break;
 				}
 				default:
-					fd32_log_printf("[DPMI] INT 21H AX=0x%x BX=0x%x CX=0x%x\n", r->x.ax, r->x.bx, r->x.cx);
+					fd32_log_printf("[DPMI] INT 21H AX=0x%x BX=0x%x CX=0x%x DX=0x%x\n", r->x.ax, r->x.bx, r->x.cx, r->x.dx);
 					res = -ENOSYS; /* Invalid subfunction */
 					break;
 			}

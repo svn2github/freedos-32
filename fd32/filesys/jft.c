@@ -77,9 +77,20 @@ int fd32_get_dev_info(int fd)
 {
 	int res;
 	struct JftEntry *j = validate_file_handle(fd);
-	if (!j) return -EBADF;
-	res = j->request(FD32_GET_DEV_INFO, NULL);
-	if (res > 0) return res;
+	if (!j)
+		res = -EBADF;
+	else if (j->file == NULL)
+		res = j->request(FD32_GET_DEV_INFO, NULL);
+	else /* TODO: fix it with appropriate one */
+		res = fd32_get_default_drive()-'A';
+	fd32_log_printf("[FS] Get device %d info: %x\n", fd, res);
+	return res;
+}
+
+
+int fd32_set_dev_info(int fd, int devinfo)
+{
+	fd32_log_printf("[FS] Set device %d info: %x\n", fd, devinfo);
 	return 0;
 }
 
