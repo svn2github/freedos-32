@@ -438,9 +438,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   kf->file_seek(f, hdr.e_cparhdr*0x10, kf->seek_set);
   kf->file_read(f, exec_text, (exec_size-hdr.e_cparhdr)*0x10-hdr.e_cblp);
 
-#ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DPMI] Exec at 0x%x: %x %x %x ... %x %x ...\n", (int)exec_text, exec_text[0], exec_text[1], exec_text[2], exec_text[0x100], exec_text[0x101]);
-#endif
   /* Relocation */
   if (hdr.e_crlc != 0) {
     DWORD i;
@@ -457,10 +454,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
     mem_free((DWORD)rel, sizeof(struct dos_reloc)*hdr.e_crlc);
   }
 
-#ifdef __DOS_EXEC_DEBUG__
-  fd32_log_printf("[DPMI] FCB: %x %x content: %x %x\n", (int)g_fcb1, (int)g_fcb2, *((BYTE *)g_fcb1), *((BYTE *)g_fcb2));
-#endif
-
   s.cs = exec_seg+hdr.e_cs;
   s.ss = exec_seg+hdr.e_ss;
   s.es = s.ds = load_seg;
@@ -469,7 +462,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   in.x.dx = s.ds;
   in.x.di = hdr.e_sp;
   in.x.si = hdr.e_ip;
-  fd32_log_printf("[DPMI] ES: %x DS: %x IP: %x\n", s.es, s.ds, hdr.e_ip);
+  fd32_log_printf("[DPMI] VM86 execution, ES: %x DS: %x CS: %x IP: %x\n", s.es, s.ds, s.cs, hdr.e_ip);
   ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
   local_set_psp(ppi, ppsp, exec_seg+exec_size, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   ppi->type = VM86_PROCESS;
