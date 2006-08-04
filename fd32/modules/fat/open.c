@@ -404,17 +404,11 @@ int fat_close(Channel *c)
 		list_erase(&v->channels_open, (ListItem *) c);
 		slabmem_free(&v->channels_slab, c);
 	}
-	#if FAT_CONFIG_FD32
-	fd32_log_printf("[FAT2] fat_flose (res=%i). Volume buffers: %u hits, %u misses on %u\n",
-		res, v->buf_hit, v->buf_miss, v->buf_access);
-	fd32_log_printf("[FAT2] %u channels open, %u files open, %u dentries.\n",
-		v->channels_open.size, v->files_open.size, v->num_dentries);
-	#else
+
 	LOG_PRINTF(("[FAT2] fat_flose (res=%i). Volume buffers: %u hits, %u misses on %u\n",
 		res, v->buf_hit, v->buf_miss, v->buf_access));
 	LOG_PRINTF(("[FAT2] %u channels open, %u files open, %u dentries.\n",
 		v->channels_open.size, v->files_open.size, v->num_dentries));
-	#endif
 	return res;
 }
 
