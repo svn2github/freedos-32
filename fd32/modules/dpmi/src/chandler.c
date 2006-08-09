@@ -67,7 +67,7 @@ static void return_to_dos(union regs *r, int resident)
     p_vm86_tss->back_link = 0;
     ll_context_load(bl);
   } else {
-    restore_sp(r->d.eax & 0xFF);
+    fd32_get_current_pi()->_exit(r->d.eax & 0xFF);
   }
 }
 

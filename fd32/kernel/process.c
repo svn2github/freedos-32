@@ -106,6 +106,9 @@ process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_s
   /* if (npsp->link == NULL) Create new JFT
      else Copy JFT from npsp->link->Jft
   */
+
+  extern void restore_sp(int res) __attribute__ ((noreturn));
+  ppi->_exit = restore_sp;
   return ppi;
 }
 
@@ -138,8 +141,6 @@ int fd32_start_process(process_info_t *ppi, process_params_t *pparams)
     case DLL_PROCESS:
       ppi->memlimit = pparams->normal.base + pparams->normal.size;
       res = dll_run(pparams->normal.entry);
-      /* CHECKME: I added these two lines... Are they correct??? Luca. */
-      /* current_SP = current_psp->old_stack; */
       break;
     case VM86_PROCESS:
       ppi->memlimit = 0;

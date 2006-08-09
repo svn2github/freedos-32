@@ -11,6 +11,7 @@
 
 #include "format.h"
 #include "kmem.h"
+#include "kernel.h"
 #include "common.h"
 #include "coff.h"
 
@@ -198,16 +199,16 @@ DWORD common_load_executable(struct kern_funcs *kf, int file, struct table_info 
 #endif
   res = kf->mem_alloc_region(exec_space, needed_mem);
   if (res == -1) {
-    kf->message("Warning: Coff starts at %lx before Free memory top\n", exec_space);
-    exec_space = (DWORD)(kf->mem_alloc(needed_mem));
-    kf->message("Located at %lx instead\n", exec_space);
+    kf->log("Warning: Coff starts at %lx before Free memory top\n", exec_space);
+    exec_space = kf->mem_alloc(needed_mem);
+    kf->log("Located at %lx instead\n", exec_space);
     load_offset = exec_space - tables->image_base;
-    kf->message("Load_offset: %lx\n", load_offset);
+    kf->log("Load offset: %lx\n", load_offset);
   } else {
     load_offset = 0;
-  }    
+  }
 
-  if (exec_space == 0) {	
+  if (exec_space == 0) {
     kf->error("Error: Not enough memory to load the Coff executable\n");
     kf->message("Needed Memory=%lu bytes - Coff starts=0x%lx\n",
 	    needed_mem, s[0].base);

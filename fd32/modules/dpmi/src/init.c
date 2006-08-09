@@ -15,11 +15,9 @@
 #include "dosexec.h"
 
 extern void chandler(DWORD intnum, struct registers r);
-extern WORD _stubinfo_init(DWORD base, DWORD initial_size, DWORD mem_handle, char *filename, char *args, WORD cs_sel, WORD ds_sel);
 extern int _mousebios_init(void);
 extern void _vga_init(void);
 extern void _drive_init(void);
-extern void restore_psp(void);
 extern int use_lfn;
 #ifdef ENABLE_BIOSVGA
 extern char use_biosvga;
@@ -47,11 +45,6 @@ void DPMI_init(process_info_t *pi)
 {
   char **argv;
   int argc = fd32_get_argv(pi->filename, pi->args, &argv);
-
-  if (fd32_add_call("stubinfo_init", _stubinfo_init, ADD) == -1)
-    message("Cannot add stubinfo_init to the symbol table\n");
-  if (fd32_add_call("restore_psp", restore_psp, ADD) == -1)
-    message("Cannot add restore_psp to the symbol table\n");
 
   use_lfn = 1;
 #ifdef ENABLE_BIOSVGA

@@ -25,7 +25,9 @@ typedef struct process_info {
   DWORD memlimit;
   void *jft;
   DWORD jft_size;
-  void *cpu_context; /* CPU context for switching to another process */
+
+  void *_context; /* Task context for switching to the previous process */
+  void (*_exit)(int res) __attribute__ ((noreturn)); /* Turn back the previous running state, after running a program */
 } process_info_t;
 
 int fd32_get_argv(char *filename, char *args, char ***_pargv);
@@ -58,7 +60,5 @@ int fd32_start_process(process_info_t *ppi, process_params_t *pparams);
 void fd32_stop_process(process_info_t *ppi);
 int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args);
 DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *exec_space, DWORD *image_base, DWORD *size);
-
-void restore_sp(int res) __attribute__ ((noreturn)); /* Turn back the previous running state, after running a program */
 
 #endif

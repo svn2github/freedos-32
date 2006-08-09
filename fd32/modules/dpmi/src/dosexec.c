@@ -26,7 +26,7 @@
 
 #define ENV_SIZE 0x100
 
-static void local_set_psp_commandline(struct psp *ppsp, char *args)
+static void _set_psp_commandline(struct psp *ppsp, char *args)
 {
   if (args != NULL) {
     ppsp->command_line_len = strlen(args);
@@ -40,7 +40,7 @@ static void local_set_psp_commandline(struct psp *ppsp, char *args)
 
 /* TODO: Re-consider the fcb1 and fcb2 to support multi-tasking */
 static DWORD g_fcb1 = 0, g_fcb2 = 0, g_env_segment, g_env_segtmp = 0;
-static void local_set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *filename, char *args)
+static void _set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, WORD ps_parent, WORD env_sel, WORD stubinfo_sel, DWORD fcb_1, DWORD fcb_2, char *filename, char *args)
 {
   DWORD i;
   char *env_data = (char *)(g_env_segment<<4);
@@ -63,17 +63,12 @@ static void local_set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, W
   ppsp->stubinfo_sel = stubinfo_sel;
   ppsp->dta = &ppsp->command_line_len;
   /* And now... Set the arg list!!! */
-  local_set_psp_commandline(ppsp, args);
+  _set_psp_commandline(ppsp, args);
 
   /* Find the end of the env list */
   for (i = 0; env_data[i] || env_data[i+1]; i++);
   /* Append filename in the env (NOTE: filename is only the filepath) */
   strcpy(env_data + i + 4, filename);
-
-  /* Deprecated FD32 PSP members */
-  /* npsp->info_sel = stubinfo_sel; */
-  /* npsp->old_stack = current_SP; */
-  /* npsp->memlimit = base + end; */
 }
 
 /* NOTE: Move the structure here, Correct? */
@@ -102,7 +97,7 @@ typedef struct stubinfo_ret {
 } stubinfo_ret_t;
 
 /* NOTE: FD32 module can't export ?_init name so make it internal with prefix `_' */
-stubinfo_ret_t _stubinfo_init(struct stubinfo *info, struct psp *newpsp, DWORD env_size, DWORD initial_size, DWORD mem_handle, WORD cs_sel, WORD ds_sel)
+static stubinfo_ret_t _stubinfo_init(struct stubinfo *info, struct psp *newpsp, char *filename, DWORD env_size, DWORD initial_size, WORD cs_sel, WORD ds_sel)
 {
   stubinfo_ret_t ret = {0, 0};
   int stubinfo_selector, psp_selector, env_selector;
@@ -143,8 +138,8 @@ stubinfo_ret_t _stubinfo_init(struct stubinfo *info, struct psp *newpsp, DWORD e
 
   strcpy(info->magic, "go32stub, v 2.02");
   info->size = sizeof(struct stubinfo);
-  info->minstack = 0x40000;      /* FIXME: Check this!!! */
-  info->memory_handle = mem_handle;
+  info->minstack = 0x80000;
+  info->memory_handle = 0;
   /* Memory pre-allocated by the kernel... */
   info->initial_size = initial_size; /* align? */
   info->minkeep = 0x1000;        /* DOS buffer size... */
@@ -153,18 +148,17 @@ stubinfo_ret_t _stubinfo_init(struct stubinfo *info, struct psp *newpsp, DWORD e
   info->ds_selector = ds_sel;
   info->cs_selector = cs_sel;
   info->psp_selector = psp_selector;
-  /* TODO: There should be some error down here... */
   info->env_size = env_size;
-  info->basename[0] = 0;
-  info->argv0[0] = 0;
-  memcpy(info->dpmi_server, "FD32.BIN", sizeof("FD32.BIN"));
+  strncpy(info->basename, filename, 8);
+  info->argv0[0] = '\0';
+  strcpy(info->dpmi_server, "FD32.DPMI");
 
   ret.env_sel = env_selector;
   ret.stubinfo_sel = stubinfo_selector;
   return ret;
 }
 
-void restore_psp(void)
+static void _restore_psp(void)
 {
   WORD stubinfo_sel;
   DWORD base, base1;
@@ -201,18 +195,9 @@ void restore_psp(void)
     error("Restore PSP panic while freeing memory...\n");
     fd32_abort();
   }
-
-  /* TODO: return frame OK?
-  if (curpsp != NULL) {
-    current_SP = curpsp->old_stack;
-  } else {
-    current_SP = NULL;
-  }
-  current_SP = curpsp->old_stack; */
 }
 
 static DWORD funky_base;
-static DWORD funky_size;
 static int wrapper_alloc_region(DWORD base, DWORD size)
 {
   message("Wrapper allocating region: 0x%lx, 0x%lx...\n",
@@ -225,6 +210,7 @@ static int wrapper_alloc_region(DWORD base, DWORD size)
 static DWORD wrapper_alloc(DWORD size)
 {
   DWORD tmp;
+  DWORD funky_size;
   
   if (funky_base == 0)
     return mem_get(size);
@@ -241,10 +227,12 @@ static DWORD wrapper_alloc(DWORD size)
     return 0;
   tmp += funky_base;
 
+  funky_base = 0;
+
   return tmp;
 }
 
-static int _local_go32_init(process_info_t *ppi, DWORD init_size, char *filename, char *args, WORD cs_sel, WORD ds_sel)
+static int _go32_init(process_info_t *ppi, DWORD init_size, char *filename, char *args, WORD cs_sel, WORD ds_sel)
 {
   DWORD mem;
   DWORD mem_size, env_size;
@@ -261,24 +249,26 @@ static int _local_go32_init(process_info_t *ppi, DWORD init_size, char *filename
   /*Environment lenght + 2 zeros + 1 word + program name... */
   env_size = 2 + 2 + strlen(filename) + 1;
 
-  init_ret = _stubinfo_init(info, newpsp, env_size, init_size, 0, cs_sel, ds_sel);
+  init_ret = _stubinfo_init(info, newpsp, filename, env_size, init_size, cs_sel, ds_sel);
   if (init_ret.stubinfo_sel == 0) {
     mem_free(mem, mem_size);
     error("No stubinfo!!!\n");
     return -1;
   }
 
-  local_set_psp(ppi, newpsp, 0xFFFF/* fake, above 1M */, 0, init_ret.env_sel, init_ret.stubinfo_sel, g_fcb1, g_fcb2, filename, args);
+  _set_psp(ppi, newpsp, 0xFFFF/* fake, above 1M */, 0, init_ret.env_sel, init_ret.stubinfo_sel, g_fcb1, g_fcb2, filename, args);
   return init_ret.stubinfo_sel;
 }
 
-/* FIXME: Simplify ---> user_stack is probably not needed! */
-static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, DWORD size,
-		DWORD user_stack, char *filename, char *args)
+
+extern int wrap_run(DWORD, WORD, DWORD, WORD, WORD, DWORD);
+extern void wrap_restore_sp(int res) __attribute__ ((noreturn));
+
+/* NOTE: Simplify ---> user_stack allocated at funcky_base ! */
+static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, DWORD size, DWORD user_stack, char *filename, char *args)
 {
   int res;
   int data_selector, code_selector;
-  int wrap_run(DWORD, WORD, DWORD, WORD, WORD, DWORD);
 
   /* Create new running segments */
   /* NOTE: The DS access rights is different with CS */
@@ -286,8 +276,8 @@ static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, 
     message("Cannot allocate data selector!\n");
     return 0;
   } else {
-    fd32_set_segment_base_address(data_selector, funky_base);
-    fd32_set_segment_limit(data_selector, funky_size);
+    fd32_set_segment_base_address(data_selector, base);
+    fd32_set_segment_limit(data_selector, size);
     fd32_set_descriptor_access_rights(data_selector, 0xC092);
   }
 
@@ -296,12 +286,10 @@ static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, 
     message("Cannot allocate code selector!\n");
     return 0;
   } else {
-    fd32_set_segment_base_address(code_selector, funky_base);
-    fd32_set_segment_limit(code_selector, funky_size);
+    fd32_set_segment_base_address(code_selector, base);
+    fd32_set_segment_limit(code_selector, size);
     fd32_set_descriptor_access_rights(code_selector, 0xC09A);
   }
-
-  funky_base = 0;
 
   fd32_log_printf("User CS, DS = 0x%x, 0x%x\n", code_selector, data_selector);
 
@@ -309,7 +297,7 @@ static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, 
   fd32_log_printf("[WRAP] Going to run 0x%lx, size 0x%lx\n",
 		entry, size);
 #endif
-  if ((res = _local_go32_init(ppi, size, filename, args, code_selector, data_selector)) == -1)
+  if ((res = _go32_init(ppi, size, filename, args, code_selector, data_selector)) == -1)
     return -1;
 #ifdef __DOS_EXEC_DEBUG__
   fd32_log_printf("[WRAP] Calling run 0x%lx 0x%lx (0x%x 0x%x) --- 0x%lx\n",
@@ -321,7 +309,7 @@ static int wrapper_create_process(process_info_t *ppi, DWORD entry, DWORD base, 
   fd32_log_printf("[WRAP] Returned 0x%x: now restoring PSP\n", res);
 #endif
 
-  restore_psp();
+  _restore_psp();
 
   return res;
 }
@@ -331,8 +319,11 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
 {
   process_info_t *ppi;
   int retval;
+  DWORD exec_mem;
   DWORD stack_mem;
-  DWORD size, exec_space, entry, base;
+  DWORD size, exec_space, entry, base, user_stack;
+  char current_drive[2];
+  char current_path[FD32_LFNPMAX];
 
   /* Use wrapper memory allocation to create separate segments */
   kf->mem_alloc = wrapper_alloc;
@@ -346,21 +337,31 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   /* Create and set process information */
   ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
   ppi->memlimit = base + size;
+  ppi->_exit = wrap_restore_sp;
 
   dpmi_stack = 0; /* Disable the stack switch in chandler */
   dpmi_stack_top = 0xFFFFFFFF;
 
   stack_mem = mem_get(DPMI_STACK_SIZE);
-  /* Note: use the real entry */
+  /* Total memory allocated for wrapper execution */
+  exec_mem = exec_space-base;
+  size += base;
+  /* HACK: Make use of the space before image base */
+  user_stack = base;
+
+  /* Inherit the current path from the previous process */
+  current_drive[0] = fd32_get_default_drive();
+  current_drive[1] = '\0';
+  fd32_getcwd(current_drive, current_path);
   fd32_set_current_pi(ppi);
-  retval = wrapper_create_process(ppi, entry, exec_space, size,
-		stack_mem+DPMI_STACK_SIZE, filename, args);
+  fd32_chdir(current_path);
+  retval = wrapper_create_process(ppi, entry, exec_mem, size, user_stack, filename, args);
   /* Back to the previous process NOTE: TSR native programs? */
   fd32_stop_process(ppi);
   message("Returned: %d!!!\n", retval);
 
   mem_free(stack_mem, DPMI_STACK_SIZE);
-  mem_free(exec_space, size);
+  mem_free(exec_mem, size);
 
   return retval;
 }
@@ -383,7 +384,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #ifdef __DOS_EXEC_DEBUG__
     fd32_log_printf("[DOSEXEC] Before calling 0x%lx...\n", params.normal.entry);
 #endif
-    if ((retval = _local_go32_init(ppi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
+    if ((retval = _go32_init(ppi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
       return -1;
     offset = exec_space - params.normal.base;
     params.normal.entry += offset;
@@ -399,7 +400,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
     fd32_log_printf("[DOSEXEC] Returned 0x%x: now restoring PSP\n", retval);
 #endif
     if (!(ppi->type&RESIDENT)) {
-      restore_psp();
+      _restore_psp();
       mem_free(exec_space, params.normal.size);
     }
     return retval;
@@ -464,15 +465,15 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   in.x.si = hdr.e_ip;
   fd32_log_printf("[DPMI] VM86 execution, ES: %x DS: %x CS: %x IP: %x\n", s.es, s.ds, s.cs, hdr.e_ip);
   ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
-  local_set_psp(ppi, ppsp, exec_seg+exec_size, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
+  _set_psp(ppi, ppsp, exec_seg+exec_size, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   ppi->type = VM86_PROCESS;
-  ppi->cpu_context = (void *)mem_get(sizeof(struct tss));
+  ppi->_context = (void *)mem_get(sizeof(struct tss));
   params.vm86.ip = hdr.e_ip;
   params.vm86.sp = hdr.e_sp;
   params.vm86.in_regs = &in;
   params.vm86.out_regs = &out;
   params.vm86.seg_regs = &s;
-  params.vm86.prev_cpu_context = ppi->cpu_context;
+  params.vm86.prev_cpu_context = ppi->_context;
   /* Use the new dpmi stack */
   pre_stack_mem = dpmi_stack;
   stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
@@ -485,7 +486,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   dpmi_stack = pre_stack_mem;
   dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   mem_free(stack_mem, DPMI_STACK_SIZE);
-  mem_free((DWORD)ppi->cpu_context, sizeof(struct tss));
+  mem_free((DWORD)ppi->_context, sizeof(struct tss));
 
   if (!(ppi->type & RESIDENT))
     dos_free(load_seg);

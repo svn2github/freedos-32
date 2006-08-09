@@ -88,6 +88,7 @@ newstack:
 
 .text	
 .globl SYMBOL_NAME(wrap_run)
+.globl SYMBOL_NAME(wrap_restore_sp)
 
 SYMBOL_NAME_LABEL(wrap_run)
 	movl 24(%esp), %eax
@@ -119,11 +120,12 @@ SYMBOL_NAME_LABEL(wrap_run)
 	movl newstack, %eax
 	movl %eax, %esp
 	movw tmp, %ax
+
+	/* NOTE: the current_SP should be modified before DS changed */
+	movl %esp, SYMBOL_NAME(current_SP)
+
 	movw %ax, %ds
 	movw %ax, %ss
-
-	/* CHECKME: I believe this must be done after the task switch... */
-	movl %esp, SYMBOL_NAME(current_SP)
 
 	lcall %es:call_entry
 /* We did "lcall", but the module perhaps returned with a simple "ret"...
@@ -143,6 +145,15 @@ gone:
 	popa
 	movl retval, %eax
 	ret
+
+SYMBOL_NAME_LABEL(wrap_restore_sp)
+	movl 4(%esp), %eax
+	movl %eax, retval
+	movw tmp, %ax
+	movw %ax, %ss
+	movl SYMBOL_NAME(current_SP), %esp
+	subl $8,%esp
+	lret
 
 /* FD32 specific vm86->pmode switch */
 .code16
