@@ -330,12 +330,8 @@ _controlfp( _EM_INVALID, _MCW_EM ); // DENORMAL exception mask remains unchanged
   {"_putch",     0},
   {"_putenv",     0},
   {"_rmdir",     0},
-  {"_stricmp",     0},
-  {"_strnicmp",     0},
-  {"_strupr",     0},
   {"_chdrive",     0},
   {"_clearfp",     0},
-
   {"_cprintf",     0},
   {"_cputs",     0},
   {"_findfirst",     0},
@@ -347,7 +343,6 @@ _controlfp( _EM_INVALID, _MCW_EM ); // DENORMAL exception mask remains unchanged
   {"_getdrive",     0},
   {"_makepath",     0},
   {"_splitpath",     0},
-
 
   {"__dllonexit",     fd32_imp__dllonexit},
   {"__getmainargs",   fd32_imp__getmainargs},
@@ -386,6 +381,9 @@ _controlfp( _EM_INVALID, _MCW_EM ); // DENORMAL exception mask remains unchanged
   {"_open",           open},
   {"_read",           read},
   /* {"_setmode",       setmode}, */
+  {"_stricmp",        stricmp},
+  {"_strnicmp",       strnicmp},
+  {"_strupr",         strupr},
   {"_unlink",         unlink},
   {"_vsnprintf",      vsnprintf},
   {"_write",          write},
