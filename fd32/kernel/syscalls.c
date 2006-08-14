@@ -128,7 +128,6 @@ static struct symbol syscall_table[] = {
   { "get_attr", get_attr },
   { "message", message },
   { "ksprintf", ksprintf },
-  { "restore_sp", restore_sp },
   { "dosmem_get", dosmem_get },
   { "dosmem_get_region", dosmem_get_region },
   { "dosmem_free", dosmem_free },
@@ -331,16 +330,33 @@ int fd32_add_call(const char *name, void *address, int mode)
     res = (int)syscall_table[i].address;
     syscall_table[i].name = name;
     syscall_table[i].address = address;
-  } else if (!done && mode == ADD) {
-    ListItem *p = (ListItem *)mem_get(sizeof(ListItem)+sizeof(struct symbol));
+  } else if (!done) {
+    ListItem *p;
     struct symbol *call;
-    if (p != NULL) {
-      list_push_back(&syscall_table_d, p);
-      p++;
-      call = (struct symbol *)p;
+
+    /* If it's duplicated ... */
+    for (p = syscall_table_d.begin; p != NULL; p = p->next) {
+      call = (struct symbol *)(p+1);
+      if (strcmp(call->name, name) == 0) {
+        done = 1;
+        break;
+      }
+    }
+
+    if (!done && mode == ADD) {
+      p = (ListItem *)mem_get(sizeof(ListItem)+sizeof(struct symbol));
+      if (p != NULL) {
+        list_push_back(&syscall_table_d, p);
+        p++;
+        call = (struct symbol *)p;
+        call->name = name;
+        call->address = address;
+        res = 0;
+      }
+    } else if (done && mode == SUBSTITUTE) {
+      res = (int)call->address;
       call->name = name;
       call->address = address;
-      res = 0;
     }
   }
 
