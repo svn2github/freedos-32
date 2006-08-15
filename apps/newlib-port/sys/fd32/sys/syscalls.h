@@ -40,6 +40,9 @@ typedef struct process_info {
   uint32_t memlimit;
   void *jft;
   uint32_t jft_size;
+
+  void *_context; /* Task context for switching to the previous process */
+  void (*_exit)(int res) __attribute__ ((noreturn)); /* Turn back the previous running state, after running a program */
 } process_info_t;
 
 process_info_t *fd32_get_current_pi(void);
@@ -51,7 +54,6 @@ int message(char *fmt,...) __attribute__((format(printf,1,2)));
 int fd32_log_printf(char *fmt, ...) __attribute__ ((format(printf,1,2)));
 
 void fd32_abort(void);
-void restore_sp(int res);
 
 int mem_get_region(uint32_t base, uint32_t size);
 uint32_t mem_get(uint32_t amount);

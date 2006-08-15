@@ -16,5 +16,5 @@ void _exit(int res)
   /* Free the JFT */
   fd32_free_jft(ppi->jft, ppi->jft_size);
 
-  restore_sp(res); /* Back to the kernel */
+  ppi->_exit(res); /* Back to the kernel */
 }
