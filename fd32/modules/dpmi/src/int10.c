@@ -14,6 +14,8 @@
 #include "rmint.h"
 #include "vga.h"
 
+extern void int33_set_screen(int w, int h);
+extern void int33_set_text_cell(int w, int h);
 
 int videobios_int(union rmregs *r)
 {
@@ -115,6 +117,7 @@ int videobios_int(union rmregs *r)
         case 0x02:
         case 0x12: /* VIDEO - TEXT-MODE CHARGEN - LOAD ROM 8x8 DBL-DOT PATTERNS (PS,EGA,VGA) */
           vga_load_text_8_8_pat(r->h.al, r->h.bl);
+          int33_set_text_cell(8, 8);
           break;
         case 0x03:
           vga_set_text_block_specifier(r->h.bl);
@@ -122,6 +125,7 @@ int videobios_int(union rmregs *r)
         case 0x04:
         case 0x14: /* VIDEO - TEXT-MODE CHARGEN - LOAD ROM 8x16 CHARACTER SET (VGA) */
           vga_load_text_8_16_pat(r->h.al, r->h.bl);
+          int33_set_text_cell(8, 16);
           break;
         default:
           fd32_log_printf("Unimplemented INT 0x10 AX=%x\n", r->x.ax);

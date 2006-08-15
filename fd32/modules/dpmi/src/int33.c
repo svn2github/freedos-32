@@ -34,10 +34,23 @@ typedef struct fd32_mouse_getbutton
 typedef WORD (*text_screen_t)[][80];
 static text_screen_t screen = (text_screen_t)0xB8000;
 /* mouse status */
-static volatile int text_x = 0, text_y = 0, x, y;
+static volatile int screen_w = 640, screen_h = 400;
+static volatile int text_x = 0, text_y = 0, x, y, text_cell_w = 8, text_cell_h = 16;
 static volatile WORD buttons;
 /* text mode cursor and mask */
 static WORD save = 0, scrmask = 0x77ff, curmask = 0x7700;
+
+void int33_set_screen(int w, int h)
+{
+	screen_w = w;
+	screen_h = h;
+}
+
+void int33_set_text_cell(int w, int h)
+{
+	text_cell_w = w;
+	text_cell_h = h;
+}
 
 static void pos(int posx, int posy)
 {
@@ -45,8 +58,8 @@ static void pos(int posx, int posy)
 	y = posy;
 
 	/* Get the text mode new X and new Y */
-	text_x = x/8;
-	text_y = y/8;
+	text_x = x/text_cell_w;
+	text_y = y/text_cell_h;
 	/* Save the previous character */
 	save = (*screen)[text_y][text_x];
 	/* Display the cursor */
@@ -60,7 +73,7 @@ static void cb(const fd32_mousedata_t *data)
 	x += data->axes[MOUSE_X];
 	y -= data->axes[MOUSE_Y];
 
-	if (x < 0 || x >= 640 || y < 0 || y >= 200) {
+	if (x < 0 || x >= screen_w || y < 0 || y >= screen_h) {
 		/* Recover the original coordinates */
 		x -= data->axes[MOUSE_X];
 		y += data->axes[MOUSE_Y];
@@ -126,8 +139,8 @@ int mousebios_int(union rmregs *r)
 		/* MS MOUSE v1.0+ - RETURN POSITION AND BUTTON STATUS */
 		case 0x0003:
 			r->x.bx = buttons&0x07;
-			r->x.cx = x;
-			r->x.dx = y;
+			r->x.cx = text_x*8;
+			r->x.dx = text_y*8;
 			if(r->x.bx != 0)
 			fd32_log_printf("[MOUSE BIOS] Button clicked, cx: %x\tdx: %x\tbx: %x\n", r->x.cx, r->x.dx, r->x.bx);
 #ifdef __INT33_DEBUG__
