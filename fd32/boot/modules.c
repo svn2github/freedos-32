@@ -5,11 +5,8 @@
  */
 
 #include <ll/i386/hw-data.h>
-#include <ll/i386/hw-instr.h>
 #include <ll/i386/stdlib.h>
-#include <ll/i386/cons.h>
 #include <ll/i386/error.h>
-#include <ll/i386/mem.h>
 #include <ll/ctype.h>
 
 #include "kmem.h"
@@ -17,6 +14,7 @@
 #include "modfs.h"
 #include "format.h"
 #include "kernel.h"
+#include "filesys.h"
 #include "logger.h"
 
 
@@ -113,11 +111,25 @@ void process_modules(int mods_count, DWORD mods_addr)
     }
 
     message(": %s\n", command_line);
-    if (*((DWORD *)(command_line+1)) == *((DWORD *)"hd0,")) {
-      command_line[5] = 'C';
-      command_line[6] = ':';
-      command_line = command_line+5;
+    if (command_line[0] == '(' && isalpha(command_line[1]) &&
+        command_line[2] == 'd' && isdigit(command_line[3])) {
+      /* TODO: move out the DOS drive name conversion */
+      if (command_line[4] == ',' && isdigit(command_line[5]) &&
+          command_line[6] == ')') { /* (?dN,N) */
+        command_line[3] += 'a'-'0';
+        command_line[4] = command_line[5]+1;
+        command_line[5] = '\0';
+        command_line[5] = fd32_get_drive_letter(command_line+1);
+        command_line[6] = ':';
+        command_line += 5;
+      } else if (command_line[4] == ')') { /* (?dN) */
+        command_line[4] = '\0';
+        command_line[3] = fd32_get_drive_letter(command_line+1);
+        command_line[4] = ':';
+        command_line += 3;
+      }
     }
+
     /* Load different modules in various binary format */
     for (j = 0; binfmt[j].name != NULL; j++)
     {
