@@ -203,7 +203,7 @@ static int add_partition(const PS_DEVICE *d, const char *name, unsigned part, Pa
         new_d->first_sector = lba_start;
         new_d->total_blocks = lba_end - lba_start + 1;
         new_d->type         = type;
-        new_d->multiboot_id = (d->multiboot_id & 0xFF00FFFF) | ((part - 1) << 24);
+        new_d->multiboot_id = (d->multiboot_id & 0xFF00FFFF) | ((part - 1) << 16);
 
 #ifdef FD32DEV
         /* Register the new device to the FD32 kernel */
