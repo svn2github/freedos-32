@@ -25,7 +25,6 @@ struct symbol {
  * from fd32/include/kernel.h
  */
 typedef struct process_info {
-  struct process_info *prev;
   uint32_t type;
   void *psp;		/* Optional DOS PSP */
   void *cds_list;	/* Under DOS this is a global array */
@@ -39,8 +38,6 @@ typedef struct process_info {
 process_info_t *fd32_get_current_pi(void);
 int fd32_get_argv(char *filename, char *args, char ***_pargv);
 int fd32_unget_argv(int _argc, char *_argv[]); /* Recover the original args and free the argv */
-/* Turn back the previous running state, after running a program */
-void restore_sp(int res) __attribute__ ((noreturn));
 
 /* Clear-up the local heaps */
 void winb_mem_clear_up(void);
