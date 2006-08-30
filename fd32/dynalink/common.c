@@ -316,18 +316,23 @@ void common_free_tables(struct kern_funcs *kf, struct table_info *tables, struct
   }
 }
 
+
+/* Binary format management */
+
+struct __attribute__ ((packed)) dos_header {
+  WORD e_magic;		/* Magic number */
+  WORD e_cblp;		/* Bytes on last page of file */
+  WORD e_cp;		/* Pages in file (size of the file in blocks) */
+  WORD e_res[27];
+  DWORD e_lfanew;	/* File address of new exe header */
+};
+
 static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
-  DWORD nt_sgn;
-  struct dos_header {
-    WORD e_magic;	/* Magic number 			*/
-    WORD e_cblp;	/* Bytes on last page of file		*/
-    WORD e_cp;		/* Pages in file (size of the file in blocks)*/
-    WORD e_res[27];
-    DWORD e_lfanew;	/* File address of new exe header	*/
-  } __attribute__ ((packed)) hdr;
   DWORD dj_header_start;
+  struct dos_header hdr;
 
+  kf->file_seek(f, kf->file_offset + 0, kf->seek_set);
   kf->file_read(f, &hdr, sizeof(struct dos_header));
   if (hdr.e_magic != 0x5A4D) { /* "MZ" */
     return 0;
@@ -344,6 +349,20 @@ static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
     return 1;
   }
 
+  return 0;
+}
+
+static int isPEImz(struct kern_funcs *kf, int f, struct read_funcs *rf)
+{
+  DWORD nt_sgn;
+  struct dos_header hdr;
+
+  kf->file_seek(f, kf->file_offset + 0, kf->seek_set);
+  kf->file_read(f, &hdr, sizeof(struct dos_header));
+  if (hdr.e_magic != 0x5A4D) { /* "MZ" */
+    return 0;
+  }
+
   kf->file_seek(f, hdr.e_lfanew, kf->seek_set);
   kf->file_read(f, &nt_sgn, 4);
   
@@ -358,12 +377,11 @@ static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 }
 
 
-/* Binary format management routines */
 #include "exec.h"
 static struct bin_format binfmt[0x08] = {
   {"coff", isCOFF, fd32_exec_process},
   {"elf", isELF, fd32_exec_process},
-  /* PEI is embedded in MZ {"pei", isPEI, fd32_exec_process}, */
+  {"pei", isPEImz, fd32_exec_process},
   {"mz", isMZ, fd32_exec_process},
   {NULL}
 };

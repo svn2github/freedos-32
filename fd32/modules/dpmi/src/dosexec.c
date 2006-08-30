@@ -499,6 +499,7 @@ static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
   WORD magic;
 
+  kf->file_seek(f, kf->file_offset, kf->seek_set);
   kf->file_read(f, &magic, 2);
   kf->file_seek(f, kf->file_offset, kf->seek_set);
 
