@@ -155,6 +155,8 @@ void int21_handler(union regs *r)
   } else if ((r->x.ax & 0xFF00) == 0x3100) {
   	/* Terminate and stay resident */
     return_to_dos(r, 1);
+  } else if (r->x.ax == 0x4B82) {
+    fd32_log_printf("XXxxx %x\n", r->d.edx);
   } else {
     /* Redirect to call RM interrupts' handler */
     int_redirect_to_rmint(0x21, r);

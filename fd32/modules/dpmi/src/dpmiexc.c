@@ -1,3 +1,8 @@
+/* DPMI Driver for FD32: real-mode and protect-mode management
+ * 
+ * This is free software; see GPL.txt
+ */
+
 #include <ll/i386/hw-data.h>
 #include <ll/i386/hw-func.h>
 #include <ll/i386/error.h>
@@ -13,13 +18,20 @@
 #include "dpmiexc.h"
 #include "ldtmanag.h"
 
-extern DWORD ll_exc_table[16];
 extern struct handler exc_table[32];
 extern struct gate IDT[256];
+extern DWORD ll_exc_table[16];
 extern DWORD rm_irq_table[256];
 
-extern void int21_handler(union regs *r);
-extern void int_redirect_to_bios(DWORD intnum, volatile union regs *r);
+void fd32_call_iret_rmproc(union rmregs *r)
+{
+/* TODO */
+}
+
+void fd32_call_far_rmproc(union rmregs *r)
+{
+/* TODO */
+}
 
 static void reflect(DWORD intnum, volatile union regs *r)
 {

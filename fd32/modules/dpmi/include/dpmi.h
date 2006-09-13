@@ -101,8 +101,13 @@ static inline void dpmi_return(int res, union regs *r)
   }
 }
 
+/* INT 21h handler for DOS services (AX=function) */
+void int21_handler(union regs *r);
 /* INT 2fh handler for Multiplex for PM execution (AX=function) */
-void int2f_handler(union regs *r); /* TODO: find a more suitable location ... */
+void int2f_handler(union regs *r);
+
+void int_redirect_to_bios(DWORD intnum, volatile union regs *r);
+void int_redirect_to_rmint(DWORD intnum, volatile union regs *r);
 
 #endif /* __FD32_DPMI_H */
 
