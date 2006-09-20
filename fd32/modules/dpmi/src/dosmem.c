@@ -5,8 +5,8 @@
  */
 
 #include <ll/i386/hw-data.h>
-#include <ll/i386/error.h>
 #include <ll/stdlib.h>
+#include <logger.h>
 
 #include "errno.h"
 #include "kmem.h"
@@ -30,10 +30,20 @@ WORD dos_alloc(WORD size)
 
 	p->size = size<<4;
 	p->base = dosmem_get(p->size);
+
+	if (p->base > 0 && (p->base&0x0F) != 0)
+	{
+		fd32_log_printf("[DPMI] WARNING: allocate DOS memory block not at 0x10 boundary!\n");
+		/* Allocate 1 paragraph more space */
+		dosmem_free(p->base, p->size);
+		p->size += 0x10;
+		p->base = dosmem_get(p->size);
+	}
+
 	if (p->base > 0) {
 		p->dos_seg = p->base>>4;
 		if ((p->base&0x0F) != 0) {
-			message("[DPMI] Allocate DOS memory block not at 0x10 boundary!\n");
+			p->dos_seg += 1;
 		}
 		/* Keep the track of ... */
 		p->next = dmtrack_top.next;
