@@ -5,6 +5,7 @@
  */
 
 #include <ll/i386/hw-func.h>
+#include <ll/i386/hw-arch.h>
 #include <ll/i386/string.h>
 #include <ll/i386/error.h>
 #include <ll/getopt.h>
@@ -26,6 +27,7 @@ extern char use_biosmouse;
 
 DWORD dpmi_stack;
 DWORD dpmi_stack_top;
+struct ll_cpu_info cpu;
 
 static struct option dpmi_options[] =
 {
@@ -110,5 +112,7 @@ void DPMI_init(process_info_t *pi)
   _mousebios_init();
   _vga_init();
   _drive_init();
+
+  x86_get_cpu(&cpu);
   message("DPMI installed.\n");
 }

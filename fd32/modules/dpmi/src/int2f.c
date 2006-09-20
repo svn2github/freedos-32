@@ -5,6 +5,7 @@
  */
 
 #include <ll/i386/hw-data.h>
+#include <ll/i386/hw-arch.h>
 #include <ll/i386/x-bios.h>
 #include <ll/i386/error.h>
 
@@ -78,12 +79,12 @@ void int2f_handler(union regs *r)
 	switch (r->x.ax) {
 		/* Obtain Real(vm86)-to-Protected mode switch entry point */
 		case 0x1687:
-			r->x.ax	= 0x0000; /* DPMI installed */
-			r->x.dx	= 0xFD32; /* DPMI version */
-			r->x.bx |= 0x01; /* 32-bit programs supported */
-			r->h.cl	= 0x03;	 /* Processor type i386 */
-			r->x.si	= 0x00;	 /* Number of paragraphs of DOS extender private data */
-	
+			r->x.ax	 = 0x0000;		/* DPMI installed */
+			r->x.dx	 = 0xFD32;		/* DPMI version */
+			r->x.bx |= 0x01;		/* 32-bit programs supported */
+			r->h.cl	 = cpu.x86_cpu;	/* Processor type >= i386 */
+			r->x.si	 = 0x00;		/* Number of paragraphs of DOS extender private data */
+
 			/* Mode-switch entry point */
 			r->d.vm86_es = (DWORD)fd32_vm86_to_pmode>>4; /* r->d.ecs; */
 			r->x.di	= (DWORD)fd32_vm86_to_pmode&0x0F; /* -(r->d.ecs<<4); */
@@ -98,7 +99,7 @@ void int2f_handler(union regs *r)
 			struct tss *p_vm86_tss = vm86_get_tss(X_VM86_TSS);
 			struct psp *ppsp = (struct psp *)(p_vm86_tss->es<<4);
 			WORD retf_cs;
-	
+
 #ifdef __DPMI_DEBUG__
 			fd32_log_printf("[DPMI] TASK Switch from VM86 (ECS:%x EIP:%x)!\n", (int)r->d.ecs, (int)r->d.eip);
 #endif
@@ -125,7 +126,8 @@ void int2f_handler(union regs *r)
 #ifdef __DPMI_DEBUG__
 			fd32_log_printf("[DPMI] TASK Switch to PMODE (CS:%lx EIP:%lx)\n", r->d.ecs, r->d.eip);
 #endif
-			r->d.flags &= ~(CPU_FLAG_VM|CPU_FLAG_IOPL); /* Clear the VM flag */
+			/* Clear the VM flag, NOTE: clear the NT flag (for DOS/32A 9.1.2+ compatible) */
+			r->d.flags &= ~(CPU_FLAG_VM|CPU_FLAG_NT);
 			/* NOTE: Technique, iret to the targeted CS:IP still in protected mode
 					but the space of vm registers saved in the ring0 stack is mostly lost
 			*/

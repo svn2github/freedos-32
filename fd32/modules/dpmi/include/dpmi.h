@@ -87,6 +87,7 @@ union regs {
 
 extern DWORD dpmi_stack;
 extern DWORD dpmi_stack_top;
+extern struct ll_cpu_info cpu;
 
 static inline void dpmi_return(int res, union regs *r)
 {

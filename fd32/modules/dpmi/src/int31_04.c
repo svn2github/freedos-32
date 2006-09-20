@@ -17,8 +17,6 @@
 
 void int31_0400(union regs *r)
 {
-  struct ll_cpu_info cpu;
-
 #ifdef __DEBUG__
   fd32_log_printf("[DPMI] Get DPMI Information\n");
 #endif
@@ -28,7 +26,6 @@ void int31_0400(union regs *r)
   /* DPMI Flags: 1 ---> running on 0x386 */
   r->d.ebx = ((r->d.ebx & 0xFFFF0000) | 0x01);
   /* CL = Processor type */
-  x86_get_cpu(&cpu);
   r->d.ecx = ((r->d.ecx & 0xFFFFFF00) | (cpu.x86_cpu & 0xFF));
   /* Master & Slave base interrupts... */
   r->d.edx = ((r->d.edx & 0xFFFF0000) | 0x70 << 8 | 0x40); /* I hope... */
