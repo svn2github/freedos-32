@@ -36,6 +36,7 @@ void int31_0101(union regs *r)
   int res;
 
   if ( (res = fd32_get_segment_base_address(r->x.dx, &dosmem)) >= 0) {
+    fd32_free_descriptor(r->x.dx);
     dos_free(dosmem>>4);
   }
 
