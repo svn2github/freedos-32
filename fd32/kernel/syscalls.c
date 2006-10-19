@@ -159,6 +159,7 @@ static struct symbol syscall_table[] = {
   { "kern_DS", &kern_DS },
   { "vm86_get_tss",  vm86_get_tss  },
   { "vm86_call",     vm86_call     },
+  { "vm86_callRMPROC", vm86_callRMPROC },
   { "vm86_callBIOS", vm86_callBIOS },
   { "vm86_init",     vm86_init     },
   { "ll_context_save", ll_context_save },

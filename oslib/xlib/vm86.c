@@ -213,6 +213,87 @@ void vm86_init(LIN_ADDR dos_mem_buff, DWORD dos_mem_buff_size, DWORD *rm_irqtabl
   irq_table_entry = rm_irqtable_entry;
 }
 
+int vm86_callRMPROC(WORD ip, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
+{
+  DWORD vm86_tmp_addr;
+  DWORD vm86_flags, vm86_cs, vm86_ip;
+  LIN_ADDR vm86_stack_ptr;
+
+  if (vm86_tss.bios_t.back_link != 0) {
+    message("WTF? RMPROC 0x%x called with CS = 0x%x\n", ip, vm86_tss.bios_t.cs);
+    halt();
+  }
+  /* Setup the stack frame */
+  vm86_tmp_addr = (DWORD)(vm86_stack);
+  vm86_tss.bios_t.ss = (vm86_tmp_addr & 0xFF000) >> 4;
+  vm86_tss.bios_t.ebp = (vm86_tmp_addr & 0x0FFF) + vm86_stack_size - 6;
+  vm86_tss.bios_t.esp = (vm86_tmp_addr & 0x0FFF) + vm86_stack_size - 6;
+  /* Build an iret stack frame which returns to vm86_iretAddress */
+  vm86_tmp_addr = (DWORD)(vm86_iret_address);
+  vm86_cs = (vm86_tmp_addr & 0xFF000) >> 4;
+  vm86_ip = (vm86_tmp_addr & 0xFFF);
+  vm86_flags = CPU_FLAG_IOPL;
+  vm86_stack_ptr = vm86_stack + vm86_stack_size;
+  lmempokew(vm86_stack_ptr - 6, vm86_ip);
+  lmempokew(vm86_stack_ptr - 4, vm86_cs);
+  lmempokew(vm86_stack_ptr - 2, vm86_flags);
+
+  /* Wanted VM86 mode + IOPL = 3! */
+  vm86_tss.bios_t.eflags = CPU_FLAG_VM | CPU_FLAG_IOPL;
+
+  /* Preload some standard values into the registers */
+  vm86_tss.bios_t.ss0 = X_FLATDATA_SEL;
+  vm86_tss.bios_t.esp0 = (DWORD)vm86_stack0+VM86_STACK_SIZE; 
+
+  /* Copy the parms from the X_*REGS structures in the vm86 TSS */
+  vm86_tss.bios_t.eax = in->x.ax;
+  vm86_tss.bios_t.ebx = in->x.bx;
+  vm86_tss.bios_t.ecx = in->x.cx;
+  vm86_tss.bios_t.edx = in->x.dx;
+  vm86_tss.bios_t.esi = in->x.si;
+  vm86_tss.bios_t.edi = in->x.di;
+  /* IF Segment registers are required, copy them... */
+  vm86_tss.bios_t.ds = vm86_tss.bios_t.ss;
+  vm86_tss.bios_t.es = vm86_tss.bios_t.ss;
+  vm86_tss.bios_t.gs = vm86_tss.bios_t.ss; 
+  vm86_tss.bios_t.fs = vm86_tss.bios_t.ss; 
+  /* Execute the BIOS call, fetching the CS:IP of the real interrupt
+   * handler from 0:0 (DOS irq table!)
+   */
+  vm86_tss.bios_t.cs = s->cs;
+  vm86_tss.bios_t.eip = ip;
+
+  /* Let's use the ll standard call... */
+  vm86_tss.bios_t.back_link = ll_context_save();
+
+  if (out != NULL) {
+    ll_context_load(X_VM86_CALLBIOS_TSS);
+  } else {
+    ll_context_to(X_VM86_CALLBIOS_TSS);
+  }
+  vm86_tss.bios_t.back_link = 0;
+
+  /* Send back in the X_*REGS structure the value obtained with
+   * the real-mode interrupt call
+   */
+  if (out != NULL) {
+    if (vm86_tss.bios_t.back_link != 0) {message("Panic!\n"); halt();}
+    out->x.ax = global_regs->eax;
+    out->x.bx = global_regs->ebx;
+    out->x.cx = global_regs->ecx;
+    out->x.dx = global_regs->edx;
+    out->x.si = global_regs->esi;
+    out->x.di = global_regs->edi;
+    out->x.cflag = global_regs->flags;
+    out->x.bp = global_regs->ebp;
+  }
+  if (s != NULL) {
+    s->es = global_regs->vm86_es;
+    s->ds = global_regs->vm86_ds;
+  }
+  return 1;
+}
+
 int vm86_callBIOS(int service, X_REGS16 *in, X_REGS16 *out, X_SREGS16 *s)
 {
   DWORD vm86_tmp_addr;

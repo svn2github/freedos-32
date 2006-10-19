@@ -6,6 +6,7 @@
  
 #include <ll/i386/hw-data.h>
 #include <ll/i386/mem.h>
+#include <ll/i386/x-bios.h>
 #include <ll/i386/error.h>
 #include <devices.h>
 #include <errno.h>
@@ -30,6 +31,13 @@ typedef struct fd32_mouse_getbutton
 	WORD y;
 } fd32_mouse_getbutton_t;
 
+typedef struct fd32_mouse_subroutine
+{
+	WORD call_mask;
+	WORD cs;
+	WORD ip;
+} fd32_mouse_subroutine_t;
+
 /* text mode video memory */
 typedef WORD (*text_screen_t)[][80];
 static text_screen_t screen = (text_screen_t)0xB8000;
@@ -39,6 +47,15 @@ static volatile int text_x = 0, text_y = 0, x, y, text_cell_w = 8, text_cell_h =
 static volatile WORD buttons;
 /* text mode cursor and mask */
 static WORD save = 0, scrmask = 0x77ff, curmask = 0x7700;
+/* interrupt subroutine */
+static fd32_mouse_subroutine_t subroutine;
+#define CALLMASK_MOUSE_MOVE			0x01
+#define CALLMASK_LBUTTON_PRESSED	0x02
+#define CALLMASK_LBUTTON_RELEASED	0x04
+#define CALLMASK_RBUTTON_PRESSED	0x08
+#define CALLMASK_RBUTTON_RELEASED	0x10
+#define CALLMASK_MBUTTON_PRESSED	0x20
+#define CALLMASK_MBUTTON_RELEASED	0x40
 
 void int33_set_screen(int w, int h)
 {
@@ -81,6 +98,42 @@ static void cb(const fd32_mousedata_t *data)
 		if(save != 0)
 			(*screen)[text_y][text_x] = save;
 		pos(x, y);
+	}
+
+	if (subroutine.call_mask) {
+		int call_mask = 0;
+		if (data->axes[MOUSE_X] && data->axes[MOUSE_Y])
+			call_mask |= CALLMASK_MOUSE_MOVE;
+		if (data->buttons&MOUSE_LBUT)
+			call_mask |= CALLMASK_LBUTTON_PRESSED;
+		else
+			call_mask |= CALLMASK_LBUTTON_RELEASED;
+		if (data->buttons&MOUSE_RBUT)
+			call_mask |= CALLMASK_RBUTTON_PRESSED;
+		else
+			call_mask |= CALLMASK_RBUTTON_RELEASED;
+		if (data->buttons&MOUSE_MBUT)
+			call_mask |= CALLMASK_MBUTTON_PRESSED;
+		else
+			call_mask |= CALLMASK_MBUTTON_RELEASED;
+
+		if (subroutine.call_mask&call_mask)
+		{
+			X_REGS16 in, out;
+			X_SREGS16 s;
+			s.cs = subroutine.cs;
+			s.ds = 0;
+			s.es = 0;
+			s.ss = 0;
+			in.x.ax = subroutine.call_mask;
+			in.x.bx = buttons;
+			in.x.cx = text_x*8;
+			in.x.dx = text_y*8;
+			in.x.si = 0;
+			in.x.di = 0;
+
+			vm86_callRMPROC (subroutine.ip, &in, &out, &s);
+		}
 	}
 }
 
@@ -190,10 +243,10 @@ int mousebios_int(union rmregs *r)
 			break;
 		/* MS MOUSE v1.0+ - DEFINE INTERRUPT SUBROUTINE PARAMETERS */
 		case 0x000C:
-#ifdef __INT33_DEBUG__
-			LOG_PRINTF("DEFINE INTERRUPT SUBROUTINE PARAMETERS: %x\n", r->x.cx);
-#endif
-			res = 0; /* TODO: malfunction */
+			fd32_log_printf("DEFINE INTERRUPT SUBROUTINE PARAMETERS: %x\n", r->x.cx);
+			subroutine.cs = r->x.es;
+			subroutine.ip = r->x.dx;
+			subroutine.call_mask = r->x.cx;
 			break;
 		/* Genius Mouse 9.06 - GET NUMBER OF BUTTONS */
 		case 0x0011:

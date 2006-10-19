@@ -13,6 +13,7 @@
 /* DPMI error codes */
 #define DPMI_DESCRIPTOR_UNAVAILABLE   0x8011
 #define DPMI_INVALID_SELECTOR         0x8022
+#define DPMI_INVALID_CALLBACK_ADDRESS 0x8024
 
 union regs {
   struct {

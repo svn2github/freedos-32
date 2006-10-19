@@ -7,6 +7,7 @@
 #include <ll/i386/hw-data.h>
 #include <ll/i386/hw-arch.h>
 #include <ll/i386/x-bios.h>
+#include <ll/i386/string.h>
 #include <ll/i386/error.h>
 
 #include <logger.h>
@@ -68,17 +69,47 @@ void int2f_int(union rmregs *r)
 	}
 }
 
-extern void int_redirect_to_rmint(DWORD intnum, volatile union regs *r);
-
 /* INT 2fh handler for Multiplex for PM execution (AX=function) */
 void int2f_handler(union regs *r)
 {
+	tRMCBTrack *rmcb_track;
+
 #ifdef __DPMI_DEBUG__
 	fd32_log_printf("[DPMI] INT 2fh handler, multiplex for pm execution: %x\n", r->x.ax);
 #endif
+
+	if ((rmcb_track = fd32_get_rm_callback((r->x.cs<<4)+r->x.ip-2)) != NULL)
+	{	/* RM callback */
+		DWORD addr;
+		union rmregs *rmcb_regs;
+		int eds = fd32_segment_to_descriptor(r->d.vm86_ss);
+		int esi = r->d.vm86_esp;
+		static WORD *_p_cs;
+		static WORD *_p_ip;
+		_p_cs = &r->x.cs;
+		_p_ip = &r->x.ip;
+
+		fd32_get_segment_base_address(rmcb_track->es, &addr);
+		rmcb_regs = (union rmregs *) (addr+rmcb_track->edi);
+		rmcb_regs->x.ax = r->x.ax;
+		rmcb_regs->x.bx = r->x.bx;
+		rmcb_regs->x.cx = r->x.cx;
+		rmcb_regs->x.dx = r->x.dx;
+		rmcb_regs->x.di = r->x.di;
+		rmcb_regs->x.si = r->x.si;
+
+		void farcall(int eip, int ecs, int eds, int esi, int ees, int edi);
+		farcall (rmcb_track->eip, rmcb_track->cs, eds, esi, rmcb_track->es, rmcb_track->edi);
+		/* TODO: temporarily method to adjust the return frame */
+		*_p_cs = rmcb_regs->x.cs;
+		*_p_ip = rmcb_regs->x.ip;
+
+	} else {
+
 	switch (r->x.ax) {
 		/* Obtain Real(vm86)-to-Protected mode switch entry point */
 		case 0x1687:
+		{
 			r->x.ax	 = 0x0000;		/* DPMI installed */
 			r->x.dx	 = 0xFD32;		/* DPMI version */
 			r->x.bx |= 0x01;		/* 32-bit programs supported */
@@ -92,6 +123,7 @@ void int2f_handler(union regs *r)
 			fd32_log_printf("[DPMI] VM86 switch: %x ES: %x DI: %x eflags: %x\n", (int)fd32_vm86_to_pmode, (int)r->d.vm86_es, r->x.di, (int)r->d.flags);
 #endif
 			break;
+		}
 		/* FD32 specific vm86->pmode switch */
 		case 0xFD32:
 		{
@@ -136,5 +168,5 @@ void int2f_handler(union regs *r)
 		default:
 			int_redirect_to_rmint (0x2f, r);
 			break;
-	}
+	}	}
 }

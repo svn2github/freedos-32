@@ -58,6 +58,31 @@ STACK_SWITCH:
     leave
     ret
 
+.text
+.globl SYMBOL_NAME(farcall)
+SYMBOL_NAME_LABEL(farcall)
+	push   %ebp
+	movl   %esp, %ebp
+
+	push %ds
+	push %es
+
+	movl 16(%ebp), %eax
+	movw %ax, %ds
+	movl 20(%ebp), %esi
+	movl 24(%ebp), %eax
+	movw %ax, %es
+	movl 28(%ebp), %edi
+
+	pushfl
+	lcall 8(%ebp)
+
+	pop %es
+	pop %ds
+
+	leave
+	ret
+
 /* FD32 run & return facilities for WRAPPER (by Luca Abeni) */
 .bss
 .lcomm retval, 4
@@ -159,6 +184,8 @@ SYMBOL_NAME_LABEL(wrap_restore_sp)
 .code16
 .globl SYMBOL_NAME(_fd32_vm86_to_pmode)
 .globl SYMBOL_NAME(_fd32_vm86_to_pmode_end)
+.globl SYMBOL_NAME(_fd32_rm_callback)
+.globl SYMBOL_NAME(_fd32_rm_callback_end)
 
 SYMBOL_NAME_LABEL(_fd32_vm86_to_pmode)
 	/* NOTE: Only AX=0x01 (32-bit program) is supported */
@@ -169,3 +196,8 @@ SYMBOL_NAME_LABEL(_fd32_vm86_to_pmode)
 	mov %eax, %esp
 	lret
 SYMBOL_NAME_LABEL(_fd32_vm86_to_pmode_end)
+
+SYMBOL_NAME_LABEL(_fd32_rm_callback)
+	int $0x2f
+	lret
+SYMBOL_NAME_LABEL(_fd32_rm_callback_end)

@@ -50,10 +50,24 @@ typedef union rmregs
 }
 tRMRegs;
 
+typedef struct rmcbtrack
+{
+	struct rmcbtrack *next;
+	void *dosmem_addr;
+	DWORD dosmem_size;
+
+	DWORD eip;
+	DWORD edi;
+	WORD cs;
+	WORD es;
+} tRMCBTrack;
+
 #define RMREGS_SET_CARRY   r->x.flags |= 0x0001
 #define RMREGS_CLEAR_CARRY r->x.flags &= 0xFFFE
 
 int fd32_real_mode_int(int intnum, DWORD rmcs_address);
+
+tRMCBTrack *fd32_get_rm_callback(DWORD dosmem_addr);
 
 #endif /* __RMINT_H__ */
 

@@ -156,7 +156,7 @@ void int21_handler(union regs *r)
   	/* Terminate and stay resident */
     return_to_dos(r, 1);
   } else if (r->x.ax == 0x4B82) {
-    fd32_log_printf("XXxxx %x\n", r->d.edx);
+    fd32_log_printf("INT21 0x4B82 %x\n", r->d.edx);
   } else {
     /* Redirect to call RM interrupts' handler */
     int_redirect_to_rmint(0x21, r);
@@ -344,7 +344,8 @@ void dpmi_chandler(DWORD intnum, union regs r)
   fd32_log_printf("DPMI chandler, INT: %x EAX: %x EBX: %x eflags: %x\n", intnum, r.d.eax, r.d.ebx, r.d.flags);
 #endif
 
-  sti();
+  if (intnum != 0x2f)
+    sti();
 
   if (stop != -1) {
     stop++;
