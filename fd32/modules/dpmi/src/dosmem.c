@@ -12,16 +12,17 @@
 #include "kmem.h"
 #include "dosmem.h"
 
-/* The dos memory tracker is for save of the dos memory usage */
+/* The dos memory tracker is for recording the dos memory usage */
 typedef struct dos_mem_track
 {
 	struct dos_mem_track *next;
 	DWORD base;
 	DWORD size;
+	WORD alignment_fix;
 	WORD dos_seg;
 } dos_mem_track_t;
 
-static dos_mem_track_t dmtrack_top = {0, 0, NULL};
+static dos_mem_track_t dmtrack_top = {NULL, 0, 0};
 
 /* Allocate dos memory in paragraphs */
 WORD dos_alloc(WORD size)
@@ -33,11 +34,16 @@ WORD dos_alloc(WORD size)
 
 	if (p->base > 0 && (p->base&0x0F) != 0)
 	{
+#ifdef __DEBUG__
 		fd32_log_printf("[DPMI] WARNING: allocate DOS memory block not at 0x10 boundary!\n");
+#endif
 		/* Allocate 1 paragraph more space */
 		dosmem_free(p->base, p->size);
 		p->size += 0x10;
 		p->base = dosmem_get(p->size);
+		p->alignment_fix = 0x10;
+	} else {
+		p->alignment_fix = 0;
 	}
 
 	if (p->base > 0) {
@@ -84,6 +90,7 @@ int dos_resize(WORD seg, WORD newsize)
 	for (p = dmtrack_top.next; p != NULL; p = p->next)
 		if (seg == p->dos_seg) {
 			newsize <<= 4;
+			newsize += p->alignment_fix;
 			if (dosmem_resize(p->base, p->size, newsize) == newsize) {
 				p->size = newsize;
 				return 0;
