@@ -83,14 +83,15 @@ int fd32_get_dev_info(int fd)
 		res = j->request(FD32_GET_DEV_INFO, NULL);
 	else /* TODO: fix it with appropriate one */
 		res = fd32_get_default_drive()-'A';
-	fd32_log_printf("[FS] Get device %d info: %x\n", fd, res);
+
+	LOG_PRINTF(("[FS] Get device %d info: %x\n", fd, res));
 	return res;
 }
 
 
 int fd32_set_dev_info(int fd, int devinfo)
 {
-	fd32_log_printf("[FS] Set device %d info: %x\n", fd, devinfo);
+	LOG_PRINTF(("[FS] Set device %d info: %x\n", fd, devinfo));
 	return 0;
 }
 
