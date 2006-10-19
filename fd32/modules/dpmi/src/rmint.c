@@ -87,7 +87,7 @@ int fd32_real_mode_int(int intnum, DWORD rmcs_address)
       return res;
 
     case 0x15:
-      res = dpmi_rmint_to_bios(0x10, r1);
+      res = dpmi_rmint_to_bios(0x15, r1);
       return res;
 
     case 0x16:
