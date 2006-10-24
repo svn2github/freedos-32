@@ -16,6 +16,7 @@
 #include <kernel.h>
 
 #include "dpmi.h"
+#include "dpmimem.h"
 #include "rmint.h"
 #include "int31_00.h"
 #include "int31_01.h"
@@ -61,6 +62,8 @@ static void return_to_dos(union regs *r, int resident)
     fd32_get_current_pi()->type |= RESIDENT;
 
   if (bl != NULL) {
+    /* Free all the memory of the program (e.g. dos/32a) */
+    dpmi_clear_mem(fd32_get_current_pi()->mem_info);
     /* No need to free the static memory system-stack
      * and Task switch back to the kernel task
      */
@@ -156,7 +159,7 @@ void int21_handler(union regs *r)
   	/* Terminate and stay resident */
     return_to_dos(r, 1);
   } else if (r->x.ax == 0x4B82) {
-    fd32_log_printf("INT21 0x4B82 %x\n", r->d.edx);
+    fd32_log_printf("INT21 0x4B82 %lx\n", r->d.edx);
   } else {
     /* Redirect to call RM interrupts' handler */
     int_redirect_to_rmint(0x21, r);

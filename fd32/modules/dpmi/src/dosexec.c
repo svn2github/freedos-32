@@ -18,6 +18,7 @@
 #include <kernel.h>
 #include <logger.h>
 #include "dpmi.h"
+#include "dpmimem.h"
 #include "dosmem.h"
 #include "dosexec.h"
 #include "ldtmanag.h"
@@ -336,7 +337,6 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
 
   /* Create and set process information */
   ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
-  ppi->memlimit = base + size;
   ppi->_exit = wrap_restore_sp;
 
   dpmi_stack = 0; /* Disable the stack switch in chandler */
@@ -414,6 +414,7 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
 {
   process_info_t *ppi;
   process_params_t params;
+  struct dpmimem_info dminfo;
   struct dos_header hdr;
   struct psp *ppsp;
   X_REGS16 in, out;
@@ -467,6 +468,11 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
   _set_psp(ppi, ppsp, exec_seg+exec_size, 0, g_env_segment, 0, g_fcb1, g_fcb2, filename, args);
   ppi->type = VM86_PROCESS;
+  /* Init dpmimem info */
+  dminfo.signature = MEMSIG;
+  dminfo.size = 0;
+  dminfo.next = NULL;
+  ppi->mem_info = &dminfo;
   ppi->_context = (void *)mem_get(sizeof(struct tss));
   params.vm86.ip = hdr.e_ip;
   params.vm86.sp = hdr.e_sp;

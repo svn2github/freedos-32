@@ -94,7 +94,7 @@ process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_s
   ppi->cds_list = NULL; /* Pointer set by FS */
   ppi->args = args;
   ppi->filename = filename;
-  ppi->memlimit = 0;
+  ppi->mem_info = NULL;
 
   /* Sets the JFT for the current process. */
   ppi->jft = fd32_init_jft(file_size);
@@ -131,19 +131,16 @@ int fd32_start_process(process_info_t *ppi, process_params_t *pparams)
 
 #ifdef __PROCESS_DEBUG__
   fd32_log_printf("[PROCESS] Going to run 0x%lx, size 0x%lx\n", entry, size);
-  message("Mem Limit: 0x%lx = 0x%lx 0x%lx\n", ppi->memlimit, base, size);
+  message("Mem info 0x%lx, base 0x%lx, size 0x%lx\n", ppi->mem_info, base, size);
 #endif
   switch (ppi->type&0x00FF) {
     case NORMAL_PROCESS:
-      ppi->memlimit = pparams->normal.base + pparams->normal.size;
       res = run(pparams->normal.entry, pparams->normal.fs_sel, (DWORD)/*args*/ppi);
       break;
     case DLL_PROCESS:
-      ppi->memlimit = pparams->normal.base + pparams->normal.size;
       res = dll_run(pparams->normal.entry);
       break;
     case VM86_PROCESS:
-      ppi->memlimit = 0;
       res = vm86_call(pparams->vm86.ip, pparams->vm86.sp, pparams->vm86.in_regs, pparams->vm86.out_regs, pparams->vm86.seg_regs, pparams->vm86.prev_cpu_context, NULL);
       break;
     default:

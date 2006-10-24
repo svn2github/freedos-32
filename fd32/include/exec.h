@@ -22,7 +22,7 @@ typedef struct process_info {
   void *cds_list;	/* Under DOS this is a global array */
   char *args;
   char *filename;
-  DWORD memlimit;
+  void *mem_info;
   void *jft;
   DWORD jft_size;
 

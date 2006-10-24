@@ -12,11 +12,11 @@
 
 #include <logger.h>
 #include <kmem.h>
-#include <timer.h>
 #include "handler.h"
 #include "dpmi.h"
 #include "dpmiexc.h"
 #include "ldtmanag.h"
+#include "rmint.h"
 
 extern struct handler exc_table[32];
 extern struct gate IDT[256];
@@ -191,9 +191,11 @@ int fd32_get_protect_mode_int(int intnum, WORD *selector, DWORD *offset)
     return ERROR_INVALID_VALUE;
   }
 
-  /* TODO: Right place to resolve hardware intnum? and PIC2_BASE ... */
+  /* TODO: Right place to resolve hardware intnum? */
   if (intnum >= 8 && intnum < 16)
     intnum = intnum-8+PIC1_BASE;
+  if (intnum >= 0x70 && intnum < 0x78)
+  	intnum = intnum-0x70+PIC2_BASE;
   
   /* CX:EDX = <selector>:<offset> of the interrupt handler */
   /* Set it */
@@ -213,9 +215,11 @@ int fd32_set_protect_mode_int(int intnum, WORD selector, DWORD offset)
 #ifdef __DPMIEXC_DEBUG__
   fd32_log_printf("[DPMI] Set protect mode interrupt handler 0x%x!\n", intnum);
 #endif
-  /* TODO: Right place to resolve hardware intnum? and PIC2_BASE ... */
-  if (intnum >= 8 && intnum < 16)
-    intnum = intnum-8+PIC1_BASE;
+  /* TODO: Right place to resolve hardware intnum? */
+  if (intnum >= 0x08 && intnum < 0x10)
+    intnum = intnum-0x08+PIC1_BASE;
+  if (intnum >= 0x70 && intnum < 0x78)
+  	intnum = intnum-0x70+PIC2_BASE;
   
   /* CX:EDX = <selector>:<offset> of the interrupt handler */
   /* Set it */

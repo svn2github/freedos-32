@@ -30,7 +30,7 @@ typedef struct process_info {
   void *cds_list;	/* Under DOS this is a global array */
   char *args;
   char *filename;
-  uint32_t memlimit;
+  void *mem_info;
   void *jft;
   uint32_t jft_size;
 } process_info_t;
