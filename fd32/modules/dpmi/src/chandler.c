@@ -270,7 +270,7 @@ void int31_handler(union regs *r)
       break;
   
     case 0x0304:
-      int31_0303(r);
+      int31_0304(r);
       break;
   
     case 0x0400:
