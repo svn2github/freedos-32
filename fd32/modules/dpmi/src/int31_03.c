@@ -109,7 +109,7 @@ void int31_0304(union regs *r)
 {
   tRMCBTrack *p;
   tRMCBTrack *q;
-
+  /* TODO: Debug a DOS/32A program, why it doesn't call this service when terminating */
 #ifdef __DEBUG__
   fd32_log_printf("[DPMI]: Free Real Mode CallBack Address\n");
   fd32_log_printf("    Real Mode CallBack Address: 0x%x:0x%lx\n",

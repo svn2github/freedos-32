@@ -22,7 +22,7 @@ void int31_0900(union regs *r)
 #endif
 
   /* Do something... */
-  r->h.al = (r->d.flags&CPU_FLAG_IF != 0);
+  r->h.al = ((r->d.flags&CPU_FLAG_IF) != 0);
   r->d.flags &= ~CPU_FLAG_IF;
   CLEAR_CARRY;
 
@@ -36,7 +36,7 @@ void int31_0901(union regs *r)
 #endif
 
   /* Do something... */
-  r->h.al = (r->d.flags&CPU_FLAG_IF != 0);
+  r->h.al = ((r->d.flags&CPU_FLAG_IF) != 0);
   r->d.flags |= CPU_FLAG_IF;
   CLEAR_CARRY;
 

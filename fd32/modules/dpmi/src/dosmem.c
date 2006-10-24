@@ -13,21 +13,22 @@
 #include "dosmem.h"
 
 /* The dos memory tracker is for recording the dos memory usage */
-typedef struct dos_mem_track
+typedef struct dosmem_track
 {
-	struct dos_mem_track *next;
 	DWORD base;
 	DWORD size;
 	WORD alignment_fix;
 	WORD dos_seg;
-} dos_mem_track_t;
 
-static dos_mem_track_t dmtrack_top = {NULL, 0, 0};
+	struct dosmem_track *next;
+} dosmem_track_t;
+
+static dosmem_track_t dmtrack_top = {NULL, 0, 0};
 
 /* Allocate dos memory in paragraphs */
 WORD dos_alloc(WORD size)
 {
-	dos_mem_track_t *p = (dos_mem_track_t *)mem_get(sizeof(dos_mem_track_t));
+	dosmem_track_t *p = (dosmem_track_t *)mem_get(sizeof(dosmem_track_t));
 
 	p->size = size<<4;
 	p->base = dosmem_get(p->size);
@@ -56,7 +57,7 @@ WORD dos_alloc(WORD size)
 		dmtrack_top.next = p;
 		return p->dos_seg;
 	} else {
-		mem_free((DWORD)p, sizeof(dos_mem_track_t));
+		mem_free((DWORD)p, sizeof(dosmem_track_t));
 		return 0;
 	}
 }
@@ -65,14 +66,14 @@ WORD dos_alloc(WORD size)
 int dos_free(WORD seg)
 {
 	int res;
-	dos_mem_track_t *p, *q;
+	dosmem_track_t *p, *q;
 
 	for (q = &dmtrack_top, p = dmtrack_top.next; p != NULL; q = p, p = p->next)
 		if (seg == p->dos_seg) {
 			res = dosmem_free(p->base, p->size);
 			if (res == 0) {
 				q->next = p->next;
-				return mem_free((DWORD)p, sizeof(dos_mem_track_t));
+				return mem_free((DWORD)p, sizeof(dosmem_track_t));
 			} else {
 				return res;
 			}
@@ -85,7 +86,7 @@ int dos_free(WORD seg)
 /* Resize the dos memory */
 int dos_resize(WORD seg, WORD newsize)
 {
-	dos_mem_track_t *p;
+	dosmem_track_t *p;
 
 	for (p = dmtrack_top.next; p != NULL; p = p->next)
 		if (seg == p->dos_seg) {
