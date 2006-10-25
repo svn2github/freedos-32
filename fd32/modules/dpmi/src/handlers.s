@@ -188,8 +188,6 @@ SYMBOL_NAME_LABEL(wrap_restore_sp)
 .globl SYMBOL_NAME(_fd32_rm_callback_end)
 
 SYMBOL_NAME_LABEL(_fd32_vm86_to_pmode)
-	/* NOTE: Only AX=0x01 (32-bit program) is supported */
-	mov $0xFD32, %ax
 	int $0x2f
 	pop %eax
 	pop %ss

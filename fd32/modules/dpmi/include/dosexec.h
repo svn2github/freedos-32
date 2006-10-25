@@ -75,6 +75,6 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
 #define DOS_DIRECT_EXEC		1 /* Support COFF-GO32 only */
 #define DOS_WRAPPER_EXEC	2
 int dos_exec_switch(int option); /* Return TRUE(1) or FALSE(0) */
-extern void (*fd32_vm86_to_pmode)(void); /* 16bit DPMI mode-switch */
+extern void *fd32_vm86_to_pmode; /* 16bit DPMI mode-switch */
 
 #endif

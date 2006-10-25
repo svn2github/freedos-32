@@ -520,7 +520,7 @@ static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 static int (*p_isMZ)(struct kern_funcs *kf, int f, struct read_funcs *rf) = NULL;
 extern void _fd32_vm86_to_pmode();
 extern void _fd32_vm86_to_pmode_end();
-void (*fd32_vm86_to_pmode)(void) = NULL;
+void *fd32_vm86_to_pmode = NULL;
 
 int dos_exec_switch(int option)
 {
@@ -543,12 +543,12 @@ int dos_exec_switch(int option)
       /* Install the fd32_vm86_to_pmode */
       if (fd32_vm86_to_pmode == NULL) {
       	const DWORD psize = (DWORD)_fd32_vm86_to_pmode_end - (DWORD)_fd32_vm86_to_pmode;
-        BYTE *p = (BYTE *)dosmem_get((psize+0x10)&0xFFFFFFF0);
+        BYTE *p = (BYTE *)dosmem_get(psize);
         /* ".code16" "mov $0xfd32, %ax;" "int $0x2f;" "lret;" */
         memcpy(p, _fd32_vm86_to_pmode, psize);
         /* p[0] = 0xB8, p[1] = 0x32, p[2] = 0xFD;
            p[3] = 0xCD, p[4] = 0x2F, p[5] = 0xCB; */
-        fd32_vm86_to_pmode = (void (*)(void))p;
+        fd32_vm86_to_pmode = p;
       }
       /* Store the previous check */
       if (p_isMZ == NULL) {
