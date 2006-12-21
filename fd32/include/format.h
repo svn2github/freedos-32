@@ -19,7 +19,8 @@
 #define NEED_IMAGE_RELOCATION	1
 #define NEED_SECTION_RELOCATION	2
 #define NEED_LOAD_RELOCATABLE	4
-#define NO_ENTRY		16
+#define ELF_OBJECT			8
+#define NO_ENTRY			16
 #define DLL_WITH_STDCALL	32
 
 /* module formats */

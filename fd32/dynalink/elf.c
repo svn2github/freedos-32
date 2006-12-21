@@ -33,7 +33,7 @@ static DWORD ELF_read_headers(struct kern_funcs *kf, int f, struct table_info *t
     return 0;
   }
 
-  tables->flags = 0;
+  tables->flags = ELF_OBJECT;
   if (header.e_ident[4] != ELFCLASS32) {
     kf->error("Wrong ELF class\n");
     kf->message("Class: 0x%x!!!\n", header.e_ident[4]);

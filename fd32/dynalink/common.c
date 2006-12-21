@@ -31,7 +31,10 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
     for (i = 0; i < tables->num_symbols; i++) {
       if (syms[i].section == COMMON_SYMBOL) {
         j = syms[i].offset;
-        syms[i].offset = global_data-j;
+        if (!(tables->flags&ELF_OBJECT)) /* NOTE: COFF & ELF objects only */
+          syms[i].offset = global_data - j;
+        else
+          syms[i].offset = global_data;
         global_data += j;
       } else if (syms[i].section == EXTERN_SYMBOL) {
 #ifdef __COFF_DEBUG__
