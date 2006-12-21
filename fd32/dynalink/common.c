@@ -21,7 +21,7 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
 {
   unsigned int i, j, idx;
   DWORD address, destination;
-  DWORD local_bss = tables->local_bss;
+  DWORD global_data = tables->global_data;
   struct reloc_info *rel = s[sect].reloc;
 
   /* Setup the common space-uninitialized symbols at the first section relocation
@@ -31,8 +31,8 @@ int common_relocate_section(struct kern_funcs *kf, DWORD base, struct table_info
     for (i = 0; i < tables->num_symbols; i++) {
       if (syms[i].section == COMMON_SYMBOL) {
         j = syms[i].offset;
-        syms[i].offset = local_bss;
-        local_bss += j;
+        syms[i].offset = global_data-j;
+        global_data += j;
       } else if (syms[i].section == EXTERN_SYMBOL) {
 #ifdef __COFF_DEBUG__
         kf->log("Searching for symbol %s\n", syms[i].name);
@@ -250,13 +250,13 @@ DWORD common_load_relocatable(struct kern_funcs *kf, int f,  struct table_info *
   for (i = 0; i < n; i++) {
     needed_mem += s[i].size;
   }
-  needed_mem += tables->local_bss_size;
+  needed_mem += tables->global_data_size;
   mem_space = (BYTE *)kf->mem_alloc(needed_mem);
   /* Allocate for the local bss at the mean time */
-  if (tables->local_bss_size != 0) {
-    tables->local_bss = (DWORD)mem_space+needed_mem-tables->local_bss_size;
+  if (tables->global_data_size != 0) {
+    tables->global_data = (DWORD)mem_space+needed_mem-tables->global_data_size;
   } else {
-    tables->local_bss = 0;
+    tables->global_data = 0;
   }
 
 #ifdef __ELF_DEBUG__

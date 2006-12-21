@@ -139,7 +139,7 @@ int COFF_read_section_headers(FILE *f, int num, struct section_info *scndata)
     memcpy(name, h.s_name, 8);
     name[8] = 0;
     
-    if (strcmp(name, ".bss") == 0) {
+    if (h.s_flags & SECT_UNINIT_DATA) {
       bss = i;
     }
   
@@ -290,8 +290,8 @@ static int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *ta
         } else {
           /* common symbol */
           syms[i].section = COMMON_SYMBOL;
-          /* calculate the local_bss_size */
-          tables->local_bss_size += syms[i].offset;
+          /* calculate the global_data_size */
+          tables->global_data_size += syms[i].offset;
         }
         break;
       case 0xFFFF:
