@@ -1,5 +1,5 @@
 /* The FreeDOS-32 FAT Driver version 2.0
- * Copyright (C) 2001-2005  Salvatore ISAJA
+ * Copyright (C) 2001-2006  Salvatore ISAJA
  *
  * This file "volume.c" is part of the FreeDOS-32 FAT Driver (the Program).
  *
@@ -76,7 +76,7 @@ int fat_sync(Volume *v)
 	unsigned k;
 	int res;
 	Buffer *b = NULL;
-	if (v->fat_type == FAT32)
+	if ((v->fat_type == FAT32) && v->fsinfo_changed)
 	{
 		struct fat_fsinfo *fsi;
 		res = fat_readbuf(v, 1, &b, false);
@@ -85,6 +85,7 @@ int fat_sync(Volume *v)
 		fsi->free_clusters = v->free_clusters;
 		fsi->next_free = v->next_free;
 		res = fat_dirtybuf(b, false);
+		v->fsinfo_changed = false;
 	}
 	for (k = 0; k < v->num_buffers; k++)
 	{
@@ -411,6 +412,7 @@ int fat_mount(const char *blk_name, Volume **volume)
 	memcpy(v->volume_label, bpb->volume_label, sizeof(v->volume_label));
 	v->free_clusters = FAT_FSI_NA;
 	v->next_free = FAT_FSI_NA;
+	v->fsinfo_changed = false;
 	if (v->fat_type == FAT32)
 	{
 		struct fat32_bpb *bpb32 = (struct fat32_bpb *) secbuf;

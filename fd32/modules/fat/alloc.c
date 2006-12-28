@@ -1,5 +1,5 @@
 /* The FreeDOS-32 FAT Driver version 2.0
- * Copyright (C) 2001-2005  Salvatore ISAJA
+ * Copyright (C) 2001-2006  Salvatore ISAJA
  *
  * This file "alloc.c" is part of the FreeDOS-32 FAT Driver (the Program).
  *
@@ -320,6 +320,7 @@ static int32_t find_free_cluster_in_range(Volume *v, Cluster from, Cluster to)
 		if (!res)
 		{
 			v->next_free = (Cluster) k;
+			v->fsinfo_changed = true;
 			return (int32_t) k;
 		}
 	}
@@ -345,6 +346,7 @@ static int32_t find_free_cluster(Volume *v)
 	res = find_free_cluster_in_range(v, 2, hint);
 	if (res != -ENOSPC) return res;
 	v->next_free = FAT_FSI_NA;
+	v->fsinfo_changed = true;
 	return -ENOSPC;
 }
 
@@ -380,6 +382,7 @@ int32_t fat_append_cluster(Channel *c)
 		if (res < 0) return res;
 	}
 	v->free_clusters--;
+	v->fsinfo_changed = true;
 	res = write_fat_entry(v, cluster, FAT_EOC);
 	if (res < 0) return res;
 	return cluster;
@@ -432,6 +435,7 @@ int fat_delete_clusters(Volume *v, Cluster from)
 		res = write_fat_entry(v, from, 0);
 		if (res < 0) return res;
 		v->free_clusters++;
+		v->fsinfo_changed = true;
 		from = (Cluster) next;
 	}
 	while (next != FAT_EOC);

@@ -1,5 +1,5 @@
 /* The FreeDOS-32 FAT Driver version 2.0
- * Copyright (C) 2001-2005  Salvatore ISAJA
+ * Copyright (C) 2001-2006  Salvatore ISAJA
  *
  * This file "fat.h" is part of the FreeDOS-32 FAT Driver (the Program).
  *
@@ -215,6 +215,7 @@ struct Volume
 	Cluster  data_clusters;
 	Cluster  free_clusters;
 	Cluster  next_free;
+	bool     fsinfo_changed;
 
 	/* Functions to access the file allocation table */
 	int32_t (*fat_read) (Volume *v, Cluster n, unsigned fat_num);
