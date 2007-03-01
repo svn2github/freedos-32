@@ -109,7 +109,6 @@ void int_redirect_to_rmint(DWORD intnum, volatile union regs *r)
 void int_redirect_to_bios(DWORD intnum, volatile union regs *r)
 {
   DWORD f;
-  DWORD stack_mem, pre_stack_mem;
   X_REGS16 regs_r;
   X_SREGS16 selectors_r;
 
@@ -126,15 +125,7 @@ void int_redirect_to_bios(DWORD intnum, volatile union regs *r)
     selectors_r.ds = r->d.vm86_ds;
   }
 
-  /* Use the new dpmi stack */
-  pre_stack_mem = dpmi_stack;
-  stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
-  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   vm86_callBIOS(intnum, &regs_r, &regs_r, &selectors_r);
-  /* Restore the previous stack */
-  dpmi_stack = pre_stack_mem;
-  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
-  mem_free(stack_mem, DPMI_STACK_SIZE);
 
   r->x.ax = regs_r.x.ax;
   r->x.bx = regs_r.x.bx;

@@ -27,7 +27,6 @@ extern char use_biosmouse;
 static int dpmi_rmint_to_bios(DWORD intnum, volatile union rmregs *r)
 {
   DWORD f;
-  DWORD stack_mem, pre_stack_mem;
   X_REGS16 regs_r;
   X_SREGS16 selectors_r;
 
@@ -42,15 +41,7 @@ static int dpmi_rmint_to_bios(DWORD intnum, volatile union rmregs *r)
   selectors_r.es = r->x.es;
   selectors_r.ds = r->x.ds;
 
-  /* Use the new dpmi stack */
-  pre_stack_mem = dpmi_stack;
-  stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
-  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   vm86_callBIOS(intnum, &regs_r, &regs_r, &selectors_r);
-  /* Restore the previous stack */
-  dpmi_stack = pre_stack_mem;
-  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
-  mem_free(stack_mem, DPMI_STACK_SIZE);
 
   r->x.ax = regs_r.x.ax;
   r->x.bx = regs_r.x.bx;

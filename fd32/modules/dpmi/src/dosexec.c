@@ -321,7 +321,6 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   process_info_t *ppi;
   int retval;
   DWORD exec_mem;
-  DWORD stack_mem;
   DWORD size, exec_space, entry, base, user_stack;
   char current_drive[2];
   char current_path[FD32_LFNPMAX];
@@ -339,10 +338,6 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
   ppi->_exit = wrap_restore_sp;
 
-  dpmi_stack = 0; /* Disable the stack switch in chandler */
-  dpmi_stack_top = 0xFFFFFFFF;
-
-  stack_mem = mem_get(DPMI_STACK_SIZE);
   /* Total memory allocated for wrapper execution */
   exec_mem = exec_space-base;
   size += base;
@@ -360,7 +355,6 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   fd32_stop_process(ppi);
   message("Returned: %d!!!\n", retval);
 
-  mem_free(stack_mem, DPMI_STACK_SIZE);
   mem_free(exec_mem, size);
 
   return retval;
@@ -390,9 +384,6 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
     params.normal.entry += offset;
     params.normal.base = exec_space;
     params.normal.fs_sel = retval;
-    /* Disable the stack switch in chandler */
-    dpmi_stack = 0;
-    dpmi_stack_top = 0xFFFFFFFF;
     retval = fd32_start_process(ppi, &params);
     /* Back to the previous process NOTE: TSR native programs? */
     fd32_stop_process(ppi);
@@ -419,7 +410,6 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   struct psp *ppsp;
   X_REGS16 in, out;
   X_SREGS16 s;
-  DWORD stack_mem, pre_stack_mem;
   BYTE *exec_text;
   DWORD exec_size;
   WORD load_seg, exec_seg;
@@ -480,18 +470,10 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   params.vm86.out_regs = &out;
   params.vm86.seg_regs = &s;
   params.vm86.prev_cpu_context = ppi->_context;
-  /* Use the new dpmi stack */
-  pre_stack_mem = dpmi_stack;
-  stack_mem = dpmi_stack = mem_get(DPMI_STACK_SIZE);
-  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
   /* Call in VM86 mode */
   out.x.ax = fd32_start_process(ppi, &params);
   /* Back to the previous process */
   fd32_stop_process(ppi);
-  /* Restore the previous stack */
-  dpmi_stack = pre_stack_mem;
-  dpmi_stack_top = dpmi_stack+DPMI_STACK_SIZE;
-  mem_free(stack_mem, DPMI_STACK_SIZE);
   mem_free((DWORD)ppi->_context, sizeof(struct tss));
 
   if (!(ppi->type & RESIDENT))

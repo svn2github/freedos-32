@@ -25,8 +25,6 @@ extern char use_biosvga;
 #endif
 extern char use_biosmouse;
 
-DWORD dpmi_stack;
-DWORD dpmi_stack_top;
 struct ll_cpu_info cpu;
 
 static struct option dpmi_options[] =
