@@ -1,8 +1,6 @@
 #ifndef __FD32_DPMI_H
 #define __FD32_DPMI_H
 
-#define DPMI_STACK_SIZE 0x2000
-
 /* VM86 extended */
 #define VM86_EXT 1
 
@@ -86,8 +84,6 @@ union regs {
   } h;
 };
 
-extern DWORD dpmi_stack;
-extern DWORD dpmi_stack_top;
 extern struct ll_cpu_info cpu;
 
 static inline void dpmi_return(int res, union regs *r)
@@ -112,4 +108,3 @@ void int_redirect_to_bios(DWORD intnum, volatile union regs *r);
 void int_redirect_to_rmint(DWORD intnum, volatile union regs *r);
 
 #endif /* __FD32_DPMI_H */
-
