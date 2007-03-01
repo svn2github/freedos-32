@@ -25,13 +25,10 @@
 
 DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *ex_exec_space, DWORD *image_base, DWORD *ex_size)
 {
-  #ifdef __EXEC_DEBUG__
-  DWORD offset;
-  #endif
   DWORD size;
   DWORD exec_space;
   int bss_sect, i;
-  DWORD dyn_entry;
+  DWORD entry;
   struct section_info *sections;
   struct symbol_info *symbols = NULL;
   struct table_info tables;
@@ -41,7 +38,7 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
   tables.global_data_size = 0;
   tables.private_info = 0;
 
-  dyn_entry = rf->read_headers(kf, file, &tables);
+  entry = rf->read_headers(kf, file, &tables);
 
   sections = (struct section_info *)mem_get(sizeof(struct section_info) * tables.num_sections);
   if (sections == 0) {
@@ -132,43 +129,42 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
       mem_free(exec_space, size);
       return -1;
     }
-    dyn_entry = (DWORD)rf->import_symbol(kf, tables.num_symbols, symbols, "_init", &init_sect);
+    entry = (DWORD)rf->import_symbol(kf, tables.num_symbols, symbols, "_init", &init_sect);
     if (init_sect != -1) {
 #ifdef __EXEC_DEBUG__
       fd32_log_printf("Found: (%d =  0x%x) 0x%lx\n", init_sect,
-	      init_sect, dyn_entry);
+	      init_sect, entry);
       fd32_log_printf("       Section Base: 0x%lx       Exec Space: 0x%lx\n",
 	      sections[init_sect].base, exec_space);
 #endif
-      dyn_entry += sections[init_sect].base + exec_space;
+      entry += sections[init_sect].base + exec_space;
       *image_base = exec_space;
       *ex_exec_space = 0;
       rf->free_tables(kf, &tables, symbols, sections);
-      return dyn_entry;
+      return entry;
     } else {
       message("WARNING: Initialization function not found!\n");
       return -1;
     }
   } else if (tables.flags & DLL_WITH_STDCALL) {
-    dyn_entry += exec_space;
+    entry += exec_space;
     *image_base = exec_space;
     *ex_exec_space = -1; /* Note: Just to notify the exec_process it"s DLL with STDCALL entry */
     rf->free_tables(kf, &tables, symbols, sections);
 
-    return dyn_entry;
+    return entry;
   } else {
     /* Reloc the entry if it's a relocated (PE) executable image */
     if (tables.flags & NEED_IMAGE_RELOCATION)
-      dyn_entry += ((struct pe_reloc_info *)sections[0].reloc)->offset;
+      entry += ((struct pe_reloc_info *)sections[0].reloc)->offset;
 #ifdef __EXEC_DEBUG__
-    fd32_log_printf("[EXEC] 1) Before calling 0x%lx  = 0x%lx + 0x%lx...\n",
-		dyn_entry + offset, dyn_entry, offset);
+    fd32_log_printf("[EXEC] 1) Before calling 0x%lx ...\n", entry);
 #endif
     *ex_exec_space = exec_space;
     *image_base = tables.image_base;
     rf->free_tables(kf, &tables, symbols, sections);
 
-    return dyn_entry;
+    return entry;
   }
 }
 
@@ -196,7 +192,7 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
     exec_space = params.normal.base; /* TODO: ... */
   } else {
 #ifdef __EXEC_DEBUG__
-    fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", dyn_entry);
+    fd32_log_printf("[EXEC] 2) Before calling 0x%lx...\n", params.normal.entry);
 #endif
     ppi->type = NORMAL_PROCESS;
     offset = exec_space - params.normal.base;

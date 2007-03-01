@@ -476,6 +476,13 @@ int add_dll_table(char *dll_name, DWORD handle, DWORD symbol_num, struct symbol 
 struct dll_table *get_dll_table(char *dll_name)
 {
   struct dll_int_table *p, *q;
+  char *filepath;
+  struct bin_format *binfmt;
+  struct kern_funcs kf;
+  struct read_funcs rf;
+  struct kernel_file f;
+  DWORD i;
+
   strlwr(dll_name);
 
   /* Search for the DLL */
@@ -487,7 +494,40 @@ struct dll_table *get_dll_table(char *dll_name)
 
   /* Find and Load the DLL */
   message("Find and Load %s ...\n", dll_name);
-  /* dos_exec(dll_name, 0, 0, 0, 0, &retval); */
+  
+  if (strcmp(dll_name, "kernel32.dll") == 0)
+    filepath = "\\hx\\dkrnl32.dll";
+  else
+    filepath = dll_name;
+  
+  if (fd32_kernel_open(filepath, O_RDONLY, 0, 0, &f) < 0)
+    return NULL;
+
+  kf.file_read = fd32_kernel_read;
+  kf.file_seek = fd32_kernel_seek;
+  kf.mem_alloc = mem_get;
+  kf.mem_alloc_region = mem_get_region;
+  kf.mem_free = mem_free;
+  kf.message = message;
+  kf.log = fd32_log_printf;
+  kf.error = message;
+  kf.get_dll_table = get_dll_table;
+  kf.add_dll_table = add_dll_table;
+  kf.seek_set = FD32_SEEKSET;
+  kf.seek_cur = FD32_SEEKCUR;
+  kf.file_offset = 0;
+
+  /* Get the binary format object table, ending with NULL name */
+  binfmt = fd32_get_binfmt();
+  
+  /* Load different modules in various binary format */
+  for (i = 0; binfmt[i].name != NULL; i++)
+  {
+    if (binfmt[i].check(&kf, (int)(&f), &rf)) {
+      binfmt[i].exec(&kf, (int)(&f), &rf, dll_name, NULL);
+      break;
+    }
+  }
   /* TODO: load the DLL, add the DLL table */
 
   /* Search for the DLL again */

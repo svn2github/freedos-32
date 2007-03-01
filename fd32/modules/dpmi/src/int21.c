@@ -1232,34 +1232,48 @@ void dos21_int(union rmregs *r)
 			break;
 		/* DOS 2+ - "EXEC" - Load and/or Execute program */
 		case 0x4B:
-		{
-			ExecParams *pb;
-			char *args, *p, c[128];
-			int cnt, i;
-			LOG_PRINTF(("[DPMI] INT 21h: Load and Execute, al=%02xh\n", r->h.al));
-			pb = (ExecParams *) FAR2ADDR(r->x.es, r->x.bx);
+			fd32_log_printf("GetModuleHandle %x\n", r->d.edx);
 			/* Only AL = 0x00 - Load and Execute - is currently supported */
-			if (r->h.al != 0)
-			{
-				res = -ENOTSUP; /* Invalid subfunction */
-				break;
-			}
-			p = (char *) FAR2ADDR(pb->arg_seg, pb->arg_offs);
-			cnt = *p++;
-			if (cnt == 0) {
-				args = NULL;
+			if (r->h.al == 0) {
+				ExecParams *pb = (ExecParams *) FAR2ADDR(r->x.es, r->x.bx);
+				char *args, *p;
+				unsigned int cnt, i;
+
+				LOG_PRINTF(("[DPMI] INT 21h: Load and Execute, al=%02xh\n", r->h.al));
+				args = p = (char *) FAR2ADDR(pb->arg_seg, pb->arg_offs);
+				cnt = *p;
+				for (i = 0; i < cnt; i++, p++)
+					*p = *(p+1);
+				*p = '\0';
+
+				res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
+				LOG_PRINTF(("\t\"%s\"\n", fn));
+
+				if (res >= 0) res = dos_exec(fn, pb->Env, args, pb->Fcb1, pb->Fcb2, &dos_return_code);
+			} else if (r->h.al == 0x01) {
+			} else if (r->h.al == 0x03) {
+			} else if (r->h.al == 0x04) {
+			
+			/* Compatible with HX PE Loader */
+			} else if (r->h.al == 0x80) { 
+				
+			} else if (r->h.al == 0x81) { 
+			} else if (r->h.al == 0x82) { /* (GetModuleHandle): Get the handle of a PE module. */
+				fd32_log_printf("GetModuleHandle %x\n", r->d.edx);
+			} else if (r->h.al == 0x83) { /* Get next PE module handle. */
+			} else if (r->h.al == 0x84) { /* (CallProc32W): Call 32-bit flat procedure from a 16-bit dll. */
+			} else if (r->h.al == 0x85) { /* (GetProcAddress16): Get the address of a procedure in a 16-bit module. */
+			} else if (r->h.al == 0x86) { /* (GetModuleFileName): Get a pointer to a module's full path and file name. */
+			} else if (r->h.al == 0x87) {
+			} else if (r->h.al == 0x88) {
+			} else if (r->h.al == 0x91) {
+			} else if (r->h.al == 0x92) {
+			} else if (r->h.al == 0x93) {
+			} else if (r->h.al == 0x94) {
 			} else {
-				for (i = 0; i < cnt; i++) {
-					c[i] = *p++;
-				}
-				c[i] = 0;
-				args = c;
+				res = -ENOTSUP; /* Invalid subfunction */
 			}
-			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
-			LOG_PRINTF(("                dos_exec: \"%s\"\n", fn));
-			if (res >= 0) res = dos_exec(fn, pb->Env, args, pb->Fcb1, pb->Fcb2, &dos_return_code);
 			break;
-		}
 		/* DOS 2+ - Get return code */
 		case 0x4D:
 			LOG_PRINTF(("[DPMI] INT 21h: Get return code: %02xh\n", dos_return_code));
