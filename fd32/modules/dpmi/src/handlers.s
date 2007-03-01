@@ -11,6 +11,7 @@
 .text
 .extern SYMBOL_NAME(memcpy)
 .extern SYMBOL_NAME(mem_get)
+.extern SYMBOL_NAME(mem_free)
 .extern SYMBOL_NAME(dpmi_chandler)
 
 .globl SYMBOL_NAME(chandler)
@@ -23,6 +24,7 @@ SYMBOL_NAME_LABEL(chandler)
 	/* Move eax to the stack top */
 	addl   $(DPMI_STACK_SIZE), %eax
 
+	/* { stack frame */
 	push   %ebp
 	movl   %esp, %ebp
 	addl   $0x08, %ebp
@@ -49,12 +51,26 @@ SYMBOL_NAME_LABEL(chandler)
 	movl   %eax, 0x4(%esp)
 	movl   %ebp, (%esp)
 	call   SYMBOL_NAME(memcpy)
+	addl   $0x0c, %esp
+
+	/* Get the stack in eax */
+	movl   %esp, %eax
+	addl   $(INT_HANDLER_PARAMS_SIZE), %eax
+	subl   $(DPMI_STACK_SIZE), %eax
 	
 	subl   $0x08, %ebp
 	leave
+	/* } */
+
+	/* Free the stack */
+	subl   $0x08, %esp
+	movl   $(DPMI_STACK_SIZE), 4(%esp)
+	movl   %eax, (%esp)
+	call   SYMBOL_NAME(mem_free)
+	addl   $0x08, %esp
 	ret
 
-.text
+
 .globl SYMBOL_NAME(farcall)
 SYMBOL_NAME_LABEL(farcall)
 	push   %ebp
