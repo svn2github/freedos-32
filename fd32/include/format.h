@@ -23,16 +23,15 @@
 #define NO_ENTRY			16
 #define DLL_WITH_STDCALL	32
 
-/* module formats */
-/*
-#define MOD_ASCII   1
-#define MOD_COFF    2
-#define MOD_ELF     3
-#define MOD_MZ      4
-#define MOD_UNKNOWN 5
-#define MOD_PECOFF  6
-
-*/
+/* module formats
+enum module_format {
+  MOD_ASCII,
+  MOD_COFF,
+  MOD_ELF,
+  MOD_PEI,
+  MOD_MZ,
+  MOD_UNKNOWN
+}; */
 
 struct symbol_info {
   char *name;
@@ -155,6 +154,7 @@ int isCOFF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 int isELF(struct kern_funcs *kf, int f, struct read_funcs *rf);
 
 typedef int (*check_func_t)(struct kern_funcs *kf, int f, struct read_funcs *rf);
+/* TODO: Load an object file not exec it! */
 typedef int (*exec_func_t)(struct kern_funcs *kf, int f, struct read_funcs *rf, char *cmdline, char *args);
 
 /** \struct bin_format */

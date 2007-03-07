@@ -25,6 +25,7 @@ typedef struct process_info {
   void *mem_info;
   void *jft;
   DWORD jft_size;
+  void *dll_entry_list;
 
   void *_context; /* Task context for switching to the previous process */
   void (*_exit)(int res) __attribute__ ((noreturn)); /* Turn back the previous running state, after running a program */
@@ -51,6 +52,13 @@ typedef union process_params {
   } vm86;
 } process_params_t;
 
+typedef struct executable_info {
+  DWORD exec_space;
+  DWORD image_base;
+  DWORD size;
+  void *dll_entry_list;
+} executable_info_t;
+
 
 process_info_t *fd32_get_current_pi(void);
 void fd32_set_current_pi(process_info_t *ppi);
@@ -59,6 +67,6 @@ process_info_t *fd32_new_process(char *filename, char *args, unsigned int file_s
 int fd32_start_process(process_info_t *ppi, process_params_t *pparams);
 void fd32_stop_process(process_info_t *ppi);
 int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, char *filename, char *args);
-DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *exec_space, DWORD *image_base, DWORD *size);
+DWORD fd32_load_executable(struct kern_funcs *kf, int file, struct read_funcs *rf, executable_info_t *execinfo);
 
 #endif

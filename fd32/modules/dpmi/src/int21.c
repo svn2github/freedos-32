@@ -38,6 +38,9 @@
 #include "dosmem.h"
 #include "dosexec.h"
 
+#include <dr-env/stdint.h>
+#include <block/block.h>
+
 #define DOS_API_INPUT_IS_UTF8 1
 #if !DOS_API_INPUT_IS_UTF8
  #include <unicode/unicode.h>
@@ -319,6 +322,8 @@ static void res2dos(int res, union rmregs *r)
 		RMREGS_SET_CARRY;
 		if (res < sizeof(errno2dos))
 			r->x.ax = errno2dos[res];
+		else if (res == 0x4401)
+			r->x.ax = 0x4401; /* IOCTL capability not available */
 		else if (res == 0x7100)
 			r->x.ax = 0x7100; /* Yet another convention: LONG FILENAME */
 		else
@@ -759,18 +764,26 @@ static inline int lfn_functions(union rmregs *r)
 		}
 		/* Truename (CL=subfunction) */
 		case 0x60:
-			/* FIXME: Only subservice 01h "Get short (8.3) filename for file" is implemented */
-			if (r->h.cl != 0x01)
-			{
-				res = -ENOTSUP;
-				break;
-			}
 			/* CH=SUBST expansion flag (ignored), 80h to not resolve SUBST
 			 * DS:SI->ASCIZ long file name or path
 			 * ES:DI->64-bytes buffer for short path name
 			 */
-			res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
-			if (res >= 0) res = fd32_sfn_truename((char *) FAR2ADDR(r->x.es, r->x.di), fn);
+			if (r->h.cl < 0x03)
+				res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.si), sizeof(fn));
+			else
+				res = -ENOTDIR;
+
+			if (res >= 0) {
+				if (r->h.cl == 0x00)
+					res = fd32_truename((char *) FAR2ADDR(r->x.es, r->x.di), fn, r->h.ch == 0x80 ? FD32_TNSUBST : 0);
+				else if (r->h.cl == 0x01)	/* "Get short (8.3) filename for file" */
+					res = fd32_sfn_truename((char *) FAR2ADDR(r->x.es, r->x.di), fn);
+				else if (r->h.cl == 0x02)
+					res = fd32_truename((char *) FAR2ADDR(r->x.es, r->x.di), fn, r->h.ch == 0x80 ? FD32_TNSUBST : 0);
+				else
+					res = -ENOTSUP;
+			}
+
 			break;
 		/* Create or open file (BX=access mode and sharing flags, CX=attributes
 		 * for creation, DX=action, DS:SI->ASCIZ file name, DI=numeric tail hint).
@@ -831,6 +844,7 @@ void dos21_int(union rmregs *r)
 {
 	int res;
 	long long int res64;
+	char *buf;
 	/* The current PSP is needed for the pointer to the DTA */
 	struct psp *curpsp = fd32_get_current_pi()->psp;
 	char fn[FD32_LFNPMAX];
@@ -915,6 +929,10 @@ void dos21_int(union rmregs *r)
 		case 0x25:
 			LOG_PRINTF(("[DPMI] Set Int %x: %x %x\n", r->h.al, r->x.ds, r->x.dx));
 			res = fd32_set_real_mode_int (r->h.al, r->x.ds, r->x.dx);
+			break;
+		case 0x29:
+			fd32_log_printf("[DPMI] INT 29h: Parse filename %s\n", (char *)FAR2ADDR(r->x.ds, r->x.dx));
+			res = -ENOTSUP; /* Invalid subfunction */
 			break;
 		/* DOS 1+ - GET SYSTEM DATE */
 		case 0x2A:
@@ -1142,13 +1160,21 @@ void dos21_int(union rmregs *r)
 						r->x.ax = 0x0; /* No error! */
 					}
 					break;
+				case 0x08:
+					res = fd32_get_block_dev_info(r->h.bl);
+					if (res >= 0) {
+						if (res&BLOCK_DEVICE_INFO_REMOVABLE)
+							r->x.ax = 0x0; /* removable */
+						else
+							r->x.ax = 0x1; /* fixed */
+					}
+					break;
 				case 0x09:
 					r->x.dx = 0;
 					res = 0;
 					break;
 				case 0x0D:
-				{
-					char *buf = (char *)mem_get(0x200);
+					buf = (char *)mem_get(0x200);
 					fd32_drive_read('A'+r->h.bl-1, buf, 0, 1);
 
 					if (r->x.cx == 0x0860) { /* disk drive */
@@ -1164,9 +1190,21 @@ void dos21_int(union rmregs *r)
 					mem_free((DWORD)buf, 0x200);
 					res = 0;
 					r->x.ax = 0x0; /* No error! */
-					fd32_log_printf("[DPMI] INT 21H AX=0x%x not completed!\n", r->x.ax);
 					break;
-				}
+				case 0x0E:
+					res = fd32_get_block_dev_info(r->h.bl);
+					if (res >= 0) {
+						if (res&BLOCK_DEVICE_INFO_TACTIVE ||
+							res&BLOCK_DEVICE_INFO_TLOGICAL ||
+							res&BLOCK_DEVICE_INFO_TPRIMARY)
+							r->x.ax = r->h.bl;
+						else
+							res = -ENOTBLK;
+					}
+					break;
+				case 0x11:
+					res = -0x4401; /* IOCTL capability not available */
+					break;
 				default:
 					fd32_log_printf("[DPMI] INT 21H AX=0x%x BX=0x%x CX=0x%x DX=0x%x\n", r->x.ax, r->x.bx, r->x.cx, r->x.dx);
 					res = -ENOSYS; /* Invalid subfunction */
@@ -1232,7 +1270,6 @@ void dos21_int(union rmregs *r)
 			break;
 		/* DOS 2+ - "EXEC" - Load and/or Execute program */
 		case 0x4B:
-			fd32_log_printf("GetModuleHandle %x\n", r->d.edx);
 			/* Only AL = 0x00 - Load and Execute - is currently supported */
 			if (r->h.al == 0) {
 				ExecParams *pb = (ExecParams *) FAR2ADDR(r->x.es, r->x.bx);
@@ -1249,6 +1286,7 @@ void dos21_int(union rmregs *r)
 				res = fix_path(fn, (const char *) FAR2ADDR(r->x.ds, r->x.dx), sizeof(fn));
 				LOG_PRINTF(("\t\"%s\"\n", fn));
 
+                if (args[0] == ' ') args ++; /* NOTE: Skip the space char */
 				if (res >= 0) res = dos_exec(fn, pb->Env, args, pb->Fcb1, pb->Fcb2, &dos_return_code);
 			} else if (r->h.al == 0x01) {
 			} else if (r->h.al == 0x03) {

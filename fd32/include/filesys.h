@@ -247,6 +247,7 @@ char fd32_drive_get_first(void);
 char fd32_drive_get_next(char Drive);
 void fd32_drive_set_parameter_block(char Drive, void *p);
 void *fd32_drive_get_parameter_block(char Drive);
+int fd32_get_block_dev_info(int DriveNum);
 
 /* FS.C - File system functions */
 int fd32_get_dev_info(int fd);

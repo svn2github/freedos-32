@@ -135,6 +135,7 @@ int fd32_start_process(process_info_t *ppi, process_params_t *pparams)
 #endif
   switch (ppi->type&0x00FF) {
     case NORMAL_PROCESS:
+      /* TODO: DLLs attach ...! Add a DLL list entry in the process_info_t */
       res = run(pparams->normal.entry, pparams->normal.fs_sel, (DWORD)/*args*/ppi);
       break;
     case DLL_PROCESS:

@@ -23,7 +23,7 @@
 
 /* #define __EXEC_DEBUG__ */
 
-DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, DWORD *ex_exec_space, DWORD *image_base, DWORD *ex_size)
+DWORD fd32_load_executable(struct kern_funcs *kf, int file, struct read_funcs *rf, executable_info_t *execinfo)
 {
   DWORD size;
   DWORD exec_space;
@@ -114,7 +114,7 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
   }
 
   /* The size of the execution space */
-  *ex_size = size;
+  execinfo->size = size;
 
   if (tables.flags & NO_ENTRY) {
     int init_sect;
@@ -138,8 +138,8 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 	      sections[init_sect].base, exec_space);
 #endif
       entry += sections[init_sect].base + exec_space;
-      *image_base = exec_space;
-      *ex_exec_space = 0;
+      execinfo->image_base = exec_space;
+      execinfo->exec_space = 0;
       rf->free_tables(kf, &tables, symbols, sections);
       return entry;
     } else {
@@ -148,8 +148,8 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
     }
   } else if (tables.flags & DLL_WITH_STDCALL) {
     entry += exec_space;
-    *image_base = exec_space;
-    *ex_exec_space = -1; /* Note: Just to notify the exec_process it"s DLL with STDCALL entry */
+    execinfo->image_base = exec_space;
+    execinfo->exec_space = -1; /* Note: Just to notify the exec_process it"s DLL with STDCALL entry */
     rf->free_tables(kf, &tables, symbols, sections);
 
     return entry;
@@ -160,8 +160,8 @@ DWORD fd32_load_process(struct kern_funcs *kf, int file, struct read_funcs *rf, 
 #ifdef __EXEC_DEBUG__
     fd32_log_printf("[EXEC] 1) Before calling 0x%lx ...\n", entry);
 #endif
-    *ex_exec_space = exec_space;
-    *image_base = tables.image_base;
+    execinfo->exec_space = exec_space;
+    execinfo->image_base = tables.image_base;
     rf->free_tables(kf, &tables, symbols, sections);
 
     return entry;
@@ -173,11 +173,15 @@ int fd32_exec_process(struct kern_funcs *kf, int file, struct read_funcs *rf, ch
 {
   process_info_t *ppi;
   process_params_t params;
-  int retval;
+  executable_info_t info;
   DWORD exec_space;
   DWORD offset;
+  int retval;
 
-  params.normal.entry = fd32_load_process(kf, file, rf, &exec_space, &params.normal.base, &params.normal.size);
+  params.normal.entry = fd32_load_executable(kf, file, rf, &info);
+  params.normal.base = info.image_base;
+  params.normal.size = info.size;
+  exec_space = info.exec_space;
 
   if (params.normal.entry == -1)
     return -1;

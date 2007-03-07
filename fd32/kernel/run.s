@@ -44,20 +44,15 @@ SYMBOL_NAME_LABEL(run)
 	movl 8(%esp), %eax
 	movw %ax, stubinfo_sel
 	movl 4(%esp), %eax
-/*	
-	movl $0, %eax
-	movw stubinfo_sel, %ax
-	ret
-*/
 	pusha
-        pushl %fs
+		pushl %fs
 	movl param, %ebx
 	pushl %ebx
 	movl %esp, SYMBOL_NAME(current_SP)
 	movw stubinfo_sel, %fs
 	call *%eax
 	popl %ebx
-        popl %fs
+		popl %fs
 	popa
 	movl retval, %eax
 	ret

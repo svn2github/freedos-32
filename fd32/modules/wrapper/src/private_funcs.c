@@ -58,21 +58,18 @@ int my_create_process(DWORD entry, DWORD base, DWORD size,
 int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, char *filename, char *args)
 {
   int retval;
-  DWORD size;
-  DWORD exec_space;
-  DWORD dyn_entry;
-  DWORD base;
-  int res;
+  DWORD entry;
+  executable_info_t info;
 
-  dyn_entry = fd32_load_process(p, file, parser, &exec_space, &base, &size);
+  entry = fd32_load_executable(p, file, parser, &info);
   fd32_kernel_close(file);
 
   fd32_log_printf("[Wrapper] Process Loaded\n");
-  if (dyn_entry == -1) {
+  if (entry == -1) {
     /* We failed... */
     return -1;
   }
-  if (exec_space == 0) {
+  if (info.exec_space == 0) {
     /* No entry point... We assume that we need dynamic linking */
     /* This is not supported by the wrapper!!! */
     message("Wrapper: Trying to load a dynamic executable???\n");
@@ -82,28 +79,22 @@ int my_exec_process(struct kern_funcs *p, int file, struct read_funcs *parser, c
   
 #ifdef __WRAP_DEBUG__
   fd32_log_printf("[Wrapper] DynEntry = 0x%lx ExecSpace = 0x%lx Base = 0x%lx\n",
-		  dyn_entry, exec_space, base);
+		  entry, info.exec_space, info.image_base);
 #endif
-  res = mem_get_region(exec_space + size, STACKSIZE);
-  if (res < 0) {
-    message("Cannot allocate 0x%lx, %d\n", exec_space + size, STACKSIZE);
+  retval = mem_get_region(info.exec_space + info.size, STACKSIZE);
+  if (retval < 0) {
+    message("Cannot allocate 0x%lx, %d\n", info.exec_space + info.size, STACKSIZE);
 
     return -1;
   }
   /* Note: use the real entry */
-  retval = my_create_process(dyn_entry, exec_space, size + STACKSIZE,
-		base + size + STACKSIZE, filename, args);
+  retval = my_create_process(entry, info.exec_space, info.size + STACKSIZE,
+		info.image_base + info.size + STACKSIZE, filename, args);
 #ifdef __WRAP_DEBUG__
   message("Returned: %d!!!\n", retval);
 #endif
-  mem_free(exec_space, size);
-  mem_free(exec_space + size, STACKSIZE);
-  /* Well... And this???
-  mem_free((DWORD)sections, sizeof(struct section_info));
-  if (symbols != NULL) {
-    mem_free((DWORD)symbols, symsize);
-  }
-  */
+  mem_free(info.exec_space, info.size);
+  mem_free(info.exec_space + info.size, STACKSIZE);
   
   return retval;
 }

@@ -72,6 +72,27 @@ static void _set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, WORD p
   strcpy(env_data + i + 4, filename);
 }
 
+struct threadinfo {
+  DWORD pvExcept;
+  DWORD pvStackUserTop; /* start stackpointer */
+  DWORD pvStackUserBase;
+  DWORD SubSystemTib;
+  DWORD FiberData;
+  DWORD pvArbitrary;
+  DWORD ptibSelf; /* Linear address of TIB structure */
+
+  DWORD unknown2;
+  DWORD processID;
+  DWORD threadID;
+  DWORD unknown3;
+
+  DWORD pvTLSArray;
+  DWORD pProcess;
+  DWORD staticload;
+
+  BYTE res[8]; /* adjust to make it 40h bytes in size */
+};
+
 /* NOTE: Move the structure here, Correct? */
 struct stubinfo {
   char magic[16];
@@ -321,7 +342,8 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   process_info_t *ppi;
   int retval;
   DWORD exec_mem;
-  DWORD size, exec_space, entry, base, user_stack;
+  DWORD entry, user_stack;
+  executable_info_t info;
   char current_drive[2];
   char current_path[FD32_LFNPMAX];
 
@@ -329,7 +351,7 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   kf->mem_alloc = wrapper_alloc;
   kf->mem_alloc_region = wrapper_alloc_region;
 
-  entry = fd32_load_process(kf, f, rf, &exec_space, &base, &size);
+  entry = fd32_load_executable(kf, f, rf, &info);
   if (entry == -1) {
     return -1;
   }
@@ -339,10 +361,10 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   ppi->_exit = wrap_restore_sp;
 
   /* Total memory allocated for wrapper execution */
-  exec_mem = exec_space-base;
-  size += base;
+  exec_mem = info.exec_space-info.image_base;
+  info.size += info.image_base;
   /* HACK: Make use of the space before image base */
-  user_stack = base;
+  user_stack = info.image_base;
 
   /* Inherit the current path from the previous process */
   current_drive[0] = fd32_get_default_drive();
@@ -350,12 +372,12 @@ static int wrapper_exec_process(struct kern_funcs *kf, int f, struct read_funcs 
   fd32_getcwd(current_drive, current_path);
   fd32_set_current_pi(ppi);
   fd32_chdir(current_path);
-  retval = wrapper_create_process(ppi, entry, exec_mem, size, user_stack, filename, args);
+  retval = wrapper_create_process(ppi, entry, exec_mem, info.size, user_stack, filename, args);
   /* Back to the previous process NOTE: TSR native programs? */
   fd32_stop_process(ppi);
   message("Returned: %d!!!\n", retval);
 
-  mem_free(exec_mem, size);
+  mem_free(exec_mem, info.size);
 
   return retval;
 }
@@ -367,12 +389,14 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
   process_info_t *ppi;
   process_params_t params;
   int retval;
-  DWORD exec_space;
   DWORD offset;
+  executable_info_t info;
 
-  params.normal.entry = fd32_load_process(kf, f, rf, &exec_space, &params.normal.base, &params.normal.size);
+  params.normal.entry = fd32_load_executable(kf, f, rf, &info);
+  params.normal.base = info.image_base;
+  params.normal.size = info.size;
 
-  if (params.normal.entry != -1 && exec_space != 0 && exec_space != -1) {
+  if (params.normal.entry != -1 && info.exec_space != 0 && info.exec_space != -1) {
   	ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
     ppi->type = NORMAL_PROCESS;
 #ifdef __DOS_EXEC_DEBUG__
@@ -380,9 +404,9 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #endif
     if ((retval = _go32_init(ppi, params.normal.size, filename, args, get_cs(), get_ds())) == -1)
       return -1;
-    offset = exec_space - params.normal.base;
+    offset = info.exec_space - params.normal.base;
     params.normal.entry += offset;
-    params.normal.base = exec_space;
+    params.normal.base = info.exec_space;
     params.normal.fs_sel = retval;
     retval = fd32_start_process(ppi, &params);
     /* Back to the previous process NOTE: TSR native programs? */
@@ -392,7 +416,7 @@ static int direct_exec_process(struct kern_funcs *kf, int f, struct read_funcs *
 #endif
     if (!(ppi->type&RESIDENT)) {
       _restore_psp();
-      mem_free(exec_space, params.normal.size);
+      mem_free(info.exec_space, params.normal.size);
     }
     return retval;
   } else {
@@ -482,6 +506,46 @@ static int vm86_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf
   return out.x.ax; /* Return value */
 }
 
+static int pei_exec_process(struct kern_funcs *kf, int f, struct read_funcs *rf,
+		char *filename, char *args)
+{
+  process_info_t *ppi;
+  process_params_t params;
+  executable_info_t info;
+  int retval = -1;
+  DWORD offset;
+
+  params.normal.entry = fd32_load_executable(kf, f, rf, &info);
+  params.normal.base = info.image_base;
+  params.normal.size = info.size;
+
+  if (params.normal.entry != -1) {
+    ppi = fd32_new_process(filename, args, MAX_OPEN_FILES);
+    if (info.exec_space == 0) { /* Normal PEI */
+      struct threadinfo *tib = (struct threadinfo *)mem_get(sizeof(struct threadinfo));
+      ppi->type = NORMAL_PROCESS;
+      offset = info.exec_space - params.normal.base;
+      params.normal.entry += offset;
+      params.normal.base = info.exec_space;
+      params.normal.fs_sel = fd32_allocate_descriptors(1);
+      fd32_set_segment_base_address(params.normal.fs_sel, (DWORD)tib);
+      fd32_set_segment_limit(params.normal.fs_sel, sizeof(struct stubinfo));
+      tib->ptibSelf = (DWORD)tib;
+    } else { /* DLL PEI */
+      ppi->type = DLL_PROCESS|RESIDENT;
+      info.exec_space = params.normal.base;
+    }
+fd32_log_printf("%x\n", fd32_start_process);
+    retval = fd32_start_process(ppi, &params);
+    if (!(ppi->type&RESIDENT))
+      mem_free(info.exec_space, params.normal.size);
+    /* Back to the previous process */
+    fd32_stop_process(ppi);
+  }
+
+  return retval;
+}
+
 /* MZ format handling for VM86 */
 static int isMZ(struct kern_funcs *kf, int f, struct read_funcs *rf)
 {
@@ -518,6 +582,8 @@ int dos_exec_switch(int option)
     env_data[7] = 0;
     *((WORD *)(env_data+8)) = 1; /* Count of the env-strings */
   }
+
+  fd32_set_binfmt("pei", NULL, pei_exec_process);
 
   switch(option)
   {
@@ -597,8 +663,6 @@ int dos_exec(char *filename, DWORD env_segment, char *args,
       g_env_segment = env_segment;
       g_fcb1 = fcb1;
       g_fcb2 = fcb2;
-      /* NOTE: args[0] is the space */
-      if (args != NULL) args++;
       *return_val = binfmt[i].exec(&kf, (int)(&f), &rf, filename, args);
       break;
     }

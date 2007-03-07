@@ -274,6 +274,7 @@ static struct symbol syscall_table[] = {
   { "fd32_drive_get_next",  fd32_drive_get_next },
   { "fd32_drive_set_parameter_block",  fd32_drive_set_parameter_block },
   { "fd32_drive_get_parameter_block",  fd32_drive_get_parameter_block },
+  { "fd32_get_block_dev_info", fd32_get_block_dev_info },
   /* in unicode module: Symbols for Unicode support (from unicode.h) */
   /* in nls module: Symbols for NLS support (from nls.h) */
   /* TODO: Remove the following from the kernel */
@@ -287,8 +288,8 @@ static struct symbol syscall_table[] = {
   /* Symbols for Exec and Process */
   { "fd32_get_binfmt",     fd32_get_binfmt },
   { "fd32_set_binfmt",     fd32_set_binfmt },
+  { "fd32_load_executable",fd32_load_executable },
   { "fd32_exec_process",   fd32_exec_process },
-  { "fd32_load_process",   fd32_load_process },
   { "fd32_start_process",  fd32_start_process },
   { "fd32_stop_process",   fd32_stop_process },
   { "fd32_new_process",    fd32_new_process },
@@ -520,7 +521,7 @@ struct dll_table *get_dll_table(char *dll_name)
   /* Get the binary format object table, ending with NULL name */
   binfmt = fd32_get_binfmt();
   
-  /* Load different modules in various binary format */
+  /* Load the shared/dynamic-linking module */
   for (i = 0; binfmt[i].name != NULL; i++)
   {
     if (binfmt[i].check(&kf, (int)(&f), &rf)) {
@@ -528,7 +529,6 @@ struct dll_table *get_dll_table(char *dll_name)
       break;
     }
   }
-  /* TODO: load the DLL, add the DLL table */
 
   /* Search for the DLL again */
   for (p = &dll_int_list; p != NULL; q = p, p = p->next) {

@@ -51,6 +51,7 @@ typedef struct Drive
 	fd32_request_t *req;
 	void *handle;
 	void *dos_dpb; /* at Dos-memory */
+	int dev_info;
 }
 Drive;
 
@@ -93,6 +94,9 @@ static int dynamic_assign(unsigned type, int d)
 		for (res = 0; res < DRIVE_MAX_NUM; res++)
 			if (drives[res].handle == handle) break;
 		if (res != DRIVE_MAX_NUM) continue;
+
+		/* Set the block device info */
+		drives[res].dev_info = bdi.flags;
 		/* If the block device type is not what we are searching we skip it */
 		if ((bdi.flags & BLOCK_DEVICE_INFO_TYPEMASK) != type) continue;
 		/* If no file system driver can handle such a partition we skip it */
@@ -282,6 +286,15 @@ int fd32_add_fs(fd32_request_t *request)
 void fd32_set_boot_device(DWORD MultiBootId)
 {
   BootDevice = MultiBootId;
+}
+
+
+int fd32_get_block_dev_info(int DriveNum)
+{
+  if (DriveNum < DRIVE_MAX_NUM)
+    return drives[DriveNum].dev_info;
+  else
+    return -EINVAL;
 }
 
 
