@@ -27,18 +27,6 @@ void int2f_int(union rmregs *r)
 			r->x.bx = 0; /* number of CD-ROM drive letters used */
 			/* r->x.cx = 0; starting drive letter (0=A:) */
 			break;
-		/* CD-ROM v2.00+ - Drive check */
-		case 0x150B:
-			/* None */
-			break;
-		/* MS Windows - Windows enhanced mode installation check */
-		case 0x1600:
-			/* None */
-			break;
-		/* MS Windows 3.1 - Identify windows version and type */
-		case 0x160A:
-			/* None */
-			break;
 		/* MS Windows, DPMI, various - Release current virtual machine time-slice */
 		case 0x1680:
 			dosidle_int(r); /* TODO: support multitasking here? */
@@ -51,20 +39,12 @@ void int2f_int(union rmregs *r)
 				fd32_log_printf("[DPMI] Windows get title ...\n");
 			r->x.ax = 0x0000; /* failed now */
 			break;
-		/* MS Windows WINOLDAP - Identify WinOldAp version */
-		case 0x1700:
-			/* None */
-			break;
-		/* OS/2 v2.0+ - Installation check / Get version */
-		case 0x4010:
-			/* None */
-			break;
 		/* Extended memory specification (XMS) v2+ - Installation check */
 		case 0x4300:
 			/* None */
 			break;
 		default:
-			message("[DPMI] Unsupported INT 0x2F EAX: 0x%lx\n", r->d.eax);
+			fd32_log_printf("[DPMI] Unsupported INT 0x2F EAX: 0x%lx\n", r->d.eax);
 			break;
 	}
 }
