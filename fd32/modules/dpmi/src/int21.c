@@ -1016,6 +1016,13 @@ void dos21_int(union rmregs *r)
 					break;
 			}
 			break;
+		/* DOS 2+ - Get address of indos flag */
+		case 0x34:
+			r->x.es = ((DWORD)&curpsp->indos_flag)>>4;
+			r->x.bx = ((DWORD)&curpsp->indos_flag)&0x0F;
+			res = 0;
+			break;
+		/* DOS 2+ - Get interrupt vector */
 		case 0x35:
 			res = fd32_get_real_mode_int(r->h.al, &(r->x.es), &(r->x.bx));
 			LOG_PRINTF(("[DPMI] Get Int %x: %x %x\n", r->h.al, r->x.es, r->x.bx));

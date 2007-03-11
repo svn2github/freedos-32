@@ -62,6 +62,7 @@ static void _set_psp(process_info_t *ppi, struct psp *ppsp, WORD ps_size, WORD p
 
   ppsp->ps_environ = env_sel;
   ppsp->stubinfo_sel = stubinfo_sel;
+  ppsp->indos_flag = 0; /* Allow reentrance */
   ppsp->dta = &ppsp->command_line_len;
   /* And now... Set the arg list!!! */
   _set_psp_commandline(ppsp, args);

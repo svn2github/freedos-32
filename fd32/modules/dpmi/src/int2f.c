@@ -44,7 +44,7 @@ void int2f_int(union rmregs *r)
 			/* None */
 			break;
 		default:
-			fd32_log_printf("[DPMI] Unsupported INT 0x2F EAX: 0x%lx\n", r->d.eax);
+			fd32_log_printf("[DPMI] Unsupported INT 2FH EAX: 0x%lx\n", r->d.eax);
 			break;
 	}
 }
