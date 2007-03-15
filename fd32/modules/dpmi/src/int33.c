@@ -194,11 +194,9 @@ int mousebios_int(union rmregs *r)
 			r->x.bx = buttons&0x07;
 			r->x.cx = text_x*8;
 			r->x.dx = text_y*8;
-			if(r->x.bx != 0)
-			fd32_log_printf("[MOUSE BIOS] Button clicked, cx: %x\tdx: %x\tbx: %x\n", r->x.cx, r->x.dx, r->x.bx);
 #ifdef __INT33_DEBUG__
 			if(r->x.bx != 0)
-				fd32_log_printf("[MOUSE BIOS] Button clicked, cx: %x\tdx: %x\tbx: %x\n", r->x.cx, r->x.dx, r->x.bx);
+				LOG_PRINTF("[MOUSE BIOS] Button clicked, cx: %x\tdx: %x\tbx: %x\n", r->x.cx, r->x.dx, r->x.bx);
 #endif
 			break;
 		/* MS MOUSE v1.0+ - POSITION MOUSE CURSOR */
@@ -243,7 +241,7 @@ int mousebios_int(union rmregs *r)
 			break;
 		/* MS MOUSE v1.0+ - DEFINE INTERRUPT SUBROUTINE PARAMETERS */
 		case 0x000C:
-			fd32_log_printf("DEFINE INTERRUPT SUBROUTINE PARAMETERS: %x\n", r->x.cx);
+			LOG_PRINTF("DEFINE INTERRUPT SUBROUTINE PARAMETERS: %x\n", r->x.cx);
 			subroutine.cs = r->x.es;
 			subroutine.ip = r->x.dx;
 			subroutine.call_mask = r->x.cx;
