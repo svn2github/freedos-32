@@ -35,7 +35,7 @@ DWORD fd32_load_executable(struct kern_funcs *kf, int file, struct read_funcs *r
 
   /* Initialize the table info */
   tables.section_names_size = 0;
-  tables.global_data_size = 0;
+  tables.local_bss_size = 0;
   tables.private_info = 0;
 
   entry = rf->read_headers(kf, file, &tables);

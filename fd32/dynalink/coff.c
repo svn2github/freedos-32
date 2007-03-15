@@ -290,8 +290,8 @@ static int COFF_read_symbols(struct kern_funcs *kf, int f, struct table_info *ta
         } else {
           /* common symbol */
           syms[i].section = COMMON_SYMBOL;
-          /* calculate the global_data_size */
-          tables->global_data_size += syms[i].offset;
+          /* calculate the local_bss_size */
+          tables->local_bss_size += syms[i].offset;
         }
         break;
       case 0xFFFF:

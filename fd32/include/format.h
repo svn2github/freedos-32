@@ -67,8 +67,8 @@ struct table_info {
   
   DWORD image_base;
   
-  DWORD global_data;
-  DWORD global_data_size;
+  DWORD local_bss;
+  DWORD local_bss_size;
   /* In PEI, it's a pei extra info */
   DWORD private_info;
 };

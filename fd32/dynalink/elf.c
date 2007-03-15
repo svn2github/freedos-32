@@ -347,8 +347,8 @@ static int ELF_read_symbols(struct kern_funcs *kf, int f, struct table_info *tab
       /* extern symbol */
       syms[i].section = COMMON_SYMBOL;
       syms[i].offset = symbol.st_size;
-      /* calculate the global_data_size */
-      tables->global_data_size += syms[i].offset;
+      /* calculate the local_bss_size */
+      tables->local_bss_size += syms[i].offset;
     }
   }
   
