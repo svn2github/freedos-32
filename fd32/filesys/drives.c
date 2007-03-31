@@ -95,8 +95,6 @@ static int dynamic_assign(unsigned type, int d)
 			if (drives[res].handle == handle) break;
 		if (res != DRIVE_MAX_NUM) continue;
 
-		/* Set the block device info */
-		drives[res].dev_info = bdi.flags;
 		/* If the block device type is not what we are searching we skip it */
 		if ((bdi.flags & BLOCK_DEVICE_INFO_TYPEMASK) != type) continue;
 		/* If no file system driver can handle such a partition we skip it */
@@ -117,6 +115,9 @@ static int dynamic_assign(unsigned type, int d)
 		drives[d].req = NULL;
 		drives[d].handle = NULL;
 		drives[d].dos_dpb = NULL;
+		/* Set the block device info */
+		drives[d].dev_info = bdi.flags;
+
 		message("FS Layer: '%c' drive assigned to device '%s'\n", d + 'A', name);
 		/* Set the default drive to this drive if boot device is known,
 		 * otherwise set the default drive to the first drive detected. */
