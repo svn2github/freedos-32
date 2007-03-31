@@ -1199,15 +1199,8 @@ void dos21_int(union rmregs *r)
 					r->x.ax = 0x0; /* No error! */
 					break;
 				case 0x0E:
-					res = fd32_get_block_dev_info(r->h.bl);
-					if (res >= 0) {
-						if (res&BLOCK_DEVICE_INFO_TACTIVE ||
-							res&BLOCK_DEVICE_INFO_TLOGICAL ||
-							res&BLOCK_DEVICE_INFO_TPRIMARY)
-							r->x.ax = r->h.bl;
-						else
-							res = -ENOTBLK;
-					}
+					res = 0;
+					r->h.al = 0; /* No support for drive mapping */
 					break;
 				case 0x11:
 					res = -0x4401; /* IOCTL capability not available */
