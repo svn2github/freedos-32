@@ -47,6 +47,7 @@ static volatile int text_x = 0, text_y = 0, x, y, text_cell_w = 8, text_cell_h =
 static volatile WORD buttons;
 /* text mode cursor and mask */
 static WORD save = 0, scrmask = 0x77ff, curmask = 0x7700;
+static int cursor_visible = 0;
 /* interrupt subroutine */
 static fd32_mouse_subroutine_t subroutine;
 #define CALLMASK_MOUSE_MOVE			0x01
@@ -80,12 +81,15 @@ static void pos(int posx, int posy)
 	/* Save the previous character */
 	save = (*screen)[text_y][text_x];
 	/* Display the cursor */
-	(*screen)[text_y][text_x] &= scrmask;
-	(*screen)[text_y][text_x] ^= curmask;
+	if (cursor_visible) {
+		(*screen)[text_y][text_x] &= scrmask;
+		(*screen)[text_y][text_x] ^= curmask;
+	}
 }
 
 static void cb(const fd32_mousedata_t *data)
 {
+	static WORD pre_buttons = 0;
 	buttons = data->buttons;
 	x += data->axes[MOUSE_X];
 	y -= data->axes[MOUSE_Y];
@@ -102,20 +106,21 @@ static void cb(const fd32_mousedata_t *data)
 
 	if (subroutine.call_mask) {
 		int call_mask = 0;
-		if (data->axes[MOUSE_X] && data->axes[MOUSE_Y])
+		if (data->axes[MOUSE_X] || data->axes[MOUSE_Y])
 			call_mask |= CALLMASK_MOUSE_MOVE;
-		if (data->buttons&MOUSE_LBUT)
+		if (buttons&MOUSE_LBUT)
 			call_mask |= CALLMASK_LBUTTON_PRESSED;
-		else
+		else if (pre_buttons&MOUSE_LBUT)
 			call_mask |= CALLMASK_LBUTTON_RELEASED;
-		if (data->buttons&MOUSE_RBUT)
+		if (buttons&MOUSE_RBUT)
 			call_mask |= CALLMASK_RBUTTON_PRESSED;
-		else
+		else if (pre_buttons&MOUSE_RBUT)
 			call_mask |= CALLMASK_RBUTTON_RELEASED;
-		if (data->buttons&MOUSE_MBUT)
+		if (buttons&MOUSE_MBUT)
 			call_mask |= CALLMASK_MBUTTON_PRESSED;
-		else
+		else if (pre_buttons&MOUSE_MBUT)
 			call_mask |= CALLMASK_MBUTTON_RELEASED;
+		pre_buttons = buttons;
 
 		if (subroutine.call_mask&call_mask)
 		{
@@ -125,8 +130,8 @@ static void cb(const fd32_mousedata_t *data)
 			s.ds = 0;
 			s.es = 0;
 			s.ss = 0;
-			in.x.ax = subroutine.call_mask;
-			in.x.bx = buttons;
+			in.x.ax = call_mask;
+			in.x.bx = buttons&(MOUSE_LBUT|MOUSE_RBUT|MOUSE_MBUT);
 			in.x.cx = text_x*8;
 			in.x.dx = text_y*8;
 			in.x.si = 0;
@@ -178,6 +183,7 @@ int mousebios_int(union rmregs *r)
 #ifdef __INT33_DEBUG__
 			LOG_PRINTF("Show Mouse cursor\n");
 #endif
+			cursor_visible = 1;
 			save = (*screen)[text_y][text_x];
 			(*screen)[text_y][text_x] &= scrmask;
 			(*screen)[text_y][text_x] ^= curmask;
@@ -187,6 +193,7 @@ int mousebios_int(union rmregs *r)
 #ifdef __INT33_DEBUG__
 			LOG_PRINTF("Hide mouse cursor\n");
 #endif
+			cursor_visible = 0;
 			(*screen)[text_y][text_x] = save;
 			break;
 		/* MS MOUSE v1.0+ - RETURN POSITION AND BUTTON STATUS */
