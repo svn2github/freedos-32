@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <devices.h>
 #include <mouse.h>
+#include <timer.h>
 #include "psmouse.h"
 
 
@@ -70,8 +71,7 @@ typedef union psmouse_info
 
 static fd32_request_t request;
 static psmouse_info_t info;
-static fd32_mousecallback_t *callback;   /* The user-defined callback    */
-static volatile int tmp;
+static fd32_mousecallback_t *callback;   /* The user-defined callback */
 
 
 static int request(DWORD function, void *params)
@@ -119,18 +119,39 @@ static void psmouse_handler(int n)
 }
 
 
-/* The temporary wait only for initialization */
-static void tmp_wait(void)
-{
-  psctrl_status_t status;
+/*
+ * The i8042_wait_read() and i8042_wait_write functions wait for the i8042 to
+ * be ready for reading values from it / writing values to it.
+ * Called always with i8042_lock held.
+ */
+#define I8042_CTL_TIMEOUT	10000
 
-  for(status.data = fd32_inb(0x64); status.data&0x03; status.data = fd32_inb(0x64))
-  {
-    if(status.s.outbuf_full) {
-      tmp = fd32_inb(0x60);
-      fd32_log_printf("[PSMOUSE] Retrieve mouse outbuf data ... %x\n", tmp);
-    }
-  }
+static int i8042_wait_read(void)
+{
+	int i = 0;
+	psctrl_status_t status;
+
+	status.data = fd32_inb(0x64);
+	while (!status.s.outbuf_full && (i < I8042_CTL_TIMEOUT)) {
+		timer_delay(50);
+		status.data = fd32_inb(0x64);
+		i++;
+	}
+	return -(i == I8042_CTL_TIMEOUT);
+}
+
+static int i8042_wait_write(void)
+{
+	int i = 0;
+	psctrl_status_t status;
+
+	status.data = fd32_inb(0x64);
+	while (status.s.inbuf_full && (i < I8042_CTL_TIMEOUT)) {
+		timer_delay(50);
+		status.data = fd32_inb(0x64);
+		i++;
+	}
+	return -(i == I8042_CTL_TIMEOUT);
 }
 
 
@@ -157,9 +178,9 @@ static void tmp_handler(int n)
     case 0xFA:
       if (psmouse_init_seq[stage].cmd != 0)
       {
-        tmp_wait();
+        i8042_wait_write();
         fd32_outb(0x64, psmouse_init_seq[stage].cmd);
-        tmp_wait();
+        i8042_wait_write();
         fd32_outb(0x60, psmouse_init_seq[stage].data);
       } else if (psmouse_init_seq[stage].data == 0) {
         /* Set the real interrupt handler in the end */
@@ -191,42 +212,41 @@ void psmouse_init(void)
   /* TODO: Check if the PS/2 port exists */
 
   fd32_message("Start PS/2 mouse initialization ...\n");
-  /* TODO: Save the old handler for recovery */
-  fd32_irq_bind(PS2MOUSE_IRQ, tmp_handler);
 
   /* Enable mouse interface */
-  tmp_wait();
+  i8042_wait_write();
   fd32_outb(0x64, CMD_ENABLE_MOUSE);
-
   /* Turn on mouse interrupt */
-  tmp_wait();
+  i8042_wait_write();
   fd32_outb(0x64, CMD_WRITE_MODE);
-  tmp_wait();
+  i8042_wait_write();
   fd32_outb(0x60, MOUSE_INTERRUPTS_ON);
 #ifdef __PSMOUSE_DEBUG__
-  tmp_wait();
+  i8042_wait_write();
   fd32_outb(0x64, CMD_READ_MODE);
-  tmp_wait();
+  i8042_wait_read();
+  volatile int tmp = fd32_inb(0x60);
   fd32_log_printf("[PSMOUSE] PS/2 CTRL mode is: %x\n", tmp);
 #endif
 
-  /* Detect PS/2 mouse */
+  /* TODO: Save the old handler for recovery */
+  fd32_irq_bind(PS2MOUSE_IRQ, tmp_handler);
+
+  /* TODO: Detect PS/2 mouse and check PS/2 mouse attached or not */
+  /* fd32_message("[PSMOUSE] Could not find a PS/2 mouse!\n"); */
+
+  i8042_wait_write();
   fd32_outb(0x64, CMD_WRITE_MOUSE);
-  tmp_wait();
 
-  /* Check PS/2 mouse attached or not */
-  if (tmp != 0xFE) {
-    /* Reset defaults and disable mouse data reporting */
-    fd32_outb(0x60, (BYTE)PSMOUSE_CMD_RESET_DIS);
+  /* Reset defaults and disable mouse data reporting */
+  i8042_wait_write();
+  fd32_outb(0x60, (BYTE)PSMOUSE_CMD_RESET_DIS);
 
-    /* Triger the start phase through a temporary handler then wait for ready */
-    WFC (stage != 0xFFFFFFFF);
+  /* Triger the start phase through a temporary handler then wait for ready */
+  WFC (stage != 0xFFFFFFFF);
 
-    if (fd32_dev_register(request, 0, "mouse") < 0)
-      fd32_message("[PSMOUSE] Could not register the mouse device\n");
+  if (fd32_dev_register(request, 0, "mouse") < 0)
+    fd32_message("[PSMOUSE] Could not register the mouse device\n");
 
-    fd32_message("PS/2 mouse initialized!\n");
-  } else {
-    fd32_message("[PSMOUSE] Could not find a PS/2 mouse!\n");
-  }
+  fd32_message("PS/2 mouse initialized!\n");
 }
